@@ -86,6 +86,12 @@ public:
 //  static const bool hlt_works_ok = false;
   static bool hlt_works_ok;
 
+#ifdef CONFIG_USER_SINGLE_STEP
+  static const bool user_single_step = true;
+#else
+  static const bool user_single_step = false;
+#endif
+
   // the default uart to use for serial console
   static const unsigned default_console_uart = 1;
   static const unsigned default_console_uart_baudrate = 115200;
