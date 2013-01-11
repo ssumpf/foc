@@ -315,6 +315,10 @@ extern "C" {
             if (handle_copro_fault[copro](opcode, ts))
               return;
           }
+
+        /* check for ARM default GDB breakpoint */
+        if (!(ts->psr & Proc::Status_thumb) && opcode == 0xe7ffdefe)
+          ts->pc -= 4;
       }
 
 undef_insn:
