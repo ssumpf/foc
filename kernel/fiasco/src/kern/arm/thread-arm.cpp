@@ -618,6 +618,10 @@ Thread::condition_valid(Unsigned32 insn, Unsigned32 psr)
   return (v[insn >> 28] >> (psr >> 28)) & 1;
 }
 
+IMPLEMENT inline
+void Thread::user_single_step(bool)
+{}
+
 // ------------------------------------------------------------------------
 IMPLEMENTATION [arm && armv6plus]:
 

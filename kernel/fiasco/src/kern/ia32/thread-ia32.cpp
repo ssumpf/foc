@@ -191,6 +191,10 @@ Thread::handle_slow_trap(Trap_state *ts)
       goto generic_debug;
     }
 
+  if (Config::user_single_step && ts->_trapno == 1 && from_user)
+    if (send_exception(ts))
+      goto success;
+
   if (from_user && _space.user_mode())
     {
       if (ts->_trapno == 14 && Kmem::is_io_bitmap_page_fault(ts->_cr2))
@@ -431,7 +435,8 @@ Thread::send_exception_arch(Trap_state *ts)
   // thread (not alien) and it's a debug trap,
   // debug traps for aliens are always reflected as exception IPCs
   if (!(state() & Thread_alien)
-      && (ts->_trapno == 1 || ts->_trapno == 3))
+      && ((ts->_trapno == 1 && !Config::user_single_step)
+      ||   ts->_trapno == 3))
     return 0; // we do not handle this
 
   if (ts->_trapno == 3)
@@ -502,6 +507,11 @@ Thread::user_ip(Mword ip)
       r->ip(ip);
     }
 }
+
+IMPLEMENT inline
+void
+Thread::user_single_step(bool)
+{}
 
 //----------------------------------------------------------------------------
 IMPLEMENTATION [(ia32,amd64,ux) && !io]:
@@ -855,3 +865,16 @@ PRIVATE static inline
 int
 Thread::call_nested_trap_handler(Trap_state *)
 { return -1; }
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [ia32]:
+
+IMPLEMENT inline
+void
+Thread::user_single_step(bool enable)
+{
+  if (!Config::user_single_step)
+    return;
+
+  regs()->flags(enable ? user_flags() | EFLAGS_TF : user_flags() & ~EFLAGS_TF);
+}

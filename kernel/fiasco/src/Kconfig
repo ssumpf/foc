@@ -730,6 +730,14 @@ config POWERSAVE_GETCHAR
 	  prevent some P4 processors from being overheated. This option
 	  requires a working timer IRQ to wakeup getchar periodically.
 
+config USER_SINGLE_STEP
+	bool "Enable user level single stepping support"
+	depends on IA32
+	default n
+	help
+	  This option enables single stepping of user level applications outside of
+	  JDB.
+
 choice
 	prompt "Warn levels"
 	default WARN_WARNING
