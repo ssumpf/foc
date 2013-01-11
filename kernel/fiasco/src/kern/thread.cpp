@@ -73,6 +73,7 @@ public:
   {
     Exr_cancel            = 0x10000,
     Exr_trigger_exception = 0x20000,
+    Exr_single_step       = 0x40000,
   };
 
   enum Vcpu_ctl_flags
@@ -139,6 +140,8 @@ public:
   inline void user_sp(Mword);
 
   inline Mword user_flags() const;
+
+  inline void user_single_step(bool);
 
   /** nesting level in debugger (always critical) if >1 */
   static Per_cpu<unsigned long> nested_trap_recover;

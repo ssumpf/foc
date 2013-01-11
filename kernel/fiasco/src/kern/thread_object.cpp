@@ -527,6 +527,8 @@ Thread_object::ex_regs(Address ip, Address sp,
   if (o_ip) *o_ip = user_ip();
   if (o_flags) *o_flags = user_flags();
 
+  (ops & Exr_single_step) ? user_single_step(true) : user_single_step(false);
+
   // Changing the run state is only possible when the thread is not in
   // an exception.
   if (!(ops & Exr_cancel) && (state() & Thread_in_exception))
