@@ -25,6 +25,13 @@ config PF_IMX_51
 	help
 	  Choose for i.MX51
 
+config PF_IMX_53
+	bool "i.MX53"
+	depends on PF_IMX
+	select CAN_ARM_CPU_CORTEX_A8
+	help
+	  Choose for i.MX53
+
 endchoice
 
 config PF_IMX_RAM_PHYS_BASE
@@ -32,3 +39,4 @@ config PF_IMX_RAM_PHYS_BASE
 	default 0xc0000000 if PF_IMX_21
 	default 0x80000000 if PF_IMX_35
 	default 0x90000000 if PF_IMX_51
+	default 0x70000000 if PF_IMX_53

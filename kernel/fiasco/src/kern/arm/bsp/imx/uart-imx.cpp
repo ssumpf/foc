@@ -25,7 +25,7 @@ IMPLEMENT L4::Uart *Uart::uart()
   return &uart;
 }
 
-IMPLEMENTATION [imx51]:
+IMPLEMENTATION [imx51 || imx53]:
 
 #include "uart_imx.h"
 
@@ -37,7 +37,7 @@ IMPLEMENT L4::Uart *Uart::uart()
   return &uart;
 }
 
-IMPLEMENTATION [imx21 || imx35 || imx51]:
+IMPLEMENTATION [imx21 || imx35 || imx51 || imx53]:
 
 #include "mem_layout.h"
 

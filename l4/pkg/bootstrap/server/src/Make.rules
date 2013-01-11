@@ -75,6 +75,7 @@ SUPPORT_CC_arm-tegra2      := platform/tegra2.cc
 SUPPORT_CC_arm-imx21       := platform/imx.cc
 SUPPORT_CC_arm-imx35       := platform/imx.cc
 SUPPORT_CC_arm-imx51       := platform/imx.cc
+SUPPORT_CC_arm-imx53       := platform/imx.cc
 SUPPORT_CC_arm-om          := platform/om.cc
 SUPPORT_CC_arm-kirkwood    := platform/kirkwood.cc
 DEFAULT_RELOC_arm-imx21    := 0x00200000  # because of blob

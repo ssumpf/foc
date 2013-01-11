@@ -90,3 +90,29 @@ public:
     Gic_dist_phys_base   = 0xe0000000,
   };
 };
+
+
+INTERFACE [arm && imx && imx53]: // ---------------------------------------
+
+EXTENSION class Mem_layout
+{
+public:
+  enum Virt_layout_imx53 {
+    Timer_map_base       = 0xef1ac000,
+    Uart_map_base        = 0xef1bc000,
+    Watchdog_map_base    = 0xef198000,
+    Gic_cpu_map_base     = 0,
+    Gic_dist_map_base    = 0xef2fc000,
+    Uart_base            = Uart_map_base,
+  };
+
+  enum Phys_layout_imx53 {
+    Device_phys_base_1   = 0x53f00000,
+    Device_phys_base_2   = 0x0ff00000,
+
+    Watchdog_phys_base   = 0x53f98000, // wdog1
+    Timer_phys_base      = 0x53fac000, // epit1
+    Uart_phys_base       = 0x53fbc000, // uart1
+    Gic_dist_phys_base   = 0x0fffc000,
+  };
+};

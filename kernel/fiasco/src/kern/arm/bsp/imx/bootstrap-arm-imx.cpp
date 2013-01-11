@@ -25,7 +25,7 @@ map_hw(void *pd)
 }
 
 //-----------------------------------------------------------------------------
-IMPLEMENTATION [arm && imx51]:
+IMPLEMENTATION [arm && (imx51 || imx53)]:
 void
 map_hw(void *pd)
 {

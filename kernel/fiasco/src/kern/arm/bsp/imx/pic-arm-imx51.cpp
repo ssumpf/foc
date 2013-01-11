@@ -1,9 +1,9 @@
-INTERFACE [arm && pic_gic && imx51]:
+INTERFACE [arm && pic_gic && (imx51 || imx53)]:
 
 #include "gic.h"
 
 // ------------------------------------------------------------------------
-IMPLEMENTATION [arm && pic_gic && imx51]:
+IMPLEMENTATION [arm && pic_gic && (imx51 || imx53)]:
 
 #include "irq_mgr_multi_chip.h"
 #include "kmem.h"

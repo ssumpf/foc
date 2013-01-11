@@ -9,3 +9,7 @@ INTERFACE [arm && imx35]:
 INTERFACE [arm && imx51]:
 
 #define TARGET_NAME "i.MX51"
+
+INTERFACE [arm && imx53]:
+
+#define TARGET_NAME "i.MX53"

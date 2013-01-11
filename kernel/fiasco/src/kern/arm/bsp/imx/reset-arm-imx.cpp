@@ -25,7 +25,7 @@ platform_reset(void)
 }
 
 // ------------------------------------------------------------------------
-IMPLEMENTATION [arm && (imx35 || imx51)]:
+IMPLEMENTATION [arm && (imx35 || imx51 || imx53)]:
 
 #include "io.h"
 #include "kmem.h"
