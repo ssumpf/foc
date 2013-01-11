@@ -419,7 +419,7 @@ Thread::user_ip() const
 IMPLEMENT inline
 Mword
 Thread::user_flags() const
-{ return 0; }
+{ return state() & Thread_ready; }
 
 IMPLEMENT inline NEEDS[Thread::exception_triggered]
 void

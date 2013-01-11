@@ -92,7 +92,10 @@ Thread::user_ip() const
 IMPLEMENT inline
 Mword
 Thread::user_flags() const
-{ return regs()->flags(); }
+{
+    // pass thread-ready state in carry flag (Thread_ready is bit 0)
+    return (regs()->flags() & ~Thread_ready) | (state() & Thread_ready);
+}
 
 /** Check if the pagefault occured at a special place: At some places in the
     kernel we want to ensure that a specific address is mapped. The regular
