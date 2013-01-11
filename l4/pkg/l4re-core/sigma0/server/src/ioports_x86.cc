@@ -39,8 +39,9 @@ void handle_io_page_fault(l4_umword_t t, l4_utcb_t *utcb, Answer *a)
   size = l4_fpage_size(fp) + PORT_SHIFT;
 
   unsigned long i = io_ports.alloc(Region::bs(port, 1UL << size, t));
-  if (i == port)
+  if (i == port) {
     a->snd_fpage(l4_iofpage(port >> PORT_SHIFT, size - PORT_SHIFT));
-  else
+    a->tag = l4_msgtag(0, 0, 1, 0);
+  } else
     a->error(L4_ENOMEM);
 }
