@@ -1,0 +1,37 @@
+# PF: OMAP
+# PFDESCR: TI OMAP
+# PFDEPENDS: ARM
+
+choice
+	prompt "OMAP Platform"
+	default PF_OMAP3_EVM
+
+config PF_OMAP3_OMAP35XEVM
+	bool "TI OMAP35xEVM"
+	depends on PF_OMAP
+	select CAN_ARM_CPU_CORTEX_A8
+	help
+	  Choose for OMAP35xEVM platform.
+
+config PF_OMAP3_BEAGLEBOARD
+	bool "Beagle Board"
+	depends on PF_OMAP
+	select CAN_ARM_CPU_CORTEX_A8
+	help
+	  Choose for Beagleboard.
+
+config PF_OMAP3_AM33XX
+	bool "TI AM33xx"
+	depends on PF_OMAP
+	select CAN_ARM_CPU_CORTEX_A8
+	help
+	  Choose for AM33xx platforms (e.g. Beaglebone).
+
+config PF_OMAP4_PANDABOARD
+	bool "Pandaboard"
+	depends on PF_OMAP
+	select CAN_ARM_CPU_CORTEX_A9
+	help
+	  Choose for Pandaboard.
+
+endchoice

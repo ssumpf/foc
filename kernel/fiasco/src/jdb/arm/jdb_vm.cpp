@@ -1,0 +1,67 @@
+IMPLEMENTATION [tz]:
+
+#include <climits>
+#include <cstring>
+#include <cstdio>
+
+#include "jdb.h"
+#include "jdb_core.h"
+#include "jdb_module.h"
+#include "jdb_screen.h"
+#include "jdb_kobject.h"
+#include "kernel_console.h"
+#include "keycodes.h"
+#include "simpleio.h"
+#include "static_init.h"
+#include "vm.h"
+
+class Jdb_vm : public Jdb_kobject_handler
+{
+public:
+  Jdb_vm() FIASCO_INIT;
+};
+
+IMPLEMENT
+Jdb_vm::Jdb_vm()
+  : Jdb_kobject_handler(Vm::static_kobj_type)
+{
+  Jdb_kobject::module()->register_handler(this);
+}
+
+PUBLIC
+bool
+Jdb_vm::show_kobject(Kobject_common *o, int lvl)
+{
+  Kobject::dcast<Vm*>(o)->dump_machine_state();
+  if (lvl)
+    {
+      Jdb::getchar();
+      return true;
+    }
+
+  return false;
+}
+
+PUBLIC
+char const *
+Jdb_vm::kobject_type() const
+{
+  return JDB_ANSI_COLOR(yellow) "Vm" JDB_ANSI_COLOR(default);
+}
+
+PUBLIC
+int
+Jdb_vm::show_kobject_short(char *buf, int max, Kobject_common *o)
+{
+  return Kobject::dcast<Vm*>(o)->show_short(buf, max);
+}
+
+static Jdb_vm jdb_vm INIT_PRIORITY(JDB_MODULE_INIT_PRIO);
+
+static
+bool
+filter_vm(Kobject_common const *o)
+{
+  return Kobject::dcast<Vm const *>(o);
+}
+static Jdb_kobject_list::Mode INIT_PRIORITY(JDB_MODULE_INIT_PRIO) tnt("[Vms]", filter_vm);

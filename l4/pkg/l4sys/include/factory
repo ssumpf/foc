@@ -1,0 +1,270 @@
+// vi:ft=cpp
+/**
+ * \file
+ * \brief Common factory related definitions.
+ * \ingroup l4_api
+ */
+/*
+ * (c) 2008-2009 Adam Lackorzynski <adam@os.inf.tu-dresden.de>,
+ *               Alexander Warg <warg@os.inf.tu-dresden.de>
+ *     economic rights: Technische Universität Dresden (Germany)
+ *
+ * This file is part of TUD:OS and distributed under the terms of the
+ * GNU General Public License 2.
+ * Please see the COPYING-GPL-2 file for details.
+ *
+ * As a special exception, you may use this file as part of a free software
+ * library without restriction.  Specifically, if other files instantiate
+ * templates or use macros or inline functions from this file, or you compile
+ * this file and link it with other files to produce an executable, this
+ * file does not by itself cause the resulting executable to be covered by
+ * the GNU General Public License.  This exception does not however
+ * invalidate any other reasons why the executable file might be covered by
+ * the GNU General Public License.
+ */
+
+#pragma once
+
+#include <l4/sys/factory.h>
+#include <l4/sys/capability>
+
+namespace L4 {
+
+/**
+ * \brief C++ L4 Factory, to create all kinds of kernel objects.
+ * \ingroup l4_factory_api
+ *
+ * <c>\#include <l4/sys/factory></c>
+ *
+ * \see \ref l4_factory_api for an overview and C bindings.
+ */
+class Factory : public Kobject_t<Factory, Kobject, L4_PROTO_FACTORY>
+{
+  L4_KOBJECT(Factory)
+
+public:
+
+  typedef l4_mword_t Proto;
+
+  /**
+   * \brief Special type to add a void argument into the factory create
+   *        stream.
+   */
+  struct Nil {};
+
+  /**
+   * \brief Special type to add a pascal string into the factory create
+   *        stream.
+   *
+   * This encapsulates a string that has an explicit length.
+   */
+  struct Lstr
+  {
+    /**
+     * \brief The character buffer.
+     */
+    char const *s;
+
+    /**
+     * \brief The number of characters in the buffer.
+     */
+    int len;
+
+    Lstr(char const *s, int len) : s(s), len(len) {}
+  };
+
+  /**
+   * \brief Stream class for the create() argument stream.
+   *
+   * This stream allows a variable number of arguments to be
+   * added to a create() call.
+   */
+  class S
+  {
+  private:
+    l4_utcb_t *u;
+    l4_msgtag_t t;
+    l4_cap_idx_t f;
+
+  public:
+    /**
+     * \brief create a copy.
+     */
+    S(S const &o)
+    : u(o.u), t(o.t), f(o.f)
+    { const_cast<S&>(o).t.raw = 0; }
+
+    /**
+     * \brief create a stream for a specific create() call.
+     * \param f is the capability for the factory object (L4::Factory).
+     * \param obj is the protocol ID to describe the type of the object that
+     *            shall be created.
+     * \param target is the capabilit selector for the new object.
+     * \param utcb is the UTCB that shall be used for the operation.
+     */
+    S(l4_cap_idx_t f, long obj, L4::Cap<L4::Kobject> target,
+      l4_utcb_t *utcb) throw()
+    : u(utcb), t(l4_factory_create_start_u(obj, target.cap(), u)), f(f)
+    {}
+
+    /**
+     * \brief Commit the operation in the destructor to have a cool syntax
+     *        for create().
+     */
+    ~S()
+    {
+      if (t.raw)
+	l4_factory_create_commit_u(f, t, u);
+    }
+
+    /**
+     * \brief Explicitely commits the operation and returns the result.
+     * \return The result of the create() operation.
+     */
+    operator l4_msgtag_t ()
+    {
+      l4_msgtag_t r = l4_factory_create_commit_u(f, t, u);
+      t.raw = 0;
+      return r;
+    }
+
+    /**
+     * \brief Put a single l4_mword_t as next argument.
+     * \param i is the value to add as next argument.
+     */
+    S &operator  << (l4_mword_t i)
+    {
+      l4_factory_create_add_int_u(i, &t, u);
+      return *this;
+    }
+
+    /**
+     * \brief Put a single l4_umword_t as next argument.
+     * \param i is the value to add as next argument.
+     */
+    S &operator  << (l4_umword_t i)
+    {
+      l4_factory_create_add_uint_u(i, &t, u);
+      return *this;
+    }
+
+    /**
+     * \brief Add a zero-terminated string as next argument.
+     * \param s is the string to add as next argument.
+     */
+    S &operator << (char const *s)
+    {
+      l4_factory_create_add_str_u(s, &t, u);
+      return *this;
+    }
+
+    /**
+     * \brief Add a pascal string as next argument.
+     * \param s is the string to add as next argument.
+     */
+    S &operator << (Lstr const &s)
+    {
+      l4_factory_create_add_lstr_u(s.s, s.len, &t, u);
+      return *this;
+    }
+
+    /**
+     * \brief Add an empty argument.
+     */
+    S &operator << (Nil)
+    {
+      l4_factory_create_add_nil_u(&t, u);
+      return *this;
+    }
+
+    /**
+     * \brief Add a flex page as next argument.
+     * \param d is the flex page to add (there will be no map operation).
+     */
+    S &operator << (l4_fpage_t d)
+    {
+      l4_factory_create_add_fpage_u(d, &t, u);
+      return *this;
+    }
+  };
+
+
+public:
+
+  /**
+   * \brief Generic create call to the factory.
+   * \param target is the target capability selector where the new
+   *               object shall be received.
+   * \param obj is the protocol ID that specifies which kind of object
+   *            shall be created.
+   * \param utcb is the UTCB to use for the operation.
+   * \return a create stream that allows adding additional arguments to the
+   *         create() call.
+   *
+   * This method does currently not directly invoke the factory. It returns a
+   * stream that shall invoke the factory after adding all additional arguments.
+   *
+   * Usage:
+   * \code
+   * L4::Cap<L4Re::Namespace> ns = L4Re::Util::cap_alloc.alloc<L4Re::Namespace>();
+   * factory->create(ns, L4Re::Namespace::Protocol) << "Argument text";
+   * \endcode
+   */
+  S create(Cap<Kobject> target, long obj, l4_utcb_t *utcb = l4_utcb()) throw()
+  {
+    return S(cap(), obj, target, utcb);
+  }
+
+  /**
+   * \copydoc l4_factory_create_task()
+   * \note \a factory is the implicit \a this pointer.
+   */
+  l4_msgtag_t create_task(Cap<Task> const & target_cap,
+                          l4_fpage_t const &utcb_area,
+                          l4_utcb_t *utcb = l4_utcb()) throw()
+  { return l4_factory_create_task_u(cap(), target_cap.cap(), utcb_area, utcb); }
+
+  /**
+   * \copydoc l4_factory_create_thread()
+   * \note \a factory is the implicit \a this pointer.
+   */
+  l4_msgtag_t create_thread(Cap<Thread> const &target_cap,
+                            l4_utcb_t *utcb = l4_utcb()) throw()
+  { return l4_factory_create_thread_u(cap(), target_cap.cap(), utcb); }
+
+  /**
+   * \copydoc l4_factory_create_factory()
+   * \note \a factory is the implicit \a this pointer.
+   */
+  l4_msgtag_t create_factory(Cap<Factory> const &target_cap,
+                             unsigned long limit,
+                             l4_utcb_t *utcb = l4_utcb()) throw()
+  { return l4_factory_create_factory_u(cap(), target_cap.cap(), limit, utcb); }
+
+  /**
+   * \copydoc l4_factory_create_gate()
+   * \note \a factory is the implicit \a this pointer.
+   */
+  l4_msgtag_t create_gate(Cap<Kobject> const &target_cap,
+                          Cap<Thread> const &thread_cap, l4_umword_t label,
+                          l4_utcb_t *utcb = l4_utcb()) throw()
+  { return l4_factory_create_gate_u(cap(), target_cap.cap(), thread_cap.cap(), label, utcb); }
+
+  /**
+   * \copydoc l4_factory_create_irq()
+   * \note \a factory is the implicit \a this pointer.
+   */
+  l4_msgtag_t create_irq(Cap<Irq>const &target_cap,
+                         l4_utcb_t *utcb = l4_utcb()) throw()
+  { return l4_factory_create_irq_u(cap(), target_cap.cap(), utcb); }
+
+  /**
+   * \copydoc l4_factory_create_vm()
+   * \note \a factory is the implicit \a this pointer.
+   */
+  l4_msgtag_t create_vm(Cap<Vm>const &target_cap,
+                        l4_utcb_t *utcb = l4_utcb()) throw()
+  { return l4_factory_create_vm_u(cap(), target_cap.cap(), utcb); }
+};
+
+}

@@ -1,0 +1,31 @@
+# -*- makefile -*-
+# vim:set ft=make:
+
+# recent version.h required for any kip*.o files
+$(filter kip%.o,$(OBJ_ABI)): $(VERSION)
+
+$(VERSION): FORCE
+		$(GENVER_MESSAGE)
+		$(VERBOSE)if [ -d $(srcdir)/.svn ]; then               \
+		   v=`svnversion -nc $(srcdir)`; v=$${v%[A-Z]};        \
+		   echo "#define CODE_VERSION \"r$${v#*:}\"" > $@;     \
+		elif [ -d $(srcdir)/.git ]; then                       \
+		   v=`git rev-parse --verify --short HEAD 2>/dev/null` \
+		   echo "#define CODE_VERSION \"$$v\"" > $@;           \
+		elif [ -d $(srcdir)/.hg ]; then                        \
+		   v=`hg id 2>/dev/null`                               \
+		   echo "#define CODE_VERSION \"$${v% *}\"" > $@;      \
+		else                                                   \
+		   echo "#define CODE_VERSION \"UNKNOWN\"" > $@;       \
+		fi
+		$(VERBOSE)echo "#define BUILD_DATE \"$$(date)\"" >> $@
+		$(VERBOSE)if [ -e .build_nr ]; then                    \
+		  nr=$$(($$(cat .build_nr) + 1));                      \
+		else                                                   \
+		  nr=1;                                                \
+		fi;                                                    \
+		echo $$nr > .build_nr;                                 \
+		echo "#define BUILD_NR \"$$nr\"" >> $@
+
+clean-VERSION:
+		rm -f $(VERSION)

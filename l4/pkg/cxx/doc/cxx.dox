@@ -1,0 +1,6 @@
+/**
+ * \defgroup cxx_api Small C++ Template Library
+ * \defgroup client_server_ipc Client/Server IPC Framework
+ * \defgroup ipc_stream IPC Streams
+ * \defgroup ipc_fw IPC Messaging Framework
+ */

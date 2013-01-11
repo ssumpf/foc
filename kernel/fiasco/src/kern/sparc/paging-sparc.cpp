@@ -1,0 +1,326 @@
+INTERFACE[sparc]:
+
+#include "types.h"
+#include "config.h"
+
+class PF {};
+
+//------------------------------------------------------------------------------
+INTERFACE[sparc]:
+
+#include <cassert>
+#include "types.h"
+#include "ptab_base.h"
+#include "kdb_ke.h"
+#include "mem_unit.h"
+
+class Paging {};
+
+class Pte_base
+{
+  public:
+    typedef Mword Raw;
+  enum
+  {
+    ET_ptd         = 1,           ///< PT Descriptor is PTD
+    ET_pte         = 2,           ///< PT Descriptor is PTE
+
+    Ptp_mask       = 0xfffffffc,  ///< PTD: page table pointer
+    Ppn_mask       = 0xffffff00,  ///< PTE: physical page number
+    Ppn_addr_shift = 4,           ///< PTE/PTD: need to shift phys addr
+    Cacheable      = 0x80,        ///< PTE: is cacheable
+    Modified       = 0x40,        ///< PTE: modified
+    Referenced     = 0x20,        ///< PTE: referenced
+    Accperm_mask   = 0x1C,        ///< 3 bits for access permissions
+    Accperm_shift  = 2,
+    Et_mask        = 0x3,         ///< 2 bits to determine entry type
+    Vfpa_mask      = 0xfffff000,  ///< Flush/Probe: virt. addr. mask
+    Flushtype_mask = 0xf00,       ///< Flush/Probe: type
+
+    Pdir_mask        = 0xFF,
+    Pdir_shift       = 24,
+    Ptab_mask        = 0x3F,
+    Ptab_shift1      = 18,
+    Ptab_shift2      = 12,
+    Page_offset_mask = 0xFFF,
+
+    Super_level    = 0,
+    Valid          = 0x3,
+  };
+
+    Mword addr() const { return _raw & Ppn_mask;}
+    //bool is_super_page() const { return _raw & Pse_bit; }
+  protected:
+    Raw _raw;
+};
+
+class Pt_entry : public Pte_base
+{
+public:
+  Mword leaf() const { return true; }
+  void set(Address p, bool /*intermed*/, bool /*present*/, unsigned long attrs = 0)
+  {
+    _raw = ((p >> Ppn_addr_shift) & Ppn_mask) | attrs | ET_pte;
+  }
+};
+
+class Pd_entry : public Pte_base
+{
+public:
+  Mword leaf() const { return false; }
+  void set(Address p, bool /*intermed*/, bool /*present*/, unsigned long /*attrs*/ = 0)
+  {
+    _raw = ((p >> Ppn_addr_shift) & Ptp_mask) | ET_ptd;
+  }
+};
+
+namespace Page
+{
+  typedef Unsigned32 Attribs;
+  enum Attribs_enum
+  {
+    KERN_RW      = 0x00000000,
+    USER_RO      = 0x00000001,
+    USER_RW      = 0x00000002,
+    Cache_mask   = 0x00000078,
+    CACHEABLE    = 0x00000000,
+    NONCACHEABLE = 0x00000040,
+    BUFFERED     = 0x00000080, //XXX not sure
+  };
+};
+
+
+typedef Ptab::List< Ptab::Traits<Pd_entry, 22, 10, true>,
+                    Ptab::Traits<Pt_entry, 12, 10, true> > Ptab_traits;
+
+typedef Ptab::Shift<Ptab_traits, Virt_addr::Shift>::List Ptab_traits_vpn;
+typedef Ptab::Page_addr_wrap<Page_number, Virt_addr::Shift> Ptab_va_vpn;
+
+
+IMPLEMENTATION[sparc]:
+
+#include "psr.h"
+#include "lock_guard.h"
+#include "cpu_lock.h"
+#include "kip.h"
+
+
+/* this functions do nothing on SPARC architecture */
+PUBLIC static inline
+Address
+Paging::canonize(Address addr)
+{
+  return addr;
+}
+
+PUBLIC static inline
+Address
+Paging::decanonize(Address addr)
+{
+  return addr;
+}
+
+//---------------------------------------------------------------------------
+IMPLEMENT inline
+Mword PF::is_translation_error(Mword error)
+{
+  return !(error & 1 << 30) /* DSISR/SRR1 bit 1 */;
+}
+
+IMPLEMENT inline NEEDS["psr.h"]
+Mword PF::is_usermode_error(Mword error)
+{
+  return 0 & error;//(error & Msr::Msr_pr);
+}
+
+IMPLEMENT inline
+Mword PF::is_read_error(Mword error)
+{
+  return !(error & (1 << 25)) /* DSISR bit 6*/;
+}
+
+IMPLEMENT inline
+Mword PF::addr_to_msgword0(Address pfa, Mword error)
+{
+  Mword a = pfa & ~3;
+  if(is_translation_error(error))
+    a |= 1;
+  if(!is_read_error(error))
+    a |= 2;
+  return a;
+}
+
+//---------------------------------------------------------------------------
+
+PUBLIC
+Pte_base::Pte_base(Mword raw) : _raw(raw) {}
+
+PUBLIC
+Pte_base::Pte_base() {}
+
+PUBLIC inline
+Pte_base &
+Pte_base::operator = (Pte_base const &other)
+{
+  _raw = other.raw();
+  return *this;
+}
+
+PUBLIC inline
+Pte_base &
+Pte_base::operator = (Mword raw)
+{
+  _raw = raw;
+  return *this;
+}
+
+PUBLIC inline
+Mword
+Pte_base::raw() const
+{
+  return _raw;
+}
+
+PUBLIC inline
+void
+Pte_base::add_attr(Mword attr)
+{
+  _raw |= attr;
+}
+
+PUBLIC inline
+void
+Pte_base::del_attr(Mword attr)
+{
+  _raw &= ~attr;
+}
+
+PUBLIC inline
+void
+Pte_base::clear()
+{ _raw = 0; }
+
+PUBLIC inline
+int
+Pte_base::valid() const
+{
+  return _raw & Valid;
+}
+
+PUBLIC inline
+int
+Pte_base::writable() const
+{
+  Mword acc = ((_raw >> Accperm_shift) & Accperm_mask);
+  return (acc=1); // XXX (3 and 5 can also be valid, depending on access mode)
+}
+
+PUBLIC inline
+Address
+Pt_entry::pfn() const
+{
+  return _raw & Ppn_mask;
+}
+
+PUBLIC static inline
+Mword
+Pte_base::pdir(Address a)
+{
+  return (a & (Pdir_mask << Pdir_shift)) >> Pdir_shift;
+}
+
+
+PUBLIC static inline
+Mword
+Pte_base::ptab1(Address a)
+{
+  return (a & (Ptab_mask << Ptab_shift1)) >> Ptab_shift1;
+}
+
+
+PUBLIC static inline
+Mword
+Pte_base::ptab2(Address a)
+{
+  return (a & (Ptab_mask << Ptab_shift2)) >> Ptab_shift2;
+}
+
+
+PUBLIC static inline
+Mword
+Pte_base::offset(Address a)
+{
+  return a & Page_offset_mask;
+}
+
+PUBLIC static inline
+void
+Paging::split_address(Address a)
+{
+  printf("%lx -> %lx : %lx : %lx : %lx\n", a,
+         Pte_base::pdir(a),  Pte_base::ptab1(a),
+         Pte_base::ptab2(a), Pte_base::offset(a));
+}
+
+Pte_base context_table[16];
+Mword kernel_srmmu_l1[256] __attribute__((aligned(0x400)));
+
+PUBLIC static
+void
+Paging::init()
+{
+  Mem_desc const *md = Kip::k()->mem_descs();
+  Address memstart, memend;
+  memstart = memend = 0;
+  /*printf("MD %p, num descs %d\n", md, Kip::k()->num_mem_descs());*/
+  for (unsigned i = 0; i < Kip::k()->num_mem_descs(); ++i)
+    {
+      printf("  [%lx - %lx type %x]\n", md[i].start(), md[i].end(), md[i].type());
+      if ((memstart == 0) && md[i].type() == 1)
+        {
+          memstart = md[i].start();
+          memend   = md[i].end();
+          break;
+        }
+    }
+
+  /*
+  printf("Context table: %p - %p\n", context_table,
+         context_table + sizeof(context_table));
+  printf("Kernel PDir:   %p - %p\n", kernel_srmmu_l1,
+         kernel_srmmu_l1 + sizeof(kernel_srmmu_l1));
+  */
+  memset(context_table,   0, sizeof(context_table));
+  memset(kernel_srmmu_l1, 0, sizeof(kernel_srmmu_l1));
+  Mem_unit::context_table(Address(context_table));
+  Mem_unit::context(0);
+
+  /* PD entry for root pdir */
+  Pd_entry root;
+  root.set(Address(kernel_srmmu_l1), false, false);
+  context_table[0] = root;
+
+  /*
+   * Map as many 16 MB chunks (1st level page table entries)
+   * as possible.
+   */
+  unsigned superpage = 0xF0;
+  while (memend - memstart + 1 >= (1 << 24))
+    {
+      Pt_entry pte;
+      pte.set(memstart, false, false, Pte_base::Cacheable | (0x3 << 2));
+      printf("pte %08x\n", pte.raw());
+
+      /* map phys mem starting from VA 0xF0000000 */
+      kernel_srmmu_l1[superpage] = pte.raw();
+      /* 1:1 mapping */
+      kernel_srmmu_l1[Pte_base::pdir(memstart)] = pte.raw();
+
+      memstart += (1 << 24);
+      ++superpage;
+    }
+
+  Mem_unit::mmu_enable();
+
+  printf("Paging enabled...\n");
+}

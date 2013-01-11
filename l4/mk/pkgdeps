@@ -1,0 +1,706 @@
+#! /usr/bin/perl -W
+
+use strict;
+
+my $controlfile       = 'Control';
+my $controlfile_local = 'Control.local';
+my %pkgs;
+my %requires;
+my %provided;
+my %maintainer;
+my %srcpkgs;
+my %aliases;
+my %disabled;
+
+my $pcfiledir_for_aliases;
+
+sub set_pcfiledir_for_aliases($)
+{
+  $pcfiledir_for_aliases = shift;
+}
+
+sub write_alias_pcfile($@)
+{
+  my $alias = shift;
+
+  die "Path for pc-files not set, use '-P dir'"
+    unless defined $pcfiledir_for_aliases;
+
+  open(U, ">$pcfiledir_for_aliases/$alias.pc")
+    || die "Cannot create '$pcfiledir_for_aliases/$alias.pc': $!";
+
+  print U "Name: $alias\n".
+          "Version: 0\n".
+          "Description: Alias Dependency Package\n".
+          "Requires: ".join(' ', @_)."\n";
+
+  close U;
+}
+
+sub add_alias($$@)
+{
+  my $alias = shift;
+  my $do_write_pc_file = shift;
+
+  $requires{$alias} = [ @_ ];
+  $provided{$alias} = $alias;
+  $aliases{$alias} = 1;
+
+  write_alias_pcfile($alias, @_)
+    if $do_write_pc_file;
+}
+
+sub is_alias($)
+{
+  my $a = shift;
+  defined $aliases{$a};
+}
+
+sub read_aliases_dir($$)
+{
+  my $dir = shift;
+  my $do_write_pc_file = shift;
+
+  opendir(A, $dir) || die "Cannot open directory '$dir': $!";
+
+  foreach my $file (sort readdir(A))
+    {
+      next if $file =~ /^\./;
+      next if -d $file;
+
+      open(F, "$dir/$file") || die "Cannot open file '$dir/$file': $!";
+      my $line = 0;
+      while (<F>)
+        {
+          $line++;
+          chomp;
+          s/\#.*//;
+          s/^\s+$//;
+          next if /^$/;
+          if (/^\s*(\S+)\s*:?=\s*(.+)/)
+            {
+              add_alias($1, $do_write_pc_file, split(/\s+/, $2));
+            }
+          else
+            {
+              die "Invalid syntax in $dir/$file:$line";
+            }
+        }
+
+      close F;
+    }
+
+  closedir A;
+}
+
+sub scan_for_provided_pkg_configs($$$)
+{
+  my $path = shift;
+  my $pkg = shift;
+  my $scan_all = shift;
+
+  $disabled{$pkg} = 1 if -e "$path/broken" or -e "$path/obsolete";
+
+  return if not $scan_all and $disabled{$pkg};
+
+  foreach my $ctfn ($controlfile, $controlfile_local)
+    {
+      if (open(A, "$path/$ctfn"))
+        {
+          my $o;
+          {
+            undef local $/;
+            $o = <A>;
+          }
+
+          $o =~ s/#.*$//gm;
+          $o =~ s/\n[ \t]+/ /smg;
+
+          while (1)
+            {
+              if ($o =~ /^requires:[ \t]*(.+)$/im)
+                {
+                  push @{$requires{$pkg}}, split /\s+/, $1;
+                }
+              elsif ($o =~ /^provides:[ \t]*(.+)$/im)
+                {
+                  $provided{$_} = $pkg foreach (split /\s+/, $1);
+                }
+              elsif ($o =~ /^source-pkg:[ \t]*(.+)$/im)
+                {
+                  push @{$srcpkgs{$pkg}},  split /\s+/, $1;
+                }
+              elsif ($o =~ /^maintainer:[ \t]*(.+)$/im)
+                {
+                  push @{$maintainer{$pkg}}, split /[,\s]+/, $1;
+                }
+              else
+                {
+                  last;
+                }
+              $o = $`."\n".$';
+            }
+
+          close A;
+      }
+    }
+}
+
+sub scan_files($$)
+{
+  my $base_path = shift;
+  my $scan_all = shift;
+  my $dh;
+  opendir($dh, $base_path) || die "Cannot readdir in '$base_path': $!";
+
+  foreach (readdir($dh)) {
+    my $path = "$base_path/$_";
+    $path = readlink $path if -l $path;
+    next unless -d $path;
+    next if /^\./ or /^CVS$/;
+    $pkgs{$_} = 1;
+    scan_for_provided_pkg_configs($path, $_, $scan_all);
+  }
+  closedir $dh;
+}
+
+sub generate_dep_makefile($)
+{
+  scan_files(shift, 0);
+  my $error_count = 0;
+
+  print "# Automatically generated Makefile for dependencies\n";
+  print "#\n";
+  print "# ", `date`;
+  print "#\n";
+
+  my %p = %provided;
+
+  foreach my $a (sort keys %requires)
+    {
+      print "$a:";
+      delete $p{$a};
+      foreach (sort @{$requires{$a}})
+        {
+          if (defined $provided{$_})
+            {
+              print " $provided{$_}";
+            }
+          else
+            {
+              if ($disabled{$_})
+                {
+                  print STDERR "ERROR: Package providing \"$_\" disabled and required by \"$a\".\n";
+                  $error_count++;
+                }
+              elsif (!is_alias($a))
+                {
+                  print STDERR "ERROR: Package providing \"$_\" not found as required by \"$a\".\n";
+                  $error_count++;
+                }
+            }
+        }
+      print "\n";
+    }
+
+  # delete those packages that do not have dependencies, to avoid circular
+  # 'make' deps
+  foreach (keys %p)
+    {
+      delete $p{$_} if $_ eq $p{$_};
+    }
+
+  print "\n";
+  print "$_: $p{$_}\n" foreach sort keys %p;
+
+  print "\n.PHONY: ".join(' ', sort keys %aliases).' '
+        .join(' ', sort keys %p)."\n"                   if %aliases or %p;
+
+  if ($error_count)
+    {
+      print STDERR "PANIC: Detected $error_count dependency error(s).\n";
+      exit(1);
+    }
+}
+
+sub figure_out_pkg_dependecies(@)
+{
+  my %newpkgs;
+  foreach (@_)
+    {
+      if (not defined $requires{$_})
+        {
+          if (not defined $provided{$_} and not is_alias($_))
+            {
+              print STDERR "WARNING: '$_' does not exist (forgot -A?).\n";
+              next;
+            }
+          $newpkgs{$provided{$_}} = 1;
+        }
+      else
+        {
+          $newpkgs{$_} = 1;
+        }
+    }
+
+  my %pkgh;
+  my $again;
+  # get requires of package(s)
+  do
+    {
+      foreach (keys %newpkgs)
+        {
+          $newpkgs{$_} = 1 foreach @{$srcpkgs{$_}};
+        }
+
+      my %rdeps;
+      $again = 0;
+      foreach my $p (keys %newpkgs)
+        {
+          if ($requires{$p})
+            {
+              $rdeps{$_} = 1 foreach @{$requires{$p}};
+            }
+          $pkgh{$p} = 1;
+        }
+      %newpkgs = ();
+      if (%rdeps)
+        {
+          # translate to packages providing those
+          foreach (keys %rdeps)
+            {
+              my $p = $_;
+              $p = $provided{$p} if defined $provided{$p};
+              $newpkgs{$p} = 1 unless defined $pkgh{$p};
+            }
+          $again = 1;
+        }
+    }
+  while ($again);
+
+  # remove aliases
+  foreach my $p (keys %pkgh)
+    {
+      delete $pkgh{$p} if is_alias($p);
+    }
+
+  keys %pkgh;
+}
+
+# this sub figures out which packages depend on the given ones
+sub figure_out_dependant_pkgs(@)
+{
+  my %h;
+  my %r;
+  $h{$_} = 1 foreach @_;
+
+  while (1)
+    {
+      my %tmp = %r;
+      foreach my $a (keys %requires)
+        {
+          foreach (sort @{$requires{$a}})
+            {
+              my $p = $_;
+              $p = $provided{$_} if defined $provided{$_};
+              $tmp{$a} = 1 if defined $h{$p} or $tmp{$p};
+            }
+        }
+
+      last if scalar keys %r == scalar keys %tmp;
+      %r = %tmp;
+    }
+
+  # remove aliases
+  foreach my $p (keys %r)
+    {
+      delete $r{$p} if is_alias($p);
+    }
+
+  %r;
+}
+
+sub generate_dot_file_all($$)
+{
+  my $base_path = shift;
+  my $output = shift;
+  scan_files($base_path, 1) if defined $base_path;
+  my $error_count = 0;
+
+  my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)
+    = localtime(time);
+  $year += 1900;
+  $mon++;
+
+  open O, $output or die "Cannot open '$output': $!";
+
+  print O "# Automatically generated\n";
+  print O "#\n";
+  print O "# ", `date`;
+  print O "#\n";
+  print O "digraph dep {\n";
+  print O "  graph [ label = \"\\nSource based package dependency\\n",
+          sprintf("%02d. %02d. %04d, %02d:%02d \"];\n", $mday, $mon, $year, $hour, $min);
+
+  my %disabled_because_of_deps = figure_out_dependant_pkgs(%disabled);
+
+  foreach my $a (sort keys %requires)
+    {
+      print O "  \"$a\" [shape=septagon]\n" if is_alias($a);
+      foreach (sort @{$requires{$a}})
+        {
+          if (defined $provided{$_})
+            {
+              print O "  \"$a\" -> \"$provided{$_}\" [color=black];\n";
+            }
+          elsif (not defined $disabled{$a} and not is_alias($a))
+            {
+              print STDERR "ERROR: Package providing \"$_\" not found as required by \"$a\".\n";
+              $error_count++;
+            }
+        }
+      print O "\n";
+    }
+
+  foreach my $a (sort keys %requires)
+    {
+      if (defined $disabled{$a})
+        {
+          print O "  \"$a\" [style=filled, fillcolor=red];\n";
+        }
+      elsif (defined $disabled_because_of_deps{$a})
+        {
+          print O "  \"$a\" [style=filled, fillcolor=sandybrown];\n";
+        }
+    }
+
+  print O "}\n";
+
+  close O;
+
+  if ($error_count)
+    {
+      print STDERR "PANIC: Detected $error_count dependency error(s).\n";
+      exit(1);
+    }
+}
+
+sub generate_overview_set($$)
+{
+  my $base_path = shift;
+  my $output_dir = shift;
+
+  die "Output directory not given." unless defined $output_dir;
+
+  scan_files($base_path, 1);
+  my $error_count = 0;
+
+  my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)
+    = localtime(time);
+  $year += 1900;
+  $mon++;
+  my $datestring = sprintf("%02d. %02d. %04d, %02d:%02d",
+                           $mday, $mon, $year, $hour, $min);
+
+  generate_dot_file_all(undef, "| tred | dot -Tsvg -o $output_dir/all.svg");
+
+  open INDEX, ">$output_dir/index.html" or die "Cannot create $output_dir/index.html: $!";
+  print INDEX <<EOFOO;
+<html>
+ <head>
+ <title>TUD:OS package dependency overview</title>
+ </head>
+ <body>
+  <h2>TUD:OS package dependency overview</h2>
+  <p>Generated: $datestring</p>
+  <p>
+    Legend of overview graphs:
+    <ul>
+      <li>Red: Broken package</li>
+      <li>Lightred: Package broken because it depends on broken package but is itself not broken</li>
+    </ul>
+    Legend of package graphs:
+    <ul>
+      <li>Blue: The package itself</li>
+      <li>Green: Reverse dependency of package</li>
+      <li>Yellow: Dependency of package</li>
+    </ul>
+  </p>
+  <p><a href=\"all.svg\">General overview</a><br/></p>
+  <table border=\"1\"><tr><td>Package</td><td>Maintainer(s)</td><td>Deps</td><td>Reverse Deps</td></tr>
+EOFOO
+
+  foreach my $pkg (sort keys %pkgs)
+    {
+      open F, "| tred | dot -Tsvg -o $output_dir/p_$pkg.svg" || die "Cannot open $output_dir/p_$pkg.svg: $!";
+      #open F, ">$output_dir/pkg_$pkg.dot" || die "Cannot open pkg_$pkg.dot: $!";
+
+      print F "# Automatically generated\n";
+      print F "#\n";
+      print F "# ", `date`;
+      print F "#\n";
+      print F "digraph dep {\n";
+      print F "  graph [ label = \"\\nSource based package dependency for package '$pkg'\\n",
+              "$datestring\"];\n";
+
+      foreach my $a (sort keys %requires)
+        {
+          print F "  \"$a\" [shape=septagon]\n" if is_alias($a);
+          foreach (sort @{$requires{$a}})
+            {
+              if (defined $provided{$_})
+                {
+                  print F "  \"$a\" -> \"$provided{$_}\" [color=black];\n";
+                }
+              elsif (not defined $disabled{$a} and not is_alias($a))
+                {
+                  print STDERR "ERROR: Package providing \"$_\" not found as required by \"$a\".\n";
+                  $error_count++;
+                }
+            }
+          print F "\n";
+        }
+
+      my %rev_deps = figure_out_dependant_pkgs($pkg);
+      my @deps     = figure_out_pkg_dependecies($pkg);
+
+      print F "  \"$_\" [style=filled, fillcolor=seagreen1];\n"
+        foreach keys %rev_deps;
+      print F "  \"$_\" [style=filled, fillcolor=yellow1];\n"
+        foreach @deps;
+
+      print F "  \"$pkg\" [style=filled, fillcolor=dodgerblue];\n";
+
+      print F "}\n";
+      close F;
+
+      # Generate HTML content
+
+      print INDEX "<tr><td><a href=\"p_$pkg.svg\">$pkg</a></td><td>\n";
+      print INDEX defined $maintainer{$pkg}
+                  ? (join " ", map { "<a href=\"mailto:$_\">$_</a>" } @{$maintainer{$pkg}}) : "none";
+      print INDEX "</td><td>\n";
+      foreach my $a (sort @deps)
+        {
+          print INDEX " <a href=\"p_$a.svg\">$a</a> ";
+        }
+      print INDEX "</td><td>\n";
+      foreach my $a (sort keys %rev_deps)
+        {
+          print INDEX " <a href=\"p_$a.svg\">$a</a> ";
+        }
+      print INDEX "</td></tr>\n";
+    }
+
+  print INDEX "</table>\n";
+  print INDEX "</body>\n</html>\n";
+  close INDEX;
+
+  if ($error_count)
+    {
+      print STDERR "PANIC: Detected $error_count dependency error(s).\n";
+      exit(1);
+    }
+}
+
+sub check_control($)
+{
+  my $base_path = shift;
+
+  scan_files($base_path, 0);
+
+  foreach my $p (keys %pkgs)
+    {
+      my %pc_filenames;
+      my @libs_wo_pcfile;
+      open(F, "find '$base_path/$p' -name Makefile -o -name Make.rules |")
+        || die "Cannot start find: $!";
+      while (my $file = <F>)
+        {
+          my $is_lib_build;
+          my $found_pc_filename;
+          my $not_public;
+          chomp $file;
+          open(M, $file) || die "Cannot open \"$_\": $!";
+          while (<M>)
+            {
+              chomp;
+              $found_pc_filename = $1
+                if /^\s*PC_FILENAME\s*:?=\s*(.+)\s*$/;
+              $is_lib_build = 1
+                if /^\s*include\s+.+\/mk\/lib.mk\s*$/;
+              $not_public = 1
+                if /^\s*NOTARGETSTOINSTALL\s*:?=\s/;
+            }
+          close M;
+
+          print "ERROR: $p: Not public but PC_FILENAME given\n"
+            if defined $not_public and defined $found_pc_filename;
+
+          unless (defined $not_public)
+            {
+              if (defined $found_pc_filename)
+                {
+                  $found_pc_filename =~ s/\$\(PKGNAME\)/$p/;
+                  $pc_filenames{$found_pc_filename} = 1;
+                }
+              elsif (defined $is_lib_build)
+                {
+                  $pc_filenames{$p} = 1;
+                  push @libs_wo_pcfile, $file;
+                }
+            }
+        }
+
+      foreach my $a (keys %pc_filenames)
+        {
+          print "ERROR: $p: Missing in provides '$a'\n"
+            if not defined $provided{$a} or $provided{$a} ne $p;
+        }
+
+      foreach my $a (keys %provided)
+        {
+          print "ERROR: $p: Provide not found as PC_FILENAME '$a'\n"
+            if $provided{$a} eq $p and not defined $pc_filenames{$a};
+        }
+
+      print "ERROR: $p: Contains multiple libs without PC_FILENAME:\n",
+            "       ", join("\n       ", @libs_wo_pcfile), "\n"
+        if scalar @libs_wo_pcfile > 1;
+
+      close F;
+    }
+
+  print "TODO: check if something is provided by multiple packages\n";
+}
+
+
+sub show_pkg_deps($$@)
+{
+  my $base_path = shift;
+  my $prefix = shift;
+  scan_files($base_path, 0);
+
+  my @p = figure_out_pkg_dependecies(@_);
+
+  print join("\n", map { "$prefix$_" } sort @p), "\n" if $prefix;
+  print join(' ', sort @p), "\n"                      unless $prefix;
+}
+
+sub show_pkg_deps_and_rdeps($$@)
+{
+  my $base_path = shift;
+  my $prefix = shift;
+  scan_files($base_path, 0);
+
+  my %r = figure_out_dependant_pkgs(@_);
+  my @p = figure_out_pkg_dependecies(@_, keys %r);
+
+  print join("\n", map { "$prefix$_" } sort @p), "\n" if $prefix;
+  print join(' ', sort @p), "\n"                      unless $prefix;
+}
+
+sub show_maintainer($@)
+{
+  scan_files(shift, 1);
+
+  if (@_)
+    {
+      my %m;
+
+      foreach (@_)
+        {
+          if ($maintainer{$_})
+            {
+              $m{$_}++ foreach @{$maintainer{$_}};
+            }
+          else
+            {
+              $m{'NO MAINTAINER'} = 1;
+            }
+        }
+
+      print join(", ", keys %m), "\n";
+    }
+  else
+    {
+      my %m;
+      foreach (keys %pkgs)
+        {
+          if ($maintainer{$_})
+            {
+              print "$_: ", join(', ', @{$maintainer{$_}}), "\n";
+              $m{$_}++ foreach @{$maintainer{$_}};
+            }
+          else
+            {
+              print "$_: NO MAINTAINER\n";
+            }
+        }
+      print "Stats:\n", join("\n", map { sprintf "%3d: %s", $m{$_}, $_ } sort { $m{$b} <=> $m{$a} } keys %m), "\n";
+    }
+}
+
+
+sub smooth_control_file($$)
+{
+  my $path = shift;
+  my $pkg = shift;
+
+  scan_for_provided_pkg_configs($path, $pkg, 1);
+
+  print "Provides: ".join(' ', keys %provided)."\n";
+  print "Requires: ".join(' ', @{$requires{$pkg}})."\n";
+}
+
+# a bit of hand-crafted option parsing, if it gets more use getopt
+my @aliases_dirs;
+while (1)
+  {
+    last unless defined $ARGV[0];
+    if ($ARGV[0] eq '-A')
+      {
+        shift;
+        push @aliases_dirs, shift;
+      }
+    elsif ($ARGV[0] eq '-P')
+      {
+        shift;
+        set_pcfiledir_for_aliases(shift),
+      }
+    else
+      {
+        last;
+      }
+  }
+
+my $cmd         = $ARGV[0];
+my $base_path   = $ARGV[1];
+
+die "Missing arguments"
+  if not defined $cmd or not defined $base_path;
+
+read_aliases_dir($_, $cmd eq 'generate') foreach @aliases_dirs;
+
+if ($cmd eq 'generate') {
+  generate_dep_makefile($base_path);
+} elsif ($cmd eq 'dot') {
+  generate_dot_file_all($base_path, '>-');
+} elsif ($cmd eq 'overviewset') {
+  generate_overview_set($base_path, $ARGV[2]);
+} elsif ($cmd eq 'pkgdeps') {
+  show_pkg_deps($base_path, undef, @ARGV[2 .. $#ARGV]);
+} elsif ($cmd eq 'pkgdepspath') {
+  show_pkg_deps($base_path, $ARGV[2], @ARGV[3 .. $#ARGV]);
+} elsif ($cmd eq 'pkgdepsandrdeps') {
+  show_pkg_deps_and_rdeps($base_path, undef, @ARGV[2 .. $#ARGV]);
+} elsif ($cmd eq 'collect') {
+  die "Missing argument" unless defined $ARGV[2];
+  smooth_control_file("$base_path/$ARGV[2]", $ARGV[2]);
+} elsif ($cmd eq 'maintainer') {
+  show_maintainer($base_path, @ARGV[2 .. $#ARGV]);
+} elsif ($cmd eq 'check') {
+  check_control($base_path);
+} else {
+  die "Invalid command '$cmd'";
+}

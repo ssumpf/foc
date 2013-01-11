@@ -1,0 +1,205 @@
+# -*- Makefile -*-
+# Fiasco make configuration file
+#
+# created 1996/04/20 by hohmuth
+#
+
+CHECKCC         = $(shell if $(CC)  $(1) -S -o /dev/null -xc   /dev/null \
+		    > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi ;)
+
+CHECKCXX        = $(shell if $(CXX) $(1) -S -o /dev/null -xc++ /dev/null \
+		    > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi ;)
+
+eval_impl	= $(if $($(1)_IMPL),$($(1)_IMPL),$(1))
+
+include $(objbase)/globalconfig.out
+# use patsubst here to prevent confusion of syntax highlighting editors :-)
+CONFIG_XARCH	:= $(patsubst "%",%,$(CONFIG_XARCH))
+CONFIG_ABI	:= $(patsubst "%",%,$(CONFIG_ABI))
+
+SYSTEM		:= $(shell uname)
+CC		:= $(patsubst "%",%,$(CONFIG_CC))
+CXX		:= $(patsubst "%",%,$(CONFIG_CXX))
+HOST_CC		:= $(patsubst "%",%,$(CONFIG_HOST_CC))
+HOST_CXX	:= $(patsubst "%",%,$(CONFIG_HOST_CXX))
+RM		:= rm -f
+RM_R		:= rm -rf
+ECHO		:= echo
+ECHO_E		:= bash --norc -c 'echo -e "$$0" "$$@"'
+CP		:= cp
+GREP		:= GREP_OPTIONS= grep
+AWKP		?= gawk --posix
+CFLAGS		:=
+CXXFLAGS	:= -std=c++0x
+OPT_CFLAGS	:= -O2
+OPT_CXXFLAGS	:= -O2
+NOOPT_CFLAGS	:= -Os
+NOOPT_CXXFLAGS	:= -Os
+ARFLAGS		:= crs
+srcdir		?= .
+L4DIR		?= $(srcdir)/../../../l4
+tooldir		:= $(srcdir)/../tool
+MOVE_IF_CHANGE	:= $(srcdir)/../tool/move-if-change
+SHOWDEPS	:= $(srcdir)/../tool/showdeps
+PREPROCESSDEPS	:= $(srcdir)/../tool/parsedeps
+CIRCULAR	:= $(srcdir)/../tool/circular
+
+ifeq ($(SYSTEM),FreeBSD)
+  MD5SUM	:= /sbin/md5
+else
+  MD5SUM	:= md5sum
+endif
+
+# The name of this file can be overridden from the command line or in
+# objdir/Makeconf.local.
+MODULES_FILE	= $(srcdir)/Modules.$(CONFIG_XARCH)
+
+PREPROCESS = $(srcdir)/../tool/preprocess/src/preprocess
+
+ifeq ($(CONFIG_INLINE),y)
+  PREPROCESS_FLAGS = -i -t
+else
+  PREPROCESS_FLAGS = -t
+endif
+
+AS			= $(SYSTEM_TARGET)as
+LD			= $(SYSTEM_TARGET)ld
+AR			= $(SYSTEM_TARGET)ar
+NM			= $(SYSTEM_TARGET)nm
+RANLIB			= $(SYSTEM_TARGET)ranlib
+SIZE			= $(SYSTEM_TARGET)size
+STRIP			= $(SYSTEM_TARGET)strip
+OBJCOPY			= $(SYSTEM_TARGET)objcopy
+OBJDUMP			= $(SYSTEM_TARGET)objdump
+
+# Include architecture-specific rules. These may overwrite anything above
+include $(srcdir)/Makeconf.$(CONFIG_XARCH)
+
+# Include user-specific rules. These may overwrite anything above
+-include $(srcdir)/Makeconf.local
+-include $(objbase)/Makeconf.local
+
+ifneq ($(CCXX_VERSION),)
+  CCXX_SUFFIX		:= -$(CCXX_VERSION)
+endif
+
+CPP			:= $(SYSTEM_TARGET)cpp$(CCXX_SUFFIX)
+
+CC			:= $(CCXX_WRAP) $(SYSTEM_TARGET)$(CC)$(CCXX_SUFFIX)
+CXX			:= $(CCXX_WRAP) $(SYSTEM_TARGET)$(CXX)$(CCXX_SUFFIX)
+
+CC_TYPE                 := $(if $(findstring clang,$(shell $(CXX) --version)),clang,gcc)
+CCVER_MAJOR		:= $(shell $(CXX) -dumpversion | cut -d . -f 1)
+CCVER_MINOR		:= $(shell $(CXX) -dumpversion | cut -d . -f 2)
+LIBGCC			:= $(shell $(CXX) -print-libgcc-file-name)
+
+
+L4ALL_INCDIR     	?= $(addprefix -I, $(PRIVATE_INCDIR))
+L4STD_INCDIR    	?= -nostdinc
+L4STD_INCDIR_LAST	?= -I$(wildcard $(dir $(LIBGCC))/include \
+			                $(dir $(LIBGCC))/../include)
+KERNEL_LDFLAGS		+= -gc-sections
+SHARED_FLAGS-gcc        += -fno-defer-pop -freg-struct-return
+SHARED_FLAGS		+= -g -Wall -W
+SHARED_FLAGS		+= -Wno-parentheses
+SHARED_FLAGS		+= $(call CHECKCC,-Wformat=2,)
+SHARED_FLAGS		+= $(call CHECKCC,-fno-stack-protector,)
+SHARED_FLAGS		+= $(call CHECKCC,-fdiagnostics-show-option)
+
+OPT_CXXFLAGS-gcc	+= $(call CHECKCXX,-fweb,)
+OPT_CFLAGS-gcc		+= $(call CHECKCC,-fweb,)
+OPT_SHARED_FLAGS-gcc	+= $(call CHECKCC,-frename-registers,)
+OPT_SHARED_FLAGS-gcc	+= $(call CHECKCC,-fgcse-after-reload,)
+CXXFLAGS-gcc		+= -fno-implement-inlines
+
+-include $(objbase)/.Host-config
+
+# Configuration dependent compile flags
+SHARED_FLAGS-$(CONFIG_NDEBUG)           += -DNDEBUG
+SHARED_FLAGS-$(CONFIG_NO_FRAME_PTR)     += -fomit-frame-pointer
+SHARED_FLAGS-$(CONFIG_GSTABS)           += -gstabs+
+SHARED_FLAGS-$(CONFIG_UNREACHABLE_CODE) += $(call CHECKCC,-Wunreachable-code,)
+
+# Eagerly compute SHARED_FLAGS to avoid calling CHECKCC over and over again.
+SHARED_FLAGS       := $(SHARED_FLAGS) $(SHARED_FLAGS-y)
+SHARED_FLAGS       += $(SHARED_FLAGS-$(CC_TYPE))
+OPT_SHARED_FLAGS   += $(OPT_SHARED_FLAGS-$(CC_TYPE))
+NOOPT_SHARED_FLAGS += $(NOOPT_SHARED_FLAGS-$(CC_TYPE))
+
+# Standard compile flags
+ASFLAGS		+= $(SHARED_FLAGS) -DASSEMBLER
+ASFLAGS-clang	+= -no-integrated-as
+CFLAGS		+= $(SHARED_FLAGS)
+CXXFLAGS	+= $(SHARED_FLAGS) -fno-rtti -fno-exceptions
+OPT_CFLAGS	+= $(OPT_SHARED_FLAGS)
+OPT_CXXFLAGS	+= $(OPT_SHARED_FLAGS)
+NOOPT_CFLAGS	+= $(NOOPT_SHARED_FLAGS)
+NOOPT_CXXFLAGS	+= $(NOOPT_SHARED_FLAGS)
+CPPFLAGS	+= $(L4STD_INCDIR) $(L4ALL_INCDIR) $(L4STD_INCDIR_LAST)
+CXXFLAGS	+= $(call CHECKCXX,-fno-threadsafe-statics,)
+CXXFLAGS	+= $(call CHECKCXX,-Wno-non-virtual-dtor,)
+
+ASFLAGS         += $(ASFLAGS-$(CC_TYPE))
+CXXFLAGS        += $(CXXFLAGS-$(CC_TYPE))
+OPT_CFLAGS      += $(OPT_CFLAGS-$(CC_TYPE))
+OPT_CXXFLAGS    += $(OPT_CXXFLAGS-$(CC_TYPE))
+NOOPT_CFLAGS    += $(NOOPT_CFLAGS-$(CC_TYPE))
+NOOPT_CXXFLAGS  += $(NOOPT_CXXFLAGS-$(CC_TYPE))
+
+
+# Output formatting, set V=1 to see command line, V=0 to prevent printing them
+VERBOSE		?= @
+ifeq ($(V),1)
+  VERBOSE :=
+  PREP_MESSAGE  ?= @$(ECHO) "  ... Preprocessing $(filter %.cpp,$^)"
+endif
+AR_MESSAGE	?= @$(ECHO) "  ==> Archiving into $@"
+COMP_MESSAGE	?= @$(ECHO) "  ... Making $@"
+LINK_MESSAGE	?= @$(ECHO) "  ==> Linking $@"
+DEP_MESSAGE	?= @$(ECHO) "  ... Building dependencies for $<"
+PREP_MESSAGE	?= @$(ECHO) "  ... Preprocessing $*"
+CHKSUM_MESSAGE  ?= @$(ECHO) "  ... Generating checksum for "
+PATCH_MESSAGE   ?= @$(ECHO) "  ... Writing checksum into "
+STRIP_MESSAGE	?= @$(ECHO) "  ... Stripping $@"
+GENVER_MESSAGE	?= @$(ECHO) "  ... Generating version information" 
+CLEAN_MESSAGE	?= @$(ECHO) "Removing created files"
+CLEANALL_MESSAGE?= @$(ECHO) "Removing all created files"
+INST_MESSAGE	?= @$(ECHO) "Installing $(^F)"
+OK_MESSAGE      ?= 
+
+COMP_MESSAGE_NOOPT ?= $(COMP_MESSAGE)
+
+ifneq ($(VERBOSE),)
+MOVE_IF_CHANGE += -q
+endif
+
+SRC_ALL = $(SRC_S) $(SRC_CPP) $(SRC_C) $(SRC_CC)
+ifeq ($(filter clean cleanall mrproper,$(MAKECMDGOALS)),)
+DEPS	= $(foreach file,$(SRC_ALL), $(dir $(file)).$(notdir $(file)).d)
+else
+DEPS    = /dev/null
+endif
+
+# To enable all warning ...
+ENABLE_ALL_WARNINGS ?= n
+
+ifeq ($(CC_TYPE),gcc)
+  ifeq ($(ENABLE_ALL_WARNINGS),y)
+    tmp := $(call CHECKCC,-Wframe-larger-than=512)
+    CFLAGS   += $(tmp)
+    CXXFLAGS += $(tmp)
+    tmp :=
+  else
+    F_UNINITIALIZED := $(firstword $(call CHECKCC,-Wmaybe-uninitialized) \
+				   $(call CHECKCC,-Wuninitialized))
+    F_SET_NOT_USED  := $(call CHECKCC,-Wunused-but-set-variable)
+
+    F_UNINITIALIZED := $(patsubst -W%,-Wno-%,$(F_UNINITIALIZED))
+    F_SET_NOT_USED  := $(patsubst -W%,-Wno-%,$(F_SET_NOT_USED))
+
+    CFLAGS +=   $(F_UNINITIALIZED) $(F_SET_NOT_USED)
+    CXXFLAGS += $(F_UNINITIALIZED) $(F_SET_NOT_USED)
+  endif
+endif
+
+

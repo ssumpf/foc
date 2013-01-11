@@ -1,0 +1,2 @@
+SYSTEM_TARGET			?= sparc-elf-
+LD_EMULATION_CHOICE             := sparcleon

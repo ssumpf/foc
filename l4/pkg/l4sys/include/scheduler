@@ -1,0 +1,79 @@
+// vi:ft=cpp
+/**
+ * \file
+ * \brief Scheduler object functions.
+ */
+/*
+ * (c) 2008-2009 Adam Lackorzynski <adam@os.inf.tu-dresden.de>,
+ *               Alexander Warg <warg@os.inf.tu-dresden.de>
+ *     economic rights: Technische Universität Dresden (Germany)
+ *
+ * This file is part of TUD:OS and distributed under the terms of the
+ * GNU General Public License 2.
+ * Please see the COPYING-GPL-2 file for details.
+ *
+ * As a special exception, you may use this file as part of a free software
+ * library without restriction.  Specifically, if other files instantiate
+ * templates or use macros or inline functions from this file, or you compile
+ * this file and link it with other files to produce an executable, this
+ * file does not by itself cause the resulting executable to be covered by
+ * the GNU General Public License.  This exception does not however
+ * invalidate any other reasons why the executable file might be covered by
+ * the GNU General Public License.
+ */
+#pragma once
+
+#include <l4/sys/icu>
+#include <l4/sys/scheduler.h>
+#include <l4/sys/capability>
+
+namespace L4 {
+
+/**
+ * \brief Scheduler object.
+ * \ingroup l4_obj_api
+ *
+ * <c>\#include <l4/sys/scheduler></c>
+ *
+ * \see \ref l4_scheduler_api for an overview description.
+ *
+ */
+class Scheduler : public Kobject_t<Scheduler, Icu, L4_PROTO_SCHEDULER>
+{
+  L4_KOBJECT(Scheduler)
+
+public:
+  /**
+   * \copydoc l4_scheduler_info()
+   * \note \a scheduler is the implicit \a this pointer.
+   */
+  l4_msgtag_t info(l4_umword_t *cpu_max, l4_sched_cpu_set_t *cpus,
+                   l4_utcb_t *utcb = l4_utcb()) const throw()
+  { return l4_scheduler_info_u(cap(), cpu_max, cpus, utcb); }
+
+  /**
+   * \copydoc l4_scheduler_run_thread()
+   * \note \a scheduler is the implicit \a this pointer.
+   */
+  l4_msgtag_t run_thread(Cap<Thread> const &thread,
+                         l4_sched_param_t const &sp,
+                         l4_utcb_t *utcb = l4_utcb()) const throw()
+  { return l4_scheduler_run_thread_u(cap(), thread.cap(), &sp, utcb); }
+
+  /**
+   * \copydoc l4_scheduler_idle_time()
+   * \note \a scheduler is the implicit \a this pointer.
+   */
+  l4_msgtag_t idle_time(l4_sched_cpu_set_t const &cpus,
+                        l4_utcb_t *utcb = l4_utcb()) const throw()
+  { return l4_scheduler_idle_time_u(cap(), &cpus, utcb); }
+
+
+  /**
+   * \copydoc l4_scheduler_is_online()
+   * \note \a scheduler is the implicit \a this pointer.
+   */
+  bool is_online(l4_umword_t cpu, l4_utcb_t *utcb = l4_utcb()) const throw()
+  { return l4_scheduler_is_online_u(cap(), cpu, utcb); }
+};
+}

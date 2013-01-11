@@ -1,0 +1,27 @@
+# -*- makefile -*-
+
+exception.o: $(TCBOFFSET)
+phys_mem.o: $(TCBOFFSET)
+
+# Add future prerequisites somewhere among the list of libraries.
+# You really should not have to add anything in the $(LD) line.
+
+$(KERNEL).image: $(srcdir)/kernel.sparc.ld $(CRT0) $(OBJ_KERNEL) $(JDB) $(LIBK) $(LIBDISASM) libdrivers.a $(ABI) $(LIBUART) $(CXXLIB) $(MINILIBC) libgluedriverslibc.a
+	$(LINK_MESSAGE)
+	$(VERBOSE)$(LD) $(LDFLAGS) -N -defsym kernel_load_addr=$(CONFIG_KERNEL_LOAD_ADDR) \
+	  -T $< -o $@ $(filter-out $<,$+) $(LIBGCC)
+
+$(KERNEL): $(KERNEL).image
+	$(LINK_MESSAGE)
+	$(VERBOSE)$(STRIP) $< -o $@
+	chmod 755 $@
+
+#	$(OBJCOPY) -O binary $@ fiasco	
+
+Symbols: $(KERNEL).image
+	$(NM) $(KERNEL).image | c++filt | sort > $@.new
+	mv $@.new $@
+	chmod 755 $@
+
+
+clean-KERNEL:

@@ -1,0 +1,10 @@
+TUD:OS is released under the terms of the GNU General Public License (GPL),
+Version 2 or the GNU Lesser General Public License 2.1, depending on the
+software component. See the file COPYING for details. For different
+licensing schemes please contact contact@os.inf.tu-dresden.de. 
+
+Note that some parts of TUD:OS are derived from other GPL code and hence
+are copyrighted by other parties. Different licensing of those parts either
+requires approval of the respective owners or requires to rewrite the
+code. To find the best solution for you, mail contact@os.inf.tu-dresden.de.
+

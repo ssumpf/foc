@@ -1,0 +1,63 @@
+// vi:ft=cpp
+/**
+ * \file
+ * \brief IPC-Gate interface.
+ */
+/*
+ * (c) 2009-2010 Adam Lackorzynski <adam@os.inf.tu-dresden.de>,
+ *               Alexander Warg <warg@os.inf.tu-dresden.de>
+ *     economic rights: Technische Universität Dresden (Germany)
+ *
+ * This file is part of TUD:OS and distributed under the terms of the
+ * GNU General Public License 2.
+ * Please see the COPYING-GPL-2 file for details.
+ *
+ * As a special exception, you may use this file as part of a free software
+ * library without restriction.  Specifically, if other files instantiate
+ * templates or use macros or inline functions from this file, or you compile
+ * this file and link it with other files to produce an executable, this
+ * file does not by itself cause the resulting executable to be covered by
+ * the GNU General Public License.  This exception does not however
+ * invalidate any other reasons why the executable file might be covered by
+ * the GNU General Public License.
+ */
+#pragma once
+
+#include <l4/sys/ipc_gate.h>
+#include <l4/sys/capability>
+
+namespace L4 {
+
+class Thread;
+
+/**
+ * \ingroup l4_kernel_object_gate_api
+ * \brief L4 IPC gate.
+ *
+ * <c>\#include <l4/sys/ipc_gate></c>
+ */
+class L4_EXPORT Ipc_gate
+  : public Kobject_t<Ipc_gate, Kobject, L4_PROTO_KOBJECT>
+{
+  L4_KOBJECT_DISABLE_COPY(Ipc_gate)
+public:
+
+  /**
+   * \brief Bind the IPC-gate to the thread.
+   *
+   * \see l4_ipc_gate_bind_thread
+   */
+  l4_msgtag_t bind_thread(Cap<Thread> t, l4_umword_t label,
+                          l4_utcb_t *utcb = l4_utcb()) throw()
+  { return l4_ipc_gate_bind_thread_u(cap(), t.cap(), label, utcb); }
+
+  /**
+   * \brief Get information on the IPC-gate.
+   *
+   * \see l4_ipc_gate_get_infos
+   */
+  l4_msgtag_t get_infos(l4_umword_t *label, l4_utcb_t *utcb = l4_utcb()) throw()
+  { return l4_ipc_gate_get_infos_u(cap(), label, utcb); }
+};
+
+}

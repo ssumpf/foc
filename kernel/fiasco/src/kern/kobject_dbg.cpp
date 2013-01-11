@@ -1,0 +1,175 @@
+INTERFACE:
+
+class Kobject_dbg
+{
+};
+
+//----------------------------------------------------------------------------
+INTERFACE[debug]:
+
+#include "spin_lock.h"
+#include "lock_guard.h"
+#include <dlist>
+#include <hlist>
+
+class Kobject;
+
+EXTENSION class Kobject_dbg : public cxx::D_list_item
+{
+  friend class Jdb_kobject;
+  friend class Jdb_kobject_list;
+  friend class Jdb_mapdb;
+
+public:
+  class Dbg_extension : public cxx::H_list_item
+  {
+  public:
+    virtual ~Dbg_extension() = 0;
+  };
+
+public:
+  typedef cxx::H_list<Dbg_extension> Dbg_ext_list;
+  Dbg_ext_list _jdb_data;
+
+private:
+  Mword _dbg_id;
+
+public:
+  Mword dbg_id() const { return _dbg_id; }
+  virtual Address kobject_start_addr() const = 0;
+  virtual Mword kobject_size() const = 0;
+  virtual ~Kobject_dbg() = 0;
+
+
+  typedef cxx::D_list<Kobject_dbg> Kobject_list;
+  typedef Kobject_list::Iterator Iterator;
+  typedef Kobject_list::Const_iterator Const_iterator;
+
+  static Spin_lock<> _kobjects_lock;
+  static Kobject_list _kobjects;
+
+  static Iterator begin() { return _kobjects.begin(); }
+  static Iterator end() { return _kobjects.end(); }
+
+private:
+  static unsigned long _next_dbg_id;
+};
+
+
+//----------------------------------------------------------------------------
+IMPLEMENTATION[debug]:
+#include "static_init.h"
+Spin_lock<> Kobject_dbg::_kobjects_lock;
+Kobject_dbg::Kobject_list Kobject_dbg::_kobjects INIT_PRIORITY(101);
+unsigned long Kobject_dbg::_next_dbg_id;
+
+IMPLEMENT inline Kobject_dbg::Dbg_extension::~Dbg_extension() {}
+
+PUBLIC static
+Kobject_dbg::Iterator
+Kobject_dbg::pointer_to_obj(void const *p)
+{
+  for (Iterator l = _kobjects.begin(); l != _kobjects.end(); ++l)
+    {
+      Mword a = l->kobject_start_addr();
+      if (a <= Mword(p) && Mword(p) < (a + l->kobject_size()))
+        return l;
+    }
+  return _kobjects.end();
+}
+
+PUBLIC static
+unsigned long
+Kobject_dbg::pointer_to_id(void const *p)
+{
+  Iterator o = pointer_to_obj(p);
+  if (o != _kobjects.end())
+    return o->dbg_id();
+  return ~0UL;
+}
+
+PUBLIC static
+bool
+Kobject_dbg::is_kobj(void const *o)
+{
+  return pointer_to_obj(o) != _kobjects.end();
+}
+
+PUBLIC static
+Kobject_dbg::Iterator
+Kobject_dbg::id_to_obj(unsigned long id)
+{
+  for (Iterator l = _kobjects.begin(); l != _kobjects.end(); ++l)
+    {
+      if (l->dbg_id() == id)
+	return l;
+    }
+  return end();
+}
+
+PUBLIC static
+unsigned long
+Kobject_dbg::obj_to_id(void const *o)
+{
+  return pointer_to_id(o);
+}
+
+
+PROTECTED
+Kobject_dbg::Kobject_dbg()
+{
+  Lock_guard<decltype(_kobjects_lock)> guard(&_kobjects_lock);
+
+  _dbg_id = _next_dbg_id++;
+  _kobjects.push_back(this);
+}
+
+IMPLEMENT inline
+Kobject_dbg::~Kobject_dbg()
+{
+    {
+      Lock_guard<decltype(_kobjects_lock)> guard(&_kobjects_lock);
+      _kobjects.remove(this);
+    }
+
+  while (Dbg_extension *ex = _jdb_data.front())
+    delete ex;
+}
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [!debug]:
+
+PUBLIC inline
+unsigned long
+Kobject_dbg::dbg_id() const
+{ return 0; }
+
+PUBLIC static inline
+unsigned long
+Kobject_dbg::dbg_id(void const *)
+{ return ~0UL; }
+
+PUBLIC static inline
+Kobject_dbg *
+Kobject_dbg::pointer_to_obj(void const *)
+{ return 0; }
+
+PUBLIC static inline
+unsigned long
+Kobject_dbg::pointer_to_id(void const *)
+{ return ~0UL; }
+
+PUBLIC static
+bool
+Kobject_dbg::is_kobj(void const *)
+{ return false; }
+
+PUBLIC static
+Kobject_dbg *
+Kobject_dbg::id_to_obj(unsigned long)
+{ return 0; }
+
+PUBLIC static
+unsigned long
+Kobject_dbg::obj_to_id(void const *)
+{ return ~0UL; }

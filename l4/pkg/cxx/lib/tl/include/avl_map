@@ -1,0 +1,151 @@
+// vi:ft=cpp
+/**
+ * \file
+ * \brief AVL map
+ */
+/*
+ * (c) 2008-2009 Alexander Warg <warg@os.inf.tu-dresden.de>
+ *     economic rights: Technische Universität Dresden (Germany)
+ *
+ * This file is part of TUD:OS and distributed under the terms of the
+ * GNU General Public License 2.
+ * Please see the COPYING-GPL-2 file for details.
+ *
+ * As a special exception, you may use this file as part of a free software
+ * library without restriction.  Specifically, if other files instantiate
+ * templates or use macros or inline functions from this file, or you compile
+ * this file and link it with other files to produce an executable, this
+ * file does not by itself cause the resulting executable to be covered by
+ * the GNU General Public License.  This exception does not however
+ * invalidate any other reasons why the executable file might be covered by
+ * the GNU General Public License.
+ */
+
+#pragma once
+
+#include <l4/cxx/std_alloc>
+#include <l4/cxx/std_ops>
+#include <l4/cxx/pair>
+#include <l4/cxx/avl_set>
+
+namespace cxx {
+
+/**
+ * \ingroup cxx_api
+ * \brief AVL tree based associative container.
+ * \param Key Type of the key values.
+ * \param Data Type of the data values.
+ * \param Compare Type comparison functor for the key values.
+ * \param Alloc Type of the allocator used for the nodes.
+ */
+template< typename Key, typename Data,
+  template<typename A> class Compare = Lt_functor,
+  template<typename B> class Alloc = New_allocator >
+class Avl_map : public Avl_set<Pair<Key, Data>,
+  Pair_first_compare< Compare<Key>, Pair<Key, Data> >,
+  Alloc>
+{
+private:
+  typedef Pair<Key, Data> Local_item_type;
+  typedef Pair_first_compare< Compare<Key>, Local_item_type > Local_compare;
+  typedef Avl_set<Local_item_type, Local_compare, Alloc> Base_type;
+
+public:
+  /// Type of the comparison functor.
+  typedef Compare<Key> Key_compare;
+  /// Type of the key values.
+  typedef Key Key_type;
+  /// Type of the data values.
+  typedef Data Data_type;
+  /// Return type for find.
+  typedef typename Base_type::Node Node;
+  /// Type of the allocator
+  typedef typename Base_type::Node_allocator Node_allocator;
+
+  typedef typename Base_type::Iterator Iterator;
+  typedef typename Base_type::Iterator iterator;
+  typedef typename Base_type::Const_iterator Const_iterator;
+  typedef typename Base_type::Const_iterator const_iterator;
+  typedef typename Base_type::Rev_iterator Rev_iterator;
+  typedef typename Base_type::Rev_iterator reverse_iterator;
+  typedef typename Base_type::Const_rev_iterator Const_rev_iterator;
+  typedef typename Base_type::Const_rev_iterator const_reverse_iterator;
+
+  /**
+   * \brief Create an empty AVL-tree based map.
+   * \param comp The comparison functor.
+   * \param alloc The node allocator.
+   */
+  Avl_map(Node_allocator const &alloc = Node_allocator())
+    : Base_type(alloc)
+  {}
+
+  /**
+   * \brief Insert a <key, data> pair into the map.
+   * \param key The key value.
+   * \param data The data value to insert.
+   */
+  cxx::Pair<Iterator, int> insert(Key_type const &key, Data_type const &data)
+  { return Base_type::insert(Pair<Key_type, Data_type>(key, data)); }
+
+  /**
+   * \brief Find a <key, data> pair for a given key.
+   * \param key The key value to use for the lookup.
+   */
+  Node find_node(Key_type const &key) const
+  { return Base_type::find_node(Local_item_type(key, Data_type())); }
+
+  /**
+   * \brief Find the first node greater or equal to \a key.
+   * \param key the key to look for.
+   * \return The first node greater or equal to \a key.
+   */
+  Node lower_bound_node(Key_type const &key) const
+  { return Base_type::lower_bound_node(Local_item_type(key, Data_type())); }
+
+  /**
+   * \brief Find a <key, data> pair for a given key.
+   * \param key The key value to use for the lookup.
+   */
+  Iterator find(Key_type const &key) const
+  { return Base_type::find(Local_item_type(key, Data_type())); }
+
+  /**
+   * \brief Remove the <key, data> pair for the given key.
+   * \param key The key value of the pair that shall be removed.
+   */
+  int remove(Key_type const &key)
+  { return Base_type::remove(Local_item_type(key, Data_type())); }
+
+  /**
+   * \brief Removed the element \a key.
+   * \see remove()
+   */
+  int erase(Key_type const &key)
+  { return remove(key); }
+
+  /**
+   * \brief Get the data for the given key.
+   * \param key The key value to use for lookup.
+   * \pre A <key, data> pair for the given key value must exist.
+   */
+  Data_type const &operator [] (Key_type const &key) const
+  { return find_node(key)->second; }
+
+  /**
+   * \brief Get the data for the given key.
+   * \param key The key value to use for lookup.
+   * \pre A <key, data> pair for the given key value must exist.
+   */
+  Data_type &operator [] (Key_type const &key)
+  {
+    Node n = find_node(key);
+    if (n)
+      return const_cast<Data_type&>(n->second);
+    else
+      return insert(key, Data_type()).first->second;
+  }
+};
+
+}
+

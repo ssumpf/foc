@@ -1,0 +1,34 @@
+# -*- makefile -*-
+
+exception.o: $(TCBOFFSET)
+phys_mem.o: $(TCBOFFSET)
+
+# Add future prerequisites somewhere among the list of libraries.
+# You really should not have to add anything in the $(LD) line.
+
+#TODO: strip 
+#boot_img.o: bootstrap.o $(LIBUART) $(CXXLIB) $(MINILIBC) $(LIBK) boot_libc_glue.o 
+#	$(LINK_MESSAGE)
+#	$(VERBOSE)$(LD) -m elf32ppc -o $@_x.o -q \
+#	  -T $(srcdir)/kern/ppc32/bootstrap.ld  $^
+#	$(VERBOSE)$(OBJCOPY) -G _boot_start $@_x.o $@
+#	$(VERBOSE)$(RM) $@_x.o
+
+$(KERNEL).image: $(srcdir)/kernel.ppc32.ld $(CRT0) $(OBJ_KERNEL) $(LIBK) $(LIBDISASM) libdrivers.a $(ABI) $(LIBUART) $(CXXLIB) $(MINILIBC) libgluedriverslibc.a 
+	$(LINK_MESSAGE)
+	$(VERBOSE)$(LD) $(LDFLAGS) -N -T $< -o $@ $(filter-out $<,$+) $(LIBGCC)
+
+$(KERNEL): $(KERNEL).image
+	$(LINK_MESSAGE)
+	$(VERBOSE)$(STRIP) $< -o $@
+	chmod 755 $@
+
+#	$(OBJCOPY) -O binary $@ fiasco	
+
+Symbols: $(KERNEL).image
+	$(NM) $(KERNEL).image | c++filt | sort > $@.new
+	mv $@.new $@
+	chmod 755 $@
+
+
+clean-KERNEL:

@@ -1,0 +1,29 @@
+INTERFACES_KERNEL	:= cpu_mask rcupdate kobject_mapdb context_base \
+			   mem_region per_cpu_data startup boot_info         \
+			   queue queue_item l4_buf_iter bitmap               \
+			   mapping spin_lock mapping_tree mappable           \
+			   dbg_page_info mapdb pic kobject_dbg koptions      \
+			   kobject_iface kobject ready_queue_wfq             \
+			   ready_queue_fp obj_space ptab_base ram_quota      \
+			   ref_ptr ref_obj mem_space space  \
+			   vlog kmem kmem_alloc slab_cache mem_layout        \
+			   kmem_slab switch_lock kip_init   \
+			   thread_lock helping_lock cpu_lock timer timeout   \
+			   ipc_timeout timeslice_timeout per_cpu_data_alloc  \
+			   vcpu kobject_helper icu_helper thread_state       \
+			   context mp_lock sender receiver mem_unit factory  \
+			   lock ipc_sender thread thread_object syscalls     \
+			   kernel_thread map_util irq banner warn            \
+			   app_cpu_thread globals watchdog kernel_uart       \
+			   main config vmem_alloc paging fpu                 \
+			   fpu_state fpu_alloc cpu entry_frame               \
+			   kernel_console ipc_gate task sigma0_task          \
+                           kernel_task          \
+			   irq_controller irq_chip irq_mgr terminate         \
+			   continuation timer_tick                           \
+			   sched_context utcb_init perf_cnt trap_state       \
+			   buddy_alloc vkey kdb_ke prio_list ipi scheduler   \
+			   clock vm_factory sys_call_page boot_alloc
+
+syscalls_IMPL		:= syscalls syscalls-log
+timer_tick_IMPL         := timer_tick

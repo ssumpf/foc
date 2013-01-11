@@ -1,0 +1,58 @@
+// vi:ft=c
+/**
+
+\page l4re_pthreads Pthread Support
+
+L4Re supports the standard pthread library functionality. Therefore L4Re
+itself does not contain any documentation for pthreads itself. Please refer
+to the standard pthread documentation instead.
+
+The L4Re specific parts will be described herein.
+
+<ul>
+  <li>
+    Include pthread-l4.h header file:
+  \code
+   #include <pthread-l4.h>
+  \endcode
+
+  </li>
+  <li>Return the local thread capability of a pthread thread:
+
+  Use \c pthread_getl4cap(pthread_t *t) to get the capability index of
+  the pthread t.
+
+  For example:
+  \code
+  pthread_getl4cap(pthread_self());
+  \endcode
+  </li>
+
+  <li> Setting the L4 priority of an L4 thread works with a special
+       scheduling policy (other policies do not affect the L4 thread
+       priority):
+
+  \code
+  pthread_t t;
+  pthread_attr_t a;
+  struct sched_param sp;
+
+  pthread_attr_init(&a);
+  sp.sched_priority = l4_priority;
+  pthread_attr_setschedpolicy(&a, SCHED_L4);
+  pthread_attr_setschedparam(&a, &sp);
+  pthread_attr_setinheritsched(&a, PTHREAD_EXPLICIT_SCHED);
+
+  if (pthread_create(&t, &a, pthread_func, NULL))
+    // failure...
+
+  pthread_attr_destroy(&a);
+  \endcode
+
+  </li>
+</ul>
+
+
+
+
+*/

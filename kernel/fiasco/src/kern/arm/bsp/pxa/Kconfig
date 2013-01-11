@@ -1,0 +1,4 @@
+# PF: XSCALE
+# PFDESCR: Intel XScale Platform
+# PFCAN: CAN_ARM_CPU_XSCALE
+# PFDEPENDS: ARM

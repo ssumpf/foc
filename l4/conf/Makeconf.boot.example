@@ -1,0 +1,91 @@
+# This file is an example for defining configurations for different boot
+# methods:
+#   - QEMU (qemu)
+#   - Fiasco-UX (ux)
+#   - Image mode (image)
+#   - ISO images (grub1iso, grub2iso)
+#   - VirtualBox
+#   - Fastboot
+#
+# This is a make snippet.
+#
+# Copy this example file to Makeconf.boot in the same directory.
+#
+#
+#
+# Generic options:
+#
+# Search path for modules, such as binaries, libraries, kernel, configuration
+# files or any other data file you might want to load. Note that the bin and
+# lib directories of the build-tree are automatically added to the search
+# path.
+# MODULE_SEARCH_PATH = /path/to/cfgs:/path/to/foo:..
+#
+# 'image' just builds what's configured:
+# - default: just ELF
+# - BOOTSTRAP_DO_RAW_IMAGE=y: additionally raw images
+# - BOOTSTRAP_DO_UIMAGE=y:    additionally uImages
+#
+# Other bootstrap options (see also pkg/bootstrap/server/src/Make.rules):
+# - BOOTSTRAP_CMDLINE: default cmdline
+# - BOOTSTRAP_UIMAGE_COMPRESSION: set to none, gzip, or bzip2
+#
+#
+# QEMU: Specific configuration for 'qemu' target (make qemu E=xxx'):
+#
+# Add fiasco build directory to MODULE_SEARCH_PATH
+
+qemu: MODULE_SEARCH_PATH += /path/to/fiasco-build
+
+# Optional options for QEMU, but setting '-serial stdio' is recommended
+QEMU_OPTIONS       = -serial stdio
+#QEMU_OPTIONS      = -nographic
+#QEMU_OPTIONS-arm += -M realview-eb -m 256
+QEMU_OPTIONS      += $(QEMU_OPTIONS-$(ARCH))
+
+# The path to the QEMU binary - optional
+#QEMU_PATH-x86   = /path/to/qemu
+#QEMU_PATH-amd64 = /path/to/qemu-system-x86_64
+#QEMU_PATH       = $(QEMU_PATH-$(ARCH))
+
+
+# Fiasco-UX: Specific configuration for 'ux' target ('make ux E=xxx'):
+#
+# Add Fiasco-UX build directory to MODULE_SEARCH_PATH
+
+ux: MODULE_SEARCH_PATH += /path/to/fiasco-ux-build
+
+# Additional (optional) variables:
+#  UX_OPTIONS: Options for Fiasco-UX, such as -m
+#  UX_GFX:     Graphical console resolution and colordepth, e.g.:
+#              UX_GFX=800x600@16
+#  UX_GFX_CMD: Path to ux_con binary, default is to search in the
+#              UX_SEARCH_PATH
+#  UX_NET:     Enable network if set, e.g.: UX_NET=y
+#  UX_NET_CMD: Path to ux_net binary, default is to search in the
+#              UX_SEARCH_PATH 
+
+UX_OPTIONS     = -m 128
+
+# Search path for other make targets:
+# grub1iso grub2iso: MODULE_SEARCH_PATH += /path/to/fiasco-build
+# image %image: MODULE_SEARCH_PATH += /path/to/fiasco-build
+
+# VirtualBox
+#
+# To use VirtualBox create a VM in VirtualBox and set the name of the VM in
+# 'VBOX_VM'. The 'vbox' target uses an ISO image generating target to generate
+# an ISO and use that with VirtualBox. 
+#
+# Required variables:
+#  VBOX_VM:        Name of the VM to use.
+#
+# Additional (optional) variables:
+#  VBOX_ISOTARGET: grub1iso or grub2iso (grub2iso is the default)
+#  VBOX_OPTIONS:   Additional options (see VBoxSDL --help)
+VBOX_VM                = L4
+VBOX_ISOTARGET         = grub1iso
+#VBOX_OPTIONS          += --memory 256
+
+# Fastboot
+# FASTBOOT_BOOT_CMD = path/to/fastboot boot

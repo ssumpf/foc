@@ -1,0 +1,111 @@
+// vi:ft=cpp
+/**
+ * \file
+ * \brief Debugger interface.
+ */
+/**
+ * \file
+ * \brief Common thread related definitions.
+ */
+/*
+ * (c) 2010-2011 Adam Lackorzynski <adam@os.inf.tu-dresden.de>,
+ *               Alexander Warg <warg@os.inf.tu-dresden.de>
+ *     economic rights: Technische Universität Dresden (Germany)
+ *
+ * This file is part of TUD:OS and distributed under the terms of the
+ * GNU General Public License 2.
+ * Please see the COPYING-GPL-2 file for details.
+ *
+ * As a special exception, you may use this file as part of a free software
+ * library without restriction.  Specifically, if other files instantiate
+ * templates or use macros or inline functions from this file, or you compile
+ * this file and link it with other files to produce an executable, this
+ * file does not by itself cause the resulting executable to be covered by
+ * the GNU General Public License.  This exception does not however
+ * invalidate any other reasons why the executable file might be covered by
+ * the GNU General Public License.
+ */
+#pragma once
+
+#include <l4/sys/debugger.h>
+
+namespace L4 {
+
+/**
+ * \ingroup l4_debugger_api
+ * \brief   Debugger interface.
+ *
+ * <c>\#include <l4/sys/debugger></c>
+ */
+class Debugger : public Kobject_t<Debugger, Kobject, L4_PROTO_DEBUGGER>
+{
+  L4_KOBJECT(Debugger)
+
+public:
+  enum
+  {
+    Switch_log_on  = L4_DEBUGGER_SWITCH_LOG_ON,
+    Switch_log_off = L4_DEBUGGER_SWITCH_LOG_OFF,
+  };
+
+  /**
+   * \copydoc l4_debugger_set_object_name()
+   * \note the \a cap argument is the implicit \a this pointer.
+   */
+  l4_msgtag_t set_object_name(const char *name,
+                              l4_utcb_t *utcb = l4_utcb()) throw()
+  { return l4_debugger_set_object_name_u(cap(), name, utcb); }
+
+  /**
+   * \copydoc l4_debugger_global_id()
+   * \note the \a cap argument is the implicit \a this pointer.
+   */
+  unsigned long global_id(l4_utcb_t *utcb = l4_utcb()) throw()
+  { return l4_debugger_global_id_u(cap(), utcb); }
+
+  /**
+   * \copydoc l4_debugger_kobj_to_id()
+   * \note the \a cap argument is the implicit \a this pointer.
+   */
+  unsigned long kobj_to_id(l4_addr_t kobjp,
+                           l4_utcb_t *utcb = l4_utcb()) throw()
+  { return l4_debugger_kobj_to_id_u(cap(), kobjp, utcb); }
+
+  /**
+   * \copydoc l4_debugger_query_log_typeid()
+   * \note the \a cap argument is the implicit \a this pointer.
+   */
+  int query_log_typeid(const char *name, unsigned idx,
+                      l4_utcb_t *utcb = l4_utcb()) throw()
+  { return l4_debugger_query_log_typeid_u(cap(), name, idx, utcb); }
+
+  /**
+   * \copydoc l4_debugger_query_log_name()
+   * \note the \a cap argument is the implicit \a this pointer.
+   */
+  int query_log_name(unsigned idx,
+                     char *name, unsigned namelen,
+                     char *shortname, unsigned shortnamelen,
+                     l4_utcb_t *utcb = l4_utcb()) throw()
+  {
+    return l4_debugger_query_log_name_u(cap(), idx, name, namelen,
+                                        shortname, shortnamelen, utcb);
+  }
+
+  /**
+   * \copydoc l4_debugger_switch_log()
+   * \note the \a cap argument is the implicit \a this pointer.
+   */
+  l4_msgtag_t switch_log(const char *name, unsigned on_off,
+                         l4_utcb_t *utcb = l4_utcb()) throw()
+  { return l4_debugger_switch_log_u(cap(), name, on_off, utcb); }
+
+  /**
+   * \copydoc l4_debugger_get_object_name()
+   * \note the \a cap argument is the implicit \a this pointer.
+   */
+  l4_msgtag_t get_object_name(unsigned id, char *name, unsigned size,
+                       l4_utcb_t *utcb = l4_utcb()) throw()
+  { return l4_debugger_get_object_name_u(cap(), id, name, size, utcb); }
+};
+}

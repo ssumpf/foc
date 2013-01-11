@@ -1,0 +1,1799 @@
+#! /usr/bin/perl -w
+# -*- perl -*-
+
+#
+# Please find extensive documentation of this program at
+# <http://os.inf.tu-dresden.de/~hohmuth/prj/preprocess/>
+#
+
+# Things this script does:
+#
+# - Expand class declarations as necessary using member-function
+#   definitions found in the file.  Function labelled PUBLIC,
+#   PROTECTED and PRIVATE are put into the corresponding section of
+#   the class.
+#
+# - Put "INTERFACE:" regions in public header file.
+#
+# - Put "inline" functions and all types they need into public header
+#   file as well.
+#
+# - Put all remaining, private types and their inline functions into a
+#   separate header file.  This file can be used by a debugger
+#   interface to display the data.
+#
+# - Place include directives to top of public header file and private
+#   header file.
+#
+
+#
+# Declarations
+#
+
+require 5.006;
+use Getopt::Std;
+use strict;
+
+sub print_expand($);
+sub print_funcdecl($);
+sub print_funcdef($);
+sub print_classdecl($);
+sub print_code($);
+sub func_prototype($);
+
+#
+# Get options
+#
+
+our $opt_c = '';		# Base name for generated include directives
+our $opt_o = '';		# Base name of output files (defaults to -c, 
+				# overrides -p)
+our $opt_p = '';		# Prepend to base name of output files (-c)
+our $opt_h = '';		# Name of public header; overrides -c
+our $opt_i = 0;			# Doing inlines?
+our $opt_v = 0;			# Verboseness?
+our $opt_l = 0;			# Avoid generating #line directives?
+our $opt_L = 0;			# Avoid generatung #line dirs in headers only?
+# Support for new style FIASCO config
+our $opt_e = '';                # List of part tags
+our $opt_s = 0;
+our $opt_d = 0;                 # verbose drop
+
+our $opt_w = 0;                 # warn if no inline code for needs is found
+
+# Added 2003.01.12  by RCB
+# Support for changing the names of headers
+our $opt_H = "h";		# Default extenstion for header files
+our $opt_C = "cc";		# Default extention for source files
+our $opt_t = 0;
+
+getopts('e:o:c:p:h:H:C:ivlLsdwt');
+
+sub usage
+{
+  print <<EOF
+C and C++ preprocessor (c) by Michael Hohmuth
+Usage: preprocess [-dilLstvw] -c <base_name> [-C <source_ext>] 
+         [-e <tag_list>] [-h <head_name>] [-H <head_ext>] 
+         [-o <source_base>] [-p <prefix>] <files>
+OPTIONS
+  -c <base_name>  Base name for generated include directives, generated 
+                  header files, and generated source files.
+  -C <source_ext> File extension for generated source files (default 'cc').
+  -d              Verbose drop sections (only in conjunction with -e).
+  -e <tag_list>   Use explicit section selection, and set the given tag
+                  list. <tag_list> is a qouted and space separated list of
+                  tags that should be enabled. (Useful in conjunction 
+                  with -s)
+  -h <head_name>  Name of generated public header (overrides -c)
+  -H <head_ext>   File extension for generated header files (default 'h').
+  -i              Do inlines, make inline functions real inline.
+  -l              Avoid generating #line directives.
+  -L              Avoid generating #line directives in headers only.
+  -o <src_base>   Base name for generated source files (defaults to -c, and 
+                  overrides -p)
+  -p              Prefix for names of output files.
+  -s              Generate a single source file per .cpp file (not a file 
+                  per section).
+  -t              Truncate empty implementation files to zero length (so
+                  that even the includ directives are ommitted)
+  -v              Be verbose (very).
+  -w              Do warnings.
+EOF
+}
+
+if ($opt_c eq '')
+  {
+    usage;
+    die "Need to specify option -c Classfile_basename;";
+  }
+
+my $incfile_base = $opt_c;
+my $public_base = (($opt_h eq '') ? $incfile_base : $opt_h);
+my $outfile_base;
+my $headerfile_base;
+my $doing_inlines = $opt_i;
+my $verbose = $opt_v;
+my $doing_linenumbers = (! $opt_l) && (! $opt_L);
+my $wno_inline = $opt_w;
+my $status = 0;
+
+my $parts_re = '';
+my %parts = ( '{' => '(',
+              '}' => ')',
+	      ',' => '||',
+	      '-' => '&&',
+	      '|' => '|',
+	      '&' => '&',
+	      '(' => '(',
+	      ')' => ')',
+	      '!' => '!');
+
+my $ARGV = $ARGV[0];
+
+if ($opt_e ne '')
+  {
+    foreach my $p (split(' ',$opt_e))
+      {
+        $parts{$p} = '1';
+      }
+  }
+
+# Added 2003.01.12  by RCB
+# Support for changing the names of headers
+my $source_ext = $opt_C;
+my $header_ext = $opt_H;
+
+if ($opt_o eq '')
+  {
+    $outfile_base = $opt_p . $incfile_base;
+    $headerfile_base = $opt_p . $public_base;
+  }
+else
+  {
+    $outfile_base = $opt_o;
+    $headerfile_base = $outfile_base;
+  }
+
+# 
+# Variable initializations
+#
+parse_init();
+
+our $print_indent = 0;
+clear_head();
+
+my %classes = ();
+my %sections = ();
+my %impl_parts = ();
+my %includes = ();
+my @comments = ();
+my %public_inline = ();
+my %private_inline = ();
+my %unit_inline = ();
+my @inline_order_public = ();
+my @inline_order_private = ();
+my @inline_order_unit = ();
+
+# 
+# Parse input file
+#
+
+parse_file ();
+
+#
+# Print header file
+# 
+
+# Fixup incfile_base preproc macro if it contains invalid chars.
+my $incfile_base_macro;
+
+$incfile_base_macro = $incfile_base;
+$incfile_base_macro =~ s/[+-]/_/g;
+
+open(OUT, ">${headerfile_base}.$header_ext")
+  || die "Cannot open ${headerfile_base}.$header_ext for writing!";
+print OUT "// AUTOMATICALLY GENERATED -- DO NOT EDIT!         -*- c++ -*-\n\n";
+print OUT "#ifndef ${incfile_base_macro}_$header_ext\n" .
+          "#define ${incfile_base_macro}_$header_ext\n";
+
+foreach my $i (grep {$_->{type} eq 'include'} @{$sections{"INTERFACE"}})
+  {
+    print_code $i;
+  }
+
+print_head ("\n" .
+	    "//\n" .
+	    "// INTERFACE definition follows \n" .
+	    "//\n\n");
+
+foreach my $i ( (grep {$_->{type} eq 'classdef' 
+                 && $_->{syntax} eq 'forwarddecl'}
+	           @{$sections{"INTERFACE"}}),
+	     (grep {$_->{type} ne 'classdef' || $_->{syntax} ne 'forwarddecl'}
+	           @{$sections{"INTERFACE"}}) )
+  {
+    if ($i->{type} eq 'code')
+      {
+	print_code $i;
+      }
+    elsif ($i->{type} eq 'classdef')
+      {
+	print_classdecl ($i);
+      }
+  }
+
+foreach my $i (grep {$_->{type} eq 'function' && $_->{class} eq ''
+		                              && ! $_->{static}}
+	         @{$sections{"IMPLEMENTATION"}})
+  {
+    print_funcdecl $i;
+  }
+
+my @public_templates = grep 
+  {
+    $_->{type} eq 'function' && $_->{template} ne '' # template func
+    && $_->{fully_specialized_template} eq ''
+    && ! defined $public_inline{$_} # not public inline -- handled elsewhere
+    && ($_->{visibility} eq "free"  # free func
+	|| ($_->{class} ne ''	# or member func of public or published class
+	    && ($classes{$_->{class}}->{section} eq 'INTERFACE'
+		|| defined $public_inline{$classes{$_->{class}}})))
+  } 
+		    @{$sections{"IMPLEMENTATION"}};
+
+my $impl_includes_imported = 0;
+
+if (scalar keys %public_inline || scalar @public_templates)
+  {
+    if (scalar @public_templates)
+      {
+	$impl_includes_imported = 1;
+      }
+
+    clear_head();
+    print_head 
+      ("\n" .
+       "//\n" .
+       "// IMPLEMENTATION includes follow " .
+       "(for use by inline functions/templates)\n" .
+       "//\n\n");
+
+    foreach my $i (grep { $_->{type} eq 'include'
+			    && ($impl_includes_imported || $_->{inline}) }
+		   @{$sections{"IMPLEMENTATION"}})
+      {
+	print_code $i;
+      }
+
+    clear_head();
+    print_head 
+      ("\n" . 
+       "//\n" .
+       "// IMPLEMENTATION of inline functions (and needed classes)\n" .
+       "//\n\n");
+
+    print_inlines (@inline_order_public);
+  }
+
+clear_head();
+print_head ("\n" .
+	    "//\n" .
+	    "// IMPLEMENTATION of function templates\n" .
+	    "//\n\n");
+foreach my $i (@public_templates)
+  {
+    print_funcdef $i;
+  }
+
+clear_head();
+
+print OUT "\n#endif // ${incfile_base_macro}_$header_ext\n";
+close OUT;
+
+#
+# Print "internal data structures" header file
+#
+
+open(OUT, ">${outfile_base}_i.$header_ext")
+  || die "Cannot open ${outfile_base}_i.$header_ext for writing!";
+print OUT "// AUTOMATICALLY GENERATED -- DO NOT EDIT!         -*- c++ -*-\n\n";
+print OUT "#ifndef ${incfile_base_macro}_i_$header_ext\n" .
+          "#define ${incfile_base_macro}_i_$header_ext\n";
+
+foreach my $i (grep { $_->{type} eq 'include' }
+	       @{$sections{"IMPLEMENTATION"}})
+  {
+    print_code $i;
+  }
+
+foreach my $i 
+  ( (grep {$_->{type} eq 'classdef' && $_->{syntax} eq 'forwarddecl'}
+     @{$sections{"IMPLEMENTATION"}}),  # first all forward declarations,
+    (grep {$_->{type} eq 'classdef' && $_->{syntax} ne 'forwarddecl'}
+     @{$sections{"IMPLEMENTATION"}}) ) # then all other class / type decls
+  {
+    print_classdecl ($i);
+  }
+
+
+# XXX should we print #defines here?
+
+print_head ("\n" . 
+	    "//\n" .
+	    "// IMPLEMENTATION of inline functions follows\n".
+	    "//\n\n");
+print_inlines (@inline_order_private);
+
+clear_head();
+print_head ("\n" .
+	    "//\n" .
+	    "// IMPLEMENTATION of function templates\n" .
+	    "//\n\n");
+foreach my $i (grep 
+	      {
+		$_->{type} eq 'function' && $_->{template} ne ''
+		&& $_->{fully_specialized_template} eq ''
+		&& ! defined $public_inline{$_}
+		&& ! defined $private_inline{$_}
+		&& ($_->{visibility} eq 'static'
+		    || ($_->{class} ne '' 
+			&& ($classes{$_->{class}}->{section} ne 'INTERFACE' &&
+			    !defined $public_inline{$classes{$_->{class}}})))
+	      } @{$sections{"IMPLEMENTATION"}})
+  {
+    print_funcdef $i;
+  }
+
+clear_head();
+
+print OUT "\n#endif // ${incfile_base_macro}_i_$header_ext\n";
+close OUT;
+
+$doing_linenumbers = (! $opt_l);
+
+#
+# Print implementation file(s)
+#
+
+foreach my $part (keys %impl_parts)
+  {
+    my $filename = $outfile_base.($part eq '' ? '' : ('-' . $part)) . ".$source_ext";
+    my $empty = 1;
+    #print "==> $filename\n";
+    open(OUT, ">$filename") || die "Could not open $filename for writing!";
+    print OUT "// AUTOMATICALLY GENERATED -- DO NOT EDIT!         -*- c++ -*-\n\n";
+    print OUT "#include \"${public_base}.$header_ext\"\n" .
+              "#include \"${incfile_base}_i.$header_ext\"\n\n";
+
+    foreach my $i (grep {$_->{type} eq 'function' && $_->{class} eq ''
+			&& $_->{static}} 
+		     grep {$_->{part_ext} eq $part} @{$sections{"IMPLEMENTATION"}})
+      {
+	print_funcdecl $i;
+      }
+
+    # Print unparsed code first -- make private inline functions see
+    # static variables
+    
+    foreach my $i (grep {$_->{part_ext} eq $part
+		         && $_->{type} eq 'code'}
+		   @{$sections{"IMPLEMENTATION"}})
+      {
+	print_code $i;
+	$empty = 0;
+      }
+
+    print_inlines (grep {$_->{part_ext} eq $part} @inline_order_unit);
+    
+    foreach my $i (grep {$_->{part_ext} eq $part
+			 && $_->{type} eq 'function'}
+		   @{$sections{"IMPLEMENTATION"}})
+      {
+	next if $i->{template} ne ''
+	  && $i->{fully_specialized_template} eq '';
+	    
+	print_funcdef $i;
+	$empty = 0;
+      }
+
+    truncate OUT,0 if $empty && $opt_t;
+    close OUT;
+  }
+
+
+exit 0;
+
+#############################################################################
+
+#
+# Parser code.
+#
+
+my $s_once;          # Regexp for whitespace; the \001 stuff is for comments
+my $s;               # Zero or more whitespace
+my $identifier;      # Identifier
+my $operator_name;   # Operator name
+my $paren_group;
+my $paren_expr;
+my $tparen_group;
+my $template;        # Template declaration tag
+my $template_arg;    # Template argument list
+
+my $lineno;          # current line to be parsed
+my $blockfile;       # file that contains the currently pares block
+my $blockstart;      # first line of the current block
+my $current_section; # current section
+my $current_part;
+my $current_part_ext;
+my @ifstack;         # stack of #if clauses
+
+
+sub parse_init			# Initialize parser variables.
+{
+  # Regexp for whitespace; the \001 stuff is for comments
+  $s_once = '(?:[\n\s]|\001[0-9]+\001)';
+
+  # Zero or more whitespace
+  $s = $s_once . '*';
+
+  # Identifier
+  $identifier = "(?:[A-Za-z_][A-Za-z_0-9]*)";
+
+  # Operator name
+  $operator_name = "(?:operator$s(?:"
+                  .'(?:[~,]|[+\-*/%^&|!=<>]=?|[<>]{2}=?|[&|+\-]{2}|->\*?'
+                  .'|\(\)|(?:new|delete)?'.$s.'\[\])'."|$identifier))";
+
+
+  $paren_group = qr{
+                      \(
+                      (?:
+                         (?> [^()]+ )    # Non-parens without backtracking
+                       |
+                         (??{ $paren_group })     # Group with matching parens
+                      )*
+                      \)
+                  }x;
+
+  $paren_expr = qr{ (?> $paren_group | [^()]+ )* }x;
+
+  # Template argument list -- similar to paren_group above
+  $tparen_group = qr { < (?: (?> [^<>]+ ) | (??{ $tparen_group }) )* > }x;
+
+  # Template argument list
+  $template_arg = qr{ (?> $tparen_group) }x;
+
+  # Template declaration tag
+  $template = qr{template$s$template_arg$s};
+
+}
+
+sub match_e_opt
+{
+  my $tag = shift;
+  my $cp = '';
+
+  my $t = '\(\)&|,\{\}!-';
+  my $orig_tag = $tag;
+
+  while ($tag =~ /^\s*([$t]|(?:[^\s$t]+))\s*(.*?)$/)
+    {
+      my $r = $parts{$1};
+      $cp .= defined $r ? $r : 0;
+      $tag = $2;
+    }
+
+  my $match = eval $cp;
+  #print "TAG: $tag -> $cp = $match\n";
+  if (!defined $match)
+    {
+      die "${ARGV}:$lineno: error: syntax error in tag '$tag'\n";
+    }
+
+  if (($verbose || $opt_d) && (!defined $match || !$match)) 
+    {
+      print "Drop SECTION: [$orig_tag] from".
+	" file ${ARGV}\n";
+    }
+
+  return $match;
+}
+
+sub parse_file  
+{
+  $lineno = 0;
+  @ifstack = ();
+
+  $current_section = "IMPLEMENTATION";
+  $current_part = "";
+  my $skip_to_next_section = 0;
+  
+ NEXTLINE:  
+  while (1)
+    {
+#print "PARSED: $_\n";
+      $_ = '';
+      $blockstart = $lineno + 1;
+      $blockfile = $ARGV;
+
+    MORE: 
+      while (1)
+	{
+	  if (! read_more())
+	    {
+	      last NEXTLINE;
+	    }
+	  
+	  if (/^$s\/\/-[\s\n]*$/s)
+	    {
+	      handle_source_code ();
+	      next NEXTLINE;	      
+	    }
+
+	  if (s/^($s)
+	        (?:(INTERFACE
+		    | IMPLEMENTATION) 
+		      (?:$s \[ $s ([A-Za-z0-9_,\{\}!\s&|\(\)-]+) $s \] $s)? : )
+	       /$1/sx)
+	    {
+	      check_empty_ifstack();
+	      $skip_to_next_section = 0;
+	      $current_section = $2;
+	      if ($opt_e ne '' || $current_section eq "IMPLEMENTATION")
+		{
+		  if (defined $3)
+		    {
+		      $current_part = $3;
+		      if ($opt_e ne '')
+		        {
+			  $skip_to_next_section = !match_e_opt($current_part);
+	                  next NEXTLINE if $skip_to_next_section;
+			}
+		    }
+		  else
+		    {
+		      $current_part = '';
+		    }
+		}
+	      else 
+		{
+		  if (defined $3 && $opt_h ne $3) 
+		    {
+		      die "${ARGV}:${lineno}: all INTERFACE arguments and "
+			. "option -h must be consistent;"
+			  if ($opt_h ne '');
+
+		      $public_base = $3;
+		      $opt_h = $3;
+		      if ($opt_o eq '')
+			{
+			  $headerfile_base = $opt_p . $public_base
+			}
+		    }  
+		}
+	      handle_source_code ();
+	      next NEXTLINE;
+	    }
+	  elsif ($skip_to_next_section)
+	    {
+	      next NEXTLINE;
+	    }
+	  
+	  # Preprocessor directive?
+	  if (/^$s\#/s)
+	    {
+	      while (/\\\n$/s)
+		{
+		  last NEXTLINE if ! read_more();
+		}
+
+	      handle_preproc();
+	      next NEXTLINE;
+	    }
+	  
+	  next NEXTLINE if ignoring();
+
+	  # Read until we can decide what we have: Read till next block end
+	  # or semicolon.
+	  if (/\{/)
+	    {
+	      # Have a block.
+	      my $foo = $_;
+	      do {} while ($foo =~ s/\{[^\{\}]*\}//sg); # kill blocks
+	      if ($foo =~ /\{/)
+		{
+#print "MORE: $foo\n";
+		  next MORE;	# Still unfinished blocks.
+		}
+	    }
+	  elsif (! /;/) # no unclosed blocks & semicolon?
+	    {
+	      next MORE;
+	    }
+	  
+	  # Type declaration?
+	  if (/^$s(?:$template)?(enum|struct|class|typedef)/s)
+	    {
+	      my $syntax = $1;
+
+	      if (/^$s(?:$template)?
+		    (?:enum|struct|class)
+		    $s ($identifier (?:$s $template_arg)?)
+		    $s (?::(?!:)|\{)/sx)
+		{
+		  # Have a block -> this is a definition.
+		  
+		  my $name = $1;
+		  
+		  if (/^(.*)(\}.*)$/s) 
+		    {
+		      my $class = { name => $name,
+				    syntax => $syntax,
+				    pretext => $1,
+				    posttext => $2 };
+#print "CLASS " . $class->{name} . ">" .$class->{pretext} . "###" . $class->{posttext};		    
+		      handle_classdef ($class);
+		    }
+		}
+	      else 
+		{
+		  # No block or no name -- handle as declaration.
+		  if (/^$s(?:$template)?(?:enum|struct|class)$s\{/s)
+		    {
+		      # no name but block -- make this a global variable decl.
+		      handle_source_code ();
+		    }
+		  elsif (/^$s(?:$template)?(?:enum|struct|class)/s)
+		    {
+		      # no block -- this seems to be a forward
+		      # decl. or a variable decl.
+
+		      if (/^$s(?:$template)?(?:enum|struct|class)$s
+			  ($identifier) $s ;/sx)
+			{
+			  my $class = { syntax => 'forwarddecl',
+			  	        name => $1 };
+			  handle_classdef ($class);
+			}
+		      else
+			{
+			  handle_source_code ();
+			}
+		    }
+		  elsif (/^${s} typedef \b /sx) # It's a typedef
+		    {
+		      # strip off function args and array spec
+		      my $l = $_;
+		      $l =~ s/; $s $//sx;
+		      $l =~ s/\([^\)]*\) (?:${s}const)? $s $//sx;
+	      	      $l =~ s/(?: \[ [^\[]* \] $s | \) $s )+ $//sx;
+		      $l =~ m/($identifier) $s $/sx;
+
+		      my $class = { syntax => 'typedef',
+				    name => $1 };
+		      handle_classdef ($class);
+		    }
+		  else
+		    {
+		      die "${ARGV}:$lineno: Parse error";
+		    }
+		}
+	      
+	      next NEXTLINE;
+	    }
+	  
+	  # Type declaration extension?
+	  if (/^$s EXTENSION $s (?:struct|class) $s ($identifier) 
+	       $s (?::(?!:) $s ([^\{]*))?\{ (.*) \} $s ; $s $/sx)
+	    {
+	      my $super = $2;
+	      my $name = $1;
+	      my $string = $3;
+
+	      if (! exists $classes{$name})
+		{
+		  die "${ARGV}:$lineno: Class extension for undefined class " .
+		      $name;
+		}
+
+	      # XXX XXX we should not handle line directives here --
+	      # this is the job of the output functions.  However, as
+	      # we don't generate a new codechunk for this extension,
+	      # we just add the extension's line number here.
+
+	      if ($doing_linenumbers)
+		{
+		  $classes{$name}->{pretext} .= 
+		    "\n#line " . $blockstart . " \"" . $ARGV . "\"\n";
+		}
+
+		my $txt = \($classes{$name}->{pretext});
+
+		if (defined $super)
+		  {
+		    if ($$txt =~ /^([^\{]*)/sx)
+		      {
+		        my $pre = $1;
+			if ($pre =~ /^.*:(?!:)(.*)$/sx)
+			  {
+			    $$txt =~ s/^$pre/$pre\n, $super/s;
+#			    print "ADD super classes: , $super\n";
+			  }
+			else
+			  {
+			    $$txt =~ s/^$pre/$pre\n: $super/s;
+			  }
+		      }
+		  }
+
+	      $classes{$name}->{pretext} .= "private:\n" . $string;
+
+	      next NEXTLINE;
+	    }
+  
+	  # Member function definition?
+	  if (/^([^\{\(]*?)             # pretext, maybe w template decl tag
+	       \b ($identifier (?: $s :: $s $identifier)*) # class name
+	       ($s $template_arg)?      # optional class-template args
+	       $s :: $s
+	       ((?:$operator_name | (?: ~? $identifier )) # member name
+	        (?:$s $template_arg)?)  # optional member-template args
+               $s ( \( (?: [^\)] | \([^\)]*\) )* \) [^:\{=]* ) # arg list
+               ((?:\{|:.*\{).* | (?:$s = $s 0 $s ;))$/sx)    # initializer ':' and body '{' or pure virtual
+	    {
+	      my ($pretext, $class, $templateargs, $name, $args, $posttext)
+	        = ($1, $2, (defined $3 ? $3 : ''), $4, $5, $6);
+#print "P<$pretext> C<$class> T<$templateargs> N<$name> A<$args> P<$posttext>\n";
+	      # Canonify operator names
+	      $name =~ s/(?<=\w)(?:$s_once)+(?=\W)//gs;
+	      $name =~ s/(?<=\W)(?:$s_once)+(?=\w)//gs;
+	      $name =~ s/(?:$s_once)+/ /gs;
+	      # Canonify class name
+	      $class =~ s/$s//gs;
+	      my $memberfunction = { class => $class,
+				     name => $name,
+				     templateargs => $templateargs,
+				     pretext => $pretext,
+				     args => $args,
+				     posttext => $posttext };
+	      handle_function ($memberfunction);
+	      next NEXTLINE;
+	    }
+	  
+	  # Free function definition?
+	  if (/^([^\{]*)                # pretext, maybe w template decl tag
+               \b ($operator_name | $identifier) # function name
+	       ($s $template_arg)?      # optional template args
+               $s( \( $paren_expr \) [^:\{\(\)=]*) # arg list
+               (\{.*)$/sx)              # body
+	    {
+	      my $function = { class => '',
+			       name => $2,
+			       templateargs => (defined $3
+					        ? $3 : ''),
+			       pretext => $1,
+			       args => $4,
+			       posttext => $5 };
+	      handle_function ($function);
+	      next NEXTLINE;
+	    }
+	  
+	  handle_source_code ();
+	  next NEXTLINE;
+	}
+    }
+
+  if (! /^$s$/s)
+    {
+      $verbose && print "EOF: " . $_ . "\n";
+      die "${blockfile}:$blockstart: Unexpected end of file in block starting here;";
+    }
+
+}
+
+sub read_more ()	# Read one more line of code. Stow away
+                        # comments and character constants
+{
+  # Get a line without comments.
+  while (1)
+    {
+      if (eof(INPUT))			# Reset line numbering.
+	{
+	  check_empty_ifstack();
+	  $lineno = 0;
+	  do 
+	    {
+	      my $file;
+	      return 0 unless $file = shift @ARGV;
+	      $ARGV = $file;
+	      open(INPUT, $ARGV) || die "Cannot open $ARGV for reading!";
+              if ($opt_s)
+                {
+#      print "FILE: $ARGV\n";
+                  my $part_ext = '';
+                  if ($ARGV =~ /^(?:.*\/)?(.+)$/ && $1 =~ /(?:[^-]*)-(.*)\..*/)
+                    {
+	              $part_ext = $1;
+  	            }
+		  $current_part_ext = $part_ext;
+                  $impl_parts{$part_ext} = 1;
+#      print "PART: '$part_ext'\n";
+                }
+              print "read file: '$ARGV'\n" if $verbose;
+	    }
+	  while(eof(INPUT));
+	}
+
+      $lineno++;
+	
+      my $line = <INPUT>;
+
+      if (! defined $line)
+	{
+	  return 0;
+	}
+
+      $_ .= $line;
+
+      # Save comments and strings in @comments array.  Save strings
+      # first to catch strings with comment-like contents.
+      my $number = @comments;
+
+      # We don't touch strings in NEEDS[], neither #includes!  Save now --
+      # restore later.
+      my $saved = '';
+      if (s/(^$s \# $s include.*$
+	     | NEEDS $s \[[^\]]* )
+	   /\003/sx)
+	{
+	  $saved = $1;
+	}
+
+      while (s,(\'(?:\\.|[^\']|\\[0-7]+)\'),\002$number\002,s)
+	{
+	  push @comments, $1;
+	  $number++;
+	}
+
+#      while (s,(\"(?:[^\"]|(?<=\\)\")*\"),\002$number\002,s)
+      while (s,(\"(?:[^\\\"]|\\.)*\"),\002$number\002,s)
+	{
+	  push @comments, $1;
+	  $number++;
+	}
+
+      if ($saved ne '')
+	{
+	  s/\003/$saved/s;
+	}
+
+      while (s|(//(?!-\s*\n).*)$|\001$number\001|m) # Do not match magic "//-"
+	{			# The \001 signifies whitespace.
+	  push @comments, $1;
+	  $number++;
+	}
+
+      while (s|(/\*.*\*/)|\001$number\001|s)
+	{
+	  push @comments, $1;
+	  $number++;
+	}
+      
+      if (! /\/\*/)
+	{
+	  last;
+	}
+    }
+
+  return 1;
+}
+
+sub label_chunk
+{
+  my ($codechunk,$type) = @_;
+
+  $codechunk->{type} = $type;
+  $codechunk->{section} = $current_section;
+  $codechunk->{string} = $_;
+  $codechunk->{part} = $current_part;
+  $codechunk->{part_ext} = $opt_s ? $current_part_ext : $current_part;
+      
+  $impl_parts{$current_part} = 1 unless $opt_s;
+
+  $codechunk->{line} = $blockstart;
+  $codechunk->{file} = $ARGV;
+  $codechunk->{printed} = 0;
+
+  push @{$sections{$current_section}}, $codechunk;
+}
+
+sub ignoring
+{
+  foreach my $i (@ifstack)
+    {
+      if ($i->{value} == 1)
+	{
+	  return 1;
+	}
+    }
+
+  return 0;
+}
+
+sub handle_preproc 
+{
+#   if ($codeblock->{string} =~ /^$s\#\s*(if|endif|else|elif)/)
+#     {
+#       die "${ARGV}:${lineno}: Conditional compilation not supported;";
+#     }
+
+  if (/^$s\#\s*if\s+0${s}$/)
+    {
+      push @ifstack, { value => 1, file => ${ARGV}, line => $lineno };
+      $verbose && print "IF 0: " . ignoring() . "\n";
+      return;
+    }
+  elsif (@ifstack && /^$s\#\s*if(def|ndef)?\s/)
+    {
+      push @ifstack, { value => 0, file => ${ARGV}, line => $lineno };
+      $verbose && print "IF: " . ignoring() . "\n";
+      return if ignoring();
+    }
+  elsif (@ifstack && /^$s\#\s*(else|elif)/)
+    {
+      my $ignoring = ignoring();
+      my $i = pop @ifstack;
+      $i->{value} = -$i->{value};
+      push @ifstack, $i;
+      $verbose && print "ELSE/ELIF: " . ignoring() . " ($ignoring)\n";
+      return if $ignoring;
+    }
+  elsif (@ifstack && /^$s\#\s*endif/)
+    {
+      my $ignoring = pop @ifstack;
+      $verbose && print "ENDIF: " . ignoring() . "\n";
+      return if ignoring() || $ignoring->{value};
+    }
+  elsif (/^$s\#\s*include${s}([\"<][^\">]+[\">])/)
+    {
+      my $codeblock;
+      $codeblock->{name} = $1;
+      $codeblock->{inline} = 0;
+
+      $includes{$codeblock->{name}} = $codeblock;
+      
+      label_chunk ($codeblock, "include");
+      
+      $verbose && print "INCLUDE: " . $codeblock->{name} . "\n";
+      return;
+    }
+  
+  # XXX: For now, treat preprocessor stuff besides #include, #if 0 as code.
+  handle_source_code ();
+}
+
+sub dump_ifstack
+{
+  my $indent = '';
+  foreach my $i (@ifstack)
+    {
+      print "$indent$i->{value}: $i->{file}:$i->{line}\n";
+      $indent .= '  ';
+    }
+}
+
+sub check_empty_ifstack
+{
+  if ($#ifstack >= 0)
+  {
+    my $i = pop @ifstack;
+    print STDERR "${ARGV}:${lineno}: missing endif for $i->{file}:$i->{line}\n";
+    die;
+    $status = -1;
+  }
+}
+
+sub handle_source_code
+{
+  return if /^[\s\n]*$/;
+
+  my $codeblock = {};
+  label_chunk ($codeblock, "code");
+
+  $verbose && print "UNKNOWN: " . $codeblock->{string};
+}
+
+sub handle_classdef 
+{
+  my $class = $_[0];
+  label_chunk ($class, "classdef");
+
+  $class->{funcs} = [];
+
+  if ($class->{syntax} ne 'forwarddecl')
+    {
+      $classes{$class->{name}} = $class;
+    }
+
+  $verbose && print "CLASSDEF: " . $class->{name} . " [" 
+    . $class->{syntax} . "]\n";
+}
+
+sub handle_function 
+{
+  my $func = $_[0];
+
+  $func->{purevirtual} = 0;
+
+  if ($func->{class} ne '')
+    {
+      # Nested class hacks
+      if ($func->{class} =~ /::/
+	  && ! defined $classes{$func->{class}})
+	{
+	  # Define class along the way -- the dirty way.
+	  my $class = { name => $func->{class},
+			syntax => "class",
+		        nested_class => 1 };
+	  my ($topclass, $rest) = split (/::/, $func->{class});
+	  my $save_sec = $current_section;
+	  $current_section = $classes{$topclass}->{section};
+	  handle_classdef ($class);
+	  $current_section = $save_sec;
+	}
+
+      $func->{visibility} = "private";
+      if (s/^($s)PRIVATE([\s\n])/$1$2/s)
+	{
+	  $func->{visibility} = "private";
+	  $func->{pretext} =~ s|PRIVATE[ \t]*||s;
+	}
+      elsif (s/^($s)PUBLIC([\s\n])/$1$2/s)
+	{
+	  $func->{visibility} = "public";
+	  $func->{pretext} =~ s|PUBLIC[ \t]*||s;
+	}
+      elsif (s/^($s)PROTECTED([\s\n])/$1$2/s)
+	{
+	  $func->{visibility} = "protected";
+	  $func->{pretext} =~ s|PROTECTED[ \t]*||s;
+	}
+      elsif (s/^($s)IMPLEMENT([\s\n])/$1$2/s)
+        {
+	  # Use a visibility attribute that is never used in adding
+	  # declarations to classes in print_classdecl.
+	  $func->{visibility} = "implementation_only";
+          $func->{pretext} =~ s|IMPLEMENT[ \t]*||s;
+        }
+
+      if ($func->{posttext} =~ s/$s=${s}0$s;$s$//s)
+        {
+	  $func->{purevirtual} = 1;
+	}
+
+      if ($func->{class} =~ /::/
+	  && $func->{visibility} ne "implementation_only")
+	{
+	  die "${ARGV}:${lineno}: Limitation: Only predeclared members " .
+	    "supported for nested classes.  Use IMPLEMENT;";
+	}
+
+      if (! defined $classes{$func->{class}})
+	{
+	  die "${ARGV}:${lineno}: Class " . $func->{class} 
+	    . " has not been declared;";
+	}
+    }
+  else 
+    {
+      $func->{visibility} = "free";
+    }
+
+  # Interprete more type attributes.
+  $func->{inline} = 0;
+  $func->{always_inline} = 0;
+  $func->{static} = 0;
+  $func->{hide} = 0;
+  $func->{virtual} = 0;
+  $func->{explicit} = 0;
+  $func->{classtemplate} = '';
+  $func->{funtemplate} = '';
+  $func->{template} = '';
+  $func->{fully_specialized_template} = '';
+  while (1)
+    {
+      if (s/^($s)((?:$template)+)([\s\n])/$1$3/s)
+        {
+	  my $match = $2;
+	  my @specs = split(/(?<= \>)(?= $s template)/sx, $match, 3);
+
+	  if ($func->{class} eq '') # Free function?
+	    {
+	      $func->{funtemplate} = shift @specs;
+	    }
+	  else			# Have a class
+	    {
+	      my $class = $classes{$func->{class}};
+	      my $istemplateclass = ($class->{pretext} =~ /^[^\{]*template/s);
+
+	      if ($istemplateclass)
+		{
+		  $func->{classtemplate} = shift @specs;
+		  $func->{funtemplate} = shift @specs if scalar @specs;
+		}
+	      else		# Not a class template
+		{
+		  $func->{funtemplate} = shift @specs;
+		}
+	    }
+
+	  die "${ARGV}:$lineno: Too many template specs"
+	    if scalar @specs;
+
+	  $func->{template} = 'yes';
+	  $func->{fully_specialized_template} = 'yes'
+	    if ($match =~ /^(?:${s}template$s<${s}>)+${s}$/s);
+
+          $func->{pretext} =~ s/\Q$match//s;
+#         $func->{pretext} =~ s|$template[ \t]*||s;
+	  next;
+        }
+
+      if (s/^($s)inline([\s\n])/$1$2/si) # "inline" is case-insensitive.
+        {
+	  $func->{inline} = 1 if $doing_inlines
+	                         || $func->{fully_specialized_template} ne '';
+	  $func->{pretext} =~ s|inline[ \t]*||si;
+	  @{$func->{needs}} = ();
+	  while (1)
+	    {
+	      if (s/^($s)NEEDS\s*\[([^\]]+)\]([\s\n])/$1$3/s)
+		{
+		  @{$func->{needs}} = split (/\s*,\s*/, $2);
+		  # Delete NEEDS directive, but keep newlines
+		  while ($func->{pretext} =~ 
+			 s|NEEDS \s* \[ ( (?:[^\n\]]*\n)* )
+                           [^\n\]]+ \n (\n*)
+                           [^\n\]]* \]
+                          |NEEDS[$1\n$2\]|sx) {}
+		  $func->{pretext} =~ s|NEEDS\s*\[ (\n*) [^\n\]]*\]|$1|sx;
+		  next;
+		}
+	      if (s/^($s)NOEXPORT([\s\n])/$1$2/si)
+		{
+		  $func->{hide} = 1;
+		  $func->{pretext} =~ s|NOEXPORT[ \t]*||s;
+		  next;
+		}
+	      if (s/^($s)ALWAYS_INLINE([\s\n])/$1$2/si)
+	        {
+		  $func->{inline} = 1;
+		  $func->{always_inline} = 1;
+		  $func->{pretext} =~ s|ALWAYS_INLINE[ \t]*||s;
+		  next;
+		}
+	      last;
+	    }
+
+	  # Reset inline data if inline handling was not enabled by -i
+	  # or ALWAYS_INLINE.
+	  if (! $func->{inline})
+	    {
+	      undef $func->{needs};
+	    }
+          next;
+        }
+     
+
+      if (s/^($s)static([\s\n])/$1$2/s)
+        {
+          $func->{static} = 1;
+          $func->{pretext} =~ s/static[ \t]*//s;
+
+	  if ($func->{class} eq '')
+	    {
+	      $func->{visibility} = "static";
+	      $func->{hide} = 1;
+	    }
+
+	  next;
+        }
+
+      if (s/^($s)IMPLEMENT([\s\n])/$1$2/s)
+        {
+          $func->{pretext} =~ s/IMPLEMENT[ \t]*//s;
+
+	  if ($func->{class} eq '')
+	    {
+	      $func->{visibility} = "implementation_only";
+	    }
+
+	  next;
+        }
+
+      if (s/^($s)explicit([\s\n])/$1$2/s)
+        {
+          $func->{explicit} = 1;
+          $func->{pretext} =~ s|explicit[ \t]*||s;
+	  next;
+        }
+
+      if (s/^($s)virtual([\s\n])/$1$2/s)
+        {
+          $func->{virtual} = 1;
+          $func->{pretext} =~ s|virtual[ \t]*||s;
+	  next;
+        }
+
+      if (/^($s)(PRIVATE|PUBLIC|PROTECTED)([\s\n])/)
+        {
+	  die "${blockfile}:$blockstart: only one visibility attribute allowed at start of declaration;";
+        }
+
+      last;
+  }
+
+  label_chunk ($func, "function");
+
+  if ($current_section eq 'INTERFACE')
+    {
+      die "${ARGV}:${lineno}: Function " . $func->{name} 
+          . " in INTERFACE section;";
+    }
+
+  push @{$classes{$func->{class}}->{funcs}}, $func;
+
+  $verbose && print "FUNC: " . ($func->{class} ne '' 
+				? ($func->{class} . "::")
+			        : "")
+    . $func->{name} 
+    . ($func->{classtemplate} ne ''
+       ? " T: " . $func->{classtemplate} : "")
+    . ($func->{funtemplate} ne ''
+       ? " M: " . $func->{funtemplate} : "")
+    . ($func->{fully_specialized_template} ne ''
+       ? " FULLY_SPEC" : "")
+    . "\n";
+}
+
+#############################################################################
+
+#
+# Printing code.
+#
+
+my $saved_head;
+my $saved_indent;
+
+sub print_head			# Save header.  Print it only if a
+                                # print_expand() follows
+{
+  $saved_head .= $_[0];
+  $saved_indent = $print_indent;
+}
+
+sub clear_head
+{
+  $saved_head = '';
+}
+
+sub print_expand($)		# Expands comments and prints to OUT.
+{
+  my $str = $_[0];
+
+  if ($saved_head ne '')
+    {
+      local $print_indent = $saved_indent;
+      my $str = $saved_head;
+      $saved_head = '';
+
+      print_expand $str;	# Recurse.
+    }
+
+  $str =~ s/\n(?:[ \t]*\n)+/\n\n/sg if ! $doing_linenumbers;
+
+  while ( $str =~ s/([\001\002])([0-9]+)\1/$comments[$2]/sg )
+    {}
+
+  if ($print_indent)
+    {
+      my $istr = " " x $print_indent;
+      $str =~ s/^/$istr/mg;
+    }
+
+  print OUT $str;
+}
+
+sub print_lineno($)
+{
+  return if ! $doing_linenumbers;
+
+  my $object = $_[0];
+
+  print_expand '';		# print headers we accumulated
+  print OUT "#line " . $object->{line} . " \"" . $object->{file} . "\"\n";
+}
+
+sub print_lineno_sans_empty_lines($)
+{
+  return if ! $doing_linenumbers;
+
+  my $object = $_[0];
+
+  my $start_of_code = $object->{string};
+  $start_of_code =~ s/^([\s\n]+).*$/$1/s;
+
+  my @startcomments = split /\n/, " $start_of_code ";
+
+  print OUT "#line " . ($object->{line} + @startcomments - 1)
+    . " \"" . $object->{file} . "\"\n";
+}
+
+sub weedout_whitespace		# Delete whitespace except on lines w/comments
+{
+  my $str = $_[0];
+
+  $str =~ s/^[\s\n]+//s;
+
+  if (! $doing_linenumbers)	# more cosmetic changes if we do not
+    {				# have to be correct line-number-wise
+      my @lines = split /\n/, $str;
+      my $foundcode = 0;
+      $str = '';
+      
+      foreach my $line (@lines)
+	{
+	  $line =~ s/^\s+//;
+	  $line =~ s/\s+$//;
+	  
+	  if ($line =~ /\001/ || $line =~ /^\s*$/)
+	    {
+	      $line .= "\n";
+	    }
+	  else
+	    {
+	      if (! $foundcode)
+		{
+		  $foundcode = 1;
+
+		  # Found something like code: Remove trailing whitespace
+		  # from $str,
+		  $str =~ s/\s+$//s;
+		  $str .= "\n" if $str ne '';
+		}
+
+	      $line =~ s/\s+/ /g;
+	      $line .= ' ';
+	    }
+	  $str .= $line;
+	}
+    }
+
+  $str =~ s/\s+$//;
+
+  return $str;
+}
+
+sub func_prototype($)		# Return a function declaration from
+                                # func head.
+{
+  my $func = $_[0];
+  my $pretext = $func->{pretext};
+
+  if ($func->{inline}) 
+    {
+      $pretext =~ s/^($s)/${1}inline /s;
+    }
+
+  if ($func->{explicit}) 
+    {
+      $pretext =~ s/^($s)/${1}explicit /s;
+    }
+
+  if ($func->{static}) 
+    {
+      $pretext =~ s/^($s)/${1}static /s;
+    }
+
+  if ($func->{virtual}) 
+    {
+      $pretext =~ s/^($s)/${1}virtual /s;
+    }
+
+  if ($func->{funtemplate} ne '')
+    {
+      $pretext =~ s/^($s)/${1}$func->{funtemplate} /s;
+    }
+
+  my $func_header = weedout_whitespace($pretext . 
+				       $func->{name} . $func->{args});
+
+  # Insert ; at the correct place, that is, before any comments.
+  my $e = $func->{purevirtual} ? ' = 0' : '';
+  $func_header =~ s/($s)$/$e;$1/s;
+
+  return $func_header;
+}
+
+sub print_funcdecl($)
+{
+  my $function = $_[0];
+
+  if ($function->{visibility} ne "implementation_only")
+    {
+      print_expand "\n";
+      print_lineno_sans_empty_lines $function;
+      print_expand func_prototype($function) . "\n";
+    }
+
+  # Handle inlines.
+  if ($function->{inline})
+    {
+      handle_inline ($function);
+    }
+}
+
+sub print_classdecl($)
+{
+  my $class = $_[0];
+  return if check_if_printed ($class);
+
+  print_lineno $class;
+
+  if (defined $class->{nested_class})
+    {
+      # (This will not actually print anything, but do other processing.)
+      foreach my $function (@{$class->{funcs}})
+	{
+	  die "Assert failed" 
+	    if $function->{visibility} ne "implementation_only";
+	  print_funcdecl $function;
+	}
+    }
+  elsif ($class->{syntax} =~ /^(?:struct|class)$/)
+    {
+      if (! $doing_inlines)
+	{
+	  $class->{pretext} =~ s/\binline\b[ \t]*//g;
+	}
+
+      print_expand $class->{pretext};
+
+      print_head "\npublic:";
+      $print_indent += 2;
+      foreach my $function (grep {$_->{visibility} eq "public"}
+			         @{$class->{funcs}})
+	{
+	  print_funcdecl $function;
+	}
+      $print_indent -= 2;
+      clear_head();
+      print_head "\nprotected:";
+      $print_indent += 2;
+      foreach my $function (grep {$_->{visibility} eq "protected"} 
+			         @{$class->{funcs}})
+	{
+	  print_funcdecl $function;
+	}
+      $print_indent -= 2;
+      clear_head();
+      print_head "\nprivate:";
+      $print_indent += 2;
+      foreach my $function (grep {$_->{visibility} eq "private"} 
+			         @{$class->{funcs}})
+	{
+	  print_funcdecl $function;
+	}
+      $print_indent -= 2;
+      clear_head();
+
+      # Also, don't forget to "print" already-declared functions.
+      # (This will not actually print anything, but do other processing.)
+      foreach my $function (grep {$_->{visibility} eq "implementation_only"}
+			         @{$class->{funcs}})
+	{
+	  print_funcdecl $function;
+	}
+
+      print_expand $class->{posttext};
+    }
+  else
+    {
+      print_expand $class->{string};
+    }
+}
+
+my $parengroup;
+sub print_funcdef($)
+{
+  my $function = $_[0];
+  return if $function->{purevirtual};
+  return if check_if_printed ($function);
+
+  my $pretext = $function->{pretext};
+
+  if ($function->{inline})
+    {
+      if ($function->{always_inline})
+        {
+	  $pretext =~ s/^($s)/${1}ALWAYS_INLINE /s;
+	}
+      $pretext =~ s/^($s)/${1}inline /s;
+    }
+
+  if ($function->{static} && $function->{class} eq '')
+    {
+      $pretext =~ s/^($s)/${1}static /s;
+    }
+
+  if ($function->{funtemplate} ne '')
+    {
+      $pretext =~ s/^($s)/${1}$function->{funtemplate} /s;
+    }
+
+  if ($function->{classtemplate} ne '')
+    {
+      $pretext =~ s/^($s)/${1}$function->{classtemplate} /s;
+    }
+
+  # Remove default arguments from argument list
+  my $args = $function->{args};
+  $parengroup = qr{		# Matches correctly-nested groups of parens
+		      \(
+		      (?:
+		       (?> [^()]* )        # Non-parens without backtracking
+		       |
+		       (??{ $parengroup }) # Backtrack: Group with parens
+		      )*
+		      \)
+		     }x;
+  my $expr = qr{ [^(),]* (?:$parengroup)? [^(),]* }x;
+  $args =~ s/$s = $expr//gx;
+
+  print_expand "\n";
+  print_lineno $function;
+  print_expand $pretext 
+    . ($function->{class} ne '' 
+       ? $function->{class} . $function->{templateargs} 
+           . "::" . $function->{name}
+       : $function->{name} . $function->{templateargs})
+    . $args . $function->{posttext};
+}
+
+sub print_code($)
+{
+  my $codeblock = $_[0];
+  return if check_if_printed ($codeblock);
+  print_lineno $codeblock;
+  print_expand $codeblock->{string};
+}
+
+sub check_if_printed
+{
+  my $codeblock = $_[0];
+  return 1 if $codeblock->{printed};
+  $codeblock->{printed} = 1;
+  return 0;
+}
+
+#############################################################################
+
+#
+# Inline-function bookkeeping.
+#
+
+sub lookup_by_name		# Return (list of) item(s) matching name.
+{
+  my ($item, $context) = @_;
+
+  # Is it a class name?
+  if (defined $classes{$item})
+    {
+      return $classes{$item};
+    }
+
+  # Is it an include file?
+  if (defined $includes{$item})
+    {
+      $includes{$item}->{inline} = 1;
+      return $includes{$item};
+    }
+
+  # Must be a function name!
+  my ($classname, $funcname);
+  
+  if ($item =~ /::/)
+    {
+      ($classname, $funcname) = split /::/, $item;
+    }
+  else 
+    {
+      ($classname, $funcname) = ('' , $item);
+    }
+
+  my @grepresult = grep {$_->{name} eq $funcname && $_->{inline}} 
+	                 @{$classes{$classname}->{funcs}};
+
+  return shift @grepresult
+    if (scalar @grepresult == 1);
+
+  if (scalar @grepresult == 0)
+    {
+      my @xgrepresult = grep {$_->{name} eq $funcname}
+                              @{$classes{$classname}->{funcs}};
+      die $context->{file} . ":" . $context->{line} . ": Cannot find $item;"
+        if (scalar @xgrepresult == 0);
+      $wno_inline && print STDERR $context->{file} . ":" . $context->{line} .
+                                  ": warning: Cannot find inline code ".
+				  "for $item;\n";
+    }
+
+  return @grepresult;	# Return list of matching function names.
+}
+
+# Check if Function $function can already see Object $item in its context.
+sub inline_known
+{
+  my ($item, $function) = @_;
+
+  if ($item->{type} eq "function"
+      && $item->{hide}
+      && ! $function->{hide})
+    {
+      die $function->{file} . ":" . $function->{line} . 
+	": Nonhidden function " . funcname($function) .
+	" depends on hidden function " . funcname($item) . " (" .
+	($item->{visibility} eq 'static' ? "static" : "NOEXPORT") . ")";
+    }
+
+  return exists $public_inline{$item}
+    || (($function->{visibility} eq 'private'
+	 || ($function->{class} ne '' 
+	     && $classes{$function->{class}}->{section} eq "IMPLEMENTATION"))
+	&& exists $private_inline{$item})
+    || ($function->{hide}
+	&& exists $unit_inline{$item});
+}
+
+# Put inline function $1 and all its dependencies (given by NEEDS
+# directives) into @inline_order_[public/private/unit], depending on
+# visibility of $1.  Function handle_inline is called when printing
+# inline-function declarations, so the sequence of handle_inline calls
+# is determined by declaration-printing order.
+sub handle_inline
+{
+  my $function = $_[0];
+  my $class = $function->{class};
+  my @needed = ();
+
+  $verbose &&  
+    print "INLINE " . funcname($function) . " NEEDS ";
+
+  # Add all needed items, then add my own name as well as my class
+  # name for good measure.
+  foreach my $item (@{$function->{needs}})
+    {
+      push @needed, lookup_by_name ($item, $function);
+    }
+  
+  push @needed, $function;
+  unshift @needed, lookup_by_name ($class, $function)
+    if ($class ne '');
+
+ NEEDEDLOOP:
+  while (@needed)
+    {
+      my $object = $needed[0];
+
+      if (inline_known ($object, $function))
+	{
+	  shift @needed;
+	  next;
+	}
+      
+      # Check for further dependencies.
+      my @moreneeded = ();
+      
+      if ($object->{type} eq "function" && $object->{class} ne '')
+	{
+	  my $class = lookup_by_name ($object->{class}, $object);
+	  push @moreneeded, $class;
+	}
+
+      if (defined $object->{needs})
+	{
+	  foreach my $item (@{$object->{needs}})
+	    {
+	      my $o = lookup_by_name ($item, $object);
+	      next if ! ref $o;	# Skip referenced but noninline objects
+	      push @moreneeded, $o;
+	    }
+	}
+
+      # Check if we have everything that's needed for $item.
+      foreach my $i (@moreneeded)
+	{
+	  if (inline_known ($i, $function))
+	    {
+	      next;
+	    }
+
+	  if ($i == $function)	# Function depends on itself!
+	    {
+	      my $callstack = "  " . funcname ($function) . "\n";;
+	      my $prev = $function;
+	      push @needed, $function;
+	      foreach my $j (@needed)
+		{
+		  # $j is not part of call stack if it does not need $prev
+ 		  next if ! grep {lookup_by_name ($_, $object) == $prev}
+ 		                 @{$j->{needs}};
+		  $callstack .= "  " . funcname ($j) . "\n";
+		  $prev = $j;
+		  last if $j == $function;
+		}
+	      
+	      die $object->{file} . ":" . $object->{line} . ": Function " .
+		funcname ($object) . " NEEDS " . funcname ($i) .
+		", which circularly depends on this function:\n" .
+		$callstack;
+	    }
+
+	  unshift @needed, $i;
+	  next NEEDEDLOOP;
+	}
+      
+      $verbose && print &funcname ($object) . " ";
+
+      if ($function->{hide})
+	{
+	  $unit_inline{$object} = 1;
+	  push @inline_order_unit, $object;
+	}
+      elsif ($function->{visibility} eq 'private'
+	     || ($class ne '' 
+		 && $classes{$class}->{section} eq "IMPLEMENTATION"))
+	{
+	  $private_inline{$object} = 1;
+	  push @inline_order_private, $object;
+	}
+      else
+	{
+	  $public_inline{$object} = 1;
+	  push @inline_order_public, $object;
+	}
+
+      shift @needed;
+    }
+
+  $verbose && print "\n";
+}
+
+sub print_inlines
+{
+  foreach my $object (grep {$_->{type} eq "classdef"} @_)
+    {
+      if ($object->{section} ne 'INTERFACE')
+	{
+	  print_classdecl $object;
+	}
+    }
+
+  foreach my $object (grep {$_->{type} eq "function"} @_)
+    {
+      print_funcdef $object;
+    }
+}
+
+######################################################################
+#
+# Utilities
+#
+sub funcname
+{
+  my $function = $_[0];
+
+  return ($function->{class} ? ($function->{class} . "::") : "") 
+    . $function->{name};
+}

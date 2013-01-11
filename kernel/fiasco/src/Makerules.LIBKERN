@@ -1,0 +1,7 @@
+# -*- makefile -*-
+
+$(LIBKERN): $(OBJ_LIBKERN)
+	$(AR_MESSAGE)
+	$(VERBOSE)$(RM) $@
+	$(VERBOSE)$(AR) $(ARFLAGS) $@ $^
+

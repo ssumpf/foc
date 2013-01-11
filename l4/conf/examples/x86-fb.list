@@ -1,0 +1,16 @@
+
+modaddr 0x1100000
+
+entry x86-fb-example
+bootstrap bootstrap -serial
+kernel fiasco -serial_esc
+roottask moe rom/x86-fb.cfg
+module x86-fb.cfg
+module x86-fb.io
+module x86-legacy.devs
+module l4re
+module io
+module ned
+module fb-drv
+module mag
+module ex_fb_spectrum

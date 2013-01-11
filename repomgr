@@ -1,0 +1,584 @@
+#! /usr/bin/perl -W
+
+use strict;
+
+my %modules =
+ (
+   repomgr => { paths => [ qw(repomgr) ] },
+
+   bid => { paths => [ qw(l4/Makefile
+                          l4/BENCHMARKING
+                          l4/COPYING-GPL-2
+                          l4/COPYING-LGPL-2.1
+                          l4/LICENSING
+                          l4/mk
+                          l4/conf
+                          l4/pkg/Makefile
+                          l4/pkg/README
+                          l4/tool/Makefile
+                          l4/tool/gendep
+                          l4/tool/kconfig
+                          l4/tool/vim
+                          l4/tool/lib
+                          l4/tool/elf-patcher
+                         ) ]
+          },
+
+   toolbin => { paths => [ map { "l4/tool/bin/$_" }
+                           qw(isocreator qemu-x86-launch ux-launch
+                              gengrub1iso gengrub2iso entry-selector
+                              mkspafs genexportpack
+                             ) ]
+              },
+
+   l4re => { paths => [ map { "l4/pkg/$_" } qw(
+                         boehm_gc bootstrap libgcc libgcc-pure
+			 crtn cxx cxx_libc_io cxx_thread drivers-frst hello
+                         ldscripts
+                         l4re l4re_c l4re_kernel l4re_vfs l4sys l4util
+                         ldscripts ldso
+                         libc_backends libkproxy libloader
+                         libsigma0
+                         libstdc++-headers libstdc++-v3 libstdc++-v3-minimal
+                         libsupc++ libsupc++-minimal
+                         libvbus libvcpu loader log lua moe ned sigma0
+                         uclibc uclibc-minimal uclibc-headers
+                        ) ],
+             pub_module => 1,
+             modules => [ qw(bid toolbin) ],
+           },
+
+   # ./mk/pkgdeps -A mk/aliases.d pkgdeps pkg ...
+   l4linux_requirements
+        => { paths => [ map { "l4/pkg/$_" } qw(
+			libio libio-io lxfuxlibc rtc shmc
+			acpica io drivers fb-drv x86emu input libirq
+		    ) ],
+                    pub_module => 1,
+                    modules => [ qw(l4re) ],
+                  },
+
+   examples_core => {
+     paths => [ qw(l4/pkg/hello),
+                map { "l4/pkg/examples/$_" }
+                qw(Makefile
+                   Control
+                   sys
+                   clntsrv
+                   misc/Makefile
+                   misc/cat
+                   misc/shared-hello
+                   libs/Makefile
+                   libs/l4re
+                 ) ],
+   },
+
+
+   examples_all => {
+     modules => [ qw(examples_core) ],
+     paths => [ qw(l4/pkg/hello),
+                map { "l4/pkg/examples/$_" }
+                qw(
+                   fb/Makefile
+                   fb/spectrum
+                   misc/eb_leds
+                   misc/reboot
+                   libs/inputtst
+                   libs/libc_thread_safe
+                   libs/libgomp
+                   libs/libio
+                   libs/libirq
+                   libs/libpng
+                   libs/shmc
+                 ) ],
+   },
+
+   doc => { paths => [ qw(l4/doc/Makefile l4/doc/source) ], },
+
+   l4re_snapshot =>  {
+     paths => [ map { "l4/pkg/$_" }
+                qw(acpica
+                   ankh
+                   boost-lite
+                   cunit
+                   dash
+                   demangle
+                   dde
+                   dde-libinput
+                   dope
+                   drivers
+                   expat2
+                   fb-drv
+                   fbterminal
+                   fuxfprov
+                   hello
+                   input
+                   io
+                   l4con
+                   lib_vt100
+                   libbsd
+                   libbsd-full
+                   libevent
+                   libc_be_stdin
+                   libcrypto
+                   libevent
+                   libgfxbitmap
+                   libgomp
+                   libiniparser
+                   libio
+                   libio-io
+                   libirq
+                   libjpeg
+                   libpng
+                   libsdl
+                   libsdl-image
+                   linux-26-headers
+                   lwip
+                   lxfuxlibc
+                   mag
+                   mag-gfx
+                   ocaml
+                   ocaml_toys
+                   plr
+                   python
+                   readline
+                   rtc
+                   scout
+                   scout-gfx
+                   serial-drv
+                   shmc
+                   slab
+                   spafs
+                   sqlite
+                   tlsf
+                   tmpfs
+                   udis86
+                   valgrind
+                   x86emu
+                   zlib
+                   ) ],
+     modules => [ qw(l4re examples_all doc toolbin) ] },
+
+   l4re_all => { paths   => [ qw(l4/pkg l4/tool) ],
+                 modules => [ qw(l4re_snapshot) ] },
+
+   fiasco => {
+      pub_module => 1,
+      paths   => [ qw(kernel/fiasco/BENCHMARKING
+                      kernel/fiasco/COPYING
+                      kernel/fiasco/MAINTAINER
+                      kernel/fiasco/Makefile
+                      kernel/fiasco/README
+                      kernel/fiasco/src
+                      kernel/fiasco/tool
+                     ) ],
+   },
+
+   kernel => {
+      paths => [ qw(kernel/Makefile) ],
+   },
+
+   grub => {
+      paths => [ qw(grub) ],
+   },
+
+   remote_repo_l4re => {
+      modules => [ qw(l4re_snapshot) ],
+   },
+
+   remote_repo => { modules => [ qw(fiasco remote_repo_l4re) ],
+                    # those are going away, we need to keep them to get the
+                    # dirs updated and thus removed
+                    paths => [ qw(l4/pkg/libstdc++-v3_r
+                                  l4/pkg/libsupc++_r
+                                  l4/pkg/uclibc_r) ],
+                    },
+
+   all => {
+      modules => [ qw(remote_repo) ],
+   },
+ );
+
+my %commands;
+my $svnrev = $ENV{REPOMGR_SVN_REV} || 'HEAD';
+
+sub get_root_url()
+{
+  my $o = `svn info -r '$svnrev' --xml .`;
+  die "Failed 'svn info'." if $?;
+  $o =~ /<root>(.+)<\/root>/m;
+  $1;
+}
+
+sub merge_modules
+{
+  my %paths;
+
+  sub do_merge
+  {
+    my $pathsref = shift;
+    my $count = shift;
+
+    die "Possible looping in modules structure detected!" unless $count;
+
+    foreach my $m (@_)
+      {
+        die "Unknown module '$m' referenced!" unless defined $modules{$m};
+        $$pathsref{$_} = 1 foreach @{$modules{$m}{paths}};
+        do_merge($pathsref, $count - 1, @{$modules{$m}{modules}});
+      }
+  }
+
+  do_merge(\%paths, 20, scalar @_ ? @_ : 'all');
+
+  sort keys %paths;
+}
+
+sub show_pub_modules()
+{
+  print "Available modules:\n";
+  foreach (sort keys %modules)
+    {
+       print "  $_\n" if $modules{$_}{pub_module};
+    }
+}
+
+sub usage
+{
+  my $command = shift;
+
+  # check alias
+  $command = $commands{$command}{alias}
+    if defined $command and defined $commands{$command}{alias};
+
+  if (!defined $command or $command eq 'help')
+    {
+      print "$0 command [option]\n";
+
+      print "Available commands, use '$0 help command' for help on the command:\n";
+      foreach (sort keys %commands)
+        {
+          print "  $_\n" if defined $commands{$_}{public};
+        }
+    }
+  elsif ($command eq 'update')
+    {
+      print "  'update' will update in the following way:\n".
+            "      update itself and re-exec if necessary\n".
+            "      call 'make update' in l4/pkg\n".
+            "      call 'svn update' every directory in kernel\n";
+    }
+  elsif ($command eq 'checkout')
+    {
+      print "  'checkout' will check out the given modules.\n";
+      show_pub_modules();
+    }
+  elsif ($command eq 'modules')
+    {
+      show_pub_modules();
+    }
+  else
+    {
+      print "  No such command '$command'.\n";
+    }
+}
+
+sub check_module_structure()
+{
+  # make sure the paths look ok
+  foreach (merge_modules())
+    {
+      die "Trailing /'s in modules structure" if /\/$/;
+      die "Double // detected in modules structure" if /\/\//;
+    }
+}
+
+sub command_help
+{
+  usage(@_);
+}
+
+sub command_update
+{
+  print "XXX: todo\n";
+}
+
+sub command_root
+{
+  my $url = shift;
+  my $dirname = shift;
+  die "Need to give URL" unless defined $url and defined $dirname;
+  system("svn co -r '$svnrev' $url --depth empty $dirname");
+}
+
+sub init_config($)
+{
+  my $config_blob = shift;
+  $config_blob = '{}' unless defined $config_blob;
+  my $c;
+  unless ($c = eval($config_blob))
+    {
+      die "Couldn't parse config file: $@" if $@;
+      die "Couldn't do config file: $!" if $!;
+      die "Couldn't run config file";
+    }
+
+  my %a = %$c;
+
+  $a{base} = "trunk" unless defined $a{base};
+
+  return %a;
+}
+
+sub convert_path($$%)
+{
+  my $p = shift;
+  my $partmatch = shift;
+  my %path_roots = @_;
+
+  $p =~ s/^\.\///;
+  $p .= '/';
+  foreach my $key (keys %path_roots)
+    {
+      my $r = $key;
+      $r .= '/' unless $r =~ /\/$/;
+      if ($partmatch)
+        {
+	  # for partly matches we also need to return the modified path
+	  # because otherwise we can't really know
+	  if ($p =~ /^($r)(.*)$/)
+	    {
+               my $s = $path_roots{$key}.'/'.$2;
+	       # strip off last / again, it's just used for matching
+	       return substr($s, 0, length($s) - 1);
+	    }
+	}
+      else
+	{
+          return $path_roots{$key} if $p =~ /^$r$/;
+	}
+    }
+  undef;
+}
+
+sub do_checkout(%)
+{
+  my %args = @_;
+  unless (defined ${$args{mods}}[0])
+    {
+      print "Supply module to check out.\n";
+      usage("checkout");
+      exit 1;
+    }
+
+  die "Current directory is no SVN WC" unless -d ".svn";
+
+  my $root_url = get_root_url();
+
+  my @paths = merge_modules(@{$args{mods}});
+
+  foreach my $paths (@paths)
+    {
+      my @path_elems = split /\/+/, $paths;
+      my $last_elem = pop @path_elems;
+      my $path = '.';
+
+      foreach my $pe (@path_elems)
+        {
+          if (! -d "$path/$pe/.svn")
+            {
+              # if we find something from path_roots then switch to that
+              my $changed_path = convert_path("$path/$pe", 0,
+	                                      %{$args{conf}{path_roots}});
+
+              print "Creating $path/$pe\n";
+              print "   from $changed_path\n" if defined $changed_path;
+
+              # there's some other little problem with the 'depth' thing
+	      # when we do checkout some specific list of files (and dirs),
+	      # we need to use depth=empty so that we only get those
+	      # specific files out of the directory, on the other side we'd
+	      # (probably) like to have updates on the directory contents
+	      # when we do 'svn up' which would would with depth=files (or
+	      # infinite)
+	      # As the first thing is merely only needed when doing a
+	      # checkout for another repo... let's have a config option.
+	      my $depth = 'files';
+	      $depth = 'empty' if defined $ENV{REPOMGR_EXACT_CHECKOUT};
+
+              if (defined $changed_path)
+                  {
+                    my $cmd = "cd $path && svn co -r '$svnrev' --depth empty $root_url/$changed_path $pe";
+                    #print "cmd: $cmd\n";
+                    system($cmd);
+                    die "svn co failed" if $?;
+                  }
+                else
+                  {
+                    my $cmd = "cd $path && svn update -r '$svnrev' --depth empty $pe";
+                    #print "cmd: $cmd\n";
+                    system($cmd);
+                    die "svn update failed" if $?;
+                  }
+            }
+          $path .= '/'.$pe;
+        }
+    }
+
+  print "Getting sources\n";
+  my $c = "svn update -r '$svnrev' --set-depth infinity ".join(' ', map { s/^\/+//; $_; } @paths);
+  #print "cmd: $c\n";
+  system($c);
+  die "svn update failed" if $?;
+}
+
+sub read_file($)
+{
+  my $fn = shift;
+  return undef unless defined $fn;
+  my $blob;
+  if ($fn =~ /^(file|svn|ssh\+svn):\/\//)
+    {
+      $blob = `svn -r '$svnrev' cat $fn`;
+      undef $blob if $?;
+    }
+  elsif (open(A, $fn))
+    {
+      local undef $/;
+      $blob = <A>;
+      close A;
+    }
+  $blob;
+}
+
+sub command_checkout
+{
+  my %conf = init_config(read_file("l4/conf/repomgr.conf"));
+  do_checkout(conf => { %conf }, mods => [ @_ ]);
+}
+
+sub fix_repomgr_path(%)
+{
+  my %conf = @_;
+  # fix the path to the repomgr...
+  @{$modules{repomgr}{paths}} = map { "$conf{repomgr_prefix}/$_" } @{$modules{repomgr}{paths}}
+    if defined $conf{repomgr_prefix};
+}
+
+sub command_init
+{
+  my $repo_root = shift;
+  my $repo_conf = '';
+  my $localdir  = 'src';
+
+  while (defined $_[0] && ($_[0] eq '-c' or $_[0] eq '-l'))
+    {
+      if ($_[0] eq '-c')
+        {
+          $repo_conf = $_[1];
+          shift; shift;
+        }
+      elsif ($_[0] eq '-l')
+        {
+          $localdir = $_[1];
+          shift; shift;
+        }
+    }
+
+  die "Usage: $0 init <REPOROOTURL> [-c <REPOCONFPATH>] [-l <LOCALDIR>] modules..."
+    if    not defined $repo_root or not defined $repo_conf
+       or not defined $localdir;
+
+  # for absolute path we assume a local config file, good for testing
+  my $confblob;
+  if ($repo_conf ne '')
+    {
+      if ($repo_conf =~ /^\//)
+        {
+	  $confblob = read_file($repo_conf);
+          die "Cannot open '$repo_conf': $!" unless defined $confblob;
+        }
+      else
+        {
+          my $cmd = "svn cat -r '$svnrev' $repo_root\/$repo_conf";
+          $confblob = `$cmd`;
+          die "Command '$cmd' failed" if $?;
+        }
+    }
+
+  my %conf = init_config($confblob);
+
+  ($localdir = $conf{base}) =~ s/.*\/// unless defined $localdir;
+  print "localdir: $localdir\n";
+
+  my $cmd = "svn co -r '$svnrev' --depth empty $repo_root/$conf{base} $localdir";
+  system($cmd);
+  die "Command '$cmd' failed" if $?;
+  chdir $localdir;
+
+  fix_repomgr_path(%conf);
+  do_checkout(conf => { %conf }, mods => [ "repomgr", @_ ]);
+}
+
+sub command_modules
+{
+  foreach (sort keys %modules)
+    {
+      print "$_\n" if defined $modules{$_}{pub_module};
+    }
+}
+
+sub command_list
+{
+  print "$_\n" foreach merge_modules(@_);
+}
+
+sub command_listmapped
+{
+  my $blob = read_file(shift);
+  die "Need config" unless defined $blob;
+  my %conf = init_config($blob);
+  fix_repomgr_path(%conf);
+  print join("\n", map {
+                         my $p = convert_path($_, 1, %{$conf{path_roots}});
+		         defined $p ? $p : $_;
+                       } merge_modules(@_));
+  print "\n";
+}
+
+%commands =
+ (
+   help      => { func => \&command_help, },
+   init      => { func => \&command_init, },
+   update    => { func => \&command_update, },
+   up        => { func => \&command_update, alias => 'update' },
+   checkout  => { func => \&command_checkout, public => 1},
+   co        => { func => \&command_checkout, alias => 'checkout'},
+   modules   => { func => \&command_modules, public => 1},
+   list      => { func => \&command_list, },
+   listmapped=> { func => \&command_listmapped, },
+   root      => { func => \&command_root, },
+ );
+
+# ----------------------------------------------------------------
+
+check_module_structure();
+
+my $command = shift;
+
+unless (defined $command)
+  {
+    usage();
+    exit 1;
+  }
+
+if (defined $commands{$command})
+  {
+    &{$commands{$command}{func}}(@ARGV);
+  }
+else
+  {
+    print "Unknown command '$command'.\n";
+    usage();
+    exit 1;
+  }

@@ -1,0 +1,75 @@
+# UX Kernel Makefile
+
+shortcut.o:          $(TCBOFFSET)
+sighandler.o:        $(TCBOFFSET)
+entry.o:             $(TCBOFFSET)
+sys_call_page-asm.o: $(TCBOFFSET)
+
+
+# Add future prerequisites somewhere among the list of libraries. You really
+# should not have to add anything in the $(CXX) line.
+#
+# Please don't add -gc-sections as linker option here. The reason is that
+# properly working destructors of libc.a require __start_libc_atexit and
+# __stop_libc_atexit to be defined by the linker. The ld linker defines
+# these symbols by magic if it finds a 'libc section' -- the section name
+# starts with '_'. However, if the section is completely purged, these
+# symbols are not defined and therefore the libc destructors are not executed
+# (_IO_cleanup so far). We could manually create the correct section by adding
+#
+#   __libc_atexit : {
+#     PROVIDE(__start___libc_atexit = .);
+#     KEEP(*(__libc_atexit))
+#     PROVIDE(__stop___libc_atexit = .);
+#   }
+#
+# to the linker script. We don't do this because we don't know which symbols
+# are required by future versions of the libc.
+
+$(KERNEL):	kernel.ux.lds $(OBJ_KERNEL) $(MINILIBC) $(LIBK) $(KERNEL_EXTRA_LIBS) $(ABI) $(JABI) $(DRIVERS) $(CXXLIB)
+		$(LINK_MESSAGE)
+		$(VERBOSE)$(CXX) -m32 -Wl,-T$< -static -o $@ -Wl,--whole-archive $(MINILIBC) -Wl,--no-whole-archive $(KERNEL_UNRES_SYMS) $(filter-out $<,$+) -lutil $(WRAP_SYMBOLS)
+		chmod 755 $@
+		ln -sf $@ fiasco
+
+irq0.o:		irq0.c
+		$(COMP_MESSAGE)
+		$(VERBOSE)$(CC) -O2 -Wall -W -c -o $@ $<
+
+irq0:		irq0.o
+		$(LINK_MESSAGE)
+		$(VERBOSE)$(CC) -static -o $@ $<
+		$(STRIP_MESSAGE)
+		$(VERBOSE)$(STRIP) $@
+
+ifeq ($(CONFIG_UX_CON),y)
+
+SDL_CFLAGS  := $(shell $(SYSTEM_TARGET)sdl-config --cflags)
+SDL_LDFLAGS := $(shell $(SYSTEM_TARGET)sdl-config --libs)
+
+ifeq ($(SDL_CFLAGS),)
+  $(error sdl-config not found. libsdl including header files installed?)
+endif
+
+ux_con.o:	ux_con.c
+		$(COMP_MESSAGE)
+		$(VERBOSE)$(CC) -O2 -Wall -W -g $(SDL_CFLAGS) -c $<
+
+ux_con:		ux_con.o
+		$(LINK_MESSAGE)
+		$(VERBOSE)$(CC) $(SDL_LDFLAGS) $< -o $@
+		$(STRIP_MESSAGE)
+		$(VERBOSE)$(STRIP) $@
+endif
+
+ifeq ($(CONFIG_UX_NET),y)
+ux_net.o:	ux_net.c
+		$(COMP_MESSAGE)
+		$(VERBOSE)$(CC) -O2 -Wall -W -g -c $<
+
+ux_net:		ux_net.o
+		$(LINK_MESSAGE)
+		$(VERBOSE)$(CC) $< -o $@
+		$(STRIP_MESSAGE)
+		$(VERBOSE)$(STRIP) $@
+endif

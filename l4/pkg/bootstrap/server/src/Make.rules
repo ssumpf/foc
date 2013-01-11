@@ -1,0 +1,437 @@
+# vim:set ft=make:
+# 
+# User definable variables for bootstrap:
+# - BOOTSTRAP_SEARCH_PATH
+# - BOOTSTRAP_ELF_NAME
+# - BOOTSTRAP_MODULES_LIST
+# - BOOTSTRAP_DO_RAW_IMAGE
+# - BOOTSTRAP_DO_UIMAGE
+# - BOOTSTRAP_NO_STRIP if set no stripping of iamge
+# - BOOTSTRAP_UIMAGE_COMPRESSION: set to none, gzip, or bzip2
+# - BOOTSTRAP_CMDLINE: compiled-in command line, only used if no cmdline
+#                      given via multi-boot boot loader (e.g. on arm)
+
+DEFAULT_RELOC_arm   := 0x01000000
+DEFAULT_RELOC_x86   := 0x002d0000
+DEFAULT_RELOC_amd64 := 0x002d0000
+DEFAULT_RELOC_ppc32 := 0x002d0000
+DEFAULT_RELOC_sparc := 0x00800000
+RELOC_PHYS          := y
+LDFLAGS              = -Bstatic
+EXTRA_GENERAL_D_DEP += .redo-change-tracker $(BID_RAM_BASE_DEP) \
+		       $(wildcard $(L4DIR)/conf/Makeconf.boot $(OBJ_BASE)/conf/Makeconf.boot) \
+		       $(SRC_DIR)/build.pl
+INCLUDE_MAKE_RULES   = $(SRC_DIR)/*/Make.rules
+BOOTSTRAP_LD_dep    := $(SRC_DIR)/ldscript.inc
+#REQUIRES_LIBS        = libbsd-lite
+
+include $(L4DIR)/mk/Makeconf
+-include $(OBJ_DIR)/Makeconf.local
+-include $(L4DIR)/conf/Makeconf.boot
+-include $(OBJ_BASE)/conf/Makeconf.boot
+
+# Checks added Nov 2010:
+ifneq ($(wildcard $(L4DIR)/conf/Makeconf.bootstrap),)
+$(error $(L4DIR)/conf/Makeconf.bootstrap not used anymore. Please use $(L4DIR)/conf/Makeconf.boot now)
+endif
+ifneq ($(wildcard $(OBJ_BASE)/Makeconf.bootstrap),)
+$(error $(OBJ_BASE)/Makeconf.bootstrap not used anymore. Please use $(OBJ_BASE)/conf/Makeconf.boot now)
+endif
+
+BOOTSTRAP_SEARCH_PATH        ?= .
+BOOTSTRAP_MODULES_LIST       ?= $(SRC_DIR)/modules.list
+BOOTSTRAP_MODULE_PATH_BINLIB ?= $(OBJ_BASE)/bin/$(SYSTEM)/$(BUILD_ABI):$(OBJ_BASE)/lib/$(SYSTEM)/$(BUILD_ABI):$(OBJ_BASE)/lib/$(SYSTEM)
+BOOTSTRAP_ELF_NAME           ?= bootstrap.elf
+MKIMAGE                      ?= mkimage
+BOOTSTRAP_UIMAGE_COMPRESSION ?= none
+
+ifeq ($(BUILD_ARCH),$(filter $(BUILD_ARCH),arm ppc32 sparc))
+  # ARM/PPC/SPARC always uses single image mode
+  # when no entry is given we build the useless auto-build target
+  ifeq ($(E)$(ENTRY),)
+    BOOTSTRAP_ELF_NAME := bootstrap.auto-build-useless.elf
+  endif
+  ENTRY := auto-build-entry
+endif
+
+
+PRIVATE_INCDIR	 = $(SRC_DIR) $(SRC_DIR)/ARCH-$(ARCH)
+
+TARGET		:= $(BOOTSTRAP_ELF_NAME)
+TARGET_BIN	 = $(BOOTSTRAP_ELF_NAME)
+MODE		 = lib
+
+SUPPORT_CC_arm-sa1000      := platform/sa1000.cc
+SUPPORT_CC_arm-pxa         := platform/pxa.cc
+SUPPORT_CC_arm-integrator  := platform/integrator.cc
+SUPPORT_CC_arm-rv          := platform/rv.cc
+SUPPORT_CC_arm-rv_pbx      := platform/rv.cc
+SUPPORT_CC_arm-rv_vexpress := platform/rv.cc
+SUPPORT_CC_arm-omap3evm    := platform/omap.cc
+SUPPORT_CC_arm-omap3_am33xx:= platform/omap.cc
+SUPPORT_CC_arm-beagleboard := platform/omap.cc
+SUPPORT_CC_arm-pandaboard  := platform/omap.cc
+SUPPORT_CC_arm-tegra2      := platform/tegra2.cc
+SUPPORT_CC_arm-imx21       := platform/imx.cc
+SUPPORT_CC_arm-imx35       := platform/imx.cc
+SUPPORT_CC_arm-imx51       := platform/imx.cc
+SUPPORT_CC_arm-om          := platform/om.cc
+SUPPORT_CC_arm-kirkwood    := platform/kirkwood.cc
+DEFAULT_RELOC_arm-imx21    := 0x00200000  # because of blob
+
+ifneq ($(DEFAULT_RELOC_arm-$(PLATFORM_TYPE)),)
+DEFAULT_RELOC_arm         := $(DEFAULT_RELOC_arm-$(PLATFORM_TYPE))
+endif
+
+SUPPORT_CC_ppc32-mpc5200  := platform/mpc5200.cc
+
+SUPPORT_CC_x86-pc         := platform/x86_pc.cc
+
+SUPPORT_CC_amd64-pc       := platform/x86_pc.cc
+
+SUPPORT_CC_sparc-leon3    := platform/leon3.cc
+
+SRC_C		+= exec.c module.c
+SRC_CC		+= region.cc startup.cc init_kip_v2.cc init_kip_v4.cc \
+                   libc_support+.cc patch.cc koptions.cc
+
+SRC_CC_x86	+= ARCH-x86/reboot.cc
+SRC_CC_amd64	+= ARCH-x86/reboot.cc
+SRC_C_x86	+= base_critical.c
+SRC_C_amd64	+= base_critical.c
+SRC_CC_arm     	+= ARCH-arm/reboot.cc
+SRC_CC_ppc32    += ARCH-ppc32/init_kip_v2-arch.cc \
+		   ARCH-ppc32/reboot.cc
+SRC_CC_sparc	+= ARCH-sparc/reboot.cc
+SRC_CC          += $(SUPPORT_CC_$(ARCH)-$(PLATFORM_TYPE))
+SRC_S		+= ARCH-$(ARCH)/crt0.S
+
+OPTS		 = -g -Os $(CARCHFLAGS_$(ARCH)) $(CARCHFLAGS_$(ARCH)_$(CPU)) \
+		   $(GCCNOFPU_$(ARCH))
+DEFINES         += -DRAM_BASE=$(RAM_BASE) -DL4_MINIMAL_LIBC=1
+DEFINES         += -DCMDLINE="\"$(BOOTSTRAP_CMDLINE)\""
+DEFINES         += -DPLATFORM_TYPE=\"$(PLATFORM_TYPE)\"
+DEFINES         += -DPLATFORM_TYPE_$(PLATFORM_TYPE)
+
+MOD_ADDR         = 0x02000000
+
+CPPFLAGS        += $(CPPFLAGS_$(ARCH)-$(PLATFORM_TYPE))
+CPPFLAGS        += $(BID_PKG_CONFIG_CFLAGS)
+
+ifeq ($(filter clean cleanall,$(MAKECMDGOALS)),)
+ifeq ($(SUPPORT_CC_$(ARCH)-$(PLATFORM_TYPE)),)
+  $(info ERROR: PLATFORM_TYPE=$(PLATFORM_TYPE) has no assigned platform support file)
+  $(info ERROR: A proper PLATFORM_TYPE must be set for a build)
+  $(error .)
+endif
+endif
+
+DRV_LIBS-ppc32   = -ldrivers_of
+DRV_LIBS         = -ldrivers_uart $(DRV_LIBS-$(ARCH))
+CRT0		 =
+LDSCRIPT	 = bootstrap.ld
+LDNMAGIC	 =
+
+vpath bootstrap.ld.in $(SRC_DIR)/ARCH-$(ARCH)
+
+# can be overwritten by Makeconf.local
+COMPRESS	?= 0
+LOADER_MBI	?= 0
+REALMODE_LOADING ?= 0
+RML		?= 0
+
+ifneq ($(REALMODE_LOADING)$(RML),00)
+REALMODE_LOADING := 1
+$(error Info: Default reloc needs to be 0x00100000)
+# And if you have done so you probably need to relink sigma0 and/or moe
+endif
+
+ifeq ($(ARCH),arm)
+LOADER_MBI	 := 1
+CPPFLAGS         += -DSINGLE_SECTION
+endif
+
+
+# convenience
+ifneq ($(E),)
+ENTRY		:= $(E)
+endif
+
+ENTRY_FN := $(shell echo "$(ENTRY)" | tr '[ ]' '[_]' )
+
+
+ifneq ($(ENTRY),)
+ ifeq ($(filter clean cleanall,$(MAKECMDGOALS)),)
+  BUILD_MOD_CMD = ( SEARCHPATH="$(BOOTSTRAP_SEARCH_PATH):$(BOOTSTRAP_MODULE_PATH_BINLIB)" \
+                    CROSS_COMPILE=$(SYSTEM_TARGET) \
+                    OPT_ARCH=$(ARCH) OPT_COMPRESS=$(COMPRESS) L4DIR=$(L4DIR) \
+                    $(SRC_DIR)/build.pl $(1) $(BOOTSTRAP_MODULES_LIST) "$(ENTRY)" || \
+                    (echo "processing-of-module-list-failed"; exit 1))
+ endif
+endif
+
+
+# we need to re-do if some things change
+.redo-change-tracker: FORCE
+	$(VERBOSE)echo "$(ENTRY) '$(COMPRESS)' '$(BOOTSTRAP_CMDLINE)' '$(BOOTSTRAP_SEARCH_PATH):$(BOOTSTRAP_MODULE_PATH_BINLIB)' '$(RAM_SIZE_MB)' '$(PLATFORM_TYPE)' '$(LOADER_MBI)'" > $@.tmp
+	$(if $(BUILD_MOD_CMD),$(VERBOSE)$(call BUILD_MOD_CMD,dump) >> $@.tmp)
+	$(VERBOSE)if  test ! -r "$@" || ! cmp -s $@ $@.tmp; then \
+	  mv $@.tmp $@;  \
+	else \
+	  rm $@.tmp; \
+	fi
+
+ifneq ($(ENTRY),)
+
+INSTALL_TARGET  = $(BOOTSTRAP_ELF_NAME) bootstrap_$(ENTRY_FN) bootstrap_$(ENTRY_FN).elf
+ifeq ($(ARCH),amd64)
+INSTALL_TARGET += bootstrap32.elf
+BOOTSTRAP_LINK_SOURCE = bootstrap32.elf
+else
+BOOTSTRAP_LINK_SOURCE = $(BOOTSTRAP_ELF_NAME)
+endif
+
+bootstrap_$(ENTRY_FN): $(BOOTSTRAP_LINK_SOURCE)
+	$(VERBOSE)$(LN) -f $< $@
+
+bootstrap_$(ENTRY_FN).elf: $(BOOTSTRAP_LINK_SOURCE)
+	$(VERBOSE)$(LN) -f $< $@
+
+bootstrap_$(ENTRY_FN).raw: bootstrap.raw
+	$(VERBOSE)$(LN) -f $< $@
+
+bootstrap_$(ENTRY_FN).uimage: bootstrap.uimage
+	$(VERBOSE)$(LN) -f $< $@
+
+ ifeq ($(ARCH),$(filter $(ARCH),arm ppc32))
+   BID_POST_PROG_LINK_MSG_$(BOOTSTRAP_ELF_NAME) = echo -e "  ==> Post-processing $@"
+   BID_POST_PROG_LINK_$(BOOTSTRAP_ELF_NAME)     = \
+      $(VERBOSE)LANG=C $(NM) -C $@ | \
+        LANG=C $(GREP) -q "V vtable for Platform_base" || \
+           { echo -e "\nERROR: Missing at least one platform instantiation.\n"; \
+             exit 1; } ; $(if $(BOOTSTRAP_NO_STRIP),,$(STRIP) $@)
+
+   ifneq ($(BOOTSTRAP_DO_RAW_IMAGE)$(BOOTSTRAP_DO_UIMAGE),)
+     BOOTSTRAP_RAW      := bootstrap.raw
+     INSTALL_TARGET     += bootstrap.raw bootstrap_$(ENTRY_FN).raw
+     ifneq ($(BOOTSTRAP_DO_UIMAGE),)
+       ifneq ($(shell command -v $(MKIMAGE)),)
+         BOOTSTRAP_UIMAGE   := bootstrap.uimage
+         INSTALL_TARGET     += bootstrap.uimage bootstrap_$(ENTRY_FN).uimage
+       else
+         $(error mkimage($(MKIMAGE)) host tool missing, cannot build bootstrap.uimage)
+       endif
+     endif
+   endif
+ endif
+
+all:: $(addprefix $(IMAGES_DIR)/,$(INSTALL_TARGET))
+	$(VERBOSE)echo "  Image size(s) in bytes:"
+	$(VERBOSE)for f in $(filter bootstrap_$(ENTRY_FN).elf bootstrap.raw bootstrap.uimage, $(INSTALL_TARGET)); do \
+	  find . -name $$f -printf " %30f:  %s\n"; \
+	done
+	$(if $(LDFLAGS_bootstrap.elf),$(VERBOSE)echo "  Start address: $(patsubst --defsym=__executable_start=%,%,$(LDFLAGS_bootstrap.elf))")
+	$(VERBOSE)echo "  --> Build-Nr: $$(cat .build_nr)"
+
+# install images into easy to reach directory in build dir
+$(IMAGES_DIR)/%: % $(IMAGES_DIR)/Makefile
+	$(VERBOSE)if [ "$(ENTRY)" != "auto-build-entry" ]; then \
+	  echo "  ==> Installing $< in image directory";        \
+	  $(LN) -sf $(PWD)/$< $(dir $@);                        \
+	fi
+
+$(IMAGES_DIR)/Makefile: $(SRC_DIR)/Make.rules
+	@echo "  ==> Preparing image directory"
+	$(VERBOSE)install -d $(dir $@)
+	$(VERBOSE)$(ECHO) "# Automatically generated by bootstrap"                           > $@
+	$(VERBOSE)$(ECHO) "\$$(if \$$(MAKECMDGOALS),%,a):"                                  >> $@
+	$(VERBOSE)$(ECHO) "	\$$(MAKE) -C .. image \$$(if \$$(MAKECMDGOALS),E=\"\$$@\")" >> $@
+else
+  INSTALL_TARGET = bootstrap
+endif # ENTRY
+
+ifneq ($(REALMODE_LOADING),0)
+LOADER_MBI	 = 1
+CPPFLAGS	+= -DREALMODE_LOADING -DSINGLE_SECTION
+# don't install bootstrap_$(ENTRY_FN).elf
+INSTALL_TARGET	 = bootstrap.load
+endif
+
+ifneq ($(LOADER_MBI),0)
+SRC_CC		+= loader_mbi.cc
+MOD_ADDR	 = 0x00150000
+CPPFLAGS	+= -DLOADER_MBI
+endif
+
+ifneq ($(COMPRESS),0)
+SRC_C		+= uncompress.c gunzip.c
+CPPFLAGS	+= -DCOMPRESS
+else
+CPPFLAGS	+= -DPLACE_MODULES_AT_MODADDR
+endif
+
+ifneq ($(RAM_SIZE_MB),)
+CPPFLAGS	+= -DRAM_SIZE_MB=$(RAM_SIZE_MB)
+endif
+
+CXXFLAGS += -fno-rtti -fno-exceptions
+CXXFLAGS += $(call checkcxx,-fno-threadsafe-statics)
+
+ifneq ($(ENTRY),)
+ ifeq ($(filter clean cleanall,$(MAKECMDGOALS)),)
+
+processing-of-module-list-failed:
+	@echo
+	@echo "  Processing of $(BOOTSTRAP_MODULES_LIST) failed!"
+	@echo
+	@exit 1
+
+mod.make.inc: $(GENERAL_D_LOC) $(shell $(call BUILD_MOD_CMD,list))
+	@echo Building entry "$(ENTRY)".
+	$(VERBOSE)$(call BUILD_MOD_CMD,build)
+
+  -include mod.make.inc
+  BOOTSTRAP_LD_dep             += mod.make.inc
+  STARTUP_C_dep                := mod.make.inc
+  OBJS_$(BOOTSTRAP_ELF_NAME)   += $(MODULE_OBJECT_FILES)
+ endif
+
+ CPPFLAGS                     += -DIMAGE_MODE
+endif
+
+CPPFLAGS	+= -DMODADDR=$(MOD_ADDR)
+
+LIBS             =
+L4_LIBS          = -static -nostdlib $(DRV_LIBS) -lcxx_base -lcxx_io
+L4_LIBS         += -luc_c_minimal $(GCCLIB)
+
+all:: $(BOOTSTRAP_RAW)
+
+# image for use with pxelinux
+bootstrap.load: $(TARGET_BIN) bootsect.o.img setup.o.img
+	@$(GEN_MESSAGE)
+	$(VERBOSE)objcopy -O binary -R .note -R .comment -S $< $<.load.bin
+	$(VERBOSE)cat bootsect.o.img setup.o.img $<.load.bin > $@
+
+bootsect.o.img: ARCH-x86/bootsect.S Makefile
+	@$(GEN_MESSAGE)
+	$(VERBOSE)$(CC) -traditional -nostdinc -nostdlib -c $<
+	$(VERBOSE)$(LD) -m elf_i386 -Ttext 0x0 -o $@ -s --oformat binary \
+	  bootsect.o
+	$(VERBOSE)chmod -x $@
+
+setup.o.img: ARCH-x86/setup.S Makefile
+	@$(GEN_MESSAGE)
+	$(VERBOSE)$(CC) -traditional -nostdinc -nostdlib -DARCH_$(ARCH) -c $<
+	$(VERBOSE)$(LD) -m elf_i386 -Ttext 0x0 -o $@ -s --oformat binary \
+	  -e begtext setup.o
+	$(VERBOSE)dd if=/dev/zero bs=1 count=$$((3072 - `wc -c < setup.o.img`)) >> setup.o.img 2> /dev/null
+	$(VERBOSE)chmod -x $@
+
+# raw version without ELF, primarily useful for ARM
+$(BOOTSTRAP_RAW): $(TARGET_BIN)
+	@$(GEN_MESSAGE)
+	$(VERBOSE)cp $< $@.tmp
+	$(VERBOSE)$(OBJCOPY) -O binary $@.tmp $@
+	$(VERBOSE)chmod -x $@
+	$(VERBOSE)$(RM) $@.tmp
+
+%.gzip: %
+	gzip -c9 $^ > $@
+
+%.bzip2: %
+	bzip2 -c9 $^ > $@
+
+%.none: %
+	ln -sf $^ $@
+
+MKIMAGE_ARCH = $(if $(filter ppc32,$(ARCH)),ppc,$(ARCH))
+
+# u-boot image, based on raw-version
+$(BOOTSTRAP_UIMAGE): $(BOOTSTRAP_RAW).$(BOOTSTRAP_UIMAGE_COMPRESSION)
+	@$(GEN_MESSAGE)
+	$(VERBOSE)$(MKIMAGE) -e $(call default_reloc,$(ARCH)) \
+	   -a $(call default_reloc,$(ARCH)) -A $(MKIMAGE_ARCH)  \
+	   -C $(BOOTSTRAP_UIMAGE_COMPRESSION) \
+	   -n "L4 Image #$$(cat .build_nr)" \
+	   -d $^ $@
+
+$(TARGET): $(LDSCRIPT) $(OBJS_$(TARGET))
+
+
+increment_build_nr = \
+   $(shell if [ -e .build_nr ]; then            \
+	     nr=$$(($$(cat .build_nr) + 1));    \
+	   else                                 \
+	     nr=1;                              \
+	   fi;                                  \
+	   echo $$nr > .build_nr; echo $$nr)
+
+
+startup.o: $(STARTUP_C_dep)
+startup.o: CPPFLAGS += -DBUILD_DATE="\"$(shell date)\"" -DBUILD_NR=\"$(call increment_build_nr)\"
+
+$(LDSCRIPT): $(LDSCRIPT).in $(GENERAL_D_LOC) $(BOOTSTRAP_LD_dep)
+	@$(GEN_MESSAGE)
+	$(VERBOSE)$(SYSTEM_TARGET)cpp -P $(CPPFLAGS) -DLINKADDR=$(strip $(call default_reloc,$(ARCH))) $< $@;
+
+clean::
+	$(VERBOSE)$(RM) mod.make.inc mod*.bin mbi_modules.bin $(LDSCRIPT)
+	$(VERBOSE)$(RM) setup.o.img bootsect.o.img
+	$(VERBOSE)$(RM) mod*.bin
+	$(VERBOSE)$(RM) $(SRC32_C:.c=.o32) $(SRC32_S:.S=.o32)
+	$(VERBOSE)$(RM) .redo-change-tracker
+
+cleanall::
+	$(VERBOSE)$(RM) bootstrap_* bootstrap.*
+
+ifeq ($(ARCH),amd64)
+
+vpath %.c             $(SRC_DIR)/ARCH-amd64
+vpath %.S             $(SRC_DIR)/ARCH-amd64
+vpath %.c             $(SRC_DIR)/ARCH-amd64/boot32
+vpath %.S             $(SRC_DIR)/ARCH-amd64/boot32
+vpath bootstrap.ld.in $(SRC_DIR)/ARCH-x86
+
+SRC32_C		 = boot_cpu.c boot_kernel.c load_elf.c minilibc_support.c
+SRC32_S		 = boot.S boot_idt.S
+OBJ32		 = $(SRC32_S:.S=.o32) $(SRC32_C:.c=.o32)
+CC32		 = $(filter-out -m64, $(CC)) -m32
+CFLAGS32	:= $(filter-out -m64, $(CFLAGS)) -m32
+
+$(OBJ_DIR)/ARCH-amd64/libc32/OBJ-$(ARCH)_$(CPU)/libc32.a: FORCE
+	$(VERBOSE)$(MAKE) O=$(OBJ_BASE) -C $(SRC_DIR)/ARCH-amd64/libc32
+
+bootstrap32.elf: $(OBJ32) bootstrap32.bin $(OBJ_DIR)/ARCH-amd64/libc32/OBJ-$(ARCH)_$(CPU)/libc32.a
+	@$(LINK_MESSAGE)
+	$(VERBOSE)$(CC32) -o $@ -nostdlib -static \
+	  -Wl,-T,$(SRC_DIR)/ARCH-amd64/boot32/bootstrap32.ld,--gc-sections $^ -lgcc
+	$(VERBOSE)chmod 755 $@
+
+bootstrap: bootstrap32.elf
+	$(VERBOSE)$(LN) -f $^ $@
+
+bootstrap32.bin: $(BOOTSTRAP_ELF_NAME)
+	@$(GEN_MESSAGE)
+	$(VERBOSE)$(OBJCOPY) -S $< bootstrap64.bin
+	$(VERBOSE)chmod -x bootstrap64.bin
+	$(VERBOSE)$(OBJCOPY) -B i386 -I binary -O elf32-i386 bootstrap64.bin $@
+
+%.o32: %.c
+	@$(COMP_MESSAGE)
+	$(VERBOSE)$(CC32) -o $@ -c $(DEPEND_FLAG) \
+	  $(CPPFLAGS) $(CFLAGS32) $(call absfilename,$<)
+
+%.o32: %.S
+	@$(COMP_MESSAGE)
+	$(VERBOSE)$(CC32) -o $@ -c $(DEPEND_FLAG) \
+	  $(CPPFLAGS) $(CFLAGS32) $(call absfilename,$<)
+
+clean cleanall::
+	$(VERBOSE)PWD=$(call absfilename,$(SRC_DIR)/ARCH-amd64/libc32) \
+	  $(MAKE) -C $(SRC_DIR)/ARCH-amd64/libc32 $@
+
+else
+bootstrap: $(BOOTSTRAP_ELF_NAME)
+	$(VERBOSE)$(LN) -f $^ $@
+endif

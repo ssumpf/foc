@@ -1,0 +1,109 @@
+# Makefile for uClibc NPTL
+#
+# Copyright (C) 2005-2006 Steven J. Hill <sjhill@uclibc.org>
+#
+# Licensed under the LGPL v2.1, see the file COPYING.LIB in this tarball.
+#
+
+subdirs += libpthread/nptl/sysdeps/pthread
+#
+# NOTE: glibc puts flockfile.c, ftrylockfile.c, funlockfile.c, and
+#       pt-longjmp.c in libc and libpthread. For uClibc, they are
+#       in libc only.
+#
+libpthread_pthread_DIR = $(top_srcdir)libpthread/nptl/sysdeps/pthread
+libpthread_pthread_OUT = $(top_builddir)libpthread/nptl/sysdeps/pthread
+
+libpthread_pthread_COBJ = $(patsubst %.c,$(libpthread_pthread_OUT)/%.o,$(libpthread_pthread_CSRC))
+libpthread_pthread_CSRC = \
+	pthread_barrier_destroy.c \
+	pthread_barrier_init.c \
+	pthread_barrier_wait.c \
+	pthread_cond_broadcast.c \
+	pthread_cond_signal.c \
+	pthread_cond_timedwait.c \
+	pthread_cond_wait.c \
+	pthread_rwlock_rdlock.c \
+	pthread_rwlock_timedrdlock.c \
+	pthread_rwlock_timedwrlock.c \
+	pthread_rwlock_unlock.c \
+	pthread_rwlock_wrlock.c \
+	pthread_sigmask.c \
+	pthread_spin_destroy.c \
+	pthread_spin_init.c \
+	pthread_spin_unlock.c \
+	pt-longjmp.c \
+	pt-sigaction.c \
+	pt-sigfillset.c \
+	pt-sigprocmask.c \
+	tpp.c
+CFLAGS-pthread = $(SSP_ALL_CFLAGS) -DNOT_IN_libc -DIS_IN_libpthread
+CFLAGS-pthread_barrier_wait.c = -D_GNU_SOURCE
+CFLAGS-pthread_spin_destroy.c = -D_GNU_SOURCE
+CFLAGS-pthread_spin_init.c = -D_GNU_SOURCE
+CFLAGS-pthread_spin_unlock.c = -D_GNU_SOURCE
+CFLAGS-pt-sigaction.c = -I$(top_srcdir)libc/sysdeps/linux/$(TARGET_ARCH) \
+			-I$(top_srcdir)libc/signal
+CFLAGS-pt-sigfillset.c = -I$(top_srcdir)libc/signal
+CFLAGS-pt-sigprocmask.c = -I$(top_srcdir)libc/sysdeps/linux/common
+CFLAGS-unwind-forcedunwind.c = -fexceptions -fasynchronous-unwind-tables
+
+CFLAGS-OMIT-librt-cancellation.c = -DIS_IN_libpthread
+CFLAGS-OMIT-rt-unwind-resume.c = -DIS_IN_libpthread
+CFLAGS-librt-cancellation.c = -DIS_IN_librt				\
+			      -fexceptions -fasynchronous-unwind-tables
+CFLAGS-rt-unwind-resume.c = -DIS_IN_librt				\
+			    -fexceptions -fasynchronous-unwind-tables
+
+libpthread-so-y += $(patsubst %,$(libpthread_pthread_OUT)/%.oS, \
+	pt-sigaction pt-sigprocmask unwind-forcedunwind)
+
+CFLAGS-OMIT-sigaction.c = $(CFLAGS-pthread)
+CFLAGS-sigaction.c = -I$(top_srcdir)libc/signal
+libc-y += $(libpthread_pthread_OUT)/sigaction.o
+
+librt-pt-routines-y = librt-cancellation.c
+librt-pt-shared-only-routines-y = rt-unwind-resume.c
+
+ifeq ($(UCLIBC_CTOR_DTOR),y)
+CFLAGS-OMIT-pt-initfini.c = $(CFLAGS-pthread)
+CFLAGS-pt-initfini.c = -S -g0 -fPIC -fno-inline-functions	\
+			$(call check_gcc,-fno-unit-at-a-time,)	\
+			-finhibit-size-directive			\
+			$(patsubst -f%,-fno-%,$(call check_gcc,-fexceptions,))
+ASFLAGS-crti.S = -g0
+ASFLAGS-crtn.S = -g0
+
+$(libpthread_pthread_OUT)/pt-initfini.s: $(libpthread_pthread_DIR)/pt-initfini.c
+	$(compile.c)
+	$(do_sed) '/@TESTS_BEGIN/,/@TESTS_END/p' $< | \
+		$(do_awk) $(libpthread_pthread_DIR)/defs.awk > $(libpthread_pthread_OUT)/defs.h
+
+$(libpthread_pthread_OUT)/crti.S $(libpthread_pthread_OUT)/crtn.S: $(libpthread_pthread_OUT)/pt-initfini.s
+	$(do_sed) -e '1,/@HEADER_ENDS/p' \
+		-e '/@_.*_PROLOG_BEGINS/,/@_.*_PROLOG_ENDS/p' \
+		-e '/@TRAILER_BEGINS/,$$p' $< > $@
+endif
+# It would have been easier to just add dummy files that include the real
+# impl, but ok.
+# Special rules needed since we do objdir->objdir compilation for these 3.
+# First symlink them, then build them. Rob would freak out on these. Sheesh! ;)
+pthread-lc-fwd = sigaction sigfillset sigprocmask
+$(patsubst %,$(libpthread_pthread_OUT)/pt-%.c,$(pthread-lc-fwd)): | $(libpthread_pthread_OUT)
+	$(do_ln) $(call rel_srcdir)$(patsubst pt-%,$(libpthread_pthread_DIR)/%,$(@F)) $@
+$(patsubst %,$(libpthread_pthread_OUT)/pt-%.oS,$(pthread-lc-fwd)): $(libpthread_pthread_OUT)/pt-%.oS: $(libpthread_pthread_OUT)/pt-%.c
+	$(compile.c)
+$(patsubst %,$(libpthread_pthread_OUT)/pt-%.o,$(pthread-lc-fwd)): $(libpthread_pthread_OUT)/pt-%.o: $(libpthread_pthread_OUT)/pt-%.c
+	$(compile.c)
+ifeq ($(DOPIC),y)
+$(patsubst %,$(libpthread_pthread_OUT)/pt-%.os,$(pthread-lc-fwd)): $(libpthread_pthread_OUT)/pt-%.os: $(libpthread_pthread_OUT)/pt-%.c
+	$(compile.c)
+endif
+
+objclean-y += CLEAN_libpthread/nptl/sysdeps/pthread
+
+CLEAN_libpthread/nptl/sysdeps/pthread:
+	$(do_rm) $(addprefix $(libpthread_pthread_OUT)/*., o os oS s S) \
+		$(libpthread_pthread_OUT)/defs.h \
+		$(addprefix $(libpthread_pthread_DIR)/,pt-sigaction.c \
+			pt-sigfillset.c pt-sigprocmask.c)
