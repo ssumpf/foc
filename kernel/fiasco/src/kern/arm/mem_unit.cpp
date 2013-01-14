@@ -86,9 +86,10 @@ void Mem_unit::dtlb_flush(unsigned long)
 IMPLEMENTATION [arm && (armv6 || armv7)]:
 
 PUBLIC static inline
-void Mem_unit::tlb_flush( void* va, unsigned long asid )
+void Mem_unit::tlb_flush(void *va, unsigned long asid)
 {
-  if (asid == ~0UL) return;
+  if (asid == ~0UL)
+    return;
   btc_flush();
   asm volatile (
       "mcr p15, 0, %1, c7, c10, 4   \n" // drain write buffer

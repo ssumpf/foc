@@ -1,10 +1,5 @@
 INTERFACE [arm && mp && realview]:
-
 #include "types.h"
-
-class Boot_mp
-{
-};
 
 IMPLEMENTATION [arm && mp && realview]:
 
@@ -12,9 +7,9 @@ IMPLEMENTATION [arm && mp && realview]:
 #include "ipi.h"
 #include "platform.h"
 
-PUBLIC
+PUBLIC static
 void
-Boot_mp::start_ap_cpus(Address phys_tramp_mp_addr)
+Platform_control::boot_ap_cpus(Address phys_tramp_mp_addr)
 {
   // set physical start address for AP CPUs
   Platform::write(Platform::Sys::Flags_clr, 0xffffffff);
@@ -24,7 +19,3 @@ Boot_mp::start_ap_cpus(Address phys_tramp_mp_addr)
   Ipi::bcast(Ipi::Global_request, 0);
 }
 
-PUBLIC
-void
-Boot_mp::cleanup()
-{}

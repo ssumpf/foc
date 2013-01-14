@@ -100,6 +100,8 @@ L4STD_INCDIR_LAST	?= -I$(wildcard $(dir $(LIBGCC))/include \
 			                $(dir $(LIBGCC))/../include)
 KERNEL_LDFLAGS		+= -gc-sections
 SHARED_FLAGS-gcc        += -fno-defer-pop -freg-struct-return
+# prevent a possible gcc 4.4 flaw from hitting us
+SHARED_FLAGS-gcc        += $(if $(filter 4.4,$(CCVER_MAJOR).$(CCVER_MINOR)),-fno-strict-aliasing)
 SHARED_FLAGS		+= -g -Wall -W
 SHARED_FLAGS		+= -Wno-parentheses
 SHARED_FLAGS		+= $(call CHECKCC,-Wformat=2,)

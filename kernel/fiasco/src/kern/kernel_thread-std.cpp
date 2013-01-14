@@ -32,7 +32,7 @@ IMPLEMENT
 void
 Kernel_thread::init_workload()
 {
-  Lock_guard<Cpu_lock> g(&cpu_lock);
+  auto g = lock_guard(cpu_lock);
 
   if (Config::Jdb &&
       !Koptions::o()->opt(Koptions::F_nojdb) &&
@@ -124,8 +124,6 @@ Kernel_thread::init_workload()
 
   set_cpu_of(sigma0_thread, 0);
   set_cpu_of(boot_thread, 0);
-  sigma0_thread->state_del_dirty(Thread_suspended);
-  boot_thread->state_del_dirty(Thread_suspended);
 
   sigma0_thread->activate();
   check (obj_map(sigma0, C_factory,   1, boot_task, C_factory, 0).error() == 0);

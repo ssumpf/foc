@@ -28,11 +28,21 @@ IMPLEMENTATION [mp]:
 #include "timer_tick.h"
 #include "spin_lock.h"
 
+PUBLIC static
+Kernel_thread *
+App_cpu_thread::may_be_create(unsigned cpu, bool cpu_never_seen_before)
+{
+  if (!cpu_never_seen_before)
+    return static_cast<Kernel_thread *>(kernel_context(cpu));
 
-PUBLIC inline
-Mword *
-App_cpu_thread::init_stack()
-{ return _kernel_sp; }
+  Kernel_thread *t = new (Ram_quota::root) App_cpu_thread;
+  assert (t);
+
+  set_cpu_of(t, cpu);
+  check(t->bind(Kernel_task::kernel_task(), User<Utcb>::Ptr(0)));
+  return t;
+}
+
 
 // the kernel bootstrap routine
 IMPLEMENT
@@ -43,35 +53,35 @@ App_cpu_thread::bootstrap()
 
   state_change_dirty(0, Thread_ready);		// Set myself ready
 
-  // Setup initial timeslice
-  set_current_sched(sched());
 
-  Fpu::init(cpu());
+  Fpu::init(cpu(true));
 
   // initialize the current_mem_space function to point to the kernel space
   Kernel_task::kernel_task()->make_current();
 
   Mem_unit::tlb_flush();
 
-  Cpu::cpus.cpu(current_cpu()).set_online(1);
+  Cpu::cpus.current().set_online(1);
 
   _tramp_mp_spinlock.set(1);
 
-  kernel_context(cpu(), this);
-  Sched_context::rq(cpu()).set_idle(this->sched());
-  Rcu::leave_idle(cpu());
+  kernel_context(cpu(true), this);
+  Sched_context::rq.current().set_idle(this->sched());
+  Rcu::leave_idle(cpu(true));
 
   Timer_tick::setup(cpu(true));
   Timer_tick::enable(cpu(true));
-  enable_tlb(cpu());
+  enable_tlb(cpu(true));
+  // Setup initial timeslice
+  Sched_context::rq.current().set_current_sched(sched());
 
-  Per_cpu_data::run_late_ctors(cpu());
+  Per_cpu_data::run_late_ctors(cpu(true));
 
   Scheduler::scheduler.trigger_hotplug_event();
 
   cpu_lock.clear();
 
-  printf("CPU[%u]: goes to idle loop\n", cpu());
+  printf("CPU[%u]: goes to idle loop\n", cpu(true));
 
   for (;;)
     idle_op();

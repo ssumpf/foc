@@ -6,6 +6,14 @@ INTERFACE [sched_fixed_prio || sched_fp_wfq]:
 #include "types.h"
 #include "globals.h"
 
+
+struct L4_sched_param_fixed_prio : public L4_sched_param
+{
+  enum : Smword { Class = -1 };
+  Mword quantum;
+  unsigned short prio;
+};
+
 template<typename E>
 class Ready_queue_fp
 {
@@ -99,3 +107,10 @@ Ready_queue_fp<E>::requeue(E *i)
 
   prio_next[i->prio()].rotate_to(*++List::iter(i));
 }
+
+
+PUBLIC template<typename E> inline
+void
+Ready_queue_fp<E>::deblock_refill(E *)
+{}
+

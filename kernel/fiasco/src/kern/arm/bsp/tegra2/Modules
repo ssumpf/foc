@@ -2,7 +2,7 @@
 
 PREPROCESS_PARTS        += tegra2 16550 pic_gic mptimer generic_tickless_idle
 CONFIG_KERNEL_LOAD_ADDR := 0x0
-INTERFACES_KERNEL       += gic boot_mp
+INTERFACES_KERNEL       += gic
 MPCORE_PHYS_BASE        := 0x50040000
 
 uart_IMPL             += uart-16550 uart-16550-arm-tegra2
@@ -15,5 +15,5 @@ timer_tick_IMPL       += timer_tick-single-vector
 kernel_uart_IMPL      += kernel_uart-arm-tegra2
 reset_IMPL            += reset-arm-tegra2
 clock_IMPL            += clock-generic
-boot_mp_IMPL          += boot_mp-arm-tegra2
+platform_control_IMPL += platform_control-arm-tegra2
 outer_cache_IMPL      += outer_cache-arm-tegra2

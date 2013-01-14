@@ -866,7 +866,8 @@ Mapping *
 Base_mappable::lookup(Space *space, Page_number va)
 {
   // get and lock the tree.
-  lock.lock();
+  if (EXPECT_FALSE(lock.lock() == Lock::Invalid))
+    return 0;
   Mapping_tree *t = tree.get();
   assert (t);
   if (Mapping *m = t->lookup(space, va))

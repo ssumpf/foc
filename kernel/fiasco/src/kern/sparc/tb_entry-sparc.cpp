@@ -1,6 +1,6 @@
 INTERFACE [sparc]:
 
-EXTENSION class Tb_entry_base
+EXTENSION class Tb_entry
 {
 public:
   enum

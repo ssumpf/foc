@@ -174,7 +174,7 @@ Thread::Thread()
     _del_observer(0)
 {
 
-  assert(state() == Thread_invalid);
+  assert(state(false) == Thread_invalid);
 
   inc_ref();
   _space.space(Kernel_task::kernel_task());
@@ -193,7 +193,7 @@ Thread::Thread()
   r->sp(0);
   r->ip(0);
 
-  state_add(Thread_dead | Thread_suspended);
+  state_add_dirty(Thread_dead, false);
   // ok, we're ready to go!
 }
 

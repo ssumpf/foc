@@ -30,9 +30,9 @@ Kernel_thread::boot_app_cpus()
 //--------------------------------------------------------------------------
 IMPLEMENTATION [mp]:
 
-#include "boot_mp.h"
 #include "io.h"
 #include "pagetable.h"
+#include "platform_control.h"
 #include "outer_cache.h"
 
 #include <cstdio>
@@ -40,8 +40,6 @@ IMPLEMENTATION [mp]:
 static void
 Kernel_thread::boot_app_cpus()
 {
-  Boot_mp bmp;
-
   extern char _tramp_mp_entry[];
   extern volatile Mword _tramp_mp_startup_cp15_c1;
   extern volatile Mword _tramp_mp_startup_pdbr;
@@ -65,21 +63,7 @@ Kernel_thread::boot_app_cpus()
   Outer_cache::clean(Mem_space::kernel_space()->virt_to_phys((Address)&_tramp_mp_startup_pdbr));
   Outer_cache::clean(Mem_space::kernel_space()->virt_to_phys((Address)&_tramp_mp_start_dcr));
 
-  bmp.start_ap_cpus(Mem_space::kernel_space()->virt_to_phys((Address)_tramp_mp_entry));
-
-  printf("Waiting for %d CPUs to come up\n", num_ap_cpus);
-  while (1)
-    {
-      Mem::dmb();
-      if (num_ap_cpus == Config::num_ap_cpus)
-        break;
-      for (unsigned i = 0; i < 1000; ++i)
-        asm volatile("nop");
-    }
-
-  bmp.cleanup();
-
-  printf("Done waiting CPUs\n");
+  Platform_control::boot_ap_cpus(Mem_space::kernel_space()->virt_to_phys((Address)_tramp_mp_entry));
 }
 
 //--------------------------------------------------------------------------

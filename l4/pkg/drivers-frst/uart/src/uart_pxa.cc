@@ -16,8 +16,7 @@
  * Please see the COPYING-GPL-2 file for details.
  */
 #include "uart_pxa.h"
-
-#include <l4/sys/kdebug.h>
+#include "poll_timeout_counter.h"
 
 namespace L4
 {
@@ -76,7 +75,8 @@ namespace L4
     _regs->read<unsigned char>(TRB); /* IRQID 2*/
     _regs->read<unsigned char>(LSR); /* IRQID 3*/
 
-    while (_regs->read<unsigned char>(LSR) & 1/*DATA READY*/)
+    Poll_timeout_counter i(5000000);
+    while (i.test(_regs->read<unsigned char>(LSR) & 1/*DATA READY*/))
       _regs->read<unsigned char>(TRB);
 
     return true;
@@ -141,14 +141,17 @@ namespace L4
     _regs->write<unsigned char>(IER, old_ier & ~0x0f);
 
     /* transmission */
+    Poll_timeout_counter cnt(5000000);
     for (i = 0; i < count; i++) {
-      while (!(_regs->read<unsigned char>(LSR) & 0x20 /* THRE */))
+      cnt.set(5000000);
+      while (cnt.test(!(_regs->read<unsigned char>(LSR) & 0x20 /* THRE */)))
         ;
       _regs->write<unsigned char>(TRB, s[i]);
     }
 
     /* wait till everything is transmitted */
-    while (!(_regs->read<unsigned char>(LSR) & 0x40 /* TSRE */))
+    cnt.set(5000000);
+    while (cnt.test(!(_regs->read<unsigned char>(LSR) & 0x40 /* TSRE */)))
       ;
 
     _regs->write<unsigned char>(IER, old_ier);

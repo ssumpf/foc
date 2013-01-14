@@ -89,8 +89,7 @@ Thread_object::operator delete(void *_t)
   Ram_quota * const q = t->_quota;
   Kmem_alloc::allocator()->q_unaligned_free(q, Thread::Size, t);
 
-  LOG_TRACE("Kobject delete", "del", current(), __fmt_kobj_destroy,
-      Log_destroy *l = tbe->payload<Log_destroy>();
+  LOG_TRACE("Kobject delete", "del", current(), Log_destroy,
       l->id = t->dbg_id();
       l->obj = t;
       l->type = "Thread";
@@ -196,28 +195,32 @@ Thread_object::sys_vcpu_resume(L4_msg_tag const &tag, Utcb *utcb)
 
   L4_snd_item_iter snd_items(utcb, tag.words());
   int items = tag.items();
-  for (; items && snd_items.more(); --items)
-    {
-      if (EXPECT_FALSE(!snd_items.next()))
-        break;
+  if (vcpu_user_space())
+    for (; items && snd_items.more(); --items)
+      {
+        if (EXPECT_FALSE(!snd_items.next()))
+          break;
 
-      // XXX: need to take existance lock for map
-      cpu_lock.clear();
+        Lock_guard<Lock> guard;
+        if (!guard.check_and_lock(&static_cast<Task *>(vcpu_user_space())->existence_lock))
+          return commit_result(-L4_err::ENoent);
 
-      L4_snd_item_iter::Item const *const item = snd_items.get();
-      L4_fpage sfp(item->d);
+        cpu_lock.clear();
 
-      Reap_list rl;
-      L4_error err = fpage_map(space(), sfp,
-                               vcpu_user_space(), L4_fpage::all_spaces(),
-                               item->b, &rl);
-      rl.del();
+        L4_snd_item_iter::Item const *const item = snd_items.get();
+        L4_fpage sfp(item->d);
 
-      cpu_lock.lock();
+        Reap_list rl;
+        L4_error err = fpage_map(space(), sfp,
+                                 vcpu_user_space(), L4_fpage::all_spaces(),
+                                 item->b, &rl);
+        rl.del();
 
-      if (EXPECT_FALSE(!err.ok()))
-        return commit_error(utcb, err);
-    }
+        cpu_lock.lock();
+
+        if (EXPECT_FALSE(!err.ok()))
+          return commit_error(utcb, err);
+      }
 
   if ((vcpu->_saved_state & Vcpu_state::F_irqs)
       && (vcpu->sticky_flags & Vcpu_state::Sf_irq_pending))
@@ -238,12 +241,13 @@ Thread_object::sys_vcpu_resume(L4_msg_tag const &tag, Utcb *utcb)
 
 	  // tried to resume to user mode, so an IRQ enters from user mode
 	  if (vcpu->_saved_state & Vcpu_state::F_user_mode)
-	    sp = vcpu->_entry_sp;
+            sp = vcpu->_entry_sp;
 	  else
-	    sp = vcpu->_ts.sp();
+            sp = vcpu->_ts.sp();
 
-	  LOG_TRACE("VCPU events", "vcpu", this, __context_vcpu_log_fmt,
-	      Vcpu_log *l = tbe->payload<Vcpu_log>();
+          arch_load_vcpu_kern_state(vcpu, true);
+
+	  LOG_TRACE("VCPU events", "vcpu", this, Vcpu_log,
 	      l->type = 4;
 	      l->state = vcpu->state;
 	      l->ip = vcpu->_entry_ip;
@@ -262,7 +266,7 @@ Thread_object::sys_vcpu_resume(L4_msg_tag const &tag, Utcb *utcb)
   if (vcpu->state & Vcpu_state::F_user_mode)
     {
       if (!vcpu_user_space())
-        return commit_result(-L4_err::EInval);
+        return commit_result(-L4_err::ENoent);
 
       user_mode = true;
 
@@ -275,10 +279,11 @@ Thread_object::sys_vcpu_resume(L4_msg_tag const &tag, Utcb *utcb)
         state_del_dirty(Thread_vcpu_fpu_disabled);
 
       target_space = static_cast<Task*>(vcpu_user_space());
+
+      arch_load_vcpu_user_state(vcpu, true);
     }
 
-  LOG_TRACE("VCPU events", "vcpu", this, __context_vcpu_log_fmt,
-      Vcpu_log *l = tbe->payload<Vcpu_log>();
+  LOG_TRACE("VCPU events", "vcpu", this, Vcpu_log,
       l->type = 0;
       l->state = vcpu->state;
       l->ip = vcpu->_ts.ip();
@@ -483,6 +488,8 @@ Thread_object::sys_vcpu_control(unsigned char, L4_msg_tag const &tag,
 
       add_state |= Thread_vcpu_enabled;
       _vcpu_state.set(vcpu, vcpu_m->kern_addr(vcpu));
+
+      arch_update_vcpu_state(_vcpu_state.access());
     }
   else
     return commit_result(-L4_err::EInval);
@@ -564,8 +571,7 @@ Thread_object::ex_regs(Utcb *utcb)
   Mword flags;
   Mword ops = utcb->values[0];
 
-  LOG_TRACE("Ex-regs", "exr", current(), __fmt_thread_exregs,
-      Log_thread_exregs *l = tbe->payload<Log_thread_exregs>();
+  LOG_TRACE("Ex-regs", "exr", current(), Log_thread_exregs,
       l->id = dbg_id();
       l->ip = ip; l->sp = sp; l->op = ops;);
 
@@ -621,8 +627,7 @@ Thread_object::sys_thread_switch(L4_msg_tag const &/*tag*/, Utcb *utcb)
   Sched_context * const cs = current_sched();
 #endif
 
-  if (curr != this
-      && ((state() & (Thread_ready | Thread_suspended)) == Thread_ready))
+  if (curr != this && (state() & Thread_ready_mask))
     {
       curr->switch_exec_schedule_locked (this, Not_Helping);
       reinterpret_cast<Utcb::Time_val*>(utcb->values)->t = 0; // Assume timeslice was used up
@@ -637,7 +642,7 @@ Thread_object::sys_thread_switch(L4_msg_tag const &/*tag*/, Utcb *utcb)
       cs->owner()->switch_sched(cs->id() ? cs->next() : cs);
 #endif
   reinterpret_cast<Utcb::Time_val*>(utcb->values)->t
-    = timeslice_timeout.cpu(current_cpu())->get_timeout(Timer::system_clock());
+    = timeslice_timeout.current()->get_timeout(Timer::system_clock());
   curr->schedule();
 
   return commit_result(0, Utcb::Time_val::Words);

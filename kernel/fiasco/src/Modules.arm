@@ -31,6 +31,7 @@ PREPROCESS_PARTS-$(CONFIG_ARM_CORTEX_A8)            += armca8
 PREPROCESS_PARTS-$(CONFIG_ARM_CORTEX_A9)            += armca9
 PREPROCESS_PARTS-$(CONFIG_ARM_TZ)                   += tz
 PREPROCESS_PARTS-$(CONFIG_ARM_1176_CACHE_ALIAS_FIX) += arm1176_cache_alias_fix
+PREPROCESS_PARTS-$(CONFIG_ARM_CPU_ERRATA)           += arm_cpu_errata
 PREPROCESS_PARTS-$(CONFIG_SCHED_FIXED_PRIO)  += sched_fixed_prio
 PREPROCESS_PARTS-$(CONFIG_SCHED_WFQ)         += sched_wfq
 PREPROCESS_PARTS-$(CONFIG_SCHED_FP_WFQ)      += sched_fp_wfq
@@ -196,6 +197,7 @@ utcb_init_IMPL		:= utcb_init utcb_init-arm
 utcb_support_IMPL       := utcb_support utcb_support-arm
 vmem_alloc_IMPL	  	:= vmem_alloc vmem_alloc-arch
 tb_entry_IMPL		:= tb_entry tb_entry-arm
+vcpu_IMPL               := vcpu vcpu-arm
 
 
 ifeq ("$(CONFIG_JDB)","y")
@@ -217,8 +219,9 @@ INTERFACES_JDB		:= jdb_handler_queue jdb_module jdb_pic            \
 			   jdb_ipc_gate jdb_obj_space jdb_log jdb_factory  \
 			   jdb_thread jdb_scheduler jdb_sender_list\
 			   jdb_perf jdb_vm jdb_regex jdb_disasm jdb_bp \
-			   jdb_tbuf_output jdb_tbuf_show tb_entry_output \
+			   jdb_tbuf_output jdb_tbuf_show \
                            jdb_idle_stats
+CXXSRC_JDB := tb_entry_output.cc
 
 
 INTERFACES_KERNEL 	+= jdb_tbuf jdb_tbuf_init tb_entry jdb_trace

@@ -7,6 +7,8 @@
 CONFIG_IA32=y
 # CONFIG_AMD64 is not set
 # CONFIG_ARM is not set
+# CONFIG_PPC32 is not set
+# CONFIG_SPARC is not set
 # CONFIG_PF_PC is not set
 CONFIG_PF_UX=y
 CONFIG_ABI_VF=y

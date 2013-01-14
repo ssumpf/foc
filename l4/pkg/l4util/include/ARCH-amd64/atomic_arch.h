@@ -274,7 +274,7 @@ l4util_##opname##bit##_res(volatile l4_uint##bit##_t* dest,	\
   l4_uint##bit##_t old_val;					\
   __asm__ __volatile__						\
     (								\
-     LOCK #opname mod " %"op1"1,%3	\n\t"				\
+     LOCK #opname mod " %" op1 "1,%3	\n\t"			\
      :								\
      "=a"(old_val)						\
      :								\

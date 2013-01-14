@@ -54,9 +54,9 @@ static void tbuf(Thread *t, Entry_frame *r)
   int len;
   char c;
 
-  Jdb_entry_frame *entry_frame = reinterpret_cast<Jdb_entry_frame*>((char *)r - 8);
-  /* Why the -8? The Jdb_entry_frame has two more members in the beginning
-   * (see Trap_state_regs) so we're compensating for this with the -8.
+  Jdb_entry_frame *entry_frame = reinterpret_cast<Jdb_entry_frame*>((char *)r - 12);
+  /* Why the -12? The Jdb_entry_frame has three more members in the beginning
+   * (see Trap_state_regs) so we're compensating for this with the -12.
    * Alex: Proper fix?
    */
   user = entry_frame->from_user();
@@ -73,8 +73,7 @@ static void tbuf(Thread *t, Entry_frame *r)
     case 1: // fiasco_tbuf_log()
 	{
 	  Jdb_log_frame *regs = reinterpret_cast<Jdb_log_frame*>(entry_frame);
-	  Tb_entry_ke *tb =
-            static_cast<Tb_entry_ke*>(Jdb_tbuf::new_entry());
+	  Tb_entry_ke *tb = Jdb_tbuf::new_entry<Tb_entry_ke>();
           str = regs->str();
 	  tb->set(t, ip-4);
 	  for (len=0; (c = s->peek(str++, user)); len++)
@@ -94,10 +93,12 @@ static void tbuf(Thread *t, Entry_frame *r)
           // interrupts are disabled in handle_slow_trap()
           Jdb_log_3val_frame *regs =
             reinterpret_cast<Jdb_log_3val_frame*>(entry_frame);
-          Tb_entry_ke_reg *tb =
-            static_cast<Tb_entry_ke_reg*>(Jdb_tbuf::new_entry());
+          Tb_entry_ke_reg *tb = Jdb_tbuf::new_entry<Tb_entry_ke_reg>();
           str = regs->str();
-          tb->set(t, ip-4, regs->val1(), regs->val2(), regs->val3());
+          tb->set(t, ip-4);
+          tb->v[0] = regs->val1();
+          tb->v[1] = regs->val2();
+          tb->v[2] = regs->val3();
           for (len=0; (c = s->peek(str++, user)); len++)
             tb->set_buf(len, c);
           tb->term_buf(len);
@@ -123,8 +124,7 @@ static void tbuf(Thread *t, Entry_frame *r)
     case 8: // fiasco_tbuf_log_binary()
       // interrupts are disabled in handle_slow_trap()
       Jdb_log_frame *regs = reinterpret_cast<Jdb_log_frame*>(entry_frame);
-      Tb_entry_ke_bin *tb =
-        static_cast<Tb_entry_ke_bin*>(Jdb_tbuf::new_entry());
+      Tb_entry_ke_bin *tb = Jdb_tbuf::new_entry<Tb_entry_ke_bin>();
       str = regs->str();
       tb->set(t, ip-4);
       for (len=0; len < Tb_entry_ke_bin::SIZE; len++)
@@ -165,4 +165,3 @@ static void init_dbg_extensions()
 }
 
 STATIC_INITIALIZER(init_dbg_extensions);
-

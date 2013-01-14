@@ -1,4 +1,5 @@
 #include "uart_pl011.h"
+#include "poll_timeout_counter.h"
 
 namespace L4
 {
@@ -51,7 +52,8 @@ namespace L4
     _regs->write<unsigned int>(UART011_IBRD, 13);
     _regs->write<unsigned int>(UART011_LCRH, 0x60);
     _regs->write<unsigned int>(UART011_IMSC, 0);
-    while (_regs->read<unsigned int>(UART01x_FR) & UART01x_FR_BUSY)
+    Poll_timeout_counter i(3000000);
+    while (i.test() && _regs->read<unsigned int>(UART01x_FR) & UART01x_FR_BUSY)
       ;
     return true;
   }
@@ -113,7 +115,8 @@ namespace L4
 
   void Uart_pl011::out_char(char c) const
   {
-    while (_regs->read<unsigned int>(UART01x_FR) & UART01x_FR_TXFF)
+    Poll_timeout_counter i(3000000);
+    while (i.test(_regs->read<unsigned int>(UART01x_FR) & UART01x_FR_TXFF))
       ;
     _regs->write<unsigned int>(UART01x_DR,c);
   }
@@ -124,7 +127,8 @@ namespace L4
     while (c--)
       out_char(*s++);
 
-    while (_regs->read<unsigned int>(UART01x_FR) & UART01x_FR_BUSY)
+    Poll_timeout_counter i(3000000);
+    while (i.test(_regs->read<unsigned int>(UART01x_FR) & UART01x_FR_BUSY))
       ;
 
     return count;

@@ -145,7 +145,7 @@ Device_map::map(Address phys, bool /*cache*/)
   unsigned idx = lookup_idx(phys);
   if (idx != ~0U)
     return (Virt_base + idx * Config::SUPERPAGE_SIZE)
-      | (phys & ~(~0UL << Config::SUPERPAGE_SHIFT));
+           | (phys & ~(~0UL << Config::SUPERPAGE_SHIFT));
 
   Address p = phys & (~0UL << Config::SUPERPAGE_SHIFT);
   Kmem_alloc *const alloc = Kmem_alloc::allocator();
@@ -153,14 +153,15 @@ Device_map::map(Address phys, bool /*cache*/)
     if (_map[i] == ~0UL)
       {
 	Kmem::kdir->map(p,
-	    Virt_addr(Virt_base + (i*Config::SUPERPAGE_SIZE)),
-	    Virt_size(Config::SUPERPAGE_SIZE),
-	    Pt_entry::Dirty | Pt_entry::Writable | Pt_entry::Referenced,
-	    Pdir::super_level(), pdir_alloc(alloc));
+                        Virt_addr(Virt_base + (i * Config::SUPERPAGE_SIZE)),
+                        Virt_size(Config::SUPERPAGE_SIZE),
+                        Pt_entry::Dirty | Pt_entry::Writable
+                        | Pt_entry::Referenced,
+                        Pdir::super_level(), pdir_alloc(alloc));
 	_map[i] = p;
 
-	return (Virt_base + (i*Config::SUPERPAGE_SIZE))
-	  | (phys & ~(~0UL << Config::SUPERPAGE_SHIFT));
+	return (Virt_base + (i * Config::SUPERPAGE_SIZE))
+	       | (phys & ~(~0UL << Config::SUPERPAGE_SHIFT));
       }
 
   return ~0UL;
@@ -205,7 +206,7 @@ Kmem::io_bitmap_delimiter_page()
  * @return corresponding physical address if a mappings exists.
  *         -1 otherwise.
  */
-IMPLEMENT inline NEEDS["paging.h","std_macros.h","mem_layout.h"]
+IMPLEMENT inline NEEDS["paging.h", "std_macros.h", "mem_layout.h"]
 Address
 Kmem::virt_to_phys(const void *addr)
 {
@@ -227,7 +228,7 @@ Address
 Kmem::map_phys_page_tmp(Address phys, Mword idx)
 {
   unsigned long pte = phys & Pt_entry::Pfn;
-  Address    virt;
+  Address virt;
 
   switch (idx)
     {
@@ -240,9 +241,9 @@ Kmem::map_phys_page_tmp(Address phys, Mword idx)
 
   if (pte != tmp_phys_pte[idx])
     {
-      // map two consecutive pages as to be able to access 
-      map_phys_page(phys,        virt,        false, true);
-      map_phys_page(phys+0x1000, virt+0x1000, false, true);
+      // map two consecutive pages as to be able to access
+      map_phys_page(phys,          virt,          false, true);
+      map_phys_page(phys + 0x1000, virt + 0x1000, false, true);
       tmp_phys_pte[idx] = pte;
     }
 
@@ -358,14 +359,14 @@ Kmem::init_mmu()
   kdir->map(Mem_layout::Kernel_image_phys,
             Virt_addr(Mem_layout::Kernel_image),
             Virt_size(Config::SUPERPAGE_SIZE),
-            Pt_entry::Dirty | Pt_entry::Writable | Pt_entry::Referenced 
+            Pt_entry::Dirty | Pt_entry::Writable | Pt_entry::Referenced
             | Pt_entry::global(), Pdir::super_level(), pdir_alloc(alloc));
 
    if (!Mem_layout::Adap_in_kernel_image)
      kdir->map(Mem_layout::Adap_image_phys,
                Virt_addr(Mem_layout::Adap_image),
                Virt_size(Config::SUPERPAGE_SIZE),
-               Pt_entry::Dirty | Pt_entry::Writable | Pt_entry::Referenced 
+               Pt_entry::Dirty | Pt_entry::Writable | Pt_entry::Referenced
                | Pt_entry::global(), Pdir::super_level(), pdir_alloc(alloc));
 
   // map the last 64MB of physical memory as kernel memory
@@ -389,8 +390,7 @@ Kmem::init_mmu()
 
   assert((Mem_layout::Io_bitmap & ~Config::SUPERPAGE_MASK) == 0);
 
-  long cpu_page_size
-    = 0x10 + Config::Max_num_cpus * (sizeof(Tss) + 256);
+  long cpu_page_size = 0x10 + Config::Max_num_cpus * (sizeof(Tss) + 256);
 
   if (cpu_page_size < Config::PAGE_SIZE)
     cpu_page_size = Config::PAGE_SIZE;
@@ -407,12 +407,12 @@ Kmem::init_mmu()
       *(kdir->walk(Virt_addr(Mem_layout::Io_bitmap - Config::SUPERPAGE_SIZE),
                    Pdir::Super_level, pdir_alloc(alloc)).e)
 	= (pmem_cpu_page & Config::SUPERPAGE_MASK)
-	| Pt_entry::Pse_bit
-	| Pt_entry::Writable | Pt_entry::Referenced
-	| Pt_entry::Dirty | Pt_entry::global() | Pt_entry::Valid;
+          | Pt_entry::Pse_bit
+          | Pt_entry::Writable | Pt_entry::Referenced
+          | Pt_entry::Dirty | Pt_entry::global() | Pt_entry::Valid;
 
       cpu_page_vm = (pmem_cpu_page & ~Config::SUPERPAGE_MASK)
-		  + (Mem_layout::Io_bitmap - Config::SUPERPAGE_SIZE);
+                    + (Mem_layout::Io_bitmap - Config::SUPERPAGE_SIZE);
     }
   else
     {
@@ -431,22 +431,21 @@ Kmem::init_mmu()
       cpu_page_vm = Mem_layout::Io_bitmap - Config::PAGE_SIZE * i;
     }
 
-    // the IO bitmap must be followed by one byte containing 0xff
-    // if this byte is not present, then one gets page faults
-    // (or general protection) when accessing the last port
-    // at least on a Pentium 133.
-    //
-    // Therefore we write 0xff in the first byte of the cpu_page
-    // and map this page behind every IO bitmap
-    io_bitmap_delimiter =
-      reinterpret_cast<Unsigned8 *>(cpu_page_vm);
+  // the IO bitmap must be followed by one byte containing 0xff
+  // if this byte is not present, then one gets page faults
+  // (or general protection) when accessing the last port
+  // at least on a Pentium 133.
+  //
+  // Therefore we write 0xff in the first byte of the cpu_page
+  // and map this page behind every IO bitmap
+  io_bitmap_delimiter = reinterpret_cast<Unsigned8 *>(cpu_page_vm);
 
-    cpu_page_vm += 0x10;
+  cpu_page_vm += 0x10;
 
-    // did we really get the first byte ??
-    assert((reinterpret_cast<Address>(io_bitmap_delimiter)
-             & ~Config::PAGE_MASK) == 0);
-    *io_bitmap_delimiter = 0xff;
+  // did we really get the first byte ??
+  assert((reinterpret_cast<Address>(io_bitmap_delimiter)
+          & ~Config::PAGE_MASK) == 0);
+  *io_bitmap_delimiter = 0xff;
 }
 
 
@@ -454,12 +453,11 @@ PUBLIC static FIASCO_INIT_CPU
 void
 Kmem::init_cpu(Cpu &cpu)
 {
-
   void *cpu_mem = Kmem_alloc::allocator()->unaligned_alloc(1024);
   printf("Allocate cpu_mem @ %p\n", cpu_mem);
-  
+
   // now initialize the global descriptor table
-  cpu.init_gdt (__alloc(&cpu_mem, Gdt::gdt_max), user_max());
+  cpu.init_gdt(__alloc(&cpu_mem, Gdt::gdt_max), user_max());
 
   // Allocate the task segment as the last thing from cpu_page_vm
   // because with IO protection enabled the task segment includes the
@@ -468,12 +466,12 @@ Kmem::init_cpu(Cpu &cpu)
   // Allocate additional 256 bytes for emergency stack right beneath
   // the tss. It is needed if we get an NMI or debug exception at
   // entry_sys_fast_ipc/entry_sys_fast_ipc_c/entry_sys_fast_ipc_log.
-  Address tss_mem  = alloc_tss(sizeof(Tss) + 256);
+  Address tss_mem = alloc_tss(sizeof(Tss) + 256);
   assert(tss_mem + sizeof(Tss) + 256 < Mem_layout::Io_bitmap);
-  size_t tss_size;
   tss_mem += 256;
 
-  // this is actually tss_size +1, including the io_bitmap_delimiter byte
+  // this is actually tss_size + 1, including the io_bitmap_delimiter byte
+  size_t tss_size;
   tss_size = Mem_layout::Io_bitmap + (Mem_layout::Io_port_max / 8) - tss_mem;
 
   assert(tss_size < 0x100000); // must fit into 20 Bits
@@ -563,7 +561,6 @@ Kmem::alloc_tss(Address size)
   return ret;
 }
 
-
 /**
  * Return Global page directory.
  * This is the master copy of the kernel's page directory. Kernel-memory
@@ -572,4 +569,3 @@ Kmem::alloc_tss(Address size)
  * @return kernel's global page directory
  */
 PUBLIC static inline const Pdir* Kmem::dir() { return kdir; }
-

@@ -25,7 +25,22 @@ platform_reset(void)
 }
 
 // ------------------------------------------------------------------------
-IMPLEMENTATION [arm && (imx35 || imx51)]:
+IMPLEMENTATION [arm && (imx35 || imx51 || imx53)]:
+
+void platform_imx_cpus_off()
+{}
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [arm && imx6]:
+
+void platform_imx_cpus_off()
+{
+  // switch off core1-3
+  Io::clear<Mword>(7 << 22, Mem_layout::Src_map_base + 0);
+}
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [arm && (imx35 || imx51 || imx53 || imx6)]:
 
 #include "io.h"
 #include "kmem.h"
@@ -37,6 +52,8 @@ platform_reset(void)
     WCR  = Kmem::Watchdog_map_base + 0,
     WCR_SRS = 1 << 4, // Software Reset Signal
   };
+
+  platform_imx_cpus_off();
 
   // Assert Software reset signal by making the bit zero
   Io::write<Unsigned16>(Io::read<Unsigned16>(WCR) & ~WCR_SRS, WCR);

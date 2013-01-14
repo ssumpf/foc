@@ -54,7 +54,7 @@ Fpu::save_state(Fpu_state *s)
   // Both fxsave and fnsave are non-waiting instructions and thus
   // cannot cause exception #16 for pending FPU exceptions.
 
-  switch (fpu(current_cpu())._variant)
+  switch (fpu.current()._variant)
     {
     case Variant_xsave:
       asm volatile("xsave (%2)" : : "a" (~0UL), "d" (~0UL), "r" (s->state_buffer()) : "memory");
@@ -80,9 +80,9 @@ Fpu::restore_state(Fpu_state *s)
 
   // Only fxrstor is a non-waiting instruction and thus
   // cannot cause exception #16 for pending FPU exceptions.
-  unsigned cpu = current_cpu();
+  Fpu &f = fpu.current();
 
-  switch (fpu(cpu)._variant)
+  switch (f._variant)
     {
     case Variant_xsave:
       asm volatile ("xrstor (%2)" : : "a" (~0UL), "d" (~0UL), "r" (s->state_buffer()));
@@ -119,7 +119,7 @@ Fpu::restore_state(Fpu_state *s)
       //    invoked fnsave which re-initialized the FPU and cleared exceptions
       // 2) Otherwise we call fnclex instead to clear exceptions.
 
-      if (!Fpu::owner(cpu))
+      if (!f.owner())
         asm volatile ("fnclex");
 
       asm volatile ("frstor (%0)" : : "r" (s->state_buffer()));

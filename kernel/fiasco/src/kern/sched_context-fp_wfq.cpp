@@ -8,6 +8,15 @@ class Sched_context
   MEMBER_OFFSET();
   friend class Jdb_list_timeouts;
   friend class Jdb_thread_list;
+  friend class Ready_queue_wfq<Sched_context>;
+
+  union Sp
+  {
+    L4_sched_param p;
+    L4_sched_param_legacy legacy_fixed_prio;
+    L4_sched_param_fixed_prio fixed_prio;
+    L4_sched_param_wfq wfq;
+  };
 
   struct Ready_list_item_concept
   {
@@ -43,7 +52,7 @@ private:
     Sched_context *_ready_next, *_ready_prev;
   };
 
-  struct Wfq_sc : public B_sc
+  struct Wfq_sc : public Sched_context_wfq<Wfq_sc>, public B_sc
   {
     Sched_context **_ready_link;
     bool _idle:1;
@@ -51,11 +60,6 @@ private:
 
     unsigned _w;
     unsigned _qdw;
-    bool operator <= (Wfq_sc const &o) const
-    { return _dl <= o._dl; }
-
-    bool operator < (Wfq_sc const &o) const
-    { return _dl < o._dl; }
   };
 
   union Sc
@@ -69,32 +73,32 @@ private:
 public:
   static Wfq_sc *wfq_elem(Sched_context *x) { return &x->_sc.wfq; }
 
-  struct Ready_queue
+  struct Ready_queue_base
   {
   public:
     Ready_queue_fp<Sched_context> fp_rq;
     Ready_queue_wfq<Sched_context> wfq_rq;
-    Context *schedule_in_progress;
     Sched_context *current_sched() const { return _current_sched; }
     void activate(Sched_context *s)
     {
-      if (s && s->_t == Wfq)
+      if (!s || s->_t == Wfq)
 	wfq_rq.activate(s);
       _current_sched = s;
     }
 
-  private:
-    Sched_context *_current_sched;
+    void enqueue(Sched_context *sc, bool is_current);
+    void dequeue(Sched_context *);
+    void requeue(Sched_context *sc);
 
-    friend class Jdb_thread_list;
-
-  public:
     void set_idle(Sched_context *sc)
     { sc->_t = Wfq; sc->_sc.wfq._p = 0; wfq_rq.set_idle(sc); }
 
-    void enqueue(Sched_context *);
-    void dequeue(Sched_context *);
     Sched_context *next_to_run() const;
+    void deblock_refill(Sched_context *sc);
+
+  private:
+    friend class Jdb_thread_list;
+    Sched_context *_current_sched;
   };
 
   Context *context() const { return context_of(this); }
@@ -124,7 +128,7 @@ Sched_context::Sched_context()
 
 IMPLEMENT inline
 Sched_context *
-Sched_context::Ready_queue::next_to_run() const
+Sched_context::Ready_queue_base::next_to_run() const
 {
   Sched_context *s = fp_rq.next_to_run();
   if (s)
@@ -147,119 +151,103 @@ Sched_context::in_ready_list() const
   return _sc.wfq._ready_link != 0;
 }
 
-/**
- * Return if there is currently a schedule() in progress
- */
-PUBLIC static inline
-Context *
-Sched_context::schedule_in_progress(unsigned cpu)
-{
-  return _ready_q.cpu(cpu).schedule_in_progress;
-}
-
-PUBLIC static inline
-void
-Sched_context::reset_schedule_in_progress(unsigned cpu)
-{ _ready_q.cpu(cpu).schedule_in_progress = 0; }
-
-
 PUBLIC inline
 unsigned
 Sched_context::prio() const
 { return _sc.fp._p; }
 
-PUBLIC inline
-void
-Sched_context::set_prio(unsigned p)
+PUBLIC
+int
+Sched_context::set(L4_sched_param const *_p)
 {
-  if (_t == Fixed_prio)
-    _sc.fp._p = p;
+  Sp const *p = reinterpret_cast<Sp const *>(_p);
+  if (p->p.sched_class >= 0)
+    {
+      // legacy fixed prio
+      _t = Fixed_prio;
+      _sc.fp._p = p->legacy_fixed_prio.prio;
+      if (p->legacy_fixed_prio.prio > 255)
+        _sc.fp._p = 255;
+
+      _sc.fp._q = p->legacy_fixed_prio.quantum;
+      if (p->legacy_fixed_prio.quantum == 0)
+        _sc.fp._q = Config::Default_time_slice;
+      return 0;
+    }
+  switch (p->p.sched_class)
+    {
+    case L4_sched_param_fixed_prio::Class:
+      _t = Fixed_prio;
+
+      _sc.fp._p = p->fixed_prio.prio;
+      if (p->fixed_prio.prio > 255)
+        _sc.fp._p = 255;
+
+      _sc.fp._q = p->fixed_prio.quantum;
+      if (p->fixed_prio.quantum == 0)
+        _sc.fp._q = Config::Default_time_slice;
+
+      break;
+    case L4_sched_param_wfq::Class:
+      if (p->wfq.quantum == 0 || p->wfq.weight == 0)
+        return -L4_err::EInval;
+      _t = Wfq;
+      _sc.wfq._p = 0;
+      _sc.wfq._q = p->wfq.quantum;
+      _sc.wfq._w = p->wfq.weight;
+      _sc.wfq._qdw =  p->wfq.quantum / p->wfq.weight;
+      break;
+    default:
+      return L4_err::ERange;
+    };
+  return 0;
+}
+
+
+IMPLEMENT inline
+void
+Sched_context::Ready_queue_base::deblock_refill(Sched_context *sc)
+{
+  if (sc->_t != Wfq)
+    fp_rq.deblock_refill(sc);
   else
-    _sc.fp._p = 0;
-}
-
-/**
- * Invalidate (expire) currently active global Sched_context.
- */
-PUBLIC static inline
-void
-Sched_context::invalidate_sched(unsigned cpu)
-{
-  _ready_q.cpu(cpu).activate(0);
-}
-
-PUBLIC inline
-void
-Sched_context::deblock_refill(unsigned cpu)
-{
-  if (_t != Wfq)
-    return;
-
-  Unsigned64 da = 0;
-  Sched_context *cs = _ready_q.cpu(cpu).wfq_rq.current_sched();
-
-  if (EXPECT_TRUE(cs != 0))
-    da = cs->_sc.wfq._dl;
-
-  if (_sc.wfq._dl >= da)
-    return;
-
-  _sc.wfq._left += (da - _sc.wfq._dl) * _sc.wfq._w;
-  if (_sc.wfq._left > _sc.wfq._q)
-    _sc.wfq._left = _sc.wfq._q;
-  _sc.wfq._dl = da;
+    wfq_rq.deblock_refill(sc);
 }
 
 /**
  * Enqueue context in ready-list.
  */
-PUBLIC
+IMPLEMENT
 void
-Sched_context::ready_enqueue(unsigned cpu)
+Sched_context::Ready_queue_base::enqueue(Sched_context *sc, bool is_current)
 {
-  assert_kdb(cpu_lock.test());
-
-  // Don't enqueue threads which are already enqueued
-  if (EXPECT_FALSE (in_ready_list()))
-    return;
-
-  Ready_queue &rq = _ready_q.cpu(cpu);
-
-  if (_t == Fixed_prio)
-    rq.fp_rq.enqueue(this, this == rq.current_sched());
+  if (sc->_t == Fixed_prio)
+    fp_rq.enqueue(sc, is_current);
   else
-    rq.wfq_rq.enqueue(this);
+    wfq_rq.enqueue(sc, is_current);
 }
 
 /**
  * Remove context from ready-list.
  */
-PUBLIC inline NEEDS ["cpu_lock.h", "kdb_ke.h", "std_macros.h"]
+IMPLEMENT inline NEEDS ["cpu_lock.h", "kdb_ke.h", "std_macros.h"]
 void
-Sched_context::ready_dequeue()
+Sched_context::Ready_queue_base::dequeue(Sched_context *sc)
 {
-  assert_kdb (cpu_lock.test());
-
-  // Don't dequeue threads which aren't enqueued
-  if (EXPECT_FALSE (!in_ready_list()))
-    return;
-
-  unsigned cpu = current_cpu();
-
-  if (_t == Fixed_prio)
-    _ready_q.cpu(cpu).fp_rq.dequeue(this);
+  if (sc->_t == Fixed_prio)
+    fp_rq.dequeue(sc);
   else
-    _ready_q.cpu(cpu).wfq_rq.dequeue(this);
+    wfq_rq.dequeue(sc);
 }
 
-PUBLIC
+IMPLEMENT
 void
-Sched_context::requeue(unsigned cpu)
+Sched_context::Ready_queue_base::requeue(Sched_context *sc)
 {
-  if (_t == Fixed_prio)
-    _ready_q.cpu(cpu).fp_rq.requeue(this);
+  if (sc->_t == Fixed_prio)
+    fp_rq.requeue(sc);
   else
-    _ready_q.cpu(cpu).wfq_rq.requeue(this);
+    wfq_rq.requeue(sc);
 }
 
 PUBLIC inline
@@ -298,12 +286,3 @@ Unsigned64
 Sched_context::left() const
 { return _sc.fp._left; }
 
-PUBLIC inline
-Unsigned64
-Sched_context::quantum() const
-{ return _sc.fp._q; }
-
-PUBLIC inline
-void
-Sched_context::set_quantum(Unsigned64 q)
-{ _sc.fp._q = q; }

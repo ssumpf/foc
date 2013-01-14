@@ -37,7 +37,7 @@
  *
  * The thread class defines a thread of execution in the L4 context.
  * Usually user-level and kernel threads are mapped 1:1 to each other.
- * Thread kernel object are created using a Factory, see \ref l4_factory_api
+ * Thread kernel objects are created using a Factory, see \ref l4_factory_api
  * (l4_factory_create_thread()).
  *
  * An L4 thread encapsulates:

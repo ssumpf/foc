@@ -109,7 +109,7 @@ void Sender::sender_enqueue(Prio_list *head, unsigned short prio)
 {
   assert(prio < 256);
 
-  Lock_guard<Cpu_lock> guard (&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
   head->insert(this, prio);
 }
 
@@ -122,7 +122,7 @@ void Sender::sender_dequeue(P_LIST list)
   if (!in_sender_list())
     return;
 
-  Lock_guard<Cpu_lock> guard (&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
   list->dequeue(this);
 }
 
@@ -136,7 +136,7 @@ void Sender::sender_dequeue_head(P_LIST list)
   if (!in_sender_list())
     return;
 
-  Lock_guard<Cpu_lock> guard (&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
 
   if (this == list->head())
     list->dequeue(this);
@@ -148,7 +148,7 @@ void Sender::sender_update_prio(P_LIST list, unsigned short newprio)
   if(EXPECT_FALSE(sender_prio() == newprio))
     return;
 
-  Lock_guard<Cpu_lock> guard (&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
 
   if (!in_sender_list())
     return;

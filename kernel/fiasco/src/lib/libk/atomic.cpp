@@ -179,7 +179,7 @@ tas(Mword *l)
 }
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION[(ppc32 && !mp) || (arm && !armv6plus)]:
+IMPLEMENTATION[(ppc32 && !mp) || (sparc && !mp) || (arm && !armv6plus)]:
 
 #include "processor.h"
 

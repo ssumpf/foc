@@ -11,7 +11,7 @@ INTERFACE[sched_wfq] :
 #include "ready_queue_wfq.h"
 
 
-class Sched_context
+class Sched_context : public Sched_context_wfq<Sched_context>
 {
   MEMBER_OFFSET();
   friend class Jdb_list_timeouts;
@@ -19,14 +19,17 @@ class Sched_context
 
   template<typename T>
   friend class Jdb_thread_list_policy;
+  friend class Sched_context_wfq<Sched_context>;
 
-public:
-  class Ready_queue : public Ready_queue_wfq<Sched_context>
+  union Sp
   {
-  public:
-    Context *schedule_in_progress;
+    L4_sched_param p;
+    L4_sched_param_wfq wfq;
   };
 
+public:
+  typedef Sched_context Wfq_sc;
+  typedef Ready_queue_wfq<Sched_context> Ready_queue_base;
   Context *context() const { return context_of(this); }
 
 private:
@@ -42,13 +45,6 @@ private:
   unsigned _qdw;
 
   friend class Ready_queue_wfq<Sched_context>;
-
-  bool operator <= (Sched_context const &o) const
-  { return _dl <= o._dl; }
-
-  bool operator < (Sched_context const &o) const
-  { return _dl < o._dl; }
-
 };
 
 // --------------------------------------------------------------------------
@@ -85,25 +81,21 @@ Sched_context::owner() const
   return context();
 }
 
-/**
- * Return full time quantum of Sched_context
- */
-PUBLIC inline
-Unsigned64
-Sched_context::quantum() const
+PUBLIC
+int
+Sched_context::set(L4_sched_param const *_p)
 {
-  return _q;
-}
+  Sp const *p = reinterpret_cast<Sp const *>(_p);
+  if (p->p.sched_class != L4_sched_param_wfq::Class)
+    return -L4_err::ERange;
 
-/**
- * Set full time quantum of Sched_context
- */
-PUBLIC inline
-void
-Sched_context::set_quantum(Unsigned64 const quantum)
-{
-  _q = quantum;
-  _qdw = _q/_w;
+  if (p->wfq.quantum == 0 || p->wfq.weight == 0)
+    return -L4_err::EInval;
+
+  _q = p->wfq.quantum;
+  _w = p->wfq.weight;
+  _qdw =  p->wfq.quantum / p->wfq.weight;
+  return 0;
 }
 
 /**
@@ -116,7 +108,7 @@ Sched_context::left() const
   return _left;
 }
 
-PUBLIC inline NEEDS[Sched_context::set_left, Sched_context::quantum]
+PUBLIC inline NEEDS[Sched_context::set_left]
 void
 Sched_context::replenish()
 {
@@ -129,7 +121,7 @@ Sched_context::replenish()
  */
 PUBLIC inline
 void
-Sched_context::set_left (Unsigned64 const left)
+Sched_context::set_left(Unsigned64 left)
 {
   _left = left;
 }
@@ -145,48 +137,6 @@ Sched_context::in_ready_list() const
   return _ready_link != 0;
 }
 
-/**
- * Remove context from ready-list.
- */
-PUBLIC inline NEEDS ["cpu_lock.h", "kdb_ke.h", "std_macros.h"]
-void
-Sched_context::ready_dequeue()
-{
-  assert_kdb (cpu_lock.test());
-
-  // Don't dequeue threads which aren't enqueued
-  if (EXPECT_FALSE (!in_ready_list()))
-    return;
-
-  unsigned cpu = current_cpu();
-
-  _ready_q.cpu(cpu).dequeue(this);
-
-}
-
-/**
- * Enqueue context in ready-list.
- */
-PUBLIC inline NEEDS["kdb_ke.h"]
-void
-Sched_context::ready_enqueue(unsigned cpu)
-{
-  assert_kdb(cpu_lock.test());
-
-  // Don't enqueue threads which are already enqueued
-  if (EXPECT_FALSE (in_ready_list()))
-    return;
-
-  _ready_q.cpu(cpu).enqueue(this);;
-}
-
-PUBLIC
-void
-Sched_context::requeue(unsigned cpu)
-{
-  _ready_q.cpu(cpu).requeue(this);
-}
-
 PUBLIC inline
 bool
 Sched_context::dominates(Sched_context *sc)
@@ -198,57 +148,8 @@ Sched_context::dominates(Sched_context *sc)
   return !_idle && _dl < sc->_dl;
 }
 
-PUBLIC inline
-void
-Sched_context::deblock_refill(unsigned cpu)
-{
-  Unsigned64 da = 0;
-  Sched_context *cs = rq(cpu).current_sched();
-  if (EXPECT_TRUE(cs != 0))
-    da = cs->_dl;
-
-  if (_dl >= da)
-    return;
-
-  _left += (da - _dl) * _w;
-  if (_left > _q)
-    _left = _q;
-  _dl = da;
-}
-
-
-/**
- * Return if there is currently a schedule() in progress
- */
-PUBLIC static inline
-Context *
-Sched_context::schedule_in_progress(unsigned cpu)
-{
-  return _ready_q.cpu(cpu).schedule_in_progress;
-}
-
-PUBLIC static inline
-void
-Sched_context::reset_schedule_in_progress(unsigned cpu)
-{ _ready_q.cpu(cpu).schedule_in_progress = 0; }
-
-
-/**
- * Invalidate (expire) currently active global Sched_context.
- */
-PUBLIC static inline
-void
-Sched_context::invalidate_sched(unsigned cpu)
-{
-  _ready_q.cpu(cpu).activate(0);
-}
-
 
 PUBLIC static inline
 unsigned
 Sched_context::prio() { return 0; }
 
-PUBLIC static inline
-void
-Sched_context::set_prio(unsigned)
-{}

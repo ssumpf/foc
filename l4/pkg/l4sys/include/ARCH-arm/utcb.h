@@ -38,7 +38,7 @@
  */
 enum L4_utcb_consts_arm
 {
-  L4_UTCB_EXCEPTION_REGS_SIZE    = 20,
+  L4_UTCB_EXCEPTION_REGS_SIZE    = 21,
   L4_UTCB_GENERIC_DATA_SIZE      = 63,
   L4_UTCB_GENERIC_BUFFERS_SIZE   = 58,
 
@@ -60,6 +60,7 @@ typedef struct l4_exc_regs_t
   l4_umword_t pfa;     /**< page fault address */
   l4_umword_t err;     /**< error code */
 
+  l4_umword_t tpidruro;/**< Thread-ID register */
   l4_umword_t r[13];   /**< registers */
   l4_umword_t sp;      /**< stack pointer */
   l4_umword_t ulr;     /**< ulr */

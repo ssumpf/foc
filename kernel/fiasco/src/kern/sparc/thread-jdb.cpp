@@ -25,7 +25,7 @@ extern "C" void sys_kdb_ke()
   Thread *t = current_thread();
 
   //arriving from outx function
-  unsigned *x = (unsigned *)t->regs()->ip();
+  //unsigned *x = (unsigned *)t->regs()->ip();
   if(t->regs()->r[29] == (Mword)-0x24 && t->regs()->r[2] & (1 << 31)) //ip && r3
     {
       NOT_IMPL_PANIC;
@@ -50,10 +50,10 @@ extern "C" void sys_kdb_ke()
 
 IMPLEMENT
 int
-Thread::call_nested_trap_handler(Trap_state *ts)
+Thread::call_nested_trap_handler(Trap_state * /*ts*/)
 {
   unsigned phys_cpu = Proc::cpu_id();
-  unsigned log_cpu = Cpu::p2l(phys_cpu);
+  unsigned log_cpu = Cpu::cpus.find_cpu(Cpu::By_phys_id(phys_cpu));
   if (log_cpu == ~0U)
     {
       printf("Trap on unknown CPU phys_id=%x\n", phys_cpu);

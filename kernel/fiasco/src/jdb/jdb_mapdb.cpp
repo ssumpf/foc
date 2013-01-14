@@ -194,7 +194,7 @@ Jdb_mapdb::show (Page_number page, char which_mapdb)
 	  page_shift = 0; //Config::PAGE_SHIFT;
 	  super_inc = Page_count::create(Config::SUPERPAGE_SIZE / Config::PAGE_SIZE);
 	  break;
-#ifdef CONFIG_IO_PROT
+#ifdef CONFIG_PF_PC
 	case 'i':
 	  type = "I/O port";
 	  mapdb = mapdb_io.get();
@@ -263,7 +263,7 @@ Jdb_mapdb::show (Page_number page, char which_mapdb)
 	      break;
 	    case ' ':
 	      if (which_mapdb == 'm')
-#ifdef CONFIG_IO_PROT
+#ifdef CONFIG_PF_PC
 		which_mapdb = 'i';
 	      else if (which_mapdb == 'i')
 #endif
@@ -320,7 +320,7 @@ Jdb_mapdb::action(int cmd, void *&args, char const *&fmt, int &next_char)
 	  fmt = " frame: " L4_FRAME_INPUT_FMT;
 	  break;
 
-#ifdef CONFIG_IO_PROT
+#ifdef CONFIG_PF_PC
 	case 'i':
 	  fmt = " port: " L4_FRAME_INPUT_FMT;
 	  break;
@@ -527,9 +527,6 @@ Jdb_mapdb::show_simple_tree(Kobject_common *f, unsigned indent = 1)
     }
 
   puts(Jdb_screen::Line);
-
-
-
   return true;
 }
 

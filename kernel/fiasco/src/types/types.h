@@ -7,6 +7,9 @@
 
 #ifdef __cplusplus
 
+#include <type_traits>
+#include <new>
+
 template< typename a, typename b > inline
 a nonull_static_cast( b p )
 {
@@ -16,78 +19,54 @@ a nonull_static_cast( b p )
 }
 
 template< typename T >
-T access_once(T const &a)
-{ return static_cast<T const volatile &>(a); }
+T access_once(T const *a)
+{
+#if 1
+  __asm__ __volatile__ ( "" : "=m"(*const_cast<T*>(a)));
+  T tmp = *a;
+  __asm__ __volatile__ ( "" : "=m"(*const_cast<T*>(a)));
+  return tmp;
+#else
+  return *static_cast<T const volatile *>(a);
+#endif
+}
+
+template< typename T >
+void write_now(T *a, T const &val)
+{
+  __asm__ __volatile__ ( "" : "=m"(*a));
+  *a = val;
+  __asm__ __volatile__ ( "" : : "m"(*a));
+}
 
 template< typename T >
 class Static_object
 {
 private:
   // prohibit copies
-  Static_object(Static_object<T> const &);
-  void operator = (Static_object<T> const &);
-
-  class O : public T
-  {
-  public:
-    void *operator new (size_t, void *p) throw() { return p; }
-
-    O() : T() {}
-
-    template<typename A1>
-    O(A1 const &a1) : T(a1) {}
-
-    template<typename A1, typename A2>
-    O(A1 const &a1, A2 const &a2) : T(a1, a2) {}
-
-    template<typename A1, typename A2, typename A3>
-    O(A1 const &a1, A2 const &a2, A3 const &a3) : T(a1, a2, a3) {}
-
-    template<typename A1, typename A2, typename A3, typename A4>
-    O(A1 const &a1, A2 const &a2, A3 const &a3, A4 const &a4) : T(a1, a2, a3, a4) {}
-
-    template<typename A1, typename A2, typename A3, typename A4, typename A5>
-    O(A1 const &a1, A2 const &a2, A3 const &a3, A4 const &a4, A5 const &a5)
-    : T(a1, a2, a3, a4, a5) {}
-  };
+  Static_object(Static_object const &) = delete;
+  Static_object &operator = (Static_object const &) = delete;
 
 public:
   Static_object() {}
 
   T *get() const
   {
-    Address i = (Address)_i;
-    return reinterpret_cast<O*>(i);
+    return reinterpret_cast<T*>(&_i[0]);
   }
 
   operator T * () const { return get(); }
   T *operator -> () const { return get(); }
 
   T *construct()
-  { return new (_i) O(); }
+  { return new (_i) T; }
 
-  template<typename A1>
-  T *construct(A1 const &a1)
-  { return new (_i) O(a1); }
-
-  template<typename A1, typename A2>
-  T *construct(A1 const &a1, A2 const &a2)
-  { return new (_i) O(a1, a2); }
-
-  template<typename A1, typename A2, typename A3>
-  T *construct(A1 const &a1, A2 const &a2, A3 const &a3)
-  { return new (_i) O(a1, a2, a3); }
-
-  template<typename A1, typename A2, typename A3, typename A4>
-  T *construct(A1 const &a1, A2 const &a2, A3 const &a3, A4 const &a4)
-  { return new (_i) O(a1, a2, a3, a4); }
-
-  template<typename A1, typename A2, typename A3, typename A4, typename A5>
-  T *construct(A1 const &a1, A2 const &a2, A3 const &a3, A4 const &a4, A5 const &a5)
-  { return new (_i) O(a1, a2, a3, a4, a5); }
+  template< typename... A >
+  T *construct(A&&... args)
+  { return new (_i) T(cxx::forward<A>(args)...); }
 
 private:
-  mutable char __attribute__((aligned(sizeof(Mword)*2))) _i[sizeof(O)];
+  mutable char __attribute__((aligned(sizeof(Mword)*2))) _i[sizeof(T)];
 };
 
 

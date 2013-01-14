@@ -158,7 +158,9 @@ INTERFACES_JDB		:= jdb jdb_attach_irq jdb_core jdb_scheduler jdb_entry_frame \
 			   jdb_thread_list jdb_util kern_cnt         \
 			   push_console jdb_regex jdb_disasm jdb_bp            \
 			   jdb_tbuf_output              \
-			   jdb_tbuf_show tb_entry_output
+			   jdb_tbuf_show
+
+CXXSRC_JDB := tb_entry_output.cc
 
 INTERFACES_KERNEL 	+= jdb_tbuf jdb_tbuf_init tb_entry jdb_trace
 

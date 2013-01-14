@@ -53,9 +53,11 @@ Jdb::handle_int3_threadctx_generic(Trap_state *ts)
 	      // special: enter_kdebug("*+...") => extended log msg
 	      // skip '+'
 	      len--; str++;
-	      Tb_entry_ke_reg *tb =
-		static_cast<Tb_entry_ke_reg*>(Jdb_tbuf::new_entry());
-	      tb->set(t, ip-1, ts);
+	      Tb_entry_ke_reg *tb = Jdb_tbuf::new_entry<Tb_entry_ke_reg>();
+	      tb->set(t, ip-1);
+              tb->v[0] = ts->value();
+              tb->v[1] = ts->value2();
+              tb->v[2] = ts->value3();
 	      for (i=0; i<len; i++)
       		tb->set_buf(i, s->peek(str++, user));
 	      tb->term_buf(len);
@@ -64,8 +66,7 @@ Jdb::handle_int3_threadctx_generic(Trap_state *ts)
 	    {
 	      // special: enter_kdebug("*...") => log entry
 	      // fill in entry
-	      Tb_entry_ke *tb =
-		static_cast<Tb_entry_ke*>(Jdb_tbuf::new_entry());
+	      Tb_entry_ke *tb = Jdb_tbuf::new_entry<Tb_entry_ke>();
 	      tb->set(t, ip-1);
 	      for (i=0; i<len; i++)
 		tb->set_buf(i, s->peek(str++, user));
@@ -160,10 +161,12 @@ Jdb::handle_int3_threadctx_generic(Trap_state *ts)
 		  // interrupts are disabled in handle_slow_trap()
 		  Jdb_log_3val_frame *regs = 
 		    reinterpret_cast<Jdb_log_3val_frame*>(ts);
-		  Tb_entry_ke_reg *tb =
-		    static_cast<Tb_entry_ke_reg*>(Jdb_tbuf::new_entry());
+		  Tb_entry_ke_reg *tb = Jdb_tbuf::new_entry<Tb_entry_ke_reg>();
 		  str = regs->str();
-		  tb->set(t, ip-1, regs->val1(), regs->val2(), regs->val3());
+		  tb->set(t, ip-1);
+                  tb->v[0] = regs->val1();
+                  tb->v[1] = regs->val2();
+                  tb->v[2] = regs->val3();
 		  for (len=0; (c = s->peek(str++, user)); len++)
 		    tb->set_buf(len, c);
 		  tb->term_buf(len);

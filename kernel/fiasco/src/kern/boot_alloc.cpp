@@ -2,6 +2,7 @@ INTERFACE:
 
 #include <cstddef>
 #include <slist>
+#include <type_traits>
 
 class Boot_alloced
 {
@@ -18,16 +19,10 @@ template< typename Base >
 class Boot_object : public Base, public Boot_alloced
 {
 public:
-  Boot_object() : Base() {}
+  Boot_object()  = default;
 
-  template< typename A1 >
-  Boot_object(A1 const &a1) : Base(a1) {}
-
-  template< typename A1, typename A2 >
-  Boot_object(A1 const &a1, A2 const &a2) : Base(a1, a2) {}
-
-  template< typename A1, typename A2, typename A3 >
-  Boot_object(A1 const &a1, A2 const &a2, A3 const &a3) : Base(a1, a2, a3) {}
+  template< typename... A >
+  Boot_object(A&&... args) : Base(cxx::forward<A>(args)...) {}
 };
 
 

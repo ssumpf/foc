@@ -29,8 +29,8 @@ private:
   {
     if (_o) 
       {
-	Lock_guard<Cpu_lock> guard(&cpu_lock);
-	_o->inc_ref_cnt();
+        auto guard = lock_guard(cpu_lock);
+        _o->inc_ref_cnt();
       }
   }
 

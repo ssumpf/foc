@@ -1,13 +1,13 @@
 /*!
- * \file   support_rv.cc
+ * \file
  * \brief  Support for the rv platform
  *
- * \date   2008-01-02
+ * \date   2011
  * \author Adam Lackorznynski <adam@os.inf.tu-dresden.de>
  *
  */
 /*
- * (c) 2008-2009 Author(s)
+ * (c) 2008-2011 Author(s)
  *     economic rights: Technische Universität Dresden (Germany)
  *
  * This file is part of TUD:OS and distributed under the terms of the
@@ -20,6 +20,7 @@
 #include <l4/drivers/uart_pl011.h>
 
 namespace {
+
 class Platform_arm_rv : public Platform_single_region_ram
 {
   bool probe() { return true; }
@@ -31,6 +32,7 @@ class Platform_arm_rv : public Platform_single_region_ram
     set_stdio_uart(&_uart);
   }
 };
+
 }
 
 REGISTER_PLATFORM(Platform_arm_rv);

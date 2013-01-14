@@ -54,8 +54,8 @@ L4_INLINE void
 l4util_cpu_cpuid(unsigned long mode,
                  unsigned long *eax, unsigned long *ebx,
                  unsigned long *ecx, unsigned long *edx);
-/*@}*/
 
+/*@}*/
 static inline void
 l4util_cpu_pause(void)
 {
@@ -67,11 +67,12 @@ l4util_cpu_has_cpuid(void)
 {
   unsigned long eax;
 
-  asm volatile("pushf			\t\n"
+  asm volatile(
+               "pushf			\t\n"
                "pop %%rax		\t\n" /* get eflags */
                "mov %%rax, %%rbx	\t\n" /* save it */
                "xorq $0x200000, %%rax	\t\n" /* toggle ID bit */
-               "push %%rax		\t\n" 
+               "push %%rax		\t\n"
                "popf			\t\n" /* set again */
                "pushf			\t\n"
                "pop %%rax		\t\n" /* get it again */
@@ -96,7 +97,7 @@ l4util_cpu_cpuid(unsigned long mode,
                  "=c" (*ecx),
                  "=d" (*edx)
                : "a"  (mode)
-               : "cc");
+               );
 }
 
 L4_INLINE unsigned int

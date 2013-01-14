@@ -127,7 +127,7 @@ Thread::copy_ts_to_utcb(L4_msg_tag const &, Thread *snd, Thread *rcv,
   Mword        r = Utcb::Max_words;
 
   {
-    Lock_guard <Cpu_lock> guard (&cpu_lock);
+    auto guard = lock_guard(cpu_lock);
     if (EXPECT_FALSE(snd->exception_triggered()))
       {
 	Mem::memcpy_mwords (rcv_utcb->values, &ts->_gs, r > 12 ? 12 : r);
@@ -289,7 +289,6 @@ Thread::invoke_arch(L4_msg_tag tag, Utcb *utcb)
 //---------------------------------------------------------------------------
 IMPLEMENTATION [ia32 & (debug | kdb)]:
 
-#include "ipi.h"
 #include "kernel_task.h"
 
 /** Call the nested trap handler (either Jdb::enter_kdebugger() or the
@@ -298,14 +297,7 @@ PRIVATE static
 int
 Thread::call_nested_trap_handler(Trap_state *ts)
 {
-  unsigned long phys_cpu = Cpu::phys_id_direct();
-  unsigned log_cpu = Cpu::p2l(phys_cpu);
-  if (log_cpu == ~0U)
-    {
-      printf("Trap on unknown CPU phys_id=%lx\n", phys_cpu);
-      log_cpu = 0;
-    }
-
+  unsigned log_cpu = dbg_find_cpu();
   unsigned long &ntr = nested_trap_recover.cpu(log_cpu);
 
 #if 0
@@ -364,8 +356,8 @@ Thread::call_nested_trap_handler(Trap_state *ts)
              "=d"  (dummy3)
      : [ts]      "a" (ts),
        [cpu]     "d" (log_cpu),
-       [p]       "r" (&p),
-       [ntr]     "r" (&ntr)
+       [p]       "S" (&p),
+       [ntr]     "D" (&ntr)
      : "memory");
 
   return ret == 0 ? 0 : -1;

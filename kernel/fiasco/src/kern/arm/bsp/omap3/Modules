@@ -10,7 +10,6 @@ PREPROCESS_PARTS	+= $(if $(CONFIG_PF_OMAP4_PANDABOARD),omap4 mptimer pic_gic oma
 CONFIG_KERNEL_LOAD_ADDR := 0x80000000
 MPCORE_PHYS_BASE        := 0x48240000
 
-INTERFACES_KERNEL     += $(if $(CONFIG_MP),boot_mp)
 INTERFACES_KERNEL     += $(if $(CONFIG_PF_OMAP4_PANDABOARD),gic)
 
 uart_IMPL             += uart-arm-omap
@@ -23,4 +22,5 @@ timer_tick_IMPL       += timer_tick-single-vector
 kernel_uart_IMPL      += kernel_uart-arm-omap
 reset_IMPL            += reset-arm-omap
 clock_IMPL            += clock-generic
-boot_mp_IMPL          += boot_mp-arm-omap4
+platform_control_IMPL += platform_control-arm-omap4
+outer_cache_IMPL      += outer_cache-arm-omap

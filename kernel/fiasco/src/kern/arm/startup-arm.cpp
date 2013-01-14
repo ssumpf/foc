@@ -14,8 +14,10 @@ IMPLEMENTATION [arm]:
 #include "per_cpu_data_alloc.h"
 #include "perf_cnt.h"
 #include "pic.h"
+#include "platform_control.h"
 #include "processor.h"
 #include "static_init.h"
+#include "thread.h"
 #include "timer.h"
 #include "utcb_init.h"
 
@@ -53,9 +55,11 @@ Startup::stage2()
   Kernel_task::init();
   Mem_space::kernel_space(Kernel_task::kernel_task());
   Pic::init();
+  Thread::init_per_cpu(0);
 
   Cpu::init_mmu();
   Cpu::cpus.cpu(0).init(true);
+  Platform_control::init(0);
   Fpu::init(0);
   Ipi::init(0);
   Timer::init(0);

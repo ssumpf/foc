@@ -567,11 +567,81 @@ public:
     EExists       = 17, ///< Some object does already exist.
     ENodev        = 19, ///< Objects of the specified type cannot be created.
     EInval        = 22, ///< Invalid parameters passed.
+    ERange        = 34, ///< Parameter out of range
     ENosys        = 38, ///< No such operation.
     EBadproto     = 39, ///< Protocol not supported by object.
 
     EAddrnotavail = 99, ///< The given address is not available.
   };
+};
+
+
+class L4_cpu_set_descr
+{
+private:
+  Mword _w;
+
+public:
+  Mword offset() const { return (_w & 0x00ffffff) & (~0 << granularity()); }
+  Mword granularity() const { return (_w >> 24) & (MWORD_BITS-1) ; }
+};
+
+class L4_cpu_set : public L4_cpu_set_descr
+{
+private:
+  Mword _map;
+
+public:
+  bool contains(unsigned cpu) const
+  {
+    if (offset() > cpu)
+      return false;
+
+    cpu -= offset();
+    cpu >>= granularity();
+    if (cpu >= MWORD_BITS)
+      return false;
+
+    return _map & (1UL << cpu);
+  }
+
+  template<typename MAP>
+  Mword first(MAP const &bm, unsigned max) const
+  {
+    unsigned cpu = offset();
+
+    for (;;)
+      {
+        unsigned b = (cpu - offset()) >> granularity();
+        if (cpu >= max || b >= MWORD_BITS)
+          return max;
+
+        if (!(_map & (1UL << b)))
+          {
+            cpu += 1UL << granularity();
+            continue;
+          }
+
+        if (bm.get(cpu))
+          return cpu;
+
+        ++cpu;
+      }
+  }
+};
+
+struct L4_sched_param
+{
+  L4_cpu_set cpus;
+  Smword sched_class; // legacy prio when positive
+  Mword length;       // sizeof (...)
+};
+
+struct L4_sched_param_legacy
+{
+  L4_cpu_set cpus;
+  Smword prio;        // must be positive, overlays with sched_class
+  Mword quantum;
 };
 
 
@@ -584,7 +654,6 @@ public:
   enum { Msg_size = 16 };
 };
 
-
 //----------------------------------------------------------------------------
 INTERFACE [arm]:
 
@@ -593,7 +662,6 @@ EXTENSION class L4_exception_ipc
 public:
   enum { Msg_size = 20 };
 };
-
 
 //----------------------------------------------------------------------------
 INTERFACE [amd64]:
@@ -604,7 +672,9 @@ public:
   enum { Msg_size = 23 };
 };
 
+//----------------------------------------------------------------------------
 INTERFACE [ppc32]:
+
 EXTENSION class L4_exception_ipc
 {
 public:
@@ -928,7 +998,5 @@ IMPLEMENT inline Mword L4_timeout::man() const
 
 IMPLEMENT inline void L4_timeout::man (Mword w)
 { _t = (_t & ~Man_mask) | ((w << Man_shift) & Man_mask); }
-
-
 
 

@@ -1,5 +1,6 @@
 INTERFACE:
 
+#include "per_cpu_data.h"
 #include "types.h"
 #include "initcalls.h"
 
@@ -10,10 +11,18 @@ class Apic
 {
 public:
   static void init() FIASCO_INIT;
+  Unsigned32 apic_id() const { return _id; }
+  Unsigned32 cpu_id() const { return _id >> 24; }
+
+  static Per_cpu<Static_object<Apic> > apic;
 
 private:
-  Apic();			// default constructors are undefined
-  Apic(const Apic&);
+  Apic(const Apic&) = delete;
+  Apic &operator = (Apic const &) = delete;
+
+  Unsigned32 _id;
+
+
   static void			error_interrupt(Return_frame *regs)
 				asm ("apic_error_interrupt") FIASCO_FASTCALL;
 
@@ -92,10 +101,32 @@ extern unsigned apic_error_cnt;
 IMPLEMENTATION:
 #include "cpu.h"
 
+DEFINE_PER_CPU Per_cpu<Static_object<Apic> >  Apic::apic;
+
+PUBLIC inline
+Apic::Apic() : _id(get_id()) {}
+
+
 PRIVATE static
 Cpu &
 Apic::cpu() { return *Cpu::boot_cpu(); }
 
+// FIXME: workaround for missing lambdas in gcc < 4.5
+namespace {
+struct By_id
+{
+  Unsigned32 p;
+  By_id(Unsigned32 p) : p(p) {}
+  bool operator () (Apic const *a) const { return a->apic_id() == p; }
+};
+}
+
+PUBLIC static
+unsigned
+Apic::find_cpu(Unsigned32 phys_id)
+{
+  return apic.find_cpu(By_id(phys_id));
+}
 
 //----------------------------------------------------------------------------
 IMPLEMENTATION[ia32]:
@@ -461,7 +492,7 @@ Apic::check_working()
   timer_set_divisor(1);
   timer_reg_write(0x10000000);
   
-  tsc_until = Cpu::rdtsc() + 0x100;  // we only have to wait for one bus cycle
+  tsc_until = Cpu::rdtsc() + 0x200;  // we only have to wait for one bus cycle
 
   do 
     {
@@ -538,7 +569,7 @@ void
 Apic::route_pic_through_apic()
 {
   Unsigned32 tmp_val;
-  Lock_guard <Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
 
   // mask 8259 interrupts
   Pic::Status old_irqs = Pic::disable_all_save();
@@ -566,7 +597,7 @@ void
 Apic::init_lvt()
 {
   Unsigned32 tmp_val;
-  Lock_guard <Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
 
   // mask timer interrupt and set vector to _not_ invalid value
   tmp_val  = reg_read(APIC_lvtt);
@@ -677,7 +708,7 @@ Apic::calibrate_timer()
       timer_reg_write(1000000000);
 
         {
-          Lock_guard <Cpu_lock> guard(&cpu_lock);
+          auto guard = lock_guard(cpu_lock);
 
           Pit::setup_channel2_to_20hz();
 

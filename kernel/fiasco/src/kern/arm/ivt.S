@@ -120,6 +120,9 @@
 #endif
 .endm
 
+.macro make_tpidruro_space base
+	sub	\base, #4
+.endm
 
 /***********************************************************************
  * Enter the kernel slowtrap handler
@@ -136,6 +139,7 @@
 
 .macro 	enter_slowtrap errorcode
 	stmdb 	sp!, {r0 - r12}
+	make_tpidruro_space sp
 	enter_slowtrap_w_stack \errorcode
 .endm
 
@@ -162,18 +166,10 @@
 
 
 /*************************************************************************
- *
  * Generate stack for exception entries
- * - Adjust return address
- * - Store return address at [sp + 8]
- * - Store spsr at [sp + 4]
- * - sp := sp - 8
- * - Store user sp at [sp]
- * - Store user lr at [sp + 4]
  */
 .macro	exceptionframe
 	sub	sp, sp, #8
-@	stmia	sp, {sp,lr}^ @ now done lazy
 .endm
 
 
@@ -205,7 +201,6 @@
 	add	lr, sp, #RF(PC, -8)
 	stmia	lr, {lr}^
 	sub	sp, sp, #8
-@	stmia	sp, {sp}^ @ now done lazy
 .endm
 
 .macro  enter_sys_call no_sys_call
@@ -500,6 +495,7 @@ slowtrap_from_pagefault:
         msr	cpsr_c, #0xd3 // disable IRQs
 	ldmia 	sp!, {r0 - r3}
 	stmdb 	sp!, {r0 - r11}
+	make_tpidruro_space sp
 	stmdb 	sp!, {r12, lr}
 	mov	r0, sp
 	adr   	lr, exception_return
@@ -509,7 +505,7 @@ slowtrap_from_pagefault:
 __return_from_exception:
 exception_return:
 	msr	cpsr_c, #0xd3 // disable IRQs
-	add	sp, sp, #8
+	add	sp, sp, #12   // pfa, err & tpidruro
 	ldmia	sp!, {r0 - r12}
 	return_from_exception
 
@@ -621,13 +617,15 @@ leave_by_trigger_exception:
 	sub 	sp, sp, #RF_SIZE   @ restore old return frame
 	stmdb 	sp!, {r0 - r12}
 
+	make_tpidruro_space sp
+
 	/* restore original IP */
 	CONTEXT_OF r1, sp
 	ldr 	r0, [r1, #(OFS__THREAD__EXCEPTION_IP)]
-	str	r0, [sp, #RF(PC, 13*4)]
+	str	r0, [sp, #RF(PC, 14*4)]
 
 	ldr	r0, [r1, #(OFS__THREAD__EXCEPTION_PSR)]
-	str	r0, [sp, #RF(PSR, 13*4)]
+	str	r0, [sp, #RF(PSR, 14*4)]
 
 	mov     r0, #~0
 	str	r0, [r1, #(OFS__THREAD__EXCEPTION_IP)]
@@ -639,6 +637,7 @@ leave_by_trigger_exception:
 
 leave_by_vcpu_upcall:
 	sub 	sp, sp, #RF_SIZE   @ restore old return frame
+        /* save r0, r1, r2 for scratch registers */
 	stmdb 	sp!, {r0 - r2}
 
 	/* restore original IP */
@@ -647,6 +646,9 @@ leave_by_vcpu_upcall:
 	/* access_vcpu() for the local case */
 	ldr	r2, [r1, #(OFS__THREAD__USER_VCPU)]
 	add	r2, r2, #(VAL__SIZEOF_TRAP_STATE - RF_SIZE)
+
+	/* r1 = current() */
+	/* r2 = &vcpu_state->ts.r[13] */
 
 	ldr 	r0, [r1, #(OFS__THREAD__EXCEPTION_IP)]
 	str	r0, [r2, #RF(PC, 0)]
@@ -667,6 +669,7 @@ leave_by_vcpu_upcall:
 
 	stmdb   r2!, {r3-r12}
 
+	/* Restore scratch registers saved previously */
 	ldr	r0, [sp, #8]
 	str	r0, [r2, #-4]
 
@@ -678,13 +681,17 @@ leave_by_vcpu_upcall:
 
 	add	sp, sp, #(3*4)
 
-	add	r0, r2, #(-8 + OFS__VCPU_STATE__ENTRY_SP)
+	/* r2 = &vcpu_state->ts.r[0] */
+	/* r2 - 12 ->  pfa, err & tpidruro -> &vcpu_state->ts */
+	add	r0, r2, #(-12 + OFS__VCPU_STATE__ENTRY_SP)
 	ldm	r0, {sp}^
 
-	ldr	r0, [r2, #(-8 + OFS__VCPU_STATE__ENTRY_IP)]
+	ldr	r0, [r2, #(-12 + OFS__VCPU_STATE__ENTRY_IP)]
 
 	str	r0, [sp, #RF(PC, 0)]
-	add	r0, r2, #(-8)
+
+        /* r0 needs to be vcpu_state */
+	add	r0, r2, #(-12)
 
 	b	__iret
 
@@ -708,6 +715,7 @@ fiq_label:	             .string "FIQ entry"
 	str	lr, [sp, #RF(PSR, 0)]
 
 	stmdb	sp!, {r0 - r12}
+	make_tpidruro_space sp
 	mov	r0, #-1			@ pfa
 	mov	r1, #0x00e00000		@ err
 	orr	r1, #\type		@ + type
@@ -718,7 +726,7 @@ fiq_label:	             .string "FIQ entry"
 	ldr	pc, 3f
 
 1:
-	add	sp, sp, #8		@ pfa and err
+	add	sp, sp, #12		@ pfa, err and tpidruro
 	ldmia	sp!, {r0 - r12}
 	ldr	lr, [sp, #RF(PSR, 0)]
 	msr	cpsr, lr
@@ -1178,9 +1186,11 @@ go_nonsecure:
 	.global	vcpu_resume
 vcpu_resume:
 	add	sp, r1, #RF_SIZE
-	add	lr, r0, #8
+	add	lr, r0, #12			@ pfa, err + tpidruro
+#if !defined(CONFIG_ARM_V6PLUS)
 	ldr	r1, [lr, #RF(PSR, 13*4)]	@ Unstack SPSR
 	msr	spsr, r1			@ Load SPSR from kernel_lr
+#endif
 	ldmia	lr!, {r0 - r12}
 	ldmia	lr, {sp,lr}^			@ restore user sp and lr (now lazy)
 #if defined(CONFIG_ARM_V6PLUS)

@@ -159,7 +159,7 @@ public:
   Address volatile &kernel_sp() const;
 
 public:
-  static Per_cpu<Cpu> cpus asm ("CPUS_BASE");
+  static Per_cpu<Cpu> cpus;
   static Cpu *boot_cpu() { return _boot_cpu; }
 
   static bool have_superpages() { return boot_cpu()->superpages(); }
@@ -957,6 +957,7 @@ Cpu::identify()
 
   // Check for Alignment Check Support
   set_flags(eflags ^ EFLAGS_AC);
+  // FIXME: must not panic at cpu hotplug
   if (((get_flags() ^ eflags) & EFLAGS_AC) == 0)
     panic("CPU too old");
 
@@ -1089,11 +1090,25 @@ Cpu::busy_wait_ns(Unsigned64 ns)
     Proc::pause();
 }
 
+PUBLIC
+bool
+Cpu::if_show_infos() const
+{
+  return    id() == 0
+         || !boot_cpu()
+         || family()    != boot_cpu()->family()
+         || model()     != boot_cpu()->model()
+         || stepping()  != boot_cpu()->stepping()
+         || brand()     != boot_cpu()->brand();
+}
 
 PUBLIC
 void
 Cpu::show_cache_tlb_info(const char *indent) const
 {
+  if (!if_show_infos())
+    return;
+
   char s[16];
 
   *s = '\0';
@@ -1150,7 +1165,7 @@ Cpu::show_cache_tlb_info(const char *indent) const
 }
 
 IMPLEMENT
-void 
+void
 Cpu::disable(unsigned cpu, char const *reason)
 {
   printf("CPU%u: is disabled: %s\n", cpu, reason);
@@ -1539,10 +1554,12 @@ PUBLIC
 void
 Cpu::print() const
 {
-  printf ("CPU[%u:%u]: %s (%X:%X:%X:%X)[%08x] Model: %s at %llu MHz\n\n",
-          id(), phys_id() >> 24,
-          vendor_str(), family(), model(), stepping(), brand(), _version, model_str(),
-          div32(frequency(), 1000000));
+  if (if_show_infos())
+    printf("CPU[%u]: %s (%X:%X:%X:%X)[%08x] Model: %s at %lluMHz\n\n",
+           id(),
+           vendor_str(), family(), model(), stepping(), brand(),
+           _version, model_str(),
+           div32(frequency(), 1000000));
 }
 
 PUBLIC
@@ -1551,7 +1568,7 @@ Cpu::set_sysenter(void (*func)(void))
 {
   // Check for Sysenter/Sysexit Feature
   if (sysenter())
-    wrmsr ((Mword) func, 0, MSR_SYSENTER_EIP);
+    wrmsr((Mword) func, 0, MSR_SYSENTER_EIP);
 }
 
 
@@ -1582,7 +1599,7 @@ Cpu::init_sysenter()
 // Return 2^32 / (tsc clocks per usec)
 FIASCO_INIT_CPU
 void
-Cpu::calibrate_tsc ()
+Cpu::calibrate_tsc()
 {
   const unsigned calibrate_time = 50000 /*us*/ + 1;
 
@@ -1643,6 +1660,7 @@ Cpu::calibrate_tsc ()
   return;
 
 bad_ctc:
+  // FIXME: must not panic at cpu hotplug
   if (Config::Kip_timer_uses_rdtsc)
     panic("Can't calibrate tsc");
 }
@@ -1692,16 +1710,3 @@ void
 Cpu::set_gs(Unsigned32 val)
 { asm volatile ("mov %0, %%gs" : : "rm" (val)); }
 
-IMPLEMENT inline
-unsigned
-Cpu::phys_id() const
-{ return _brand & 0xff000000; }
-
-PUBLIC static
-unsigned
-Cpu::phys_id_direct()
-{
-  Unsigned32 a,b,c,d;
-  cpuid (1, &a, &b, &c, &d);
-  return b & 0xff000000;
-}

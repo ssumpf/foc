@@ -35,6 +35,7 @@ IMPLEMENTATION:
 #include "globals.h"
 #include "helping_lock.h"
 #include "kernel_task.h"
+#include "per_cpu_data_alloc.h"
 #include "processor.h"
 #include "task.h"
 #include "thread.h"
@@ -61,6 +62,9 @@ Kernel_thread::bootstrap()
   // Initializations done -- Helping_lock can now use helping lock
   Helping_lock::threading_system_active = true;
 
+  // we need per CPU data for our never running dummy CPU too
+  // FIXME: we in fact need only the _pending_rqq lock
+  Per_cpu_data_alloc::alloc(Cpu::Invalid);
 
   set_cpu_of(this, Cpu::boot_cpu()->id());
   Mem::barrier();
@@ -68,16 +72,16 @@ Kernel_thread::bootstrap()
   state_change_dirty(0, Thread_ready);		// Set myself ready
 
   Timer::init_system_clock();
-  Sched_context::rq(cpu()).set_idle(this->sched());
+  Sched_context::rq.current().set_idle(this->sched());
 
   Kernel_task::kernel_task()->make_current();
 
   // Setup initial timeslice
-  set_current_sched(sched());
+  Sched_context::rq.current().set_current_sched(sched());
 
-  Timer_tick::setup(cpu()); assert (cpu() == 0); // currently the boot cpu must be 0
-  Timer_tick::enable(cpu());
-  enable_tlb(cpu());
+  Timer_tick::setup(cpu(true)); assert (cpu(true) == 0); // currently the boot cpu must be 0
+  Timer_tick::enable(cpu(true));
+  enable_tlb(cpu(true));
 
   bootstrap_arch();
 
@@ -154,7 +158,7 @@ Kernel_thread::idle_op()
 {
   // this version must run with disabled IRQs and a wakup must continue directly
   // after the wait for event.
-  Lock_guard<Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
   unsigned cpu = this->cpu();
   ++_idle_counter.cpu(cpu);
   // 1. check for latency requirements that prevent low power modes

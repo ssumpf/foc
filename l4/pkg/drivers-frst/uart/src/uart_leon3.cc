@@ -8,6 +8,7 @@
  * Please see the COPYING-GPL-2 file for details.
  */
 #include "uart_leon3.h"
+#include "poll_timeout_counter.h"
 
 namespace L4
 {
@@ -86,7 +87,8 @@ namespace L4
 
   void Uart_leon3::out_char(char c) const
   {
-    while (_regs->read<unsigned int>(STATUS_REG) & STATUS_TF)
+    Poll_timeout_counter i(3000000);
+    while (i.test(_regs->read<unsigned int>(STATUS_REG) & STATUS_TF))
       ;
     _regs->write<unsigned int>(DATA_REG, c);
   }

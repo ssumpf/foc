@@ -1,4 +1,5 @@
 #include "uart_omap35x.h"
+#include "poll_timeout_counter.h"
 
 namespace L4
 {
@@ -39,7 +40,8 @@ namespace L4
 
     // Reset UART
     //_regs->write<unsigned int>(SYSC_REG, _regs->read<unsigned int>(SYSC_REG) | SYSC_REG_SOFTRESET);
-    //while (!(_regs->read<unsigned int>(SYSS_REG) & SYSC_REG_RESETDONE))
+    // Poll_timeout_counter i(3000000);
+    //while (i.test(!(_regs->read<unsigned int>(SYSS_REG) & SYSC_REG_RESETDONE)))
     //  ;
 
     return true;
@@ -79,7 +81,8 @@ namespace L4
   void Uart_omap35x::out_char(char c) const
   {
     _regs->write<unsigned int>(THR_REG, c);
-    while (!(_regs->read<unsigned int>(LSR_REG) & LSR_REG_TX_FIFO_E_EMPTY))
+    Poll_timeout_counter i(3000000);
+    while (i.test(!(_regs->read<unsigned int>(LSR_REG) & LSR_REG_TX_FIFO_E_EMPTY)))
       ;
   }
 
@@ -89,7 +92,8 @@ namespace L4
     while (c--)
       out_char(*s++);
 #if 0
-    while (_regs->read<unsigned int>(UART01x_FR) & UART01x_FR_BUSY)
+    Poll_timeout_counter i(3000000);
+    while (i.test(_regs->read<unsigned int>(UART01x_FR) & UART01x_FR_BUSY))
      ;
 #endif
 

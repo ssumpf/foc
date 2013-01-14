@@ -68,7 +68,7 @@ entry_vec01_debug:
 2:	mov	12(%esp), %esp
 	pushl	$(GDT_DATA_USER|SEL_PL_U)
 	push	%ebp
-	pushl	$(EFLAGS_IOPL_U|EFLAGS_IF|EFLAGS_TF)
+	pushl	$(EFLAGS_IF | EFLAGS_TF)
 	pushl	$(GDT_CODE_USER|SEL_PL_U)
 	push	%ebx
 	cld
@@ -181,8 +181,7 @@ entry_sys_fast_ipc_log:
 	pop	%esp
 	pushl	$(GDT_DATA_USER|SEL_PL_U) /* user ss */
 	pushl   %ebp 			  // user esp
-	// Fake user eflags, set IOPL to 3
-	pushl	$(EFLAGS_IOPL_U | EFLAGS_IF)
+	pushf                             // fake user eflags
 	cld
 	// Fake user cs. This cs value is never used with exception
 	// that the thread is ex_regs'd before we leave with sysexit.
@@ -230,8 +229,7 @@ entry_sys_fast_ipc_c:
 	pop	%esp
 	pushl	$(GDT_DATA_USER|SEL_PL_U)	/* user ss */
 	pushl	%ebp				// push user SP (get in ebp)
-	// Fake user eflags, set IOPL to 3
-	pushl	$(EFLAGS_IOPL_U | EFLAGS_IF)
+	pushf                                   // fake user eflags
 	cld
 	// Fake user cs. This cs value is never used with exception
 	// that the thread is ex_regs'd before we leave with sysexit.

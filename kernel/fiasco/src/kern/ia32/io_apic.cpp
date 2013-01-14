@@ -4,6 +4,7 @@ INTERFACE:
 #include "initcalls.h"
 #include <spin_lock.h>
 #include "irq_chip_ia32.h"
+#include <bitfield>
 
 class Acpi_madt;
 
@@ -21,26 +22,20 @@ public:
 
   Io_apic_entry() {}
   Io_apic_entry(Unsigned8 vector, Delivery d, Dest_mode dm, Polarity p,
-                Trigger t, Unsigned8 dest)
-    : _e(vector | (d << 8) | (dm << 11) | (p << 13) | (t << 15) | (1<<16)
-         | (((Unsigned64)dest) << 56))
+                Trigger t, Unsigned32 dest)
+    : _e(  vector_bfm_t::val(vector) | delivery_bfm_t::val(d) | mask_bfm_t::val(1)
+         | dest_mode_bfm_t::val(dm)  | polarity_bfm_t::val(p)
+         | trigger_bfm_t::val(t)     | dest_bfm_t::val(dest >> 24))
   {}
 
-  unsigned delivery() const { return (_e >> 8) & 7; }
-  void delivery(unsigned m) { _e = (_e & ~(7 << 8)) | ((m & 7) << 8); }
-  unsigned dest_mode() const { return _e & (1 << 11); }
-  void dest_mode(bool p) { _e = (_e & ~(1<<11)) | ((unsigned long)p << 11); }
-  unsigned dest() const { return _e >> 56; }
-  void dest(unsigned d) { _e = (_e & ~(0xffULL << 56)) | ((Unsigned64)d << 56); }
-  unsigned mask() const { return _e & (1U << 16); }
-  void mask(bool m) { _e = (_e & ~(1ULL << 16)) | ((Unsigned64)m << 16); }
-  unsigned trigger() const { return _e & (1 << 15); }
-  unsigned polarity() const { return _e & (1 << 13); }
-  unsigned vector() const { return _e & 0xff; }
-  void vector(Unsigned8 v) { _e = (_e & ~0xff) | v; }
-  void trigger(Mword tr) { _e = (_e & ~(1UL << 15)) | ((tr & 1) << 15); }
-  void polarity(Mword pl) { _e = (_e & ~(1UL << 13)) | ((pl & 1) << 13); }
-} __attribute__((packed));
+  CXX_BITFIELD_MEMBER( 0,  7, vector, _e);
+  CXX_BITFIELD_MEMBER( 8, 10, delivery, _e);
+  CXX_BITFIELD_MEMBER(11, 11, dest_mode, _e);
+  CXX_BITFIELD_MEMBER(13, 13, polarity, _e);
+  CXX_BITFIELD_MEMBER(15, 15, trigger, _e);
+  CXX_BITFIELD_MEMBER(16, 16, mask, _e);
+  CXX_BITFIELD_MEMBER(56, 63, dest, _e);
+};
 
 
 class Io_apic : public Irq_chip_ia32
@@ -166,7 +161,7 @@ PUBLIC inline NEEDS["kdb_ke.h", "lock_guard.h"]
 Io_apic_entry
 Io_apic::read_entry(unsigned i)
 {
-  Lock_guard<decltype(_l)> g(&_l);
+  auto g = lock_guard(_l);
   Io_apic_entry e;
   //assert_kdb(i <= num_entries());
   e._e = (Unsigned64)_apic->read(0x10+2*i) | (((Unsigned64)_apic->read(0x11+2*i)) << 32);
@@ -178,7 +173,7 @@ PUBLIC inline NEEDS["kdb_ke.h", "lock_guard.h"]
 void
 Io_apic::write_entry(unsigned i, Io_apic_entry const &e)
 {
-  Lock_guard<decltype(_l)> g(&_l);
+  auto g = lock_guard(_l);
   //assert_kdb(i <= num_entries());
   _apic->write(0x10+2*i, e._e);
   _apic->write(0x11+2*i, e._e >> 32);
@@ -186,7 +181,7 @@ Io_apic::write_entry(unsigned i, Io_apic_entry const &e)
 
 PUBLIC static FIASCO_INIT
 bool
-Io_apic::init()
+Io_apic::init(unsigned cpu)
 {
   _madt = Acpi::find<Acpi_madt const *>("APIC");
 
@@ -226,7 +221,8 @@ Io_apic::init()
         {
           int v = 0x20+i;
           Io_apic_entry e(v, Io_apic_entry::Fixed, Io_apic_entry::Physical,
-              Io_apic_entry::High_active, Io_apic_entry::Edge, 0);
+              Io_apic_entry::High_active, Io_apic_entry::Edge,
+              ::Apic::apic.cpu(cpu)->apic_id());
           apic->write_entry(i, e);
         }
 
@@ -305,8 +301,8 @@ Io_apic::dump()
       Io_apic_entry e = read_entry(i);
       printf("  PIN[%2u%c]: vector=%2x, del=%u, dm=%s, dest=%u (%s, %s)\n",
 	     i, e.mask() ? 'm' : '.',
-	     e.vector(), e.delivery(), e.dest_mode() ? "logical" : "physical",
-	     e.dest(),
+	     (unsigned)e.vector(), (unsigned)e.delivery(), e.dest_mode() ? "logical" : "physical",
+	     (unsigned)e.dest(),
 	     e.polarity() ? "low" : "high",
 	     e.trigger() ? "level" : "edge");
     }
@@ -321,7 +317,7 @@ PRIVATE inline NEEDS["kdb_ke.h", "lock_guard.h"]
 void
 Io_apic::_mask(unsigned irq)
 {
-  Lock_guard<decltype(_l)> g(&_l);
+  auto g = lock_guard(_l);
   //assert_kdb(irq <= _apic->num_entries());
   _apic->modify(0x10 + irq * 2, 1UL << 16, 0);
 }
@@ -330,7 +326,7 @@ PRIVATE inline NEEDS["kdb_ke.h", "lock_guard.h"]
 void
 Io_apic::_unmask(unsigned irq)
 {
-  Lock_guard<decltype(_l)> g(&_l);
+  auto g = lock_guard(_l);
   //assert_kdb(irq <= _apic->num_entries());
   _apic->modify(0x10 + irq * 2, 0, 1UL << 16);
 }
@@ -339,7 +335,7 @@ PUBLIC inline NEEDS["kdb_ke.h", "lock_guard.h"]
 bool
 Io_apic::masked(unsigned irq)
 {
-  Lock_guard<decltype(_l)> g(&_l);
+  auto g = lock_guard(_l);
   //assert_kdb(irq <= _apic->num_entries());
   return _apic->read(0x10 + irq * 2) & (1UL << 16);
 }
@@ -355,7 +351,7 @@ PUBLIC inline NEEDS["kdb_ke.h", "lock_guard.h"]
 void
 Io_apic::set_dest(unsigned irq, Mword dst)
 {
-  Lock_guard<decltype(_l)> g(&_l);
+  auto g = lock_guard(_l);
   //assert_kdb(irq <= _apic->num_entries());
   _apic->modify(0x11 + irq * 2, dst & (~0UL << 24), ~0UL << 24);
 }
@@ -406,7 +402,7 @@ Io_apic::unmask(Mword irq)
 PUBLIC void
 Io_apic::set_cpu(Mword irq, unsigned cpu)
 {
-  set_dest(irq, Cpu::cpus.cpu(cpu).phys_id());
+  set_dest(irq, ::Apic::apic.cpu(cpu)->apic_id());
 }
 
 static inline
@@ -432,8 +428,8 @@ Io_apic::set_mode(Mword pin, unsigned mode)
     mode = Irq_base::Polarity_low;
 
   Io_apic_entry e = read_entry(pin);
-  e.polarity(to_io_apic_polarity(mode));
-  e.trigger(to_io_apic_trigger(mode));
+  e.polarity() = to_io_apic_polarity(mode);
+  e.trigger() = to_io_apic_trigger(mode);
   write_entry(pin, e);
   return mode;
 }
@@ -448,7 +444,7 @@ Io_apic::alloc(Irq_base *irq, Mword pin)
     return false;
 
   Io_apic_entry e = read_entry(pin);
-  e.vector(v);
+  e.vector() = v;
   write_entry(pin, e);
   return true;
 }

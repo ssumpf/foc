@@ -95,6 +95,19 @@ map_1mb(void *pd, Address va, Address pa, bool cache, bool local)
                 | (local ? Section_local : Section_global);
 }
 
+// This is a template so that we can have the static_assertion, checking the
+// right value at compile time. At runtime we probably won't see anything
+// as this also affects the UART mapping.
+template< Address PA >
+static void inline
+map_dev(void *pd, unsigned va_slotnr)
+{
+  static_assert(PA == Invalid_address || (PA & ~0xfff00000) == 0, "Physical address must be 2^20 aligned");
+  if (PA != Invalid_address)
+    map_1mb(pd, Mem_layout::Registers_map_start + va_slotnr * 0x100000, PA,
+            false, false);
+}
+
 asm
 (
 ".section .text.init,#alloc,#execinstr \n"

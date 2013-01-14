@@ -18,6 +18,7 @@ INTERFACE [!mp]:
 INTERFACE:
 
 #include "static_init.h"
+#include "config.h"
 #include "context_base.h"
 #include <type_traits>
 
@@ -54,6 +55,16 @@ public:
 
   Per_cpu();
   explicit Per_cpu(bool);
+
+  template<typename TEST>
+  unsigned find_cpu(TEST const &test) const
+  {
+    for (unsigned i = 0; i < Config::Max_num_cpus; ++i)
+      if (valid(i) && test(cpu(i)))
+        return i;
+
+    return ~0U;
+  }
 
 private:
   T _d;
@@ -186,8 +197,10 @@ private:
   private:
     unsigned _len;
   };
+
 protected:
-  static long _offsets[Config::Max_num_cpus] asm ("PER_CPU_OFFSETS");
+  enum { Num_cpus = Config::Max_num_cpus + 1 }; // add one for the never running CPU
+  static long _offsets[Num_cpus] asm ("PER_CPU_OFFSETS");
   static unsigned late_ctor_start;
   static Ctor_vector ctors;
 };
@@ -200,7 +213,7 @@ IMPLEMENTATION [mp]:
 #include <construction.h>
 #include <cstring>
 
-long Per_cpu_data::_offsets[Config::Max_num_cpus];
+long Per_cpu_data::_offsets[Per_cpu_data::Num_cpus];
 unsigned Per_cpu_data::late_ctor_start;
 Per_cpu_data::Ctor_vector Per_cpu_data::ctors;
 
@@ -223,7 +236,7 @@ Per_cpu_data::Ctor_vector::push_back(void (*func)(void*,unsigned), void *base)
 IMPLEMENT inline
 bool
 Per_cpu_data::valid(unsigned cpu)
-{ return cpu < Config::Max_num_cpus && _offsets[cpu] != -1; }
+{ return cpu < Num_cpus && _offsets[cpu] != -1; }
 
 IMPLEMENT inline template< typename T >
 T const &Per_cpu<T>::cpu(unsigned cpu) const
@@ -254,7 +267,7 @@ template< typename T >
 void Per_cpu<T>::ctor_wo_arg(void *obj, unsigned cpu)
 {
   //printf("Per_cpu<T>::ctor_wo_arg(obj=%p, cpu=%u -> %p)\n", obj, cpu, &(reinterpret_cast<Per_cpu<T>*>(obj)->cpu(cpu)));
-  new (&reinterpret_cast<Per_cpu<T>*>(obj)->cpu(cpu)) T();
+  new (&reinterpret_cast<Per_cpu<T>*>(obj)->cpu(cpu)) T;
 }
 
 PRIVATE static
@@ -274,7 +287,7 @@ IMPLEMENT
 void
 Per_cpu_data::init_ctors()
 {
-  for (unsigned i = 0; i < Config::Max_num_cpus; ++i)
+  for (unsigned i = 0; i < Num_cpus; ++i)
     _offsets[i] = -1;
 }
 

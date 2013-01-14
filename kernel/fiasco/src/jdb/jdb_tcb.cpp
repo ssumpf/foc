@@ -561,7 +561,7 @@ whole_screen:
 
   printf("\t\ttimeslice: %llu/%llu %cs\n"
          "pager\t: ",
-         t->sched()->left(), t->sched()->quantum(), Config::char_micro);
+         t->sched()->left(), ~0ULL/*t->sched()->quantum()*/, Config::char_micro);
   print_kobject(t, t->_pager.raw());
 
   putstr("\ttask     : ");
@@ -867,7 +867,7 @@ Jdb_tcb::show_kobject_short(char *buf, int max, Kobject_common *o)
   Thread *t = Kobject::dcast<Thread_object *>(Kobject::from_dbg(o->dbg_info()));
   bool is_current = Jdb_tcb::is_current(t);
   int cnt = 0;
-  if (t->space() == Kernel_task::kernel_task())
+  if (t == Context::kernel_context(t->cpu()))
     {
       cnt = snprintf(buf, max, " {KERNEL} C=%u", t->cpu());
       max -= cnt;
@@ -898,7 +898,7 @@ Jdb_tcb::cmds() const
     {
         { 0, "t", "tcb", "%C",
           "t[<threadid>]\tshow current/given thread control block (TCB)\n"
-          "t{+|-}\tshow current thread control block at Jdb every entry\n",
+          "t{+|-}\tshow current thread control block at every JDB entry\n",
           &first_char },
     };
   return cs;

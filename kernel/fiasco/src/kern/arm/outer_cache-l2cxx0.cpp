@@ -79,7 +79,7 @@ PRIVATE static inline NEEDS ["io.h", "lock_guard.h"]
 void
 Outer_cache::write(Address reg, Mword val, bool before = false)
 {
-  Lock_guard<Spin_lock<> > guard(&_lock);
+  auto guard = lock_guard(_lock);
   if (before)
     while (Io::read<Mword>(reg) & 1)
       ;
@@ -142,7 +142,7 @@ Outer_cache::invalidate(Address phys_addr, bool do_sync = true)
 
 PUBLIC static
 void
-Outer_cache::init()
+Outer_cache::initialize(bool v)
 {
   Mword cache_id   = Io::read<Mword>(CACHE_ID);
   Mword aux        = Io::read<Mword>(AUX_CONTROL);
@@ -177,7 +177,15 @@ Outer_cache::init()
       Io::write<Mword>(1, CONTROL);
     }
 
-  show_info(ways, cache_id, aux);
+  if (v)
+    show_info(ways, cache_id, aux);
+}
+
+PUBLIC static
+void
+Outer_cache::init()
+{
+  initialize(true);
 }
 
 STATIC_INITIALIZE_P(Outer_cache, STARTUP_INIT_PRIO);

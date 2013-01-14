@@ -55,16 +55,13 @@ do-all: compilertest $(ALL)
 endif # ! maintainer mode
 
 ifeq ($(CC_TYPE),gcc)
-ifneq ($(findstring $(CCVER_MAJOR),4 5 6 7),)
-  ifeq ($(CCVER_MAJOR),4)
-    ifeq ($(findstring $(CCVER_MINOR), 0 1 2 3),)
-      CC_OK := 1
+  ifneq ($(findstring $(CCVER_MAJOR),4 5 6 7),)
+    ifeq ($(CCVER_MAJOR),4)
+      CC_OK := $(if $(findstring $(CCVER_MINOR),0 1 2 3),,y)
+    else
+      CC_OK := y
     endif
-  else
-    CC_OK := 1
   endif
-endif
-  CC_OK := 1
 endif
 
 compilertest:
@@ -73,15 +70,15 @@ ifeq ($(CC_OK),)
 	@$(ECHO_E) "\033[31m\n" \
 	"  ERROR: gcc version "$(CCVER_MAJOR).$(CCVER_MINOR)" is not supported for "\
 	"Fiasco -- \n"\
-	"          please update gcc to at least version 4.4.\033[m\n"; exit -1
+	"          please update gcc to at least version 4.4.\033[m\n"; exit 1
 endif
 endif
-ifeq ($(CC_TYPE),gcc)
-ifeq ($(CC_OK),)
+ifeq ($(CC_TYPE),clang)
+ifeq ($(CC_OK),not-yet)
 	@$(ECHO_E) "\033[31m\n" \
 	"  ERROR: clang version "$(CCVER_MAJOR).$(CCVER_MINOR)" is not supported for "\
 	"Fiasco -- \n"\
-	"          please update clang to at least version ?.?.\033[m\n"; exit -1
+	"          please update clang to at least version ?.?.\033[m\n"; exit 1
 endif
 endif
 
@@ -109,10 +106,10 @@ ToDoItems:
 
 doc: docs/stamp-doc.ready
 
-docs/stamp-doc.ready: $(foreach m, $(GENERATED_MODULES), auto/stamp-$(m).ready)
+docs/stamp-doc.ready: $(srcdir)/doxygen.conf $(foreach m, $(GENERATED_MODULES), auto/stamp-$(m).ready)
 	@mkdir -p docs
 	@touch $@
-	@doxygen $(srcdir)/doxygen.conf
+	$(VERBOSE)doxygen $(srcdir)/doxygen.conf
 
 ###
 

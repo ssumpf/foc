@@ -27,7 +27,5 @@ Utcb_support::current()
 
 IMPLEMENT inline
 void
-Utcb_support::current(User<Utcb>::Ptr const &utcb)
-{
-  asm volatile ("mcr p15, 0, %0, c13, c0, 3" : : "r" (utcb.get()) : "memory");
-}
+Utcb_support::current(User<Utcb>::Ptr const &)
+{}

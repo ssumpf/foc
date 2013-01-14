@@ -90,6 +90,7 @@ bits/uClibc_uintmaxtostr.h
 bits/uClibc_uwchar.h
 bits/uClibc_va_copy.h
 bits/uio.h
+bits/utmp.h
 bits/utsname.h
 bits/waitflags.h
 bits/waitstatus.h
@@ -154,6 +155,7 @@ poll.h
 printf.h
 pty.h
 pwd.h
+regex.h
 resolv.h
 rpc/netdb.h
 sched.h
@@ -181,6 +183,7 @@ sys/mount.h
 sys/param.h
 sys/poll.h
 sys/procfs.h
+sys/queue.h
 sys/resource.h
 sys/select.h
 sys/sem.h
@@ -205,12 +208,14 @@ sys/utsname.h
 sys/vfs.h
 sys/wait.h
 tar.h
+termio.h
 termios.h
 time.h
 tls.h
 ucontext.h
 unistd.h
 utime.h
+utmp.h
 wchar.h
 wctype.h
 wordexp.h

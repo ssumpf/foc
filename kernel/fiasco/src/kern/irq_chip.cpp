@@ -117,7 +117,14 @@ public:
   Irq_chip *chip() const { return _chip; }
 
   void mask() { if (!__mask()) _chip->mask(_pin); }
-  void mask_and_ack() { if (!__mask()) _chip->mask_and_ack(_pin); }
+  void mask_and_ack()
+  {
+    if (!__mask())
+      _chip->mask_and_ack(_pin);
+    else
+      _chip->ack(_pin);
+  }
+
   void unmask() { if (__unmask()) _chip->unmask(_pin); }
   void ack() { _chip->ack(_pin); }
 
@@ -266,7 +273,7 @@ PUBLIC inline NEEDS["lock_guard.h", "cpu_lock.h"]
 void
 Irq_base::destroy()
 {
-  Lock_guard<Cpu_lock> g(&cpu_lock);
+  auto g = lock_guard(cpu_lock);
   unbind();
 }
 
@@ -284,15 +291,13 @@ INTERFACE [debug]:
 EXTENSION class Irq_base
 {
 public:
-  struct Irq_log
+  struct Irq_log : public Tb_entry
   {
     Irq_base *obj;
     Irq_chip *chip;
     Mword pin;
+    unsigned print(int max, char *buf) const;
   };
-
-  static unsigned irq_log_fmt(Tb_entry *, int, char *)
-  asm ("__irq_log_fmt");
 };
 
 
@@ -306,19 +311,18 @@ IMPLEMENTATION [debug]:
 
 IMPLEMENT
 unsigned
-Irq_base::irq_log_fmt(Tb_entry *e, int maxlen, char *buf)
+Irq_base::Irq_log::print(int maxlen, char *buf) const
 {
-  Irq_log *l = e->payload<Irq_log>();
-  Kobject_dbg::Const_iterator irq = Kobject_dbg::pointer_to_obj(l->obj);
+  Kobject_dbg::Const_iterator irq = Kobject_dbg::pointer_to_obj(obj);
 
   if (irq != Kobject_dbg::end())
     return snprintf(buf, maxlen, "0x%lx/%lu @ chip %s(%p) D:%lx",
-                    l->pin, l->pin, l->chip->chip_type(), l->chip,
+                    pin, pin, chip->chip_type(), chip,
                     irq->dbg_id());
   else
     return snprintf(buf, maxlen, "0x%lx/%lu @ chip %s(%p) irq=%p",
-                    l->pin, l->pin, l->chip->chip_type(), l->chip,
-                    l->obj);
+                    pin, pin, chip->chip_type(), chip,
+                    obj);
 }
 
 PUBLIC inline NEEDS["logdefs.h"]
@@ -326,8 +330,7 @@ void
 Irq_base::log()
 {
   Context *c = current();
-  LOG_TRACE("IRQ-Object triggers", "irq", c, __irq_log_fmt,
-      Irq_base::Irq_log *l = tbe->payload<Irq_base::Irq_log>();
+  LOG_TRACE("IRQ-Object triggers", "irq", c, Irq_log,
       l->obj = this;
       l->chip = chip();
       l->pin = pin();

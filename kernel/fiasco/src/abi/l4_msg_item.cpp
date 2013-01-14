@@ -2,6 +2,7 @@ INTERFACE:
 
 #include "types.h"
 #include "l4_fpage.h"
+#include <bitfield>
 
 /**
  * The first word of a message item, either a send item or a receive buffer.
@@ -120,13 +121,6 @@ public:
   Mword compound() const { return _raw & 1; }
 
   /**
-   * Get the type of the message item.
-   * \return the type of the message item, currently Fiasco.OC
-   *         supports map items only, see #L4_msg_item::Map).
-   */
-  Type type() const { return Type(_raw & 8); }
-
-  /**
    * Is the item a a void item?
    * \return true if the item is \a void, false if it is valid.
    */
@@ -167,41 +161,12 @@ public:
   Mword raw() const { return _raw; }
 
   /**
-   * Get the extra attributes for the send item.
-   * \pre The item is a send item.
-   * \pre type() == #L4_msg_item::Map.
-   * \return the extra attributes for this send item.
-   *
-   * The semantics of the extra attributes depends on
-   * the type of the second word, the L4_fpage, of the
-   * complete send item.
-   * \see L4_msg_item::Memory_attribs, L4_msg_item::Obj_attribs
-   */
-  Mword attr() const { return _raw & 0xf0; }
-
-  /**
-   * Get the value of the most significant bits of a map item.
-   * \pre type() == #L4_msg_item::Map
-   * \return the most significant bits (shifted by #L4_msg_item::Addr_shift).
-   */
-  Mword index() const { return _raw >> Addr_shift; }
-
-  /**
-   * Get the most significant bits of a map item (masked).
-   * \pre type() == #L4_msg_item::Map
-   * \return the most significant bits (masked the lower
-   *         #L4_msg_item::Addr_shift bits).
-   */
-  Mword address() const { return _raw & (~0UL << Addr_shift); }
-
-  /**
    * Get the L4_fpage that represents the small buffer item.
    * \pre type() == #L4_msg_item::Map
    * \pre is_small_obj() == true
    * \return the flex page (L4_fpage) representing the single
    *         object slot with index index().
    */
-
   L4_fpage get_small_buf() { return L4_fpage::obj(_raw, 0, attr() >> 4); }
 
   /**
@@ -215,4 +180,31 @@ private:
    * The binary representation.
    */
   Mword _raw;
+
+public:
+  /** \name Type of the message item
+   *
+   *  Currently the type must indicate a map item (#L4_msg_item::Map).
+   *  \see L4_msg_item::Type
+   */
+  CXX_BITFIELD_MEMBER_UNSHIFTED( 3, 3, type, _raw);
+
+  /** \name Attribute bits of the message item
+   *  \pre The item is a send item.
+   *  \pre type() == #L4_msg_item::Map.
+   *
+   * The semantics of the extra attributes depends on
+   * the type of the second word, the L4_fpage, of the
+   * complete send item.
+   * \see L4_msg_item::Memory_attribs, L4_msg_item::Obj_attribs
+   */
+  CXX_BITFIELD_MEMBER_UNSHIFTED( 4, 7, attr, _raw);
+
+  /** \name the hot-spot address encoded in the message item
+   *  \note Usefule for memory message items. */
+  CXX_BITFIELD_MEMBER_UNSHIFTED(Addr_shift, sizeof(_raw)*8-1, address, _raw);
+
+  /** \name the hot-spot index encoded in the message item
+   *  \note In particular useful for IO-port receive items. */
+  CXX_BITFIELD_MEMBER          (Addr_shift, sizeof(_raw)*8-1, index, _raw);
 };

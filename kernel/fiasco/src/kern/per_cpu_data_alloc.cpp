@@ -28,7 +28,7 @@ IMPLEMENTATION [mp]:
 IMPLEMENT
 bool Per_cpu_data_alloc::alloc(unsigned cpu)
 {
-  if (cpu >= Config::Max_num_cpus || valid(cpu))
+  if (cpu >= Num_cpus || valid(cpu))
     return false;
 
   extern char _per_cpu_data_start[];
@@ -53,8 +53,10 @@ bool Per_cpu_data_alloc::alloc(unsigned cpu)
   memset(per_cpu, 0, size);
 
   _offsets[cpu] = per_cpu - _per_cpu_data_start;
-  printf("Allocate %u bytes (%uKB) for CPU[%u] local storage (offset=%lx)\n",
-	 size, (size + 513) / 1024, cpu, _offsets[cpu]);
+  printf("Allocate %u bytes (%uKB) for CPU[%u] local storage (offset=%lx, %p-%p)\n",
+         size, (size + 513) / 1024, cpu, _offsets[cpu],
+         _per_cpu_data_start + _offsets[cpu],
+         _per_cpu_data_end + _offsets[cpu]);
 
   return true;
 

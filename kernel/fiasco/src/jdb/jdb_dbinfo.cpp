@@ -81,7 +81,7 @@ PRIVATE static
 Address
 Jdb_dbinfo::reserve_pages(unsigned pages)
 {
-  Lock_guard<Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
 
   Unsigned8 *ptr, bit;
 
@@ -134,7 +134,7 @@ PRIVATE static
 void
 Jdb_dbinfo::return_pages(Address addr, unsigned pages)
 {
-  Lock_guard<Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
 
   unsigned nr_page = (addr-area_start) / Config::PAGE_SIZE;
   Unsigned8 *ptr = bitmap + nr_page/8, bit = nr_page % 8;

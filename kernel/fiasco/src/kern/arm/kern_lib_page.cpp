@@ -59,6 +59,7 @@ asm (
     // r0: memory reference
     // r1: cmp value
     // r2: new value
+    // r3: tmp
     ".p2align(8)                         \n"
     "  ldr r3, [r0]			 \n"
     "  cmp r3, r1                        \n"
@@ -74,6 +75,7 @@ asm (
     //  in-r0: memory reference
     //  in-r1: new value
     // out-r0: old value
+    // tmp-r2
     ".p2align(8)                         \n"
     "  ldr r2, [r0]			 \n"
     "  nop                               \n"

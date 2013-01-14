@@ -1,19 +1,14 @@
 INTERFACE [arm && mp && omap4]:
-
 #include "types.h"
-
-class Boot_mp
-{
-};
 
 IMPLEMENTATION [arm && mp && omap4]:
 
 #include "io.h"
 #include "kmem.h"
 
-PRIVATE
+PRIVATE static
 void
-Boot_mp::aux(unsigned cmd, Mword arg0, Mword arg1)
+Platform_control::aux(unsigned cmd, Mword arg0, Mword arg1)
 {
   register unsigned long r0  asm("r0")  = arg0;
   register unsigned long r1  asm("r1")  = arg1;
@@ -25,9 +20,9 @@ Boot_mp::aux(unsigned cmd, Mword arg0, Mword arg1)
                  "r7", "r8", "r9", "r10", "r11", "lr", "memory");
 }
 
-PUBLIC
+PUBLIC static
 void
-Boot_mp::start_ap_cpus(Address phys_tramp_mp_addr)
+Platform_control::boot_ap_cpus(Address phys_tramp_mp_addr)
 {
   // two possibilities available, the memory mapped only in later board
   // revisions
@@ -54,7 +49,3 @@ Boot_mp::start_ap_cpus(Address phys_tramp_mp_addr)
     }
 }
 
-PUBLIC
-void
-Boot_mp::cleanup()
-{}

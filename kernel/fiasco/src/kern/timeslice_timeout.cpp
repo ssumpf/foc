@@ -33,8 +33,8 @@ PRIVATE
 bool
 Timeslice_timeout::expired()
 {
-  unsigned cpu = current_cpu();
-  Sched_context *sched = Sched_context::rq(cpu).current_sched();
+  Sched_context::Ready_queue &rq = Sched_context::rq.current();
+  Sched_context *sched = rq.current_sched();
 
   if (sched)
     {
@@ -45,8 +45,8 @@ Timeslice_timeout::expired()
       assert (owner->sched() == sched);
 #endif
       sched->replenish();
-      sched->requeue(cpu);
-      sched->invalidate_sched(cpu);
+      rq.requeue(sched);
+      rq.invalidate_sched();
 
 //      owner->switch_sched(sched);
     }

@@ -238,7 +238,7 @@ Physframe::~Physframe()
 {
   if (tree)
     {
-      Lock_guard <Base_mappable::Lock> guard(&lock);
+      auto guard = lock_guard(lock);
 
       // Find next-level trees.
       for (Mapping* m = tree->mappings();
@@ -333,7 +333,7 @@ Treemap_ops::grant(Treemap *submap, Space *new_space, Page_number va) const
       Physframe* subframe = submap->frame(key);
       if (Mapping_tree* tree = subframe->tree.get())
 	{
-	  Lock_guard<Base_mappable::Lock> guard(&subframe->lock);
+	  auto guard = lock_guard(subframe->lock);
 	  tree->mappings()->set_space(new_space);
 	  tree->mappings()->set_page(va + (key >> (_page_shift - submap->_page_shift)));
 	}
@@ -375,7 +375,7 @@ Treemap_ops::flush(Treemap *submap,
 
       Physframe* subframe = submap->frame(i);
 
-      Lock_guard <Base_mappable::Lock> guard(&subframe->lock);
+      auto guard = lock_guard(subframe->lock);
 
       if (offs_begin <= page_offs_begin && offs_end >= page_offs_end)
 	subframe->tree.reset();

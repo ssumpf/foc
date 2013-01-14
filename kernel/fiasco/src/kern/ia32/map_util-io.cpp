@@ -26,13 +26,13 @@ void init_mapdb_io(Space *sigma0)
   mapdb_io.construct(sigma0, Page_number::create(0x10000 >> io_page_sizes[0]), io_page_sizes, 3);
 }
 
-/** Map the IO port region described by "fp_from" of address space "from" 
-    into address space "to". IO ports can only be mapped idempotently, 
-    therefore there is no offset for fp_from and only those ports are mapped 
+/** Map the IO port region described by "fp_from" of address space "from"
+    into address space "to". IO ports can only be mapped idempotently,
+    therefore there is no offset for fp_from and only those ports are mapped
     that lay in the intersection of fp_from and fp_to
     @param from source address space
     @param fp_from... IO flexpage descripton for IO space range
-	in source IO space	
+	in source IO space
     @param to destination address space
     @param fp_to... IO flexpage description for IO space range
 	in destination IO space
@@ -43,12 +43,12 @@ io_map(Space *from, L4_fpage const &fp_from,
        Space *to, L4_fpage const &fp_to, L4_msg_item control)
 {
 /*   printf("io_map %u -> %u "
- * 	    "snd %08x base %x size %x rcv %08x base %x size %x\n",
- * 	    (unsigned)from->space(), (unsigned)to->space(),
- * 	    fp_from.fpage, 
- * 	    fp_from.iofp.iopage, fp_from.iofp.iosize,
- * 	    fp_to.fpage, 
- * 	    fp_to.iofp.iopage, fp_to.iofp.iosize);
+ *	    "snd %08x base %x size %x rcv %08x base %x size %x\n",
+ *          (unsigned)from->space(), (unsigned)to->space(),
+ *          fp_from.fpage,
+ *          fp_from.iofp.iopage, fp_from.iofp.iosize,
+ *          fp_to.fpage,
+ *          fp_to.iofp.iopage, fp_to.iofp.iosize);
  *   kdb_ke("io_fpage_map 1");
  */
 
@@ -81,12 +81,12 @@ io_map(Space *from, L4_fpage const &fp_from,
 /** Unmap IO mappings.
     Unmap the region described by "fp" from the IO
     space "space" and/or the IO spaces the mappings have been
-    mapped into. 
+    mapped into.
     XXX not implemented yet
     @param space address space that should be flushed
     @param fp    IO flexpage descriptor of IO-space range that should
                  be flushed
-    @param me_too If false, only flush recursive mappings.  If true, 
+    @param me_too If false, only flush recursive mappings. If true,
                  additionally flush the region in the given address space.
     @return true if successful
 */
@@ -113,8 +113,8 @@ io_fpage_unmap(Space *space, L4_fpage fp, L4_map_mask mask)
 static inline
 void
 save_access_attribs(Mapdb* /*mapdb*/, const Mapdb::Frame& /*mapdb_frame*/,
-		    Mapping* /*mapping*/, Io_space* /*space*/, 
-		    unsigned /*page_rights*/, 
+		    Mapping* /*mapping*/, Io_space* /*space*/,
+		    unsigned /*page_rights*/,
 		    Io_space::Addr /*virt*/, Io_space::Phys_addr /*phys*/,
 		    Io_space::Size /*size*/,
 		    bool /*me_too*/)

@@ -38,6 +38,9 @@ class Lock_guard
 
   Lock *_lock;
   typename Policy::Status _state;
+
+  Lock_guard(Lock_guard &) = delete;
+  Lock_guard &operator = (Lock_guard &) = delete;
 };
 
 template< typename LOCK>
@@ -49,17 +52,15 @@ class Lock_guard_2
 
 IMPLEMENTATION:
 
+
 PUBLIC template<typename LOCK, template< typename L > class POLICY>
 inline
 Lock_guard<LOCK, POLICY>::Lock_guard()
   : _lock(0)
-#ifndef NDEBUG
-    , _state(Lock::Invalid) // silence GCC warning
-#endif
 {}
 
 PUBLIC template<typename LOCK, template< typename L > class POLICY>
-inline
+inline explicit
 Lock_guard<LOCK, POLICY>::Lock_guard(Lock *l)
   : _lock(l)
 {
@@ -68,11 +69,49 @@ Lock_guard<LOCK, POLICY>::Lock_guard(Lock *l)
 
 PUBLIC template<typename LOCK, template< typename L > class POLICY>
 inline
+Lock_guard<LOCK, POLICY>::Lock_guard(Lock_guard &&l)
+  : _lock(l._lock), _state(l._state)
+{
+  l.release();
+}
+
+PUBLIC template<typename LOCK, template< typename L > class POLICY>
+inline
+Lock_guard<LOCK, POLICY>
+Lock_guard<LOCK, POLICY>::operator = (Lock_guard &&l)
+{
+  reset();
+  _lock = l._lock;
+  _state = l._state;
+  l.release();
+}
+
+
+inline template<typename LOCK>
+Lock_guard<LOCK> lock_guard(LOCK &lock)
+{ return Lock_guard<LOCK>(&lock); }
+
+inline template<typename LOCK>
+Lock_guard<LOCK> lock_guard(LOCK *lock)
+{ return Lock_guard<LOCK>(lock); }
+
+PUBLIC template<typename LOCK, template< typename L > class POLICY>
+inline
 void
 Lock_guard<LOCK, POLICY>::lock(Lock *l)
 {
   _lock = l;
   _state = Policy::test_and_set(l);
+}
+
+PUBLIC template<typename LOCK, template< typename L > class POLICY>
+inline
+bool
+Lock_guard<LOCK, POLICY>::check_and_lock(Lock *l)
+{
+  _lock = l;
+  _state = Policy::test_and_set(l);
+  return _state != Lock::Invalid;
 }
 
 PUBLIC template<typename LOCK, template< typename L > class POLICY>
@@ -150,8 +189,22 @@ Lock_guard_2<LOCK>::Lock_guard_2(LOCK *l1, LOCK *l2)
 
 PUBLIC template<typename LOCK>
 inline
-bool
+void
 Lock_guard_2<LOCK>::lock(LOCK *l1, LOCK *l2)
+{
+  _l1 = l1 < l2 ? l1 : l2;
+  _l2 = l1 < l2 ? l2 : l1;
+  _state1 = _l1->test_and_set();
+  if (_l1 == _l2)
+    _l2 = 0;
+  else 
+    _state2 = _l2->test_and_set();
+}
+
+PUBLIC template<typename LOCK>
+inline
+bool
+Lock_guard_2<LOCK>::check_and_lock(LOCK *l1, LOCK *l2)
 {
   _l1 = l1 < l2 ? l1 : l2;
   _l2 = l1 < l2 ? l2 : l1;

@@ -21,6 +21,11 @@ Context::switch_fpu (Context *)
 {}
 
 PUBLIC inline
+void
+Context::spill_fpu()
+{}
+
+PUBLIC inline
 bool
 Context::is_native()
 { return _is_native; }

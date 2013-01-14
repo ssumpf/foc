@@ -75,7 +75,7 @@ PUBLIC
 void Factory::operator delete (void *_f)
 {
   Factory *f = (Factory*)_f;
-  LOG_TRACE("Factory delete", "fa del", ::current(), 0, {});
+  LOG_TRACE("Factory delete", "fa del", ::current(), Tb_entry_empty, {});
 
   if (!f->parent())
     return;
@@ -218,7 +218,7 @@ Factory::kinvoke(L4_obj_ref ref, Mword rights, Syscall_frame *f,
   // We take the existence_lock for syncronizing maps...
   // This is kind of coarse grained
   // try_lock fails if the lock is neither locked nor unlocked
-  if (!space_lock_guard.try_lock(&c_space->existence_lock))
+  if (!space_lock_guard.check_and_lock(&c_space->existence_lock))
     return commit_error(utcb, L4_error(L4_error::Overflow, L4_error::Rcv));
 
   Lock_guard<Cpu_lock, Lock_guard_inverse_policy> cpu_lock_guard(&cpu_lock);
@@ -253,13 +253,12 @@ Factory::kinvoke(L4_obj_ref ref, Mword rights, Syscall_frame *f,
       return commit_result(-L4_err::ENodev);
     }
 
-  LOG_TRACE("Kobject create", "new", ::current(), __factory_log_fmt,
-    Log_entry *le = tbe->payload<Log_entry>();
-    le->op = utcb->values[0];
-    le->buffer = buffer.obj_index();
-    le->id = dbg_info()->dbg_id();
-    le->ram = current();
-    le->newo = new_o ? new_o->dbg_info()->dbg_id() : ~0);
+  LOG_TRACE("Kobject create", "new", ::current(), Log_entry,
+    l->op = utcb->values[0];
+    l->buffer = buffer.obj_index();
+    l->id = dbg_info()->dbg_id();
+    l->ram = current();
+    l->newo = new_o ? new_o->dbg_info()->dbg_id() : ~0);
 
   if (new_o)
     return map_obj(new_o, buffer.obj_index(), c_space, c_space);
@@ -315,15 +314,15 @@ INTERFACE [debug]:
 EXTENSION class Factory
 {
 private:
-  struct Log_entry
+  struct Log_entry : public Tb_entry
   {
     Smword op;
     Mword buffer;
     Mword id;
     Mword ram;
     Mword newo;
+    unsigned print(int max, char *buf) const;
   };
-  static unsigned log_fmt(Tb_entry *, int, char *) asm ("__factory_log_fmt");
 };
 
 // ------------------------------------------------------------------------
@@ -331,17 +330,17 @@ IMPLEMENTATION [debug]:
 
 IMPLEMENT
 unsigned
-Factory::log_fmt(Tb_entry *e, int maxlen, char *buf)
+Factory::Log_entry::print(int maxlen, char *buf) const
 {
   static char const *const ops[] =
   { /*   0 */ "gate", "irq", 0, 0, 0, 0, 0, 0,
     /*  -8 */ 0, 0, 0, "task", "thread", 0, 0, "factory",
     /* -16 */ "vm", 0, 0, 0, "sem" }; 
-  Log_entry *le = e->payload<Log_entry>();
-  char const *op = -le->op <= (int)(sizeof(ops)/sizeof(ops[0]))
-    ? ops[-le->op] : "invalid op";
-  if (!op)
-    op = "(nan)";
+  char const *_op = -op <= (int)(sizeof(ops)/sizeof(ops[0]))
+    ? ops[-op] : "invalid op";
+  if (!_op)
+    _op = "(nan)";
 
-  return snprintf(buf, maxlen, "factory=%lx [%s] new=%lx cap=[C:%lx] ram=%lx", le->id, op, le->newo, le->buffer, le->ram);
+  return snprintf(buf, maxlen, "factory=%lx [%s] new=%lx cap=[C:%lx] ram=%lx",
+                  id, _op, newo, buffer, ram);
 }

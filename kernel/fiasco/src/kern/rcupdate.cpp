@@ -148,15 +148,18 @@ private:
 // ------------------------------------------------------------------------
 INTERFACE [debug]:
 
+#include "tb_entry.h"
+
 EXTENSION class Rcu
 {
 public:
-  struct Log_rcu
+  struct Log_rcu : public Tb_entry
   {
     unsigned cpu;
     Rcu_item *item;
     void *cb;
     unsigned char event;
+    unsigned print(int max, char *buf) const;
   } __attribute__((packed));
 
   enum Rcu_events
@@ -172,15 +175,12 @@ IMPLEMENTATION [debug]:
 
 #include "logdefs.h"
 
-unsigned log_fmt(Tb_entry *, int max, char *buf) asm ("__fmt_rcu");
-
-
 IMPLEMENT
-unsigned log_fmt(Tb_entry *e, int max, char *buf)
+unsigned
+Rcu::Log_rcu::print(int max, char *buf) const
 {
-  Rcu::Log_rcu *p = e->payload<Rcu::Log_rcu>();
   char const *events[] = { "call", "process"};
-  return snprintf(buf, max, "rcu-%s (cpu=%u) item=%p", events[p->event], p->cpu, p->item);
+  return snprintf(buf, max, "rcu-%s (cpu=%u) item=%p", events[event], cpu, item);
 }
 
 
@@ -272,7 +272,7 @@ Rcu_data::do_batch()
   //_d.head(l);
 
     {
-      Lock_guard<Cpu_lock> guard(&cpu_lock);
+      auto guard = lock_guard(cpu_lock);
       _len -= count;
     }
 #if 0
@@ -307,7 +307,7 @@ Rcu::enter_idle(unsigned cpu)
   if (EXPECT_TRUE(!rdp->_idle))
     {
       rdp->_idle = true;
-      Lock_guard<decltype(rcu()->_lock)> guard(&rcu()->_lock);
+      auto guard = lock_guard(rcu()->_lock);
       rcu()->_active_cpus.clear(cpu);
     }
 }
@@ -320,7 +320,7 @@ Rcu::leave_idle(unsigned cpu)
   if (EXPECT_FALSE(rdp->_idle))
     {
       rdp->_idle = false;
-      Lock_guard<decltype(rcu()->_lock)> guard(&rcu()->_lock);
+      auto guard = lock_guard(rcu()->_lock);
       rcu()->_active_cpus.set(cpu);
       rdp->_q_batch = Rcu::rcu()->_current;
     }
@@ -363,7 +363,7 @@ Rcu_data::check_quiescent_state(Rcu_glbl *rgp)
 
   _pending = 0;
 
-  Lock_guard<decltype(rgp->_lock)> guard(&rgp->_lock);
+  auto guard = lock_guard(rgp->_lock);
 
   if (EXPECT_TRUE(_q_batch == rgp->_current))
     rgp->cpu_quiet(_cpu);
@@ -375,14 +375,13 @@ void
 Rcu::call(Rcu_item *i, bool (*cb)(Rcu_item *))
 {
   i->_call_back = cb;
-  LOG_TRACE("Rcu call", "rcu", ::current(), __fmt_rcu,
-      Log_rcu *p = tbe->payload<Log_rcu>();
-      p->cpu   = current_cpu();
-      p->event = Rcu_call;
-      p->item = i;
-      p->cb = (void*)cb);
+  LOG_TRACE("Rcu call", "rcu", ::current(), Log_rcu,
+      l->cpu   = current_cpu();
+      l->event = Rcu_call;
+      l->item = i;
+      l->cb = (void*)cb);
 
-  Lock_guard<Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
 
   Rcu_data *rdp = &_rcu_data.current();
   rdp->enqueue(i);
@@ -392,7 +391,7 @@ PRIVATE
 void
 Rcu_data::move_batch(Rcu_list &l)
 {
-  Lock_guard<Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
   _n.append(l);
 }
 
@@ -407,7 +406,7 @@ Rcu_data::~Rcu_data()
   Rcu_glbl *rgp = Rcu::rcu();
 
     {
-      Lock_guard<decltype(rgp->_lock)> guard(&rgp->_lock);
+      auto guard = lock_guard(rgp->_lock);
       if (rgp->_current != rgp->_completed)
 	rgp->cpu_quiet(_cpu);
     }
@@ -421,11 +420,10 @@ PUBLIC
 bool FIASCO_WARN_RESULT
 Rcu_data::process_callbacks(Rcu_glbl *rgp)
 {
-  LOG_TRACE("Rcu callbacks", "rcu", ::current(), __fmt_rcu,
-      Rcu::Log_rcu *p = tbe->payload<Rcu::Log_rcu>();
-      p->cpu = _cpu;
-      p->item = 0;
-      p->event = Rcu::Rcu_process);
+  LOG_TRACE("Rcu callbacks", "rcu", ::current(), Rcu::Log_rcu,
+      l->cpu = _cpu;
+      l->item = 0;
+      l->event = Rcu::Rcu_process);
 
   if (!_c.empty() && rgp->_completed >= _batch)
     _d.append(_c);
@@ -433,7 +431,7 @@ Rcu_data::process_callbacks(Rcu_glbl *rgp)
   if (!_n.empty() && _c.empty())
     {
 	{
-	  Lock_guard<Cpu_lock> guard(&cpu_lock);
+	  auto guard = lock_guard(cpu_lock);
 	  _c = cxx::move(_n);
 	}
 
@@ -445,7 +443,7 @@ Rcu_data::process_callbacks(Rcu_glbl *rgp)
       if (!rgp->_next_pending)
 	{
 	  // start the batch and schedule start if it's a new batch
-	  Lock_guard<decltype(rgp->_lock)> guard(&rgp->_lock);
+	  auto guard = lock_guard(rgp->_lock);
 	  rgp->_next_pending = 1;
 	  rgp->start_batch();
 	}

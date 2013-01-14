@@ -31,7 +31,7 @@ IMPLEMENTATION [arm && pic_gic && realview && (realview_pb11mp || (realview_eb &
 #include "cascade_irq.h"
 
 PUBLIC static
-void Pic::init_ap()
+void Pic::init_ap(unsigned)
 {
   gic->init_ap();
   static_cast<Gic*>(Irq_mgr::mgr->chip(256).chip)->init_ap();
@@ -79,7 +79,7 @@ void Pic::init()
 }
 
 PUBLIC static
-void Pic::init_ap()
+void Pic::init_ap(unsigned)
 {
   gic->init_ap();
 }

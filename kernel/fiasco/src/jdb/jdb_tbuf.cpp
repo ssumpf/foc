@@ -22,8 +22,8 @@ public:
   };
 
 protected:
-  static Tb_entry	*_tbuf_act;	// current entry
-  static Tb_entry	*_tbuf_max;
+  static Tb_entry_union *_tbuf_act;	// current entry
+  static Tb_entry_union *_tbuf_max;
   static Mword		_entries;	// number of occupied entries
   static Mword		_max_entries;	// maximum number of entries
   static Mword          _filter_enabled;// !=0 if filter is active
@@ -49,13 +49,14 @@ protected:
 		    ".section \".debug.jdb.log_table\" \n\t"	\
 		    ".long 2f			\n\t"		\
 		    ".long 1b			\n\t"		\
-		    ".long "#fmt"		\n\t"		\
+		    ".long %c[xfmt]		\n\t"		\
 		    ".section \".rodata.log.str\" \n\t"		\
 		    "2: .asciz "#name"		\n\t"		\
 		    "   .asciz "#sc"		\n\t"		\
 		    ".popsection		\n\t"		\
 		    "movb    1b,%0		\n\t"		\
-		    : "=q"(__do_log__) );			\
+		    : "=q"(__do_log__) 			\
+                    : [xfmt] "i" (&Tb_entry_formatter_t<fmt>::singleton));  \
       if (EXPECT_FALSE( __do_log__ ))				\
 	{
 
@@ -69,12 +70,13 @@ protected:
 		    ".pushsection \".debug.jdb.log_table\" \n\t"	\
 		    "3: .long 2f		\n\t"		\
 		    "   .long 1b		\n\t"		\
-		    "   .long "#fmt"		\n\t"		\
+		    "   .long %c[xfmt]		\n\t"		\
 		    ".section \".rodata.log.str\" \n\t"		\
 		    "2: .asciz "#name"		\n\t"           \
 		    "   .asciz "#sc"		\n\t"		\
 		    ".popsection		\n\t"		\
-		    : "=r"(__do_log__));                        \
+		    : "=r"(__do_log__)                          \
+                    : [xfmt] "i" (&Tb_entry_formatter_t<fmt>::singleton));  \
       if (EXPECT_FALSE( __do_log__ ))				\
 	{
 
@@ -88,12 +90,13 @@ protected:
 		    ".pushsection \".debug.jdb.log_table\"	\n\t"	\
 		    "3:  .long 2f			\n\t"	\
 		    "    .long 1b + 1			\n\t"	\
-		    "    .long "#fmt"			\n\t"	\
+		    "    .long %a[xfmt]			\n\t"	\
 		    ".section \".rodata.log.str\"	\n\t"	\
 		    "2:  .asciz "#name"			\n\t"	\
 		    "    .asciz "#sc"			\n\t"	\
 		    ".popsection			\n\t"	\
-		    : "=b"(__do_log__));			\
+		    : "=b"(__do_log__)                          \
+                    : [xfmt] "i" (&Tb_entry_formatter_t<fmt>::singleton));  \
       if (EXPECT_FALSE( __do_log__ ))				\
 	{
 
@@ -106,14 +109,16 @@ protected:
 		    ".pushsection \".debug.jdb.log_table\"	\n\t"	\
 		    "3:  .quad 2f			\n\t"	\
 		    "    .quad 1b + 1			\n\t"	\
-		    "    .quad "#fmt"			\n\t"	\
+		    "    .quad %c[xfmt]			\n\t"	\
 		    ".section \".rodata.log.str\"	\n\t"	\
 		    "2:  .asciz "#name"			\n\t"	\
 		    "    .asciz "#sc"			\n\t"	\
 		    ".popsection			\n\t"	\
-		    : "=b"(__do_log__));			\
+		    : "=b"(__do_log__)                          \
+                    : [xfmt] "i"(&Tb_entry_formatter_t<fmt>::singleton) );   \
       if (EXPECT_FALSE( __do_log__ ))				\
 	{
+
 #elif defined(CONFIG_PPC32)
 //#warning TODO: Dummy implementation for PPC32
 #define BEGIN_LOG_EVENT(name, sc, fmt)				\
@@ -152,8 +157,8 @@ IMPLEMENTATION:
 #include "mem_layout.h"
 #include "std_macros.h"
 
-Tb_entry *Jdb_tbuf::_tbuf_act;
-Tb_entry *Jdb_tbuf::_tbuf_max;
+Tb_entry_union *Jdb_tbuf::_tbuf_act;
+Tb_entry_union *Jdb_tbuf::_tbuf_max;
 Mword Jdb_tbuf::_entries;
 Mword Jdb_tbuf::_max_entries;
 Mword Jdb_tbuf::_filter_enabled;
@@ -176,10 +181,10 @@ Jdb_tbuf::status()
 }
 
 PROTECTED static inline NEEDS["mem_layout.h"]
-Tb_entry *
+Tb_entry_union *
 Jdb_tbuf::buffer()
 {
-  return (Tb_entry*)Mem_layout::Tbuf_buffer_area;
+  return (Tb_entry_union*)Mem_layout::Tbuf_buffer_area;
 }
 
 PUBLIC static inline
@@ -210,7 +215,7 @@ Jdb_tbuf::new_entry()
 {
   Tb_entry *tb;
   {
-    Lock_guard<decltype(_lock)> guard(&_lock);
+    auto guard = lock_guard(_lock);
 
     tb = _tbuf_act;
 
@@ -232,6 +237,14 @@ Jdb_tbuf::new_entry()
   return tb;
 }
 
+PUBLIC template<typename T> static inline
+T*
+Jdb_tbuf::new_entry()
+{
+  static_assert(sizeof(T) <= sizeof(Tb_entry_union), "tb entry T too big");
+  return static_cast<T*>(new_entry());
+}
+
 /** Commit tracebuffer entry. */
 PUBLIC static
 void
@@ -248,7 +261,7 @@ Jdb_tbuf::commit_entry()
       // fire the virtual 'buffer full' irq
       if (_observer)
         {
-          Lock_guard<Cpu_lock> guard(&cpu_lock);
+          auto guard = lock_guard(cpu_lock);
 	  _observer->notify();
 	}
 #endif
@@ -321,12 +334,12 @@ Jdb_tbuf::unfiltered_lookup(Mword idx)
   if (!event_valid(idx))
     return 0;
 
-  Tb_entry *e = _tbuf_act - idx - 1;
+  Tb_entry_union *e = _tbuf_act - idx - 1;
 
   if (e < buffer())
     e += _max_entries;
 
-  return static_cast<Tb_entry*>(e);
+  return e;
 }
 
 /** Return pointer to tracebuffer event.
@@ -359,9 +372,9 @@ Jdb_tbuf::lookup(Mword look_idx)
 
 PUBLIC static
 Mword
-Jdb_tbuf::unfiltered_idx(Tb_entry *e)
+Jdb_tbuf::unfiltered_idx(Tb_entry const *e)
 {
-  Tb_entry *ef = static_cast<Tb_entry*>(e);
+  Tb_entry_union const *ef = static_cast<Tb_entry_union const *>(e);
   Mword idx = _tbuf_act - ef - 1;
 
   if (idx > _max_entries)
@@ -373,12 +386,12 @@ Jdb_tbuf::unfiltered_idx(Tb_entry *e)
 /** Tb_entry => tracebuffer index. */
 PUBLIC static
 Mword
-Jdb_tbuf::idx(Tb_entry *e)
+Jdb_tbuf::idx(Tb_entry const *e)
 {
   if (!_filter_enabled)
     return unfiltered_idx(e);
 
-  Tb_entry *ef = static_cast<Tb_entry*>(e);
+  Tb_entry_union const *ef = static_cast<Tb_entry_union const*>(e);
   Mword idx = (Mword)-1;
 
   for (;;)
@@ -402,7 +415,7 @@ Jdb_tbuf::search(Mword nr)
 {
   Tb_entry *e;
 
-  for (Mword idx=0; (e = unfiltered_lookup(idx)); idx++)
+  for (Mword idx = 0; (e = unfiltered_lookup(idx)); idx++)
     if (e->number() == nr)
       return e;
 
@@ -469,99 +482,6 @@ Jdb_tbuf::event(Mword idx, Mword *number, Unsigned32 *kclock,
   if (pmc2)
     *pmc2 = e->pmc2();
   return true;
-}
-
-/** Search the paired event to an ipc event or ipc result event.
- * @param idx number of event to search the pair event for
- * @retval type type of pair event
- * @return number of pair event */
-PUBLIC static
-Tb_entry*
-Jdb_tbuf::ipc_pair_event(Mword idx, Unsigned8 *type)
-{
-  Tb_entry *e = lookup(idx);
-
-  if (!e)
-    return 0;
-
-  if (e->type() == Tbuf_ipc_res)
-    {
-      *type = Event;
-      return search(static_cast<Tb_entry_ipc_res*>(e)->pair_event());
-    }
-
-  if (e->type() != Tbuf_ipc)
-    return 0;
-
-  Tb_entry_ipc     *e0 = static_cast<Tb_entry_ipc*>(e);
-  Tb_entry_ipc_res *e1;
-
-  // start at e and go until future until current event
-  while (idx > 0 && ((e1 = static_cast<Tb_entry_ipc_res*>(lookup(--idx)))))
-    {
-      if (e1->type() == Tbuf_ipc_res && e1->pair_event() == e0->number())
-	{
-	  *type = Result;
-	  return e1;
-	}
-    }
-
-  return 0;
-}
-
-/** Search the paired event to a pagefault / result event.
- * @param idx position of event in tracebuffer to search the pair event for
- * @retval type type of pair event
- * @return number of pair event */
-PUBLIC static
-Tb_entry*
-Jdb_tbuf::pf_pair_event(Mword idx, Unsigned8 *type)
-{
-  Tb_entry *e = lookup(idx);
-
-  if (!e)
-    return 0;
-
-  if (e->type() == Tbuf_pf_res)
-    {
-      // we have a pf result event and we search the paired pf event
-      Tb_entry_pf_res *e0 = static_cast<Tb_entry_pf_res*>(e);
-      Tb_entry_pf     *e1;
-
-      // start at e and go into past until oldst event
-      while (((e1 = static_cast<Tb_entry_pf*>(lookup(++idx)))))
-	{
-	  if (e1->type() == Tbuf_pf    &&
-	      e1->ctx()  == e0->ctx()  &&
-	      e1->ip()   == e0->ip()   &&
-	      e1->pfa()  == e0->pfa())
-	    {
-	      *type = Event;
-	      return e1;
-	    }
-	}
-    }
-  else if (e->type() == Tbuf_pf)
-    {
-      // we have a pf event and we search the paired pf result event
-      Tb_entry_pf     *e0 = static_cast<Tb_entry_pf*>(e);
-      Tb_entry_pf_res *e1;
-
-      // start at e and go until future until current event
-      while (idx > 0 && ((e1 = static_cast<Tb_entry_pf_res*>(lookup(--idx)))))
-	{
-	  if (e1->type() == Tbuf_pf_res &&
-	      e1->ctx()  == e0->ctx()   &&
-	      e1->ip()   == e0->ip()    &&
-	      e1->pfa()  == e0->pfa())
-	    {
-	      *type = Result;
-	      return e1;
-	    }
-	}
-    }
-
-  return 0;
 }
 
 /** Get difference CPU cycles between event idx and event idx+1.

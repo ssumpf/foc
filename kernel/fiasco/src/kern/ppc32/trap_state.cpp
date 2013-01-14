@@ -18,6 +18,7 @@ class Trap_state : public Trap_state_regs, public Syscall_frame,
 {
 public:
   typedef int (*Handler)(Trap_state*, unsigned cpu);
+  bool exclude_logging() { return false; }
 };
 
 

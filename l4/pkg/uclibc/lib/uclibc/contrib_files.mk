@@ -9,6 +9,8 @@ define SRC_libc/sysdeps/linux
   getdents
   getsid
   common/gethostname
+  common/getdirname
+  common/getpagesize
 endef
 
 define SRC_libc/sysdeps/linux_large_file
@@ -97,6 +99,7 @@ define SRC_libc/stdlib
   lrand48
   lrand48_r
   mkstemp
+  mkstemp64
   nrand48
   nrand48_r
   on_exit
@@ -737,4 +740,3 @@ define SRC_libm_double
   truncl
   significandl
 endef
-

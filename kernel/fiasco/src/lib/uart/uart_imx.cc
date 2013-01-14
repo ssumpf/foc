@@ -1,4 +1,5 @@
 #include "uart_imx.h"
+#include "poll_timeout_counter.h"
 
 namespace L4
 {
@@ -93,6 +94,10 @@ namespace L4
         _regs->write<unsigned int>(UBIR, 0xf);
         _regs->write<unsigned int>(UBMR, 0x120);
         break;
+      case Type_imx6:
+        _regs->write<unsigned int>(UBIR, 0xf);
+        _regs->write<unsigned int>(UBMR, 0x15b);
+        break;
       }
 
     _regs->write<unsigned int>(UCR1, UCR1_EN);
@@ -140,7 +145,8 @@ namespace L4
 
   void Uart_imx::out_char(char c) const
   {
-    while (!(_regs->read<unsigned int>(USR1) & USR1_TRDY))
+    Poll_timeout_counter i(3000000);
+    while (i.test(!(_regs->read<unsigned int>(USR1) & USR1_TRDY)))
      ;
     _regs->write<unsigned int>(UTXD, c);
   }
@@ -151,7 +157,8 @@ namespace L4
     while (c--)
       out_char(*s++);
 
-    while (!(_regs->read<unsigned int>(USR2) & USR2_TXDC))
+    Poll_timeout_counter i(3000000);
+    while (i.test(!(_regs->read<unsigned int>(USR2) & USR2_TXDC)))
       ;
 
     return count;

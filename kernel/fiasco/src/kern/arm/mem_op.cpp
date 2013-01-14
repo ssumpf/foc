@@ -228,8 +228,7 @@ Mem_op::outer_cache_op(int op, Address start, Address end)
       Mem_space::Phys_addr phys_addr;
       unsigned attrs;
 
-      if (   c->mem_space()->v_lookup(v, &phys_addr,
-            &phys_size, &attrs)
+      if (   c->mem_space()->v_lookup(v, &phys_addr, &phys_size, &attrs)
           && (attrs & Mem_space::Page_user_accessible))
         {
           unsigned long sz = Virt_size(phys_size).value();

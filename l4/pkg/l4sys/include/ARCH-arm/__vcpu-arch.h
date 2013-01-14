@@ -29,6 +29,7 @@ typedef struct l4_vcpu_regs_t
   l4_umword_t pfa;
   l4_umword_t err;
 
+  l4_umword_t tpidruro;
   l4_umword_t r[13];
 
   l4_umword_t sp;

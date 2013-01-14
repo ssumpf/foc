@@ -13,11 +13,8 @@ map_hw(void *pd)
 {
   // map the cache flush area to 0xef000000
   map_1mb(pd, Mem_layout::Cache_flush_area, Mem_layout::Flush_area_phys_base, true, false);
-  // map UART
-  map_1mb(pd, Mem_layout::Uart_map_base, Mem_layout::Uart_phys_base, false, false);
-  map_1mb(pd, Mem_layout::Uart_phys_base, Mem_layout::Uart_phys_base, false, false);
-  // map Timer
-  map_1mb(pd, Mem_layout::Timer_map_base, Mem_layout::Timer_phys_base, false, false);
-  // map Pic
-  map_1mb(pd, Mem_layout::Pic_map_base, Mem_layout::Pic_phys_base, false, false);
+
+  map_dev<Mem_layout::Devices0_phys_base>(pd, 0);
+  map_dev<Mem_layout::Devices1_phys_base>(pd, 1);
+  map_dev<Mem_layout::Devices2_phys_base>(pd, 2);
 }

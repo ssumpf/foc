@@ -109,38 +109,53 @@ IMPLEMENTATION[arm && mp]:
 #include "per_cpu_data_alloc.h"
 #include "perf_cnt.h"
 #include "pic.h"
+#include "platform_control.h"
 #include "spin_lock.h"
 #include "timer.h"
 #include "utcb_init.h"
 
+int boot_ap_cpu() __asm__("BOOT_AP_CPU");
 
-int boot_ap_cpu(unsigned cpu) __asm__("BOOT_AP_CPU");
-
-int boot_ap_cpu(unsigned _cpu)
+int boot_ap_cpu()
 {
-  if (!Per_cpu_data_alloc::alloc(_cpu))
+  static unsigned last_cpu; // keep track of the last cpu ever appeared
+
+  unsigned _cpu = Cpu::cpus.find_cpu(Cpu::By_phys_id(Proc::cpu_id()));
+  bool cpu_is_new = false;
+  if (_cpu == ~0U)
+    {
+      _cpu = ++last_cpu; // 0 is the boot cpu, so pre increment
+      cpu_is_new = true;
+    }
+
+  assert (_cpu != 0);
+
+  if (cpu_is_new && !Per_cpu_data_alloc::alloc(_cpu))
     {
       extern Spin_lock<Mword> _tramp_mp_spinlock;
       printf("CPU allocation failed for CPU%u, disabling CPU.\n", _cpu);
       _tramp_mp_spinlock.clear();
+
+      // FIXME: use a Platform_control API to stop the CPU
       while (1)
 	Proc::halt();
     }
+
   Per_cpu_data::run_ctors(_cpu);
   Cpu &cpu = Cpu::cpus.cpu(_cpu);
   cpu.init();
 
-  Pic::init_ap();
+  Pic::init_ap(_cpu);
+  Thread::init_per_cpu(_cpu);
+  Platform_control::init(_cpu);
   Ipi::init(_cpu);
   Timer::init(_cpu);
   Perf_cnt::init_ap();
 
   // create kernel thread
-  App_cpu_thread *kernel = new (Ram_quota::root) App_cpu_thread();
-  set_cpu_of(kernel, _cpu);
-  check(kernel->bind(Kernel_task::kernel_task(), User<Utcb>::Ptr(0)));
+  Kernel_thread *kernel = App_cpu_thread::may_be_create(_cpu, cpu_is_new);
 
-  // switch to stack of kernel thread and bootstrap the kernel
+  // switch to stack of kernel thread and continue thread init
   asm volatile
     ("	mov sp,%0	        \n"	// switch stack
      "	mov r0,%1	        \n"	// push "this" pointer
@@ -149,4 +164,3 @@ int boot_ap_cpu(unsigned _cpu)
      :	"r" (kernel->init_stack()), "r" (kernel));
   return 0;
 }
-

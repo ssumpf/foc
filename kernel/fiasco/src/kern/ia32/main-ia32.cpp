@@ -102,11 +102,20 @@ IMPLEMENTATION[(ia32,amd64) && mp]:
 #include "spin_lock.h"
 #include "utcb_init.h"
 
-int FIASCO_FASTCALL boot_ap_cpu(unsigned _cpu) __asm__("BOOT_AP_CPU");
+int FIASCO_FASTCALL boot_ap_cpu() __asm__("BOOT_AP_CPU");
 
-int FIASCO_FASTCALL boot_ap_cpu(unsigned _cpu)
+int FIASCO_FASTCALL boot_ap_cpu()
 {
-  if (!Per_cpu_data_alloc::alloc(_cpu))
+  unsigned _cpu = Apic::find_cpu(Apic::get_id());
+  bool cpu_is_new = false;
+  static unsigned last_cpu; // keep track of the last cpu ever appeared
+  if (_cpu == ~0U)
+    {
+      _cpu = ++last_cpu; // 0 is the boot cpu, so pre increment
+      cpu_is_new = true;
+    }
+
+  if (cpu_is_new && !Per_cpu_data_alloc::alloc(_cpu))
     {
       extern Spin_lock<Mword> _tramp_mp_spinlock;
       printf("CPU allocation failed for CPU%u, disabling CPU.\n", _cpu);
@@ -121,6 +130,7 @@ int FIASCO_FASTCALL boot_ap_cpu(unsigned _cpu)
   Idt::load();
 
   Apic::init_ap();
+  Apic::apic.cpu(_cpu).construct();
   Ipi::init(_cpu);
   Timer::init(_cpu);
   Apic::check_still_getting_interrupts();
@@ -137,9 +147,7 @@ int FIASCO_FASTCALL boot_ap_cpu(unsigned _cpu)
   puts("");
 
   // create kernel thread
-  App_cpu_thread *kernel = new (Ram_quota::root) App_cpu_thread();
-  set_cpu_of(kernel, _cpu);
-  check(kernel->bind(Kernel_task::kernel_task(), User<Utcb>::Ptr(0)));
+  Kernel_thread *kernel = App_cpu_thread::may_be_create(_cpu, cpu_is_new);
 
   main_switch_ap_cpu_stack(kernel);
   return 0;

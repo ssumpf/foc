@@ -121,13 +121,6 @@ _tramp_mp_entry:
 
 	// we run paged now
 _tramp_mp_virt:
-	ldr	r0, _cpu_counter_address
-1:	ldrex	r3, [r0]
-	add	r3, r3, #1
-	strex	r2, r3, [r0]
-	teq	r2, #0
-	bne	1b
-
 	// spinlock on cpu-init
 	adr	r0, _tramp_mp_spinlock
 1:	ldr	r1, [r0]
@@ -147,14 +140,12 @@ _tramp_mp_virt:
 	mcr p15, 0, r0, c8, c7, 0
 
 	adr	sp, _tramp_mp_init_stack_top
-	mov	r0, r3
+	nop
+	nop
 	nop
 	ldr	pc, [pc, #-4]
 
 	.long BOOT_AP_CPU
-
-_cpu_counter_address:
-	.long config_num_ap_cpus
 
 .global _tramp_mp_startup_cp15_c1
 _tramp_mp_startup_cp15_c1:

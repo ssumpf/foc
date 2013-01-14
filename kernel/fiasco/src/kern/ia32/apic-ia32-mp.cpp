@@ -37,13 +37,6 @@ IMPLEMENTATION[mp]:
 #include "processor.h"
 
 PUBLIC static inline
-Signed32
-Apic::apic_id()
-{
-  return ((reg_read(APIC_ID) >> 24) & 0xff);
-}
-
-PUBLIC static inline
 void
 Apic::disable_external_ints()
 {

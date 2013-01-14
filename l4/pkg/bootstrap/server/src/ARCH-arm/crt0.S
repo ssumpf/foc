@@ -42,6 +42,7 @@ _start:
 	beq	run		/* ... go to run */
 
 	/* Disable caches as we're moving code around */
+	mcr p15, 0, r3, c7, c5, 0 /* ICIALLU */
 	mrc p15, 0, r0, c1, c0
 	bic r0, #0x0004
 	bic r0, #0x1000
@@ -57,16 +58,16 @@ _start:
 	 * overwrites */
 	mov	r9, r5			/* r9: run address */
 	ldr	r0, .LCstart_bin
-	ldr	r1, 3f
-	str	r1, [r0], #4
-	ldr	r1, 32f
-	str	r1, [r0], #4
-	ldr	r1, 33f
-	str	r1, [r0], #4
-	ldr	r1, 34f
-	str	r1, [r0], #4
-	ldr	r1, 35f
-	str	r1, [r0], #4
+	ldr	r3, 3f
+	str	r3, [r0], #4
+	ldr	r3, 32f
+	str	r3, [r0], #4
+	ldr	r3, 33f
+	str	r3, [r0], #4
+	ldr	r3, 34f
+	str	r3, [r0], #4
+	ldr	r3, 35f
+	str	r3, [r0], #4
 	ldr	pc, .LCstart_bin
 
 3:	ldr     r6, [r4], #4
@@ -90,11 +91,11 @@ move_behind:
 .LCend_bin:   .word _module_data_end
 
 run:
-	mov	r1, #0x1000
-	sub	r1, r1, #1                 /* r1 == 0xfff */
+	mov	r3, #0x1000
+	sub	r3, r3, #1                 /* r3 == 0xfff */
 	mrc	p15, 0, r0, c0, c0, 0      /* Main ID */
 	lsr	r0, #4
-	and	r0, r0, r1
+	and	r0, r0, r3
 
 	/* Check for processors that understand CPU ID */
 	mov	r9, #0xb00
@@ -154,7 +155,7 @@ do_cpuid:
 	ldr	r6, [r5, #0x30]
 	cmp	r6, #0
 	movne	pc, r6
-	.word 0xe320f003 /* wfi */
+	.inst 0xe320f003 /* wfi */
 	ldr	r0, [r4, #12]
 	str	r0, [r4, #16]
 	b	1b

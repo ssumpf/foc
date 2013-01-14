@@ -8,7 +8,20 @@ class Cpu
   MEMBER_OFFSET();
 
 public:
-  /** Get the locical ID of this CPU */
+  struct By_phys_id
+  {
+    Unsigned32 _p;
+    By_phys_id(Unsigned32 p) : _p(p) {}
+    template<typename CPU>
+    bool operator () (CPU const &c) const { return _p == c.phys_id(); }
+  };
+  // we actually use a mask that has one CPU more that we can physically,
+  // have, to avoid lots of special cases for an invalid CPU number
+  typedef Cpu_mask_t<Config::Max_num_cpus + 1> Online_cpu_mask;
+
+  enum { Invalid = Config::Max_num_cpus };
+
+  /** Get the logical ID of this CPU */
   unsigned id() const;
 
 
@@ -18,26 +31,16 @@ public:
    */
   void set_online(bool o);
 
-  /** Get the physical ID of the CPU, for inter processor communication */
-  unsigned phys_id() const;
-
   /** Convienience for Cpu::cpus.cpu(cpu).online() */
   static bool online(unsigned cpu);
 
-  /**
-   * Get logical CPU id from physical ID
-   * NOTE: This call is SLOW, use only for debugging/bootup
-   */
-  static unsigned p2l(unsigned phys_id);
-
-  static Cpu_mask const &online_mask();
-
+  static Online_cpu_mask const &online_mask();
 
 private:
   /** Is this CPU online ? */
   bool online() const;
 
-  static Cpu_mask _online_mask;
+  static Online_cpu_mask _online_mask;
 };
 
 
@@ -65,10 +68,10 @@ private:
 // --------------------------------------------------------------------------
 IMPLEMENTATION:
 
-Cpu_mask Cpu::_online_mask(Cpu_mask::Init::Bss);
+Cpu::Online_cpu_mask Cpu::_online_mask(Online_cpu_mask::Init::Bss);
 
 IMPLEMENT inline
-Cpu_mask const &
+Cpu::Online_cpu_mask const &
 Cpu::online_mask()
 { return _online_mask; }
 
@@ -97,16 +100,6 @@ Cpu::set_online(bool o)
     _online_mask.clear(_id);
 }
 
-IMPLEMENT
-unsigned
-Cpu::p2l(unsigned phys_id)
-{
-  for (unsigned i = 0; i < Config::Max_num_cpus; ++i)
-    if (Per_cpu_data::valid(i) && Cpu::cpus.cpu(i).phys_id() == phys_id)
-      return i;
-
-  return ~0U;
-}
 
 IMPLEMENT static inline NEEDS["kdb_ke.h"]
 bool
@@ -131,11 +124,6 @@ IMPLEMENT inline
 void
 Cpu::set_online(bool)
 {}
-
-IMPLEMENT
-unsigned
-Cpu::p2l(unsigned)
-{ return 0; }
 
 IMPLEMENT static inline
 bool

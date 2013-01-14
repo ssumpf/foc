@@ -438,6 +438,9 @@ move_module(l4util_mb_info_t *mbi, int i, Region *from, Region *to,
     printf("  moving module %02d { %lx-%llx } -> { %llx-%llx } [%ld]\n",
            i, start, from->end(), to->begin(), to->end(), size);
 
+  if (!ram.contains(*to))
+    panic("Panic: Would move outside of RAM");
+
   if (overlap_check)
     {
       Region *overlap = regions.find(*to);
@@ -446,11 +449,10 @@ move_module(l4util_mb_info_t *mbi, int i, Region *from, Region *to,
           printf("ERROR: module target [%llx-%llx) overlaps\n",
                  to->begin(), to->end());
           overlap->vprint();
-          panic("can not move module");
+          regions.dump();
+          panic("cannot move module");
         }
     }
-  if (!ram.contains(*to))
-    panic("Panic: Would move outside of RAM");
   memmove((void *)to->begin(), (void *)start, size);
   unsigned long x = to->end() + 1;
   memset((char *)x, 0, l4_round_page(x) - x);
@@ -481,7 +483,7 @@ unsigned long mbi_mod_size(l4util_mb_info_t *mbi, int i)
 static void
 move_modules(l4util_mb_info_t *mbi, unsigned long modaddr)
 {
-  printf("  Moving modules behind %lx\n", modaddr);
+  printf("  Moving up to %d modules behind %lx\n", mbi->mods_count, modaddr);
 
   Region *ramr = ram.find(Region(modaddr, modaddr));
   Region module_area(modaddr, ramr->end(), "ram for modules");
@@ -502,7 +504,6 @@ move_modules(l4util_mb_info_t *mbi, unsigned long modaddr)
       lastmoduleend = regions.find_free(s, sz, L4_PAGESHIFT) + sz;
     }
 
-
   for (unsigned i = 0; i < mbi->mods_count; ++i)
     {
       unsigned long start = mbi_mod_start(mbi, i);
@@ -519,14 +520,14 @@ move_modules(l4util_mb_info_t *mbi, unsigned long modaddr)
 
       if (i < 3)
         {
-          unsigned long start = mbi_mod_start(mbi, i);
           if (start < lastmoduleend)
             {
-              unsigned long end = mbi_mod_end(mbi, i);
-
               Region to(lastmoduleend, lastmoduleend + (end - start) - 1);
-              move_module(mbi, i, this_module, &to, true);
-              lastmoduleend = l4_round_page(this_module->end());
+              if (module_area.contains(to))
+                {
+                  move_module(mbi, i, this_module, &to, true);
+                  lastmoduleend = l4_round_page(this_module->end());
+                }
             }
           continue;
         }

@@ -127,7 +127,7 @@ PUBLIC inline NEEDS["lock_guard.h"]
 Smword
 Kobject_mappable::dec_cap_refcnt(Smword diff)
 {
-  Lock_guard<Lock> g(&_lock);
+  auto g = lock_guard(_lock);
   _cnt -= diff;
   return _cnt;
 }
@@ -147,8 +147,7 @@ PUBLIC virtual
 void
 Kobject::destroy(Kobject ***)
 {
-  LOG_TRACE("Kobject destroy", "des", current(), __fmt_kobj_destroy,
-      Log_destroy *l = tbe->payload<Log_destroy>();
+  LOG_TRACE("Kobject destroy", "des", current(), Log_destroy,
       l->id = dbg_id();
       l->obj = this;
       l->type = kobj_type());
@@ -158,8 +157,7 @@ Kobject::destroy(Kobject ***)
 PUBLIC virtual
 Kobject::~Kobject()
 {
-  LOG_TRACE("Kobject delete (generic)", "del", current(), __fmt_kobj_destroy,
-      Log_destroy *l = tbe->payload<Log_destroy>();
+  LOG_TRACE("Kobject delete (generic)", "del", current(), Log_destroy,
       l->id = dbg_id();
       l->obj = this;
       l->type = "unk");
@@ -207,15 +205,14 @@ INTERFACE [debug]:
 EXTENSION class Kobject
 {
 protected:
-  struct Log_destroy
+  struct Log_destroy : public Tb_entry
   {
     Kobject    *obj;
     Mword       id;
     char const *type;
     Mword       ram;
+    unsigned print(int max, char *buf) const;
   };
-
-  static unsigned log_fmt(Tb_entry *, int max, char *buf) asm ("__fmt_kobj_destroy");
 };
 
 //---------------------------------------------------------------------------
@@ -242,8 +239,7 @@ Kobject::dbg_info() const
 
 IMPLEMENT
 unsigned
-Kobject::log_fmt(Tb_entry *e, int max, char *buf)
+Kobject::Log_destroy::print(int max, char *buf) const
 {
-  Log_destroy *l = e->payload<Log_destroy>();
-  return snprintf(buf, max, "obj=%lx [%s] (%p) ram=%lx", l->id, l->type, l->obj, l->ram);
+  return snprintf(buf, max, "obj=%lx [%s] (%p) ram=%lx", id, type, obj, ram);
 }

@@ -2,6 +2,12 @@ INTERFACE:
 
 #include "cpu_lock.h"
 
+class Spin_lock_base : protected Cpu_lock
+{
+public:
+  enum Lock_init { Unlocked = 0 };
+};
+
 /**
  * \brief Basic spin lock.
  *
@@ -9,10 +15,8 @@ INTERFACE:
  * In the UP case it is in fact just the Cpu_lock.
  */
 template<typename Lock_t = char>
-class Spin_lock : private Cpu_lock
+class Spin_lock : public Spin_lock_base
 {
-public:
-  enum Lock_init { Unlocked = 0 };
 };
 
 //--------------------------------------------------------------------------
@@ -70,6 +74,14 @@ class Spin_lock_coloc : public Spin_lock<Mword>
 
 //--------------------------------------------------------------------------
 IMPLEMENTATION:
+
+PUBLIC inline
+template< typename T >
+Spin_lock_coloc<T>::Spin_lock_coloc() {}
+
+PUBLIC inline
+template< typename T >
+Spin_lock_coloc<T>::Spin_lock_coloc(Lock_init i) : Spin_lock<Mword>(i) {}
 
 PUBLIC inline
 template< typename T >

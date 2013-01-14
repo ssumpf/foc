@@ -96,9 +96,10 @@ PUBLIC inline
 Prio_list_elem *
 Prio_list::next(Prio_list_elem *e) const
 {
-  if (P_list::in_list(*++S_list::iter(e)))
-    return *++P_list::iter(e);
-  return *++S_list::iter(e);
+  S_list::Iterator i = ++S_list::iter(e);
+  if (P_list::in_list(*i))
+    return *++P_list::iter(*i);
+  return *i;
 }
 
 /**

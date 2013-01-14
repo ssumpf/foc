@@ -17,6 +17,9 @@ EXTENSION class Context
 {
 private:
   Mword _tpidrurw;
+
+protected:
+  Mword _tpidruro;
 };
 
 // ------------------------------------------------------------------------
@@ -35,7 +38,7 @@ IMPLEMENTATION [arm]:
 #include "utcb_support.h"
 
 
-IMPLEMENT inline NEEDS[Context::load_tpidrurw]
+IMPLEMENT inline
 void
 Context::fill_user_state()
 {
@@ -46,7 +49,7 @@ Context::fill_user_state()
       : : "m"(ef->usp), "m"(ef->ulr), [rf] "r" (&ef->usp));
 }
 
-IMPLEMENT inline NEEDS[Context::store_tpidrurw]
+IMPLEMENT inline
 void
 Context::spill_user_state()
 {
@@ -56,10 +59,8 @@ Context::spill_user_state()
       : "=m"(ef->usp), "=m"(ef->ulr) : [rf] "r" (&ef->usp));
 }
 
-
-PROTECTED inline void Context::arch_setup_utcb_ptr() {}
-
-IMPLEMENT inline NEEDS[Context::spill_user_state]
+IMPLEMENT inline NEEDS[Context::spill_user_state, Context::store_tpidrurw,
+                       Context::load_tpidrurw, Context::load_tpidruro]
 void
 Context::switch_cpu(Context *t)
 {
@@ -69,6 +70,7 @@ Context::switch_cpu(Context *t)
   store_tpidrurw();
   t->fill_user_state();
   t->load_tpidrurw();
+  t->load_tpidruro();
 
   {
     register Mword _old_this asm("r1") = (Mword)this;
@@ -118,16 +120,11 @@ void Context::switchin_context(Context *from)
   assert_kdb (this == current());
   assert_kdb (state() & Thread_ready_mask);
 
-#if 0
-  printf("switch in address space: %p\n",_space);
-#endif
-
   // switch to our page directory if nessecary
   vcpu_aware_space()->switchin_context(from->vcpu_aware_space());
 
-  Utcb_support::current(utcb().usr());
+  Utcb_support::current(current()->utcb().usr());
 }
-
 
 IMPLEMENT inline
 void
@@ -139,6 +136,36 @@ Context::set_ignore_mem_op_in_progress(bool val)
 
 // ------------------------------------------------------------------------
 IMPLEMENTATION [armv6plus]:
+
+PROTECTED inline void Context::arch_setup_utcb_ptr()
+{
+  _tpidruro = reinterpret_cast<Mword>(utcb().usr().get());
+}
+
+IMPLEMENT inline
+void
+Context::arch_load_vcpu_kern_state(Vcpu_state *vcpu, bool do_load)
+{
+  _tpidruro = vcpu->_tpidruro;
+  if (do_load)
+    load_tpidruro();
+}
+
+IMPLEMENT inline
+void
+Context::arch_load_vcpu_user_state(Vcpu_state *vcpu, bool do_load)
+{
+  _tpidruro = vcpu->_ts.tpidruro;
+  if (do_load)
+    load_tpidruro();
+}
+
+IMPLEMENT inline
+void
+Context::arch_update_vcpu_state(Vcpu_state *vcpu)
+{
+  vcpu->_tpidruro = _tpidruro;
+}
 
 PRIVATE inline
 void
@@ -154,15 +181,58 @@ Context::load_tpidrurw() const
   asm volatile ("mcr p15, 0, %0, c13, c0, 2" : : "r" (_tpidrurw));
 }
 
+PROTECTED inline
+void
+Context::load_tpidruro() const
+{
+  asm volatile ("mcr p15, 0, %0, c13, c0, 3" : : "r" (_tpidruro));
+}
+
+PUBLIC inline
+Mword
+Context::tpidrurw() const
+{
+  return _tpidrurw;
+}
+
+PUBLIC inline
+Mword
+Context::tpidruro() const
+{
+  return _tpidruro;
+}
+
 // ------------------------------------------------------------------------
 IMPLEMENTATION [!armv6plus]:
 
+PROTECTED inline void Context::arch_setup_utcb_ptr()
+{}
+
 PRIVATE inline
 void
-Context::store_tpidrurw()
+Context::store_tpidrurw() const
 {}
 
 PRIVATE inline
 void
 Context::load_tpidrurw() const
 {}
+
+PROTECTED inline
+void
+Context::load_tpidruro() const
+{}
+
+PUBLIC inline
+Mword
+Context::tpidrurw() const
+{
+  return 0;
+}
+
+PUBLIC inline
+Mword
+Context::tpidruro() const
+{
+  return 0;
+}

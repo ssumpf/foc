@@ -118,7 +118,7 @@ Kobject_dbg::obj_to_id(void const *o)
 PROTECTED
 Kobject_dbg::Kobject_dbg()
 {
-  Lock_guard<decltype(_kobjects_lock)> guard(&_kobjects_lock);
+  auto guard = lock_guard(_kobjects_lock);
 
   _dbg_id = _next_dbg_id++;
   _kobjects.push_back(this);
@@ -128,7 +128,7 @@ IMPLEMENT inline
 Kobject_dbg::~Kobject_dbg()
 {
     {
-      Lock_guard<decltype(_kobjects_lock)> guard(&_kobjects_lock);
+      auto guard = lock_guard(_kobjects_lock);
       _kobjects.remove(this);
     }
 

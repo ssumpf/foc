@@ -77,10 +77,12 @@ private:
 //-----------------------------------------------------------------------------
 INTERFACE [debug]:
 
+#include "tb_entry.h"
+
 EXTENSION class Vm
 {
 public:
-  struct Vm_log
+  struct Vm_log : public Tb_entry
   {
     bool is_entry;
     Mword pc;
@@ -89,10 +91,10 @@ public:
     Mword pending_events;
     Mword r0;
     Mword r1;
-  };
-
-  static unsigned vm_log_fmt(Tb_entry *tbe, int maxlen, char *buf)
-  asm ("__vm_log_fmt");
+    unsigned print(int maxlen, char *buf) const;
+    unsigned vm_entry_log_fmt(int maxlen, char *buf) const;
+    unsigned vm_exit_log_fmt(int maxlen, char *buf) const;
+ };
 };
 
 //-----------------------------------------------------------------------------
@@ -372,41 +374,40 @@ Vm::show_short(char *buf, int max)
 
 IMPLEMENT
 unsigned
-Vm::vm_log_fmt(Tb_entry *e, int maxlen, char *buf)
+Vm::Vm_log::print(int maxlen, char *buf) const
 {
-  Vm_log *l = e->payload<Vm_log>();
-  if (l->is_entry)
-    return vm_entry_log_fmt(l, maxlen, buf);
+  if (is_entry)
+    return vm_entry_log_fmt(maxlen, buf);
   else
-    return vm_exit_log_fmt(l, maxlen, buf);
+    return vm_exit_log_fmt(maxlen, buf);
 }
 
-PRIVATE static
+IMPLEMENT
 unsigned
-Vm::vm_entry_log_fmt(Vm_log *l, int maxlen, char *buf)
+Vm::Vm_log::vm_entry_log_fmt(int maxlen, char *buf) const
 {
-  if (l->r0 == 0x1110)
-    return snprintf(buf, maxlen, "entry: pc:%08lx/%03lx intack irq: %lx", l->pc, l->pending_events, l->r1);
+  if (r0 == 0x1110)
+    return snprintf(buf, maxlen, "entry: pc:%08lx/%03lx intack irq: %lx", pc, pending_events, r1);
 
-  return snprintf(buf, maxlen, "entry: pc:%08lx/%03lx r0:%lx", l->pc, l->pending_events, l->r0);
+  return snprintf(buf, maxlen, "entry: pc:%08lx/%03lx r0:%lx", pc, pending_events, r0);
 }
 
-PRIVATE static
+IMPLEMENT
 unsigned
-Vm::vm_exit_log_fmt(Vm_log *l, int maxlen, char *buf)
+Vm::Vm_log::vm_exit_log_fmt(int maxlen, char *buf) const
 {
-  if ((l->r0 & 0xffff0000) == 0xffff0000)
-    return snprintf(buf, maxlen, "=====: pc:%08lx/%03lx [%04lx]", l->pc, l->pending_events, l->r0 & 0xffff);
-  if (l->r0 == 0x1105)
-    return snprintf(buf, maxlen, "exit:  pc:%08lx/%03lx enable irq: %lx", l->pc, l->pending_events, l->r1);
-  if (l->r0 == 0x1109)
-    return snprintf(buf, maxlen, "exit:  pc:%08lx/%03lx disable irq: %lx", l->pc, l->pending_events, l->r1);
-  if (l->r0 == 0x1110)
-    return snprintf(buf, maxlen, "exit:  pc:%08lx/%03lx intack", l->pc, l->pending_events);
-  if (l->r0 == 0x1115)
-    return snprintf(buf, maxlen, "exit:  pc:%08lx/%03lx send ipi:%lx", l->pc, l->pending_events, l->r1);
+  if ((r0 & 0xffff0000) == 0xffff0000)
+    return snprintf(buf, maxlen, "=====: pc:%08lx/%03lx [%04lx]", pc, pending_events, r0 & 0xffff);
+  if (r0 == 0x1105)
+    return snprintf(buf, maxlen, "exit:  pc:%08lx/%03lx enable irq: %lx", pc, pending_events, r1);
+  if (r0 == 0x1109)
+    return snprintf(buf, maxlen, "exit:  pc:%08lx/%03lx disable irq: %lx", pc, pending_events, r1);
+  if (r0 == 0x1110)
+    return snprintf(buf, maxlen, "exit:  pc:%08lx/%03lx intack", pc, pending_events);
+  if (r0 == 0x1115)
+    return snprintf(buf, maxlen, "exit:  pc:%08lx/%03lx send ipi:%lx", pc, pending_events, r1);
 
-  return snprintf(buf, maxlen, "exit:  pc:%08lx/%03lx r0:%lx", l->pc, l->pending_events, l->r0);
+  return snprintf(buf, maxlen, "exit:  pc:%08lx/%03lx r0:%lx", pc, pending_events, r0);
 }
 
 PUBLIC static inline
@@ -419,8 +420,7 @@ Vm::log_vm(Vm *vm, bool is_entry)
     return;
   if ((is_entry && (vm->state()->r[0] & 0xffff0000) == 0xffff0000))
     return;
-  LOG_TRACE("VM entry/entry", "VM", current(), __vm_log_fmt,
-      Vm::Vm_log *l = tbe->payload<Vm::Vm_log>();
+  LOG_TRACE("VM entry/entry", "VM", current(), Vm_log,
       l->is_entry = is_entry;
       l->pc = vm->state()->pc;
       l->cpsr = vm->state()->cpsr;

@@ -10,7 +10,6 @@ class Helping_lock : public Simple_lock
   Context* _owner;
 };
 
-typedef Lock_guard<Helping_lock> Helping_lock_guard;
 
 IMPLEMENTATION:
 

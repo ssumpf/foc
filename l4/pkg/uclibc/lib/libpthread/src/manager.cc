@@ -50,6 +50,8 @@ extern "C" {
 #include <ldsodefs.h>
 }
 
+#include <pthread-l4.h>
+
 #define USE_L4RE_FOR_STACK
 
 #ifndef MIN
@@ -516,7 +518,9 @@ static int pthread_allocate_stack(const pthread_attr_t *attr,
 
 static inline
 int __pthread_mgr_create_thread(pthread_descr thread, char **tos,
-                                int (*f)(void*), int prio)
+                                int (*f)(void*), int prio,
+                                unsigned create_flags,
+                                l4_sched_cpu_set_t const &affinity)
 {
   using namespace L4Re;
   Env const *e = Env::env();
@@ -563,8 +567,12 @@ int __pthread_mgr_create_thread(pthread_descr thread, char **tos,
 
   _t->ex_regs(l4_addr_t(__pthread_new_thread_entry), l4_addr_t(_tos), 0);
 
-  l4_sched_param_t sp = l4_sched_param(prio >= 0 ? prio : 2);
-  e->scheduler()->run_thread(_t.get(), sp);
+  if (!(create_flags & PTHREAD_L4_ATTR_NO_START))
+    {
+      l4_sched_param_t sp = l4_sched_param(prio >= 0 ? prio : 2);
+      sp.affinity = affinity;
+      e->scheduler()->run_thread(_t.get(), sp);
+    }
 
   // release the automatic capabilities
   _t.release();
@@ -621,7 +629,7 @@ int __pthread_start_manager(pthread_descr mgr)
   mgr->p_tid = mgr_alloc_utcb();
 
   err = __pthread_mgr_create_thread(mgr, &__pthread_manager_thread_tos,
-                                    __pthread_manager, -1);
+                                    __pthread_manager, -1, 0, l4_sched_cpu_set(0, ~0, 1));
   if (err < 0)
     {
       fprintf(stderr, "ERROR: could not start pthread manager thread\n");
@@ -770,7 +778,9 @@ static int pthread_handle_create(pthread_t *thread, const pthread_attr_t *attr,
   /* Do the cloning.  We have to use two different functions depending
      on whether we are debugging or not.  */
   err =  __pthread_mgr_create_thread(new_thread, &stack_addr,
-                                     pthread_start_thread, prio);
+                                     pthread_start_thread, prio,
+                                     attr ? attr->create_flags : 0,
+                                     attr ? attr->affinity : l4_sched_cpu_set(0, ~0, 1));
   saved_errno = err;
 
   /* Check if cloning succeeded */

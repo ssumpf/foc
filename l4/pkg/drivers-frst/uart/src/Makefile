@@ -9,7 +9,7 @@ SYSTEMS		= $(SYSTEMS_PLAIN)
 TARGET		= libdrivers_uart.a
 PC_FILENAME     = drivers_uart
 
-PRIVATE_INCDIR += $(SRC_DIR)/../include
+PRIVATE_INCDIR += $(SRC_DIR)/../include $(SRC_DIR)/../../include
 
 INCLUDE_MAKE_RULES = $(SRC_DIR)/*/Make.rules
 

@@ -56,6 +56,7 @@ public:
     Op_modify_senders = 6,
     Op_vcpu_control= 7,
     Op_gdt_x86 = 0x10,
+    Op_set_tpidruro_arm = 0x10,
     Op_set_fs_amd64 = 0x12,
   };
 
@@ -111,7 +112,7 @@ public:
 private:
   struct Migration_helper_info
   {
-    Migration_info inf;
+    Migration *inf;
     Thread *victim;
   };
 
@@ -232,7 +233,7 @@ Thread::bind(Task *t, User<Utcb>::Ptr utcb)
   if (EXPECT_FALSE(utcb && !u))
     return false;
 
-  Lock_guard<decltype(*_space.lock())> guard(_space.lock());
+  auto guard = lock_guard(_space.lock());
   if (_space.space() != Kernel_task::kernel_task())
     return false;
 
@@ -256,7 +257,7 @@ Thread::unbind()
   Task *old;
 
     {
-      Lock_guard<decltype(*_space.lock())> guard(_space.lock());
+      auto guard = lock_guard(_space.lock());
 
       if (_space.space() == Kernel_task::kernel_task())
 	return true;
@@ -357,7 +358,7 @@ void
 Thread::ipc_gate_deleted(Mword id)
 {
   (void) id;
-  Lock_guard<Cpu_lock> g(&cpu_lock);
+  auto g = lock_guard(cpu_lock);
   if (_del_observer)
     _del_observer->hit(0);
 }
@@ -438,7 +439,7 @@ Thread::handle_timer_interrupt()
 
   // Check if we need to reschedule due to timeouts or wakeups
   if ((Timeout_q::timeout_queue.cpu(_cpu).do_timeouts() || resched)
-      && !schedule_in_progress())
+      && !Sched_context::rq.current().schedule_in_progress)
     {
       schedule();
       assert (timeslice_timeout.cpu(cpu(true))->is_set());	// Coma check
@@ -478,7 +479,7 @@ Thread::user_invoke_generic()
   Context *const c = current();
   assert_kdb (c->state() & Thread_ready_mask);
 
-  if (c->handle_drq() && !c->schedule_in_progress())
+  if (c->handle_drq())
     c->schedule();
 
   // release CPU lock explicitly, because
@@ -511,7 +512,7 @@ PRIVATE
 bool
 Thread::do_kill()
 {
-  Lock_guard<Thread_lock> guard(thread_lock());
+  auto guard = lock_guard(thread_lock());
 
   if (state() == Thread_invalid)
     return false;
@@ -523,7 +524,7 @@ Thread::do_kill()
   // But first prevent it from being woken up by asynchronous events
 
   {
-    Lock_guard <Cpu_lock> guard(&cpu_lock);
+    auto guard = lock_guard(cpu_lock);
 
     // if IPC timeout active, reset it
     if (_timeout)
@@ -532,18 +533,20 @@ Thread::do_kill()
     // Switch to time-sharing mode
     set_mode(Sched_mode(0));
 
+    Sched_context::Ready_queue &rq = Sched_context::rq.current();
+
     // Switch to time-sharing scheduling context
     if (sched() != sched_context())
-      switch_sched(sched_context());
+      switch_sched(sched_context(), &rq);
 
-    if (!current_sched() || current_sched()->context() == this)
-      set_current_sched(current()->sched());
+    if (!rq.current_sched() || rq.current_sched()->context() == this)
+      rq.set_current_sched(current()->sched());
   }
 
   // if other threads want to send me IPC messages, abort these
   // operations
   {
-    Lock_guard <Cpu_lock> guard(&cpu_lock);
+    auto guard = lock_guard(cpu_lock);
     while (Sender *s = Sender::cast(sender_list()->first()))
       {
 	s->sender_dequeue(sender_list());
@@ -558,7 +561,7 @@ Thread::do_kill()
     {
       while (Locked_prio_list *q = wait_queue())
 	{
-	  Lock_guard<decltype(q->lock())> g(q->lock());
+	  auto g = lock_guard(q->lock());
 	  if (wait_queue() == q)
 	    {
 	      sender_dequeue(q);
@@ -580,7 +583,7 @@ Thread::do_kill()
   state_change_dirty(0, Thread_dead);
 
   // dequeue from system queues
-  ready_dequeue();
+  Sched_context::rq.current().ready_dequeue(sched());
 
   if (_del_observer)
     {
@@ -601,7 +604,7 @@ Thread::do_kill()
 
   state_del_dirty(Thread_ready_mask);
 
-  ready_dequeue();
+  Sched_context::rq.current().ready_dequeue(sched());
 
   kernel_context_drq(handle_kill_helper, 0);
   kdb_ke("Im dead");
@@ -624,14 +627,14 @@ PROTECTED
 bool
 Thread::kill()
 {
-  Lock_guard<Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
   inc_ref();
 
 
   if (cpu() == current_cpu())
     {
       state_add_dirty(Thread_cancel | Thread_ready);
-      sched()->deblock(cpu());
+      Sched_context::rq.current().deblock(sched());
       _exc_cont.restore(regs()); // overwrite an already triggered exception
       do_trigger_exception(regs(), (void*)&Thread::leave_and_kill_myself);
 //          current()->switch_exec (this, Helping);
@@ -646,32 +649,31 @@ Thread::kill()
 
 PUBLIC
 void
-Thread::set_sched_params(unsigned prio, Unsigned64 quantum)
+Thread::set_sched_params(L4_sched_param const *p)
 {
   Sched_context *sc = sched_context();
+  // FIXME: do not know how to figure this out currently, however this
+  // seems to be just an optimization
+#if 0
   bool const change = prio != sc->prio()
                    || quantum != sc->quantum();
   bool const ready_queued = in_ready_list();
 
   if (!change && (ready_queued || this == current()))
     return;
+#endif
 
-  ready_dequeue();
+  Sched_context::Ready_queue &rq = Sched_context::rq.cpu(cpu());
+  rq.ready_dequeue(sched());
 
-  sc->set_prio(prio);
-  sc->set_quantum(quantum);
+  sc->set(p);
   sc->replenish();
 
-  if (sc == current_sched())
-    set_current_sched(sc);
+  if (sc == rq.current_sched())
+    rq.set_current_sched(sc);
 
-  if (state() & Thread_ready_mask)
-    {
-      if (this != current())
-        ready_enqueue();
-      else
-        schedule();
-    }
+  if (state() & Thread_ready_mask) // maybe we could ommit enqueueing current
+    rq.ready_enqueue(sched());
 }
 
 PUBLIC
@@ -700,7 +702,7 @@ PUBLIC static inline
 void
 Thread::assert_irq_entry()
 {
-  assert_kdb(current_thread()->schedule_in_progress()
+  assert_kdb(Sched_context::rq.current().schedule_in_progress
              || current_thread()->state() & (Thread_ready_mask | Thread_drq_wait | Thread_waiting | Thread_ipc_transfer));
 }
 
@@ -735,78 +737,80 @@ Thread::check_sys_ipc(unsigned flags, Thread **partner, Thread **sender,
 
 PUBLIC static
 unsigned
-Thread::handle_migration_helper(Drq *, Context *, void *p)
+Thread::handle_migration_helper(Drq *rq, Context *, void *p)
 {
-  Migration_helper_info const *inf = (Migration_helper_info const *)p;
-  return inf->victim->migration_helper(&inf->inf);
+  Migration *inf = reinterpret_cast<Migration *>(p);
+  Thread *v = static_cast<Thread*>(context_of(rq));
+  unsigned target_cpu = access_once(&inf->cpu);
+  v->migrate_away(inf, false);
+  v->migrate_to(target_cpu);
+  return Drq::Need_resched | Drq::No_answer;
 }
 
-
-PRIVATE
-void
-Thread::do_migration()
+PRIVATE inline
+Thread::Migration *
+Thread::start_migration()
 {
   assert_kdb(cpu_lock.test());
-  assert_kdb(current_cpu() == cpu(true));
+  Migration *m = _migration;
 
-  Migration_helper_info inf;
+  assert (!((Mword)m & 0x3)); // ensure alignment
 
+  if (!m || !mp_cas(&_migration, m, (Migration*)0))
+    return reinterpret_cast<Migration*>(0x2); // bit one == 0 --> no need to reschedule
+
+  if (m->cpu == cpu())
     {
-      Lock_guard<decltype(_migration_rq.affinity_lock)>
-	g(&_migration_rq.affinity_lock);
-      inf.inf = _migration_rq.inf;
-      _migration_rq.pending = false;
-      _migration_rq.in_progress = true;
+      set_sched_params(m->sp);
+      Mem::mp_mb();
+      write_now(&m->in_progress, true);
+      return reinterpret_cast<Migration*>(0x1); // bit one == 1 --> need to reschedule
     }
 
-  unsigned on_cpu = cpu();
-
-  if (inf.inf.cpu == ~0U)
-    {
-      state_add_dirty(Thread_suspended);
-      set_sched_params(0, 0);
-      _migration_rq.in_progress = false;
-      return;
-    }
-
-  state_del_dirty(Thread_suspended);
-
-  if (inf.inf.cpu == on_cpu)
-    {
-      // stay here
-      set_sched_params(inf.inf.prio, inf.inf.quantum);
-      _migration_rq.in_progress = false;
-      return;
-    }
-
-  // spill FPU state into memory before migration
-  if (state() & Thread_fpu_owner)
-    {
-      if (current() != this)
-	Fpu::enable();
-
-      spill_fpu();
-      Fpu::set_owner(on_cpu, 0);
-      Fpu::disable();
-    }
-
-
-  // if we are in the middle of the scheduler, leave it now
-  if (schedule_in_progress() == this)
-    reset_schedule_in_progress();
-
-  inf.victim = this;
-
-  if (current() == this && Config::Max_num_cpus > 1)
-    kernel_context_drq(handle_migration_helper, &inf);
-  else
-    migration_helper(&inf.inf);
+  return m; // need to do real migration
 }
 
+PRIVATE
+bool
+Thread::do_migration()
+{
+  Migration *inf = start_migration();
+
+  if ((Mword)inf & 3)
+    return (Mword)inf & 1; // already migrated, nothing to do
+
+  spill_fpu_if_owner();
+
+  if (current() == this)
+    {
+      assert_kdb (current_cpu() == cpu());
+      kernel_context_drq(handle_migration_helper, inf);
+    }
+  else
+    {
+      unsigned target_cpu = access_once(&inf->cpu);
+      migrate_away(inf, false);
+      migrate_to(target_cpu);
+    }
+  return false; // we already are chosen by the scheduler...
+}
 PUBLIC
-void
+bool
 Thread::initiate_migration()
-{ do_migration(); }
+{
+  assert (current() != this);
+  Migration *inf = start_migration();
+
+  if ((Mword)inf & 3)
+    return (Mword)inf & 1;
+
+  spill_fpu_if_owner();
+
+  unsigned target_cpu = access_once(&inf->cpu);
+  migrate_away(inf, false);
+  migrate_to(target_cpu);
+  return false;
+}
 
 PUBLIC
 void
@@ -814,37 +818,6 @@ Thread::finish_migration()
 { enqueue_timeout_again(); }
 
 
-PUBLIC
-void
-Thread::migrate(Migration_info const &info)
-{
-  assert_kdb (cpu_lock.test());
-
-  LOG_TRACE("Thread migration", "mig", this, __thread_migration_log_fmt,
-      Migration_log *l = tbe->payload<Migration_log>();
-      l->state = state();
-      l->src_cpu = cpu();
-      l->target_cpu = info.cpu;
-      l->user_ip = regs()->ip();
-  );
-
-    {
-      Lock_guard<decltype(_migration_rq.affinity_lock)>
-	g(&_migration_rq.affinity_lock);
-      _migration_rq.inf = info;
-      _migration_rq.pending = true;
-    }
-
-  unsigned cpu = this->cpu();
-
-  if (current_cpu() == cpu)
-    {
-      do_migration();
-      return;
-    }
-
-  migrate_xcpu(cpu);
-}
 
 
 //---------------------------------------------------------------------------
@@ -854,35 +827,20 @@ IMPLEMENTATION [fpu && !ux]:
 #include "fpu_alloc.h"
 #include "fpu_state.h"
 
-PUBLIC inline NEEDS ["fpu.h"]
-void
-Thread::spill_fpu()
-{
-  // If we own the FPU, we should never be getting an "FPU unavailable" trap
-  assert_kdb (Fpu::owner(cpu()) == this);
-  assert_kdb (state() & Thread_fpu_owner);
-  assert_kdb (fpu_state());
-
-  // Save the FPU state of the previous FPU owner (lazy) if applicable
-  Fpu::save_state (fpu_state());
-  state_del_dirty (Thread_fpu_owner);
-}
-
 
 /*
  * Handle FPU trap for this context. Assumes disabled interrupts
  */
-PUBLIC inline NEEDS [Thread::spill_fpu, "fpu_alloc.h","fpu_state.h"]
+PUBLIC inline NEEDS ["fpu_alloc.h","fpu_state.h"]
 int
 Thread::switchin_fpu(bool alloc_new_fpu = true)
 {
-  unsigned cpu = this->cpu(true);
-
   if (state() & Thread_vcpu_fpu_disabled)
     return 0;
 
+  Fpu &f = Fpu::fpu.current();
   // If we own the FPU, we should never be getting an "FPU unavailable" trap
-  assert_kdb (Fpu::owner(cpu) != this);
+  assert_kdb (f.owner() != this);
 
   // Allocate FPU state slab if we didn't already have one
   if (!fpu_state()->state_buffer()
@@ -892,17 +850,17 @@ Thread::switchin_fpu(bool alloc_new_fpu = true)
     return 0;
 
   // Enable the FPU before accessing it, otherwise recursive trap
-  Fpu::enable();
+  f.enable();
 
   // Save the FPU state of the previous FPU owner (lazy) if applicable
-  if (Fpu::owner(cpu))
-    nonull_static_cast<Thread*>(Fpu::owner(cpu))->spill_fpu();
+  if (f.owner())
+    nonull_static_cast<Thread*>(f.owner())->spill_fpu();
 
   // Become FPU owner and restore own FPU state
-  Fpu::restore_state(fpu_state());
+  f.restore_state(fpu_state());
 
   state_add_dirty(Thread_fpu_owner);
-  Fpu::set_owner(cpu, this);
+  f.set_owner(this);
   return 1;
 }
 
@@ -910,8 +868,7 @@ PUBLIC inline NEEDS["fpu.h", "fpu_alloc.h"]
 void
 Thread::transfer_fpu(Thread *to)
 {
-  unsigned cpu = this->cpu();
-  if (cpu != to->cpu())
+  if (cpu() != to->cpu())
     return;
 
   if (to->fpu_state()->state_buffer())
@@ -922,25 +879,27 @@ Thread::transfer_fpu(Thread *to)
 
   assert (current() == this || current() == to);
 
-  Fpu::disable(); // it will be reanabled in switch_fpu
+  Fpu &f = Fpu::fpu.current();
 
-  if (EXPECT_FALSE(Fpu::owner(cpu) == to))
+  f.disable(); // it will be reanabled in switch_fpu
+
+  if (EXPECT_FALSE(f.owner() == to))
     {
       assert_kdb (to->state() & Thread_fpu_owner);
 
-      Fpu::set_owner(cpu, 0);
-      to->state_del_dirty (Thread_fpu_owner);
+      f.set_owner(0);
+      to->state_del_dirty(Thread_fpu_owner);
     }
-  else if (Fpu::owner(cpu) == this)
+  else if (f.owner() == this)
     {
       assert_kdb (state() & Thread_fpu_owner);
 
-      state_del_dirty (Thread_fpu_owner);
+      state_del_dirty(Thread_fpu_owner);
 
       to->state_add_dirty (Thread_fpu_owner);
-      Fpu::set_owner(cpu, to);
+      f.set_owner(to);
       if (EXPECT_FALSE(current() == to))
-        Fpu::enable();
+        f.enable();
     }
 }
 
@@ -954,11 +913,6 @@ Thread::switchin_fpu(bool alloc_new_fpu = true)
   (void)alloc_new_fpu;
   return 0;
 }
-
-PUBLIC inline
-void
-Thread::spill_fpu()
-{}
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [!fpu || ux]:
@@ -997,59 +951,93 @@ IMPLEMENTATION [!mp]:
 
 
 PRIVATE inline
-unsigned
-Thread::migration_helper(Migration_info const *inf)
+void
+Thread::migrate_away(Migration *inf, bool /*remote*/)
 {
+  assert_kdb (current() != this);
+  assert_kdb (cpu_lock.test());
+
   unsigned cpu = inf->cpu;
   //  LOG_MSG_3VAL(this, "MGi ", Mword(current()), (current_cpu() << 16) | cpu(), Context::current_sched());
   if (_timeout)
     _timeout->reset();
-  ready_dequeue();
+
+  auto &rq = Sched_context::rq.current();
+
+  // if we are in the middle of the scheduler, leave it now
+  if (rq.schedule_in_progress == this)
+    rq.schedule_in_progress = 0;
+
+  rq.ready_dequeue(sched());
 
     {
       // Not sure if this can ever happen
-      Sched_context *csc = Context::current_sched();
+      Sched_context *csc = rq.current_sched();
       if (!csc || csc->context() == this)
-	Context::set_current_sched(current()->sched());
+	rq.set_current_sched(current()->sched());
     }
 
   Sched_context *sc = sched_context();
-  sc->set_prio(inf->prio);
-  sc->set_quantum(inf->quantum);
+  sc->set(inf->sp);
   sc->replenish();
   set_sched(sc);
 
-  if (drq_pending())
-    state_add_dirty(Thread_drq_ready);
-
   set_cpu_of(this, cpu);
-  return  Drq::No_answer | Drq::Need_resched;
+  inf->in_progress = true;
+  _need_to_finish_migration = true;
 }
 
 PRIVATE inline
 void
-Thread::migrate_xcpu(unsigned cpu)
+Thread::migrate_to(unsigned target_cpu)
 {
-  (void)cpu;
-  assert_kdb (false);
+  if (!Cpu::online(target_cpu))
+    {
+      handle_drq();
+      return;
+    }
+
+  auto &rq = Sched_context::rq.current();
+  if (state() & Thread_ready_mask && !in_ready_list())
+    rq.ready_enqueue(sched());
+
+  enqueue_timeout_again();
+}
+
+PUBLIC
+void
+Thread::migrate(Migration *info)
+{
+  assert_kdb (cpu_lock.test());
+
+  LOG_TRACE("Thread migration", "mig", this, Migration_log,
+      l->state = state(false);
+      l->src_cpu = cpu();
+      l->target_cpu = info->cpu;
+      l->user_ip = regs()->ip();
+  );
+
+  _migration = info;
+  current()->schedule_if(do_migration());
 }
 
 
 //----------------------------------------------------------------------------
 INTERFACE [debug]:
 
+#include "tb_entry.h"
+
 EXTENSION class Thread
 {
 protected:
-  struct Migration_log
+  struct Migration_log : public Tb_entry
   {
     Mword    state;
     Address  user_ip;
     unsigned src_cpu;
     unsigned target_cpu;
 
-    static unsigned fmt(Tb_entry *, int, char *)
-    asm ("__thread_migration_log_fmt");
+    unsigned print(int, char *) const;
   };
 };
 
@@ -1058,6 +1046,43 @@ protected:
 IMPLEMENTATION [mp]:
 
 #include "ipi.h"
+
+PUBLIC
+void
+Thread::migrate(Migration *info)
+{
+  assert_kdb (cpu_lock.test());
+
+  LOG_TRACE("Thread migration", "mig", this, Migration_log,
+      l->state = state(false);
+      l->src_cpu = cpu();
+      l->target_cpu = info->cpu;
+      l->user_ip = regs()->ip();
+  );
+    {
+      Migration *old;
+      do
+        old = _migration;
+      while (!mp_cas(&_migration, old, info));
+      // flag old migration to be done / stale
+      if (old)
+        old->in_progress = true;
+    }
+
+  unsigned cpu = this->cpu();
+
+  if (current_cpu() == cpu || Config::Max_num_cpus == 1)
+    current()->schedule_if(do_migration());
+  else
+    migrate_xcpu(cpu);
+
+  cpu_lock.clear();
+  // FIXME: use monitor & mwait or wfe & sev if available
+  while (!access_once(&info->in_progress))
+    Proc::pause();
+  cpu_lock.lock();
+
+}
 
 IMPLEMENT
 void
@@ -1068,21 +1093,20 @@ Thread::handle_remote_requests_irq()
   Context *const c = current();
   Ipi::eoi(Ipi::Request, c->cpu());
   //LOG_MSG_3VAL(c, "ipi", c->cpu(), (Mword)c, c->drq_pending());
+
+  // we might have to migrate the currently running thread, and we cannot do
+  // this during the processing of the request queue. In this case we get the
+  // thread in migration_q and do this here.
   Context *migration_q = 0;
-  bool resched = _pending_rqq.cpu(c->cpu()).handle_requests(&migration_q);
+  bool resched = _pending_rqq.current().handle_requests(&migration_q);
 
   resched |= Rcu::do_pending_work(c->cpu());
 
   if (migration_q)
-    static_cast<Thread*>(migration_q)->do_migration();
+    resched |= static_cast<Thread*>(migration_q)->do_migration();
 
-  if ((resched || c->handle_drq()) && !c->schedule_in_progress())
-    {
-      //LOG_MSG_3VAL(c, "ipis", 0, 0, 0);
-      // printf("CPU[%2u]: RQ IPI sched %p\n", current_cpu(), current());
-      c->schedule();
-    }
-  // printf("CPU[%2u]: < RQ IPI (current=%p)\n", current_cpu(), current());
+  if ((c->handle_drq() || resched) && !Sched_context::rq.current().schedule_in_progress)
+    c->schedule();
 }
 
 IMPLEMENT
@@ -1096,104 +1120,148 @@ Thread::handle_global_remote_requests_irq()
 }
 
 PRIVATE inline
-unsigned
-Thread::migration_helper(Migration_info const *inf)
+void
+Thread::migrate_away(Migration *inf, bool remote)
 {
-  // LOG_MSG_3VAL(this, "MGi ", Mword(current()), (current_cpu() << 16) | cpu(), 0);
-  assert_kdb (cpu() == current_cpu());
+  assert_kdb (check_for_current_cpu());
   assert_kdb (current() != this);
   assert_kdb (cpu_lock.test());
 
   if (_timeout)
     _timeout->reset();
-  ready_dequeue();
 
+  //printf("[%u] %lx: m %lx %u -> %u\n", current_cpu(), current_thread()->dbg_id(), this->dbg_id(), cpu(), inf->cpu);
     {
+      Sched_context::Ready_queue &rq = Sched_context::rq.cpu(cpu());
+
+      // if we are in the middle of the scheduler, leave it now
+      if (rq.schedule_in_progress == this)
+        rq.schedule_in_progress = 0;
+
+      rq.ready_dequeue(sched());
+
       // Not sure if this can ever happen
-      Sched_context *csc = Context::current_sched();
-      if (!csc || csc->context() == this)
-	Context::set_current_sched(current()->sched());
+      Sched_context *csc = rq.current_sched();
+      if (!remote && (!csc || csc->context() == this))
+	rq.set_current_sched(current()->sched());
     }
 
-  unsigned cpu = inf->cpu;
+  unsigned target_cpu = inf->cpu;
 
     {
-      Queue &q = _pending_rqq.cpu(current_cpu());
+      Queue &q = _pending_rqq.cpu(cpu());
       // The queue lock of the current CPU protects the cpu number in
       // the thread
-      Lock_guard<Pending_rqq::Inner_lock> g(q.q_lock());
 
+      auto g = !remote
+               ? lock_guard(q.q_lock())
+               : Lock_guard<cxx::remove_pointer<decltype(q.q_lock())>::type>();
+
+      assert_kdb (q.q_lock()->test());
       // potentailly dequeue from our local queue
       if (_pending_rq.queued())
-	check_kdb (q.dequeue(&_pending_rq, Queue_item::Ok));
+        check_kdb (q.dequeue(&_pending_rq, Queue_item::Ok));
 
       Sched_context *sc = sched_context();
-      sc->set_prio(inf->prio);
-      sc->set_quantum(inf->quantum);
+      sc->set(inf->sp);
       sc->replenish();
       set_sched(sc);
-
-      if (drq_pending())
-	state_add_dirty(Thread_drq_ready);
 
       Mem::mp_wmb();
 
       assert_kdb (!in_ready_list());
+      assert_kdb (!_pending_rq.queued());
 
-      set_cpu_of(this, cpu);
-      // now we are migrated away fom current_cpu
+      set_cpu_of(this, target_cpu);
+      Mem::mp_mb();
+      write_now(&inf->in_progress, true);
+      _need_to_finish_migration = true;
     }
+}
 
-  bool ipi = true;
+PRIVATE inline
+void
+Thread::migrate_to(unsigned target_cpu)
+{
+  bool ipi = false;
 
     {
-      Queue &q = _pending_rqq.cpu(cpu);
-      Lock_guard<Pending_rqq::Inner_lock> g(q.q_lock());
+      Queue &q = _pending_rqq.cpu(target_cpu);
+      auto g = lock_guard(q.q_lock());
+
+      if (access_once(&this->_cpu) == target_cpu
+          && EXPECT_FALSE(!Cpu::online(target_cpu)))
+        {
+          handle_drq();
+          return;
+        }
 
       // migrated meanwhile
-      if (this->cpu() != cpu || _pending_rq.queued())
-	return  Drq::No_answer | Drq::Need_resched;
+      if (access_once(&this->_cpu) != target_cpu || _pending_rq.queued())
+        return;
 
-      if (q.first())
-	ipi = false;
+      if (!_pending_rq.queued())
+        {
+          if (!q.first())
+            ipi = true;
 
-      q.enqueue(&_pending_rq);
+          q.enqueue(&_pending_rq);
+        }
+      else
+        assert_kdb (_pending_rq.queue() == &q);
     }
 
   if (ipi)
     {
       //LOG_MSG_3VAL(this, "sipi", current_cpu(), cpu(), (Mword)current());
-      Ipi::send(Ipi::Request, current_cpu(), cpu);
+      Ipi::send(Ipi::Request, current_cpu(), target_cpu);
     }
-
-  return  Drq::No_answer | Drq::Need_resched;
 }
 
 PRIVATE inline
 void
 Thread::migrate_xcpu(unsigned cpu)
 {
-  bool ipi = true;
+  bool ipi = false;
 
     {
       Queue &q = Context::_pending_rqq.cpu(cpu);
-      Lock_guard<Pending_rqq::Inner_lock> g(q.q_lock());
+      auto g = lock_guard(q.q_lock());
 
       // already migrated
-      if (cpu != this->cpu())
-	return;
+      if (cpu != access_once(&this->_cpu))
+        return;
 
-      if (q.first())
-	ipi = false;
+      // now we are shure that this thread stays on 'cpu' because
+      // we have the rqq lock of 'cpu'
+      if (!Cpu::online(cpu))
+        {
+          Migration *inf = start_migration();
+
+          if ((Mword)inf & 3)
+            return; // all done, nothing to do
+
+          unsigned target_cpu = access_once(&inf->cpu);
+          migrate_away(inf, true);
+          g.reset();
+          migrate_to(target_cpu);
+          return;
+          // FIXME: Wie lange dauert es ready dequeue mit WFQ zu machen?
+          // wird unter spinlock gemacht !!!!
+        }
 
       if (!_pending_rq.queued())
-	q.enqueue(&_pending_rq);
-      else
-	ipi = false;
+        {
+          if (!q.first())
+            ipi = true;
+
+          q.enqueue(&_pending_rq);
+        }
     }
 
   if (ipi)
     Ipi::send(Ipi::Request, current_cpu(), cpu);
+  return;
 }
 
 //----------------------------------------------------------------------------
@@ -1201,10 +1269,9 @@ IMPLEMENTATION [debug]:
 
 IMPLEMENT
 unsigned
-Thread::Migration_log::fmt(Tb_entry *e, int maxlen, char *buf)
+Thread::Migration_log::print(int maxlen, char *buf) const
 {
-  Migration_log *l = e->payload<Migration_log>();
   return snprintf(buf, maxlen, "migrate from %u to %u (state=%lx user ip=%lx)",
-      l->src_cpu, l->target_cpu, l->state, l->user_ip);
+      src_cpu, target_cpu, state, user_ip);
 }
 

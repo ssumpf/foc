@@ -2,6 +2,7 @@ INTERFACE:
 
 #include "types.h"
 #include "irq_chip.h"
+#include <type_traits>
 
 /**
  * Interface used to manage harware IRQs on a platform.
@@ -68,12 +69,8 @@ class Irq_mgr_single_chip : public Irq_mgr
 public:
   Irq_mgr_single_chip() {}
 
-  template<typename A1>
-  explicit Irq_mgr_single_chip(A1 const &a1) : c(a1) {}
-
-  template<typename A1, typename A2>
-  Irq_mgr_single_chip(A1 const &a1, A2 const &a2) : c(a1, a2) {}
-
+  template< typename... A >
+  explicit Irq_mgr_single_chip(A&&... args) : c(cxx::forward<A>(args)...) {}
 
   Irq chip(Mword irqnum) const { return Irq(&c, irqnum); }
   unsigned nr_irqs() const { return c.nr_irqs(); }

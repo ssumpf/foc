@@ -29,8 +29,14 @@ sys_call_page-asm.o: $(TCBOFFSET)
 $(KERNEL):	kernel.ux.lds $(OBJ_KERNEL) $(MINILIBC) $(LIBK) $(KERNEL_EXTRA_LIBS) $(ABI) $(JABI) $(DRIVERS) $(CXXLIB)
 		$(LINK_MESSAGE)
 		$(VERBOSE)$(CXX) -m32 -Wl,-T$< -static -o $@ -Wl,--whole-archive $(MINILIBC) -Wl,--no-whole-archive $(KERNEL_UNRES_SYMS) $(filter-out $<,$+) -lutil $(WRAP_SYMBOLS)
-		chmod 755 $@
-		ln -sf $@ fiasco
+		$(VERBOSE)chmod 755 $@
+		@$(ECHO) "  ==> Generating fiasco"
+		$(VERBOSE)ln -sf $@ fiasco
+		$(VERBOSE)preinit_array_start=$$(nm $(KERNEL) | grep __preinit_array_start | cut -d' ' -f1); \
+		  preinit_array_end=$$(nm $(KERNEL) | grep __preinit_array_end   | cut -d' ' -f1); \
+		  if [ "$$preinit_array_start" != "$$preinit_array_end" ]; then \
+		    echo "preinit_array content appeared, check linker symbols"; \
+		  fi
 
 irq0.o:		irq0.c
 		$(COMP_MESSAGE)

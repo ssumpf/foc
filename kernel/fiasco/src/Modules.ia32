@@ -12,7 +12,7 @@ endif
 PREPROCESS_PARTS 	+= arch $(CONFIG_ABI) 32bit iofp         \
 			   $(CONFIG_XARCH) apic abs-timeout-hack \
 			   i8259 pc i8254 fpu                    \
-			   abs_syscalls auto_map_kip
+			   abs_syscalls auto_map_kip io
 
 OBJ_SPACE-y = phys
 OBJ_SPACE-  = virt
@@ -30,7 +30,6 @@ PREPROCESS_PARTS-$(CONFIG_SCHED_HPET)        += hpet_timer
 PREPROCESS_PARTS-$(CONFIG_SERIAL)            += serial 16550
 PREPROCESS_PARTS-$(CONFIG_WATCHDOG)          += watchdog
 PREPROCESS_PARTS-$(CONFIG_PERF_CNT)          += perf_cnt
-PREPROCESS_PARTS-$(CONFIG_IO_PROT)           += io
 PREPROCESS_PARTS-$(CONFIG_CPU_VIRT)          += svm vmx
 PREPROCESS_PARTS-$(CONFIG_SCHED_FIXED_PRIO)  += sched_fixed_prio
 PREPROCESS_PARTS-$(CONFIG_SCHED_WFQ)         += sched_wfq
@@ -131,7 +130,8 @@ pmem_alloc_IMPL		:= pmem_alloc pmem_alloc-ia32-ux
 rtc_IMPL		:= rtc-ia32
 sched_context_IMPL	:= sched_context-wfq sched_context-fixed_prio \
 			   sched_context-fp_wfq sched_context
-space_IMPL		:= space space-ia32
+sigma0_task_IMPL	:= sigma0_task sigma0_task-io
+space_IMPL		:= space space-ia32 space-io
 spin_lock_IMPL		:= spin_lock spin_lock-ia32
 startup_IMPL		:= startup startup-ia32
 sys_call_page_IMPL	:= sys_call_page sys_call_page-abs-ia32
@@ -140,7 +140,7 @@ tb_entry_IMPL		:= tb_entry tb_entry-ia32-32
 timer_IMPL		:= timer timer-ia32-amd64-ux
 thread_IMPL		:= thread thread-ia32 thread-ia32-32 \
 			   thread-ipc thread-pagefault thread-log \
-			   thread-debug thread-dbf thread-vcpu
+			   thread-debug thread-dbf thread-vcpu thread-io
 utcb_init_IMPL		:= utcb_init utcb_init-ia32
 vmem_alloc_IMPL		:= vmem_alloc vmem_alloc-ia32
 vm_factory_IMPL         := vm_factory vm_factory-ia32
@@ -169,13 +169,6 @@ ifeq ("$(CONFIG_SCHED_HPET)","y")
   INTERFACES_KERNEL     += hpet
 endif
 
-
-ifeq ("$(CONFIG_IO_PROT)","y")
-  space_IMPL		+= space-io
-  sigma0_task_IMPL       = sigma0_task sigma0_task-io
-  thread_IMPL		+= thread-io
-endif
-
 ifeq ("$(CONFIG_JDB)","y")
 JDB			:= jdb_compound.o
 SUBSYSTEMS		+= JDB
@@ -188,7 +181,7 @@ INTERFACES_JDB		+= jdb jdb_util jdb_prompt_ext jdb_symbol jdb_lines \
 			   jdb_input jdb_dump jdb_ptab jdb_misc jdb_mapdb \
 			   jdb_tcb jdb_attach_irq \
 			   jdb_trace_set jdb_counters jdb_table kern_cnt  \
-			   tb_entry_output jdb_exit_module \
+			   jdb_exit_module \
 			   jdb_tbuf_show jdb_console_buffer \
 			   jdb_list jdb_screen push_console jdb_timeout \
 			   jdb_handler_queue jdb_halt_thread \
@@ -201,6 +194,8 @@ INTERFACES_JDB		+= jdb jdb_util jdb_prompt_ext jdb_symbol jdb_lines \
 			   jdb_log jdb_factory jdb_iomap \
                            jdb_thread jdb_scheduler jdb_sender_list \
 			   jdb_regex jdb_disasm
+
+CXXSRC_JDB := tb_entry_output.cc
 
 apic_IMPL		+= apic-debug
 jdb_IMPL		:= jdb jdb-ia32-amd64 jdb-ansi jdb-ia32-ux jdb-thread \

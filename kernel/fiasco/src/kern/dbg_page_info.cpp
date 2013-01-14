@@ -98,7 +98,7 @@ Dbg_page_info *
 Dbg_page_info_table::operator [] (Page_number pfn) const
 {
   Entry &e = const_cast<Dbg_page_info_table*>(this)->_tab[hash(pfn)];
-  Lock_guard<decltype(e.l)> g(&e.l);
+  auto g = lock_guard(e.l);
   // we know that *end() is NULL
   return *find(e.h.begin(), e.h.end(), pfn);
 }
@@ -108,7 +108,7 @@ void
 Dbg_page_info_table::insert(Dbg_page_info *i)
 {
   Entry *e = &_tab[hash(i->_pfn)];
-  Lock_guard<decltype(e->l)> g(&e->l);
+  auto g = lock_guard(e->l);
   e->h.add(i);
 }
 
@@ -117,7 +117,7 @@ Dbg_page_info *
 Dbg_page_info_table::remove(Page_number pfn)
 {
   Entry *e = &_tab[hash(pfn)];
-  Lock_guard<decltype(e->l)> g(&e->l);
+  auto g = lock_guard(e->l);
 
   List::Iterator i = find(e->h.begin(), e->h.end(), pfn);
   if (i == e->h.end())

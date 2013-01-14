@@ -225,7 +225,7 @@ Slab_cache::alloc()	// request initialized member from cache
   void *unused_block = 0;
   void *ret;
     {
-      Lock_guard<Lock> guard(&lock);
+      auto guard = lock_guard(lock);
 
       Slab *s = get_available_locked();
 
@@ -296,7 +296,7 @@ Slab_cache::free(void *cache_entry) // return initialized member to cache
 {
   Slab *to_free = 0;
     {
-      Lock_guard<Lock> guard(&lock);
+      auto guard = lock_guard(lock);
 
       Slab *s = reinterpret_cast<Slab*>
 	((reinterpret_cast<unsigned long>(cache_entry) & ~(_slab_size - 1)) + _slab_size - sizeof(Slab));
@@ -355,7 +355,7 @@ Slab_cache::reap()		// request that cache returns memory to system
   for (;;)
     {
 	{
-	  Lock_guard<Lock> guard(&lock);
+	  auto guard = lock_guard(lock);
 
 	  s = _empty.front();
 	  // nothing to free

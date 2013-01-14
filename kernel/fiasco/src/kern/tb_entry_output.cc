@@ -1,5 +1,3 @@
-IMPLEMENTATION:
-
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
@@ -9,6 +7,7 @@ IMPLEMENTATION:
 #include "jdb_symbol.h"
 #include "jdb_tbuf_output.h"
 #include "jdb_util.h"
+#include "kobject_dbg.h"
 #include "static_init.h"
 #include "tb_entry.h"
 #include "thread.h"
@@ -139,6 +138,39 @@ tag_interpreter_snprintf(char *&buf, int &maxlen, L4_msg_tag const &tag)
   maxlen -= len;
 }
 
+class Tb_entry_ipc_fmt : public Tb_entry_formatter
+{
+public:
+  unsigned print(Tb_entry const *, int, char *) const { return 0; }
+  Group_order has_partner(Tb_entry const *) const
+  { return Tb_entry::Group_order::first(); }
+  Group_order is_pair(Tb_entry const *e, Tb_entry const *n) const
+  {
+    if (static_cast<Tb_entry_ipc_res const *>(n)->pair_event() == e->number())
+      return Group_order::last();
+    else
+      return Group_order::none();
+  }
+  Mword partner(Tb_entry const *) const { return 0; }
+};
+
+class Tb_entry_ipc_res_fmt : public Tb_entry_formatter
+{
+public:
+  unsigned print(Tb_entry const *, int, char *) const { return 0; }
+  Group_order has_partner(Tb_entry const *) const
+  { return Tb_entry::Group_order::last(); }
+  Group_order is_pair(Tb_entry const *e, Tb_entry const *n) const
+  {
+    if (static_cast<Tb_entry_ipc_res const *>(e)->pair_event() == n->number())
+      return Group_order::first();
+    else
+      return Group_order::none();
+  }
+  Mword partner(Tb_entry const *e) const { return static_cast<Tb_entry_ipc_res const *>(e)->pair_event(); }
+};
+
+
 // ipc / irq / shortcut success
 static
 unsigned
@@ -248,9 +280,6 @@ formatter_ipc_res(Tb_entry *tb, const char *tidstr, unsigned tidlen,
   return maxlen;
 }
 
-IMPLEMENTATION:
-
-#include "kobject_dbg.h"
 
 // pagefault
 static
@@ -272,23 +301,19 @@ formatter_pf(Tb_entry *tb, const char *tidstr, unsigned tidlen,
   return maxlen;
 }
 
-// pagefault result
-static
+// pagefault
 unsigned
-formatter_pf_res(Tb_entry *tb, const char *tidstr, unsigned tidlen,
-		 char *buf, int maxlen)
+Tb_entry_pf::print(int maxlen, char *buf) const
 {
-  Tb_entry_pf_res *e = static_cast<Tb_entry_pf_res*>(tb);
+  char ip_buf[32];
 
-  // e->ret contains only an error code
-  // e->err contains only up to 3 dwords
-  my_snprintf(buf, maxlen, "     %-*s pfa=" L4_PTR_FMT " dope=%02lx (%s%s) "
-		"err=%04lx (%s%s)",
-	      tidlen, tidstr, e->pfa(),
-	      e->ret().raw(), e->ret().error() ? "L4_IPC_" : "",
-	      e->ret().str_error(),
-	      e->err().raw(), e->err().error() ? "L4_IPC_" : "",
-	      e->err().str_error());
+  snprintf(ip_buf, sizeof(ip_buf), L4_PTR_FMT, ip());
+  my_snprintf(buf, maxlen, "pfa=" L4_PTR_FMT " ip=%s (%c%c) spc=%p",
+      pfa(), ip() ? ip_buf : "unknown",
+      !PF::is_read_error(error()) ? (error() & 4 ? 'w' : 'W')
+                                  : (error() & 4 ? 'r' : 'R'),
+      !PF::is_translation_error(error()) ? 'p' : '-',
+      space());
 
   return maxlen;
 }
@@ -321,7 +346,7 @@ formatter_ke_reg(Tb_entry *tb, const char *tidstr, unsigned tidlen,
   snprintf(ip_buf, sizeof(ip_buf), " @ " L4_PTR_FMT, e->ip());
   my_snprintf(buf, maxlen, "ke:  %-*s \"%s\" "
       L4_PTR_FMT " " L4_PTR_FMT " " L4_PTR_FMT "%s",
-      tidlen, tidstr, e->msg(), e->val1(), e->val2(), e->val3(), 
+      tidlen, tidstr, e->msg(), e->v[0], e->v[1], e->v[2],
       e->ip() ? ip_buf : "");
 
   return maxlen;
@@ -367,52 +392,51 @@ formatter_bp(Tb_entry *tb, const char *tidstr, unsigned tidlen,
 }
 
 // context switch
-static
+//IMPLEMENT
 unsigned
-formatter_ctx_switch(Tb_entry *tb, const char *tidstr, unsigned tidlen,
-		     char *buf, int maxlen)
+Tb_entry_ctx_sw::print(int maxlen, char *buf) const
 {
-  char symstr[24], spcstr[16] = "";
-  Tb_entry_ctx_sw *e = static_cast<Tb_entry_ctx_sw*>(tb);
+  char symstr[24];
 
-  Context   *sctx    = 0;
+  Context *sctx = 0;
   Mword sctxid = ~0UL;
   Mword dst;
   Mword dst_orig;
 
-  sctx = e->from_sched()->context();
+  sctx = from_sched->context();
   sctxid = static_cast<Thread*>(sctx)->dbg_id();
 
-  dst = static_cast<Thread const *>(e->dst())->dbg_id();
-  dst_orig = static_cast<Thread const *>(e->dst_orig())->dbg_id();
+  dst = static_cast<Thread const *>(this->dst)->dbg_id();
+  dst_orig = static_cast<Thread const *>(this->dst_orig)->dbg_id();
 
-  Address addr       = e->kernel_ip();
+  Address addr = kernel_ip;
 
   if (!Jdb_symbol::match_addr_to_symbol_fuzzy(&addr, 0 /*kernel*/,
 					      symstr, sizeof(symstr)))
-    snprintf(symstr, sizeof(symstr), L4_PTR_FMT, e->kernel_ip());
-
+    snprintf(symstr, sizeof(symstr), L4_PTR_FMT, kernel_ip);
+#if 0
   my_snprintf(buf, maxlen, "     %-*s%s '%02lx",
       tidlen, tidstr, spcstr, e->from_prio());
-  if (sctx != e->ctx())
+#endif
+
+  if (sctx != ctx())
     my_snprintf(buf, maxlen, "(%lx)", sctxid);
 
   my_snprintf(buf, maxlen, " ==> %lx ", dst);
 
-  if (dst != dst_orig || e->lock_cnt())
+  if (dst != dst_orig || lock_cnt)
     my_snprintf(buf, maxlen, "(");
 
   if (dst != dst_orig)
-    my_snprintf(buf, maxlen, "want %lx",
-	dst_orig);
+    my_snprintf(buf, maxlen, "want %lx", dst_orig);
 
-  if (dst != dst_orig && e->lock_cnt())
+  if (dst != dst_orig && lock_cnt)
     my_snprintf(buf, maxlen, " ");
 
-  if (e->lock_cnt())
-    my_snprintf(buf, maxlen, "lck %ld", e->lock_cnt());
+  if (lock_cnt)
+    my_snprintf(buf, maxlen, "lck %ld", lock_cnt);
 
-  if (dst != dst_orig || e->lock_cnt())
+  if (dst != dst_orig || lock_cnt)
     my_snprintf(buf, maxlen, ") ");
 
   my_snprintf(buf, maxlen, " krnl %s", symstr);
@@ -422,67 +446,43 @@ formatter_ctx_switch(Tb_entry *tb, const char *tidstr, unsigned tidlen,
 
 
 // trap
-static
 unsigned
-formatter_trap(Tb_entry *tb, const char *tidstr, unsigned tidlen,
-	       char *buf, int maxlen)
+Tb_entry_trap::print(int maxlen, char *buf) const
 {
-  Tb_entry_trap *e = static_cast<Tb_entry_trap*>(tb);
-
-  if (!e->cs())
-    my_snprintf(buf, maxlen, "#%02x: %-*s err=%08x @ " L4_PTR_FMT,
-		e->trapno(), tidlen, tidstr, e->error(), e->ip());
+  if (!cs())
+    my_snprintf(buf, maxlen, "#%02x: err=%08x @ " L4_PTR_FMT,
+		trapno(), error(), ip());
   else
     my_snprintf(buf, maxlen,
-	        e->trapno() == 14
-		  ? "#%02x: %-*s err=%04x @ " L4_PTR_FMT
+	        trapno() == 14
+		  ? "#%02x: err=%04x @ " L4_PTR_FMT
 		    " cs=%04x sp=" L4_PTR_FMT " cr2=" L4_PTR_FMT
-		  : "#%02x: %-*s err=%04x @ " L4_PTR_FMT
+		  : "#%02x: err=%04x @ " L4_PTR_FMT
 		    " cs=%04x sp=" L4_PTR_FMT " eax=" L4_PTR_FMT,
-	        e->trapno(),
-		tidlen, tidstr, e->error(), e->ip(), e->cs(), e->sp(),
-		e->trapno() == 14 ? e->cr2() : e->eax());
+	        trapno(),
+		error(), ip(), cs(), sp(),
+		trapno() == 14 ? cr2() : eax());
 
   return maxlen;
 }
 
 // sched
-static
 unsigned
-formatter_sched(Tb_entry *tb, const char *tidstr, unsigned tidlen,
-		char *buf, int maxlen)
+Tb_entry_sched::print(int maxlen, char *buf) const
 {
-  Tb_entry_sched *e = static_cast<Tb_entry_sched*>(tb);
-  Thread const *_t = static_cast<Thread const *>(e->owner());
+  Thread const *_t = static_cast<Thread const *>(owner);
   Mword t = ~0UL;
   if (Jdb_util::is_mapped(_t))
     t = _t->dbg_id();
 
 
   my_snprintf(buf, maxlen, 
-            "%-*s (ts %s) owner:%lx id:%2x, prio:%2x, left:%6ld/%-6lu",
-               tidlen, tidstr,
-               e->mode() == 0 ? "save" :
-               e->mode() == 1 ? "load" :
-               e->mode() == 2 ? "invl" : "????",
-               t,
-               e->id(), e->prio(), e->left(), e->quantum());
-
-  return maxlen;
-}
-
-// preemption
-static
-unsigned
-formatter_preemption(Tb_entry *tb, const char *tidstr, unsigned tidlen,
-		     char *buf, int maxlen)
-{
-  Tb_entry_preemption *e = static_cast<Tb_entry_preemption*>(tb);
-  Mword t = e->preempter();
-
-  my_snprintf(buf, maxlen,
-	     "pre: %-*s sent to %lx",
-	     tidlen, tidstr, t);
+              "(ts %s) owner:%lx id:%2x, prio:%2x, left:%6ld/%-6lu",
+              mode == 0 ? "save" :
+              mode == 1 ? "load" :
+              mode == 2 ? "invl" : "????",
+              t,
+              id, prio, left, quantum);
 
   return maxlen;
 }
@@ -503,7 +503,8 @@ formatter_ke_bin(Tb_entry *tb, const char *tidstr, unsigned tidlen,
   return maxlen;
 }
 
-STATIC_INITIALIZER(init_formatters);
+static Tb_entry_ipc_fmt const _ipc_fmt;
+static Tb_entry_ipc_res_fmt const _ipc_res_fmt;
 
 // register all available format functions
 static FIASCO_INIT
@@ -511,16 +512,14 @@ void
 init_formatters()
 {
   Jdb_tbuf_output::register_ff(Tbuf_pf, formatter_pf);
-  Jdb_tbuf_output::register_ff(Tbuf_pf_res, formatter_pf_res);
   Jdb_tbuf_output::register_ff(Tbuf_ipc, formatter_ipc);
+  Tb_entry_formatter::set_fixed(Tbuf_ipc, &_ipc_fmt);
   Jdb_tbuf_output::register_ff(Tbuf_ipc_res, formatter_ipc_res);
+  Tb_entry_formatter::set_fixed(Tbuf_ipc_res, &_ipc_res_fmt);
   Jdb_tbuf_output::register_ff(Tbuf_ke, formatter_ke);
   Jdb_tbuf_output::register_ff(Tbuf_ke_reg, formatter_ke_reg);
-  Jdb_tbuf_output::register_ff(Tbuf_shortcut_succeeded, formatter_ipc);
-  Jdb_tbuf_output::register_ff(Tbuf_context_switch, formatter_ctx_switch);
   Jdb_tbuf_output::register_ff(Tbuf_breakpoint, formatter_bp);
-  Jdb_tbuf_output::register_ff(Tbuf_trap, formatter_trap);
-  Jdb_tbuf_output::register_ff(Tbuf_sched, formatter_sched);
-  Jdb_tbuf_output::register_ff(Tbuf_preemption, formatter_preemption);
   Jdb_tbuf_output::register_ff(Tbuf_ke_bin, formatter_ke_bin);
 }
+
+STATIC_INITIALIZER(init_formatters);

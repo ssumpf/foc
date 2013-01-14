@@ -2,6 +2,8 @@ INTERFACE:
 
 #include "types.h"
 
+#include <bitfield>
+
 /**
  * A L4 flex page.
  *
@@ -61,7 +63,8 @@ private:
    */
   L4_fpage(Type type, Mword address, unsigned char order,
            unsigned char rights)
-  : _raw(address | Raw(rights) | (Raw(order) << 6) | (Raw(type) << 4))
+  : _raw(  address | rights_bfm_t::val_dirty(rights)
+         | order_bfm_t::val_dirty(order) | type_bfm_t::val_dirty(type))
   {}
 
 public:
@@ -80,7 +83,7 @@ public:
    * \param order the order of the I/O flex page, size is 2^\a order ports.
    */
   static L4_fpage io(Mword port, unsigned char order)
-  { return L4_fpage(Io, port << Addr_shift, order, 0); }
+  { return L4_fpage(Io, adr_bfm_t::val_dirty(port), order, 0); }
 
   /**
    * Create an object flex page.
@@ -91,7 +94,7 @@ public:
    *              must be aligned to 2^(\a order + #Addr_shift.
    */
   static L4_fpage obj(Mword idx, unsigned char order, unsigned char rights = 0)
-  { return L4_fpage(Obj, idx & (~0UL << Addr_shift), order, rights); }
+  { return L4_fpage(Obj, idx & adr_bfm_t::Mask, order, rights); }
 
   /**
    * Create a memory flex page.
@@ -101,7 +104,7 @@ public:
    * \param order The size of the flex page is 2^\a order in bytes.
    */
   static L4_fpage mem(Mword addr, unsigned char order, unsigned char rights = 0)
-  { return L4_fpage(Memory, addr & (~0UL << Addr_shift), order, rights); }
+  { return L4_fpage(Memory, addr & adr_bfm_t::Mask, order, rights); }
 
   /**
    * Create a nil (invalid) flex page.
@@ -123,18 +126,6 @@ public:
   explicit L4_fpage(Raw raw) : _raw(raw) {}
 
   /**
-   * Get the type, see #L4_fpage::Type.
-   * \return the type of the flex page.
-   */
-  Type type() const { return Type((_raw >> 4) & 3); }
-
-  /**
-   * Get the order of a flex page.
-   * \return the order of the flex page (size is 2^\a order).
-   */
-  unsigned char order() const { return (_raw >> 6) & 0x3f; }
-
-  /**
    * The robust type for carrying virtual memory addresses.
    */
   typedef Virt_addr Mem_addr;
@@ -146,7 +137,7 @@ public:
    * \return The virtual memory base address of the flex page.
    */
   Virt_addr mem_address() const
-  { return Virt_addr(_raw & (~0UL << Addr_shift)); }
+  { return Virt_addr(adr_bfm_t::get_unshifted(_raw)); }
 
   /**
    * Get the capability address of an object flex page.
@@ -156,14 +147,14 @@ public:
    *         This value is not shifted, so it is a multiple of 0x1000.
    *         See obj_index() for reference.
    */
-  Mword obj_address() const { return _raw & (~0UL << Addr_shift); }
+  Mword obj_address() const { return adr_bfm_t::get_unshifted(_raw); }
 
   /**
    * Get the I/O-port number of an I/O flex page.
    * \pre type() must return #Io to return a valid value.
    * \return The I/O-port index of this flex page.
    */
-  Mword io_address() const { return _raw >> Addr_shift; }
+  Mword io_address() const { return adr(); }
 
   /**
    * Get the capability index of an object flex page.
@@ -173,7 +164,7 @@ public:
    *         This value is shifted #Addr_shift to be a real index
    *         (opposed to obj_address()).
    */
-  Mword obj_index() const { return _raw >> Addr_shift; }
+  Mword obj_index() const { return adr(); }
 
   /**
    * Test for memory flex page (if type() is #Memory).
@@ -199,7 +190,8 @@ public:
    * @return not zero, if the flex page covers the
    *   whole address space.
    */
-  Mword is_all_spaces() const { return (_raw & 0xff8) == (Whole_space << 6); }
+  Mword is_all_spaces() const
+  { return (_raw & (type_bfm_t::Mask | order_bfm_t::Mask)) == order_bfm_t::val(Whole_space); }
 
   /**
    * Is the flex page valid?
@@ -219,6 +211,17 @@ private:
 
 public:
 
+  /** \name Rights of the flex page */
+  CXX_BITFIELD_MEMBER( 0,  3, rights, _raw);
+  /** \name Type of the flex page */
+  CXX_BITFIELD_MEMBER( 4,  5, type, _raw);
+  /** \name Size (as power of 2) of the flex page */
+  CXX_BITFIELD_MEMBER( 6, 11, order, _raw);
+private:
+  /** \name Address encoded in the flex page */
+  CXX_BITFIELD_MEMBER(12, MWORD_BITS-1, adr, _raw);
+
+public:
   /**
    * Rights bits for flex pages.
    *
@@ -258,17 +261,10 @@ public:
   };
 
   /**
-   * Get the rights associated with this flexpage.
-   * \return The rights associated with this flex page. The semantics of this
-   *         value also depends on the type (type()) of the flex page.
-   */
-  Rights rights() const { return Rights(_raw & FULL); }
-
-  /**
    * Remove the given rights from this flex page.
    * \param r the rights to remove. The semantics depend on the
    *          type (type()) of the flex page.
    */
-  void mask_rights(Rights r) { _raw &= (Mword(r) | ~0x0fUL); }
+  void mask_rights(Rights r) { _raw &= (Mword(r) | ~rights_bfm_t::Mask); }
 };
 

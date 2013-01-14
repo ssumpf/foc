@@ -609,7 +609,7 @@ Usermode::emu_handler (int, siginfo_t *, void *ctx)
   struct ucontext *context = reinterpret_cast<struct ucontext *>(ctx);
   unsigned int trap = context->uc_mcontext.gregs[REG_TRAPNO];
 
-  unsigned _cpu = Cpu::p2l(Cpu::phys_id_direct());
+  unsigned _cpu = Cpu::cpus.find_cpu(Cpu::By_phys_id(Cpu::phys_id_direct()));
 
   if (trap == 0xd)	/* General protection fault */
     {
@@ -664,7 +664,7 @@ Usermode::int_handler (int, siginfo_t *, void *ctx)
 
   Pic::eat (irq);
 
-  kernel_entry (Cpu::p2l(Cpu::phys_id_direct()),
+  kernel_entry (Cpu::cpus.find_cpu(Cpu::By_phys_id(Cpu::phys_id_direct())),
                 context,
                 gate,
                 context->uc_mcontext.gregs[REG_SS],     /* XSS */
@@ -696,7 +696,7 @@ Usermode::jdb_handler (int sig, siginfo_t *, void *ctx)
   signal (SIGSEGV, SIG_IGN);    // Cancel signal
   set_signal (SIGSEGV);         // Reinstall handler
 
-  kernel_entry (Cpu::p2l(Cpu::phys_id_direct()),
+  kernel_entry (Cpu::cpus.find_cpu(Cpu::By_phys_id(Cpu::phys_id_direct())),
                 context, sig == SIGTRAP ? 3 : 1,
                 context->uc_mcontext.gregs[REG_SS],     /* XSS */
                 context->uc_mcontext.gregs[REG_ESP],	/* ESP */

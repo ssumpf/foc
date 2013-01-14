@@ -48,7 +48,7 @@ Context::vcpu_save_state_and_upcall()
   _exc_cont.activate(regs(), leave_by_vcpu_upcall);
 }
 
-PUBLIC inline NEEDS["fpu.h", "space.h"]
+PUBLIC inline NEEDS["fpu.h", "space.h", Context::arch_load_vcpu_kern_state]
 bool
 Context::vcpu_enter_kernel_mode(Vcpu_state *vcpu)
 {
@@ -70,7 +70,11 @@ Context::vcpu_enter_kernel_mode(Vcpu_state *vcpu)
 	  _space.user_mode(false);
 	  state_del_dirty(Thread_vcpu_fpu_disabled);
 
-	  if (current() == this)
+          bool load_cpu_state = current() == this;
+
+          arch_load_vcpu_kern_state(vcpu, load_cpu_state);
+
+	  if (load_cpu_state)
 	    {
 	      if (state() & Thread_fpu_owner)
 		Fpu::enable();
@@ -144,25 +148,23 @@ IMPLEMENTATION [debug]:
 
 IMPLEMENT
 unsigned
-Context::vcpu_log_fmt(Tb_entry *e, int maxlen, char *buf)
+Context::Vcpu_log::print(int maxlen, char *buf) const
 {
-  Vcpu_log *l = e->payload<Vcpu_log>();
-
-  switch (l->type)
+  switch (type)
     {
     case 0:
     case 4:
       return snprintf(buf, maxlen, "%sret pc=%lx sp=%lx state=%lx task=D:%lx",
-	  l->type == 4 ? "f" : "", l->ip, l->sp, l->state, l->space);
+	  type == 4 ? "f" : "", ip, sp, state, space);
     case 1:
       return snprintf(buf, maxlen, "ipc from D:%lx task=D:%lx sp=%lx",
-	  Kobject_dbg::pointer_to_id((Kobject*)l->ip), l->state, l->sp);
+	  Kobject_dbg::pointer_to_id((Kobject*)ip), state, sp);
     case 2:
       return snprintf(buf, maxlen, "exc #%x err=%lx pc=%lx sp=%lx state=%lx task=D:%lx",
-	  (unsigned)l->trap, l->err, l->ip, l->sp, l->state, l->space);
+	  (unsigned)trap, err, ip, sp, state, space);
     case 3:
       return snprintf(buf, maxlen, "pf  pc=%lx pfa=%lx state=%lx task=D:%lx",
-	  l->ip, l->sp, l->state, l->space);
+	  ip, sp, state, space);
     default:
       return snprintf(buf, maxlen, "unknown");
     }

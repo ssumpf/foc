@@ -30,6 +30,13 @@ enum {
 
 /// (virtual or physical address) should be addr_t or something
 typedef unsigned long int      Address;
+enum Address_vals
+#ifdef __cplusplus
+: Address
+#endif
+{
+  Invalid_address = ~0UL
+};
 
 typedef Unsigned64 Cpu_time;
 

@@ -75,6 +75,8 @@ protected:
   };
 
   Bitmap_base() {}
+  Bitmap_base(Bitmap_base const &) = delete;
+  Bitmap_base &operator = (Bitmap_base const &) = delete;
 
 private:
   unsigned long *_bits()
@@ -137,6 +139,10 @@ protected:
     Bpl      = sizeof(unsigned long) * 8,
   };
   unsigned long _bits[1];
+
+  Bitmap_base() {}
+  Bitmap_base(Bitmap_base const &) = delete;
+  Bitmap_base &operator = (Bitmap_base const &) = delete;
 };
 
 template<int BITS>
@@ -156,6 +162,13 @@ public:
 	return false;
     return true;
   }
+
+  Bitmap() {}
+  Bitmap(Bitmap const &o)
+  { __builtin_memcpy(_bits, o._bits, sizeof(_bits)); }
+
+  Bitmap &operator = (Bitmap const &o)
+  { __builtin_memcpy(_bits, o._bits, sizeof(_bits)); return *this; }
 
 private:
   enum {

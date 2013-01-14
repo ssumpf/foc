@@ -35,16 +35,10 @@
 
 #include <l4/sys/ipc-invoke.h>
 
-#define GCC_VERSION	(__GNUC__ * 100 + __GNUC_MINOR__)  ///< GCC in a single figure (e.g. 402 for gcc-4.2)
-
 #ifdef PROFILE
 #  include "ipc-l42-profile.h"
 #else
-#  if GCC_VERSION < 303
-#    error gcc >= 3.3 required
-#  else
-#    include "ipc-l42-gcc3.h"
-#  endif
+#  include "ipc-l42-gcc3.h"
 #endif
 
 #include <l4/sys/ipc-impl.h>

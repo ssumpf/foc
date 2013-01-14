@@ -89,7 +89,7 @@ config $(filter config %config,$(MAKECMDGOALS)): fiasco.builddir.create
 fiasco: fiasco.builddir.create
 	$(MAKE) -C $(DFLBUILDDIR) -j$(PL)
 
-checkall l4check:
+checkallseq:
 	error=0;						      \
 	$(RM) -r $(ALLBUILDDIR);				      \
 	for X in $(TEST_TEMPLATES); do				      \
@@ -109,7 +109,7 @@ checkall l4check:
 	[ "$$failed" ] && echo -e "\nFailed configurations:$$failed"; \
 	exit $$error;
 
-checkallp:
+checkall l4check:
 	$(RM) -r $(ALLBUILDDIR)
 	$(MAKE) dobuildparallel SHELL=bash
 

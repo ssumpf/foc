@@ -1,3 +1,25 @@
+INTERFACE [debug]:
+
+#include "tb_entry.h"
+
+EXTENSION class Thread
+{
+protected:
+  struct Log_pf_invalid : public Tb_entry
+  {
+    Mword pfa;
+    Mword cap_idx;
+    Mword err;
+    unsigned print(int max, char *buf) const;
+  };
+
+  struct Log_exc_invalid : public Tb_entry
+  {
+    Mword cap_idx;
+    unsigned print(int max, char *buf) const;
+  };
+};
+
 INTERFACE:
 
 #include "l4_buf_iter.h"
@@ -8,18 +30,6 @@ class Syscall_frame;
 EXTENSION class Thread
 {
 protected:
-  struct Log_pf_invalid
-  {
-    Mword pfa;
-    Mword cap_idx;
-    Mword err;
-  };
-
-  struct Log_exc_invalid
-  {
-    Mword cap_idx;
-  };
-
   enum Check_sender_result
   {
     Ok = 0,
@@ -53,6 +63,31 @@ public:
 private:
   Mword msg[2];
 };
+
+struct Ipc_remote_request;
+
+struct Ipc_remote_request
+{
+  L4_msg_tag tag;
+  Thread *partner;
+  Syscall_frame *regs;
+  unsigned char rights;
+  bool timeout;
+  bool have_rcv;
+
+  unsigned result;
+};
+
+struct Ready_queue_request
+{
+  Thread *thread;
+  Mword state_add;
+  Mword state_del;
+
+  enum Result { Done, Wrong_cpu, Not_existent };
+  Result result;
+};
+
 
 // ------------------------------------------------------------------------
 INTERFACE [debug]:
@@ -139,7 +174,9 @@ Thread::ipc_send_msg(Receiver *recv)
   if (cpu() == current_cpu())
     {
       state_change_dirty(~state_del, state_add);
-      if (current_sched()->deblock(cpu(), current_sched(), true))
+      auto &rq = Sched_context::rq.current();
+      Sched_context *cs = rq.current_sched();
+      if (rq.deblock(cs, cs, true))
 	recv->switch_to_locked(this);
     }
   else
@@ -203,7 +240,7 @@ Thread::handle_page_fault_pager(Thread_ptr const &_pager,
   if (EXPECT_FALSE((state() & Thread_alien)))
     return false;
 
-  Lock_guard<Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
 
   unsigned char rights;
   Kobject_iface *pager = _pager.ptr(space(), &rights);
@@ -216,9 +253,7 @@ Thread::handle_page_fault_pager(Thread_ptr const &_pager,
            _pager.raw(), regs()->ip());
 
 
-      LOG_TRACE("Page fault invalid pager", "pf", this,
-                __fmt_page_fault_invalid_pager,
-                Log_pf_invalid *l = tbe->payload<Log_pf_invalid>();
+      LOG_TRACE("Page fault invalid pager", "pf", this, Log_pf_invalid,
                 l->cap_idx = _pager.raw();
                 l->err     = error_code;
                 l->pfa     = pfa);
@@ -325,7 +360,7 @@ void Thread::goto_sleep(L4_timeout const &t, Sender *sender, Utcb *utcb)
       if (EXPECT_TRUE((tval > sysclock)))
 	{
 	  set_timeout(&timeout);
-	  timeout.set(tval, cpu());
+	  timeout.set(tval, cpu(true));
 	}
       else // timeout already hit
 	state_change_dirty(~Thread_ipc_mask, Thread_ready | Thread_timeout);
@@ -339,7 +374,7 @@ void Thread::goto_sleep(L4_timeout const &t, Sender *sender, Utcb *utcb)
     }
 
   if (sender == this)
-    switch_sched(sched());
+    switch_sched(sched(), &Sched_context::rq.current());
 
   schedule();
 
@@ -521,13 +556,21 @@ Thread::do_ipc(L4_msg_tag const &tag, bool have_send, Thread *partner,
     {
       if (partner->cpu() == current_cpu())
 	{
-	  Sched_context *cs = Sched_context::rq(cpu()).current_sched();
-	  do_switch = do_switch && ((have_receive && sender) || cs->context() != this)
-	              && !(next && current_sched()->dominates(cs));
+          auto &rq = Sched_context::rq.current();
+	  Sched_context *cs = rq.current_sched();
+	  do_switch = do_switch && ((have_receive && sender) || cs->context() != this) && !next;
 	  partner->state_change_dirty(~Thread_ipc_transfer, Thread_ready);
 	  if (do_switch)
-	    schedule_if(handle_drq() || switch_exec_locked(partner, Context::Not_Helping));
-	  else if (partner->current_sched()->deblock(current_cpu(), current_sched(), true))
+            {
+              if (handle_drq())
+                {
+                  rq.deblock(partner->sched(), cs, false);
+                  schedule();
+                }
+              else
+                schedule_if(switch_exec_locked(partner, Context::Not_Helping));
+            }
+	  else if (rq.deblock(partner->sched(), cs, true))
 	    switch_to_locked(partner);
 	}
       else
@@ -721,8 +764,7 @@ Thread::send_exception(Trap_state *ts)
 	  vcpu = vcpu_state().access();
 	}
 
-      LOG_TRACE("VCPU events", "vcpu", this, __context_vcpu_log_fmt,
-	  Vcpu_log *l = tbe->payload<Vcpu_log>();
+      LOG_TRACE("VCPU events", "vcpu", this, Vcpu_log,
 	  l->type = 2;
 	  l->state = vcpu->_saved_state;
 	  l->ip = ts->ip();
@@ -748,9 +790,7 @@ Thread::send_exception(Trap_state *ts)
   if (EXPECT_FALSE(!pager))
     {
       /* no pager (anymore), just ignore the exception, return success */
-      LOG_TRACE("Exception invalid handler", "exc", this,
-                __fmt_exception_invalid_handler,
-                Log_exc_invalid *l = tbe->payload<Log_exc_invalid>();
+      LOG_TRACE("Exception invalid handler", "exc", this, Log_exc_invalid,
                 l->cap_idx = _exc_handler.raw());
       if (EXPECT_FALSE(space()->is_sigma0()))
 	{
@@ -929,13 +969,13 @@ Thread::transfer_msg_items(L4_msg_tag const &tag, Thread* snd, Utcb *snd_utcb,
 		  // We take the existence_lock for syncronizing maps...
 		  // This is kind of coarse grained
 		  Lock_guard<decltype(rcv_t->existence_lock)> sp_lock;
-		  if (!sp_lock.try_lock(&rcv_t->existence_lock))
+		  if (!sp_lock.check_and_lock(&rcv_t->existence_lock))
 		    {
 		      snd->set_ipc_error(L4_error::Overflow, rcv);
 		      return false;
 		    }
 
-		  Lock_guard<Cpu_lock, Lock_guard_inverse_policy> c_lock(&cpu_lock);
+		  auto c_lock = lock_guard(cpu_lock);
 		  err = fpage_map(snd->space(), sfp,
 		      rcv->space(), L4_fpage(buf->d), item->b, &rl);
 		}
@@ -1062,49 +1102,6 @@ Thread::set_ipc_send_rights(unsigned char c)
   _ipc_send_rights = c;
 }
 
-//---------------------------------------------------------------------
-IMPLEMENTATION [!mp]:
-
-PRIVATE inline NEEDS ["l4_types.h"]
-unsigned
-Thread::remote_handshake_receiver(L4_msg_tag const &, Thread *,
-                                  bool, L4_timeout, Syscall_frame *, unsigned char)
-{
-  kdb_ke("Remote IPC in UP kernel");
-  return Failed;
-}
-
-//---------------------------------------------------------------------
-INTERFACE [mp]:
-
-struct Ipc_remote_request;
-
-struct Ipc_remote_request
-{
-  L4_msg_tag tag;
-  Thread *partner;
-  Syscall_frame *regs;
-  unsigned char rights;
-  bool timeout;
-  bool have_rcv;
-
-  unsigned result;
-};
-
-struct Ready_queue_request
-{
-  Thread *thread;
-  Mword state_add;
-  Mword state_del;
-
-  enum Result { Done, Wrong_cpu, Not_existent };
-  Result result;
-};
-
-//---------------------------------------------------------------------
-IMPLEMENTATION [mp]:
-
-
 PRIVATE inline NOEXPORT
 bool
 Thread::remote_ipc_send(Context *src, Ipc_remote_request *rq)
@@ -1222,16 +1219,14 @@ IMPLEMENTATION [debug]:
 
 IMPLEMENT
 unsigned
-Thread::log_fmt_pf_invalid(Tb_entry *e, int max, char *buf)
+Thread::Log_pf_invalid::print(int max, char *buf) const
 {
-  Log_pf_invalid *l = e->payload<Log_pf_invalid>();
-  return snprintf(buf, max, "InvCap C:%lx pfa=%lx err=%lx", l->cap_idx, l->pfa, l->err);
+  return snprintf(buf, max, "InvCap C:%lx pfa=%lx err=%lx", cap_idx, pfa, err);
 }
 
 IMPLEMENT
 unsigned
-Thread::log_fmt_exc_invalid(Tb_entry *e, int max, char *buf)
+Thread::Log_exc_invalid::print(int max, char *buf) const
 {
-  Log_exc_invalid *l = e->payload<Log_exc_invalid>();
-  return snprintf(buf, max, "InvCap C:%lx", l->cap_idx);
+  return snprintf(buf, max, "InvCap C:%lx", cap_idx);
 }

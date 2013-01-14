@@ -164,6 +164,7 @@ our $print_indent = 0;
 clear_head();
 
 my %classes = ();
+my %functions = ();
 my %sections = ();
 my %impl_parts = ();
 my %includes = ();
@@ -1066,6 +1067,14 @@ sub handle_function
 	  $func->{visibility} = "implementation_only";
           $func->{pretext} =~ s|IMPLEMENT[ \t]*||s;
         }
+      elsif (s/^($s)IMPLEMENT_DEFAULT([\s\n])/$1$2/s)
+        {
+	  # Use a visibility attribute that is never used in adding
+	  # declarations to classes in print_classdecl.
+	  $func->{visibility} = "implementation_only";
+	  $func->{default_impl} = 1;
+          $func->{pretext} =~ s|IMPLEMENT_DEFAULT[ \t]*||s;
+        }
 
       if ($func->{posttext} =~ s/$s=${s}0$s;$s$//s)
         {
@@ -1211,6 +1220,18 @@ sub handle_function
 
 	  next;
         }
+      if (s/^($s)IMPLEMENT_DEFAULT([\s\n])/$1$2/s)
+        {
+          $func->{pretext} =~ s/IMPLEMENT_DEFAULT[ \t]*//s;
+
+	  if ($func->{class} eq '')
+	    {
+	      $func->{visibility} = "implementation_only";
+              $func->{default_impl} = 1;
+	    }
+
+	  next;
+        }
 
       if (s/^($s)explicit([\s\n])/$1$2/s)
         {
@@ -1240,6 +1261,23 @@ sub handle_function
     {
       die "${ARGV}:${lineno}: Function " . $func->{name} 
           . " in INTERFACE section;";
+    }
+
+  if (defined $functions{"$func->{class}::$func->{name}"})
+    {
+      my $f = $functions{"$func->{class}::$func->{name}"};
+      if (defined $f->{default_impl})
+        {
+          $f->{printed} = 1;
+        }
+      elsif (defined $func->{default_impl})
+        {
+          $func->{printed} = 1;
+        }
+    }
+  else
+    {
+      $functions{"$func->{class}::$func->{name}"} = $func;
     }
 
   push @{$classes{$func->{class}}->{funcs}}, $func;

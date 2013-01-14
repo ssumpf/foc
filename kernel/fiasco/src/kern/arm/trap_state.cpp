@@ -12,14 +12,15 @@ public:
   Mword pf_address;
   Mword error_code;
 
+  Mword tpidruro;
   Mword r[13];
 };
-
 
 class Trap_state : public Trap_state_regs, public Return_frame
 {
 public:
   typedef int (*Handler)(Trap_state*, unsigned cpu);
+  bool exclude_logging() { return false; }
 };
 
 

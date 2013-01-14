@@ -12,19 +12,25 @@ foreach my $f (@ARGV) {
   open(X, $f) || die "Cannot open $f: $!";
   my $pf;
   my $pfdescr;
-  my $pfcan;
-  my $pfdep;
+  my @pfselect;
+  my @pfdep;
   while ($_=<X>) {
-    $pf      = $1 if /^\s*\#\s*PF:\s*(\S+)/;
-    $pfdescr = $1 if /^\s*\#\s*PFDESCR:\s*(.+)/;
-    $pfcan   = $1 if /^\s*\#\s*PFCAN:\s*(.+)/;
-    $pfdep   = $1 if /^\s*\#\s*PFDEPENDS:\s*(.+)/;
+    $pf       = $1 if /^\s*\#\s*PF:\s*(\S+)/;
+    $pfdescr  = $1 if /^\s*\#\s*PFDESCR:\s*(.+)/;
+    push(@pfselect, split(/\s+/, $1)) if /^\s*\#\s*PFSELECT:\s*(.+)/;
+    push(@pfdep,    split(/\s+/, $1)) if /^\s*\#\s*PFDEPENDS:\s*(.+)/;
+
+    if (/^\s*\#\s*PFCAN:\s*(.+)/)
+      {
+        push(@pfselect, split(/\s+/, $1));
+        print "WARN: $f:$.: PFCAN is deprecated, use PFSELECT\n";
+      }
   }
-  $pfs{$pf}{file} = $f;
-  $pfs{$pf}{desc} = $pfdescr;
-  $pfs{$pf}{can}  = $pfcan;
-  $pfs{$pf}{dep}  = $pfdep;
-  $pfs{$pf}{name} = $bsp_name;
+  $pfs{$pf}{file}      = $f;
+  $pfs{$pf}{desc}      = $pfdescr;
+  @{$pfs{$pf}{select}} = @pfselect;
+  @{$pfs{$pf}{dep}}    = @pfdep;
+  $pfs{$pf}{name}      = $bsp_name;
   close X;
 }
 open(IN, "$kconfig_src_file") || die "Cannot open $kconfig_src_file: $!";
@@ -49,16 +55,8 @@ while ($_=<IN>) {
       } else {
 	print OUT "config PF_$i\n	bool \"$i Platform\"\n";
       }
-      if (defined $pfs{$i}{dep}) {
-	foreach my $c (split(/\s+/, $pfs{$i}{dep})) {
-	  print OUT "	depends on $c\n";
-	}
-      }
-      if (defined $pfs{$i}{can}) {
-	foreach my $c (split(/\s+/, $pfs{$i}{can})) {
-	  print OUT "	select $c\n";
-	}
-      }
+      print OUT "	depends on $_\n" foreach (@{$pfs{$i}{dep}});
+      print OUT "	select $_\n" foreach (@{$pfs{$i}{select}});
       print OUT "\n";
     }
   }

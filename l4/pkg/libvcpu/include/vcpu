@@ -225,7 +225,7 @@ public:
   { l4_vcpu_state_t::entry_ip = ip; }
 
   /**
-   * \brief Allocate state area for an extented vCPU.
+   * \brief Allocate state area for an extended vCPU.
    *
    * \retval vcpu      Allocated vcpu-state area.
    * \retval ext_state Allocated extended vcpu-state area.
@@ -241,7 +241,7 @@ public:
             L4::Cap<L4Re::Rm> rm = L4Re::Env::env()->rm()) throw();
 
   /**
-   * \brief Cast a void ponter to a class pointer.
+   * \brief Cast a void pointer to a class pointer.
    *
    * \param x Pointer.
    *

@@ -10,5 +10,5 @@ IMPLEMENTATION [arm && kirkwood]:
 void
 map_hw(void *pd)
 {
-  map_1mb(pd, Mem_layout::Devices0_map_base, Mem_layout::Devices0_phys_base, false, false);
+  map_dev<Mem_layout::Devices0_phys_base>(pd, 0);
 }

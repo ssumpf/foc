@@ -49,6 +49,10 @@ __pthread_attr_init(pthread_attr_t *attr)
   attr->__stackaddr = NULL;
   attr->__stackaddr_set = 0;
   attr->__stacksize = STACK_SIZE - ps;
+
+  // L4 specifics
+  attr->affinity = l4_sched_cpu_set(0, ~0, 1);
+  attr->create_flags = 0;
   return 0;
 }
 strong_alias (__pthread_attr_init, pthread_attr_init)

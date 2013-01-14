@@ -272,7 +272,7 @@ l4_vcon_read_u(l4_cap_idx_t vcon, char *buf, int size, l4_utcb_t *utcb) L4_NOTHR
   else
     ret = size;
 
-  __builtin_memcpy(buf, &mr->mr[1], r);
+  __builtin_memcpy(buf, &mr->mr[1], r < size ? r : size);
   return ret;
 }
 

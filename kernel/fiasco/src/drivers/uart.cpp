@@ -125,7 +125,7 @@ public:
   {
     MODE_8N1 = 1,
   };
-protected:
+
   static L4::Uart *uart();
 };
 

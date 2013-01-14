@@ -299,8 +299,7 @@ void
 Task::operator delete (void *ptr)
 {
   Task *t = reinterpret_cast<Task*>(ptr);
-  LOG_TRACE("Kobject delete", "del", current(), __fmt_kobj_destroy,
-            Log_destroy *l = tbe->payload<Log_destroy>();
+  LOG_TRACE("Kobject delete", "del", current(), Log_destroy,
             l->id = t->dbg_id();
             l->obj = t;
             l->type = "Task";
@@ -351,18 +350,16 @@ Task::destroy(Kobject ***reap_list)
   Kobject::destroy(reap_list);
 
   fpage_unmap(this, L4_fpage::all_spaces(L4_fpage::RWX), L4_map_mask::full(), reap_list);
-  Space::destroy();
 }
 
 PRIVATE inline NOEXPORT
 L4_msg_tag
 Task::sys_map(unsigned char rights, Syscall_frame *f, Utcb *utcb)
 {
-  LOG_TRACE("Task map", "map", ::current(), __task_unmap_fmt,
-      Log_unmap *lu = tbe->payload<Log_unmap>();
-      lu->id = dbg_id();
-      lu->mask  = utcb->values[1];
-      lu->fpage = utcb->values[2]);
+  LOG_TRACE("Task map", "map", ::current(), Log_unmap,
+      l->id = dbg_id();
+      l->mask  = utcb->values[1];
+      l->fpage = utcb->values[2]);
 
   if (EXPECT_FALSE(!(rights & L4_fpage::W)))
     return commit_result(-L4_err::EPerm);
@@ -393,7 +390,7 @@ Task::sys_map(unsigned char rights, Syscall_frame *f, Utcb *utcb)
       Lock_guard_2<Lock> guard;
 
       // FIXME: avoid locking the current task, it is not needed
-      if (!guard.lock(&existence_lock, &from->existence_lock))
+      if (!guard.check_and_lock(&existence_lock, &from->existence_lock))
         return commit_result(-L4_err::EInval);
 
       cpu_lock.clear();
@@ -422,17 +419,16 @@ Task::sys_unmap(Syscall_frame *f, Utcb *utcb)
   ::Reap_list rl;
   unsigned words = f->tag().words();
 
-  LOG_TRACE("Task unmap", "unm", ::current(), __task_unmap_fmt,
-            Log_unmap *lu = tbe->payload<Log_unmap>();
-            lu->id = dbg_id();
-            lu->mask  = utcb->values[1];
-            lu->fpage = utcb->values[2]);
+  LOG_TRACE("Task unmap", "unm", ::current(), Log_unmap,
+            l->id = dbg_id();
+            l->mask  = utcb->values[1];
+            l->fpage = utcb->values[2]);
 
     {
       Lock_guard<Lock> guard;
 
       // FIXME: avoid locking the current task, it is not needed
-      if (!guard.try_lock(&existence_lock))
+      if (!guard.check_and_lock(&existence_lock))
         return commit_error(utcb, L4_error::Not_existent);
 
       cpu_lock.clear();
@@ -577,17 +573,19 @@ Task::~Task()
 // ---------------------------------------------------------------------------
 INTERFACE [debug]:
 
+#include "tb_entry.h"
+
 EXTENSION class Task
 {
 private:
-  struct Log_unmap
+  struct Log_unmap : public Tb_entry
   {
     Mword id;
     Mword mask;
     Mword fpage;
+    unsigned print(int max, char *buf) const;
   } __attribute__((packed));
 
-  static unsigned unmap_fmt(Tb_entry *, int max, char *buf) asm ("__task_unmap_fmt");
 };
 
 // ---------------------------------------------------------------------------
@@ -595,12 +593,11 @@ IMPLEMENTATION [debug]:
 
 IMPLEMENT
 unsigned
-Task::unmap_fmt(Tb_entry *e, int max, char *buf)
+Task::Log_unmap::print(int max, char *buf) const
 {
-  Log_unmap *l = e->payload<Log_unmap>();
-  L4_fpage fp(l->fpage);
+  L4_fpage fp(fpage);
   return snprintf(buf, max, "task=[U:%lx] mask=%lx fpage=[%u/%u]%lx",
-                  l->id, l->mask, (unsigned)fp.order(), fp.type(), l->fpage);
+                  id, mask, (unsigned)fp.order(), (unsigned)fp.type(), fpage);
 }
 
 // ---------------------------------------------------------------------------

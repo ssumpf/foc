@@ -22,6 +22,41 @@ IMPLEMENTATION:
 #include "static_init.h"
 #include "thread.h"
 
+class Entry_group
+{
+public:
+  enum { Max_group_size = 10 };
+  typedef Tb_entry::Group_order Group_order;
+
+  struct Item
+  {
+    Tb_entry const *e;
+    Mword y;
+    Group_order order;
+    Item() : e(0), y(0), order(Group_order::none()) {}
+  };
+
+  Entry_group() : _c(0) {}
+
+  Item const &operator [] (unsigned i) const { return _i[i]; }
+  Item &operator [] (unsigned i) { return _i[i]; }
+  unsigned size() const { return _c; }
+  bool full() const { return _c >= Max_group_size; }
+  unsigned push_back(Tb_entry const *e, Mword y, Group_order t)
+  {
+    unsigned p = _c++;
+    Item *u = &_i[p];
+    u->e = e;
+    u->y = y;
+    u->order = t;
+    return p;
+  }
+
+private:
+  unsigned _c;
+  Item _i[Max_group_size];
+};
+
 class Jdb_tbuf_show : public Jdb_module
 {
 public:
@@ -494,7 +529,7 @@ Jdb_tbuf_show::show_events(Mword n, Mword ref, Mword count, Unsigned8 mode,
 		  }
 	    }
 	  printf("%s%-*.*s %12s\033[m%s",
-    	         c, Jdb_screen::width()-13, (int)Jdb_screen::width()-13,
+	         c, Jdb_screen::width()-13, (int)Jdb_screen::width()-13,
 		 _buffer_str+y_offset, s, count != 1 ? "\n" : "");
 	}
        n++;
@@ -503,7 +538,7 @@ Jdb_tbuf_show::show_events(Mword n, Mword ref, Mword count, Unsigned8 mode,
 
 // search in tracebuffer
 static Mword
-Jdb_tbuf_show::search(Mword start, Mword entries, const char *str, 
+Jdb_tbuf_show::search(Mword start, Mword entries, const char *str,
 		      Unsigned8 direction)
 {
   Mword found = Nil;
@@ -521,7 +556,7 @@ Jdb_tbuf_show::search(Mword start, Mword entries, const char *str,
     {
       static char buffer[120];
 
-      // don't cycle through entries more than once 
+      // don't cycle through entries more than once
       // (should not happen due to the following check)
       if (n == start)
 	break;
@@ -549,11 +584,11 @@ Jdb_tbuf_show::search(Mword start, Mword entries, const char *str,
 
       if (Jdb_regex::avail() && Jdb_regex::find(buffer, 0, 0))
 	{
-     	  found = n;
+	  found = n;
 	  break;
 	}
       else if (strstr(buffer, str))
-      	{
+	{
 	  found = n;
 	  break;
 	}
@@ -564,6 +599,62 @@ Jdb_tbuf_show::search(Mword start, Mword entries, const char *str,
   putchar('t');
 
   return found;
+}
+
+
+static void
+Jdb_tbuf_show::find_group(Entry_group *g, Tb_entry const *e, bool older, unsigned lines,
+                          unsigned depth)
+{
+  typedef Entry_group::Group_order Group_order;
+
+  Tb_entry_formatter const *fmt = Tb_entry_formatter::get_fmt(e);
+  Mword idx = Jdb_tbuf::unfiltered_idx(e);
+  int dir = older ? 1 : -1;
+  while (idx > 0 && !g->full())
+    {
+      idx += dir;
+      Tb_entry *e1 = Jdb_tbuf::unfiltered_lookup(idx);
+      if (!e1)
+        return;
+
+      Mword py;
+      Group_order t = fmt->is_pair(e, e1);
+      if (t.grouped())
+        {
+          py = Jdb_tbuf::idx(e1);
+          if (py < _absy || py >= _absy + lines)
+            return;
+
+          if (older && t.depth() >= depth)
+            return;
+          if (!older && t.depth() <= depth)
+            return;
+
+          g->push_back(e1, py, t);
+
+          if (older && t.is_first())
+            return;
+          if (!older && t.is_last())
+            return;
+
+          continue;
+        }
+
+      if (!t.is_direct())
+        continue;
+
+      Tb_entry_formatter const *fmt2 = Tb_entry_formatter::get_fmt(e1);
+      if (fmt2 && fmt2->partner(e1) == e->number())
+        {
+          py = Jdb_tbuf::idx(e1);
+          if (py < _absy || py >= _absy + lines)
+            return;
+          g->push_back(e1, py, older ? Group_order::first() : Group_order::last());
+          // HM: is one direct enry enough
+          return;
+        }
+    }
 }
 
 static void
@@ -636,9 +727,9 @@ restart:
       Jdb::cursor();
       printf("%3lu%% of %-6lu Perf:%-4s 1=" L4_PTR_FMT
 	     "(%s%s\033[m%s%s%s\033[m)\033[K",
-  	  Jdb_tbuf::unfiltered_entries()*100/Jdb_tbuf::max_entries(), 
+	  Jdb_tbuf::unfiltered_entries()*100/Jdb_tbuf::max_entries(),
 	  Jdb_tbuf::max_entries(),
-  	  perf_type, perf_event[0], Jdb::esc_emph, perf_mode[0], 
+	  perf_type, perf_event[0], Jdb::esc_emph, perf_mode[0],
 	  perf_name[0] && *perf_name[0] ? ":" : "",
 	  mode==Pmc1_delta_mode || mode==Pmc1_ref_mode ? Jdb::esc_emph : "",
 	  perf_name[0]);
@@ -671,11 +762,9 @@ restart:
 
  status_line:
       for (bool redraw=false; !redraw;)
-	{
-	  Tb_entry *pair_event = 0;
-	  Mword pair_y = 0;
+        {
+
 	  Smword c;
-	  Unsigned8 type;
 	  Unsigned8 d = 0; // default search direction is forward
 
 	  if (_status_type == Status_redraw)
@@ -687,44 +776,58 @@ restart:
 	  else if (_status_type == Status_error)
 	    _status_type = Status_redraw;
 
-	  if (!_filter_str[0])
-	    {
-	      // search for paired ipc event
-	      pair_event = Jdb_tbuf::ipc_pair_event(_absy+addy, &type);
-	      if (!pair_event)
-		// search for paired pagefault event
-		pair_event = Jdb_tbuf::pf_pair_event(_absy+addy, &type);
-	      if (pair_event)
-		{
-		  pair_y = Jdb_tbuf::idx(pair_event);
-		  if (pair_y < _absy || pair_y >= _absy+lines)
-		    pair_event = 0;
-		}
-	      if (pair_event)
-		{
-		  Jdb::cursor(pair_y-_absy+Tbuf_start_line, 1);
-		  putstr(Jdb::esc_emph);
-		  switch (type)
-		    {
-		    case Jdb_tbuf::Result: putstr("+++>"); break;
-		    case Jdb_tbuf::Event:  putstr("<+++"); break;
-		    }
-		  putstr("\033[m");
-		}
-	    }
+          Entry_group group;
+
+          if (!_filter_str[0])
+            {
+              typedef Tb_entry::Group_order Group_order;
+
+              Tb_entry const *ce = Jdb_tbuf::lookup(_absy + addy);
+              Tb_entry_formatter const *fmt = Tb_entry_formatter::get_fmt(ce);
+              Group_order pt;
+
+              if (fmt)
+                pt = fmt->has_partner(ce);
+
+              if (!pt.not_grouped())
+                {
+                  if (!pt.is_first())
+                    find_group(&group, ce, true, lines, pt.depth());
+                  if (!pt.is_last())
+                    find_group(&group, ce, false, lines, pt.depth());
+                }
+
+              for (unsigned i = 0; i < group.size(); ++i)
+                {
+                  Entry_group::Item const &item = group[i];
+                  Jdb::cursor(item.y - _absy + Tbuf_start_line, 3);
+                  putstr(Jdb::esc_emph);
+                  if (item.order.is_first())
+                    putstr("<++");
+                  else if (item.order.is_last())
+                    putstr("++>");
+                  else if (item.order.grouped())
+                    putstr("+++");
+                  putstr("\033[m");
+                }
+            }
 
 	  Jdb::cursor(addy+Tbuf_start_line, 1);
 	  putstr(Jdb::esc_emph);
 	  show_events(_absy+addy, refy, 1, mode, time_mode, 0);
 	  putstr("\033[m");
 	  Jdb::cursor(addy+Tbuf_start_line, 1);
+
+          // WAIT for key.....
 	  c=Jdb_core::getchar();
+
 	  show_events(_absy+addy, refy, 1, mode, time_mode, 0);
-	  if (pair_event)
-	    {
-	      Jdb::cursor(pair_y-_absy+Tbuf_start_line, 1);
-	      show_events(pair_y, refy, 1, mode, time_mode, 0);
-	    }
+          for (unsigned i = 0; i < group.size(); ++i)
+            {
+              Entry_group::Item const &item = group[i];
+	      Jdb::cursor(item.y - _absy + Tbuf_start_line, 1);
+	      show_events(item.y, refy, 1, mode, time_mode, 0);
+            }
 
 	  if (Jdb::std_cursor_key(c, cols, lines, max_absy, 
 				  &_absy, &addy, 0, &redraw))

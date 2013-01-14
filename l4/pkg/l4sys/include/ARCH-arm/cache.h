@@ -44,9 +44,9 @@ l4_cache_op_arm_call(unsigned long op,
                      unsigned long start,
                      unsigned long end)
 {
-  register unsigned long _op    asm ("r0") = op;
-  register unsigned long _start asm ("r1") = start;
-  register unsigned long _end   asm ("r2") = end;
+  register unsigned long _op    __asm__ ("r0") = op;
+  register unsigned long _start __asm__ ("r1") = start;
+  register unsigned long _end   __asm__ ("r2") = end;
 
   __asm__ __volatile__
     ("@ l4_cache_op_arm_call(start) \n\t"

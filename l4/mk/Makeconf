@@ -166,15 +166,17 @@ CXX_sparc       = $(SYSTEM_TARGET)g++
 SYSTEMS_ABI    := x86-l4f amd64-l4f arm-l4f ppc32-l4f sparc-l4f
 SYSTEMS_PLAIN  := x86     amd64     arm     ppc32     sparc
 
-AR		= $(SYSTEM_TARGET)ar
-AS		= $(SYSTEM_TARGET)as
-AWKP		= gawk --posix
-CC		= $(if $(USE_CCACHE),ccache )$(CC_$(BUILD_ARCH))
-CXX		= $(if $(USE_CCACHE),ccache )$(CXX_$(BUILD_ARCH))
-CP		= cp
+dv               = $(if $(filter-out default undefined,$(origin $(1))),$(1)-default,$(1))
+
+$(call dv,AR)	 = $(SYSTEM_TARGET)ar
+$(call dv,AS)	 = $(SYSTEM_TARGET)as
+AWKP		?= gawk --posix
+$(call dv,CC)    = $(if $(USE_CCACHE),ccache )$(CC_$(BUILD_ARCH))
+$(call dv,CXX)   = $(if $(USE_CCACHE),ccache )$(CXX_$(BUILD_ARCH))
+CP		?= cp
 DICE_SRCDIR	?= $(L4DIR)/../dice
 DICE_OBJDIR	?= $(DICE_SRCDIR)
-DICE		= $(firstword $(wildcard $(DICE_OBJDIR)/src/dice \
+DICE		?= $(firstword $(wildcard $(DICE_OBJDIR)/src/dice \
 				$(DROPS_STDDIR)/tool/bin/dice \
 				 $(shell which dice 2>/dev/null) ) \
 				 did_not_find_dice___please_install_dice )
@@ -183,7 +185,7 @@ DICE_CPP_NAME	= cpp0
 DICE_INCDIR	?= $(DICE_SRCDIR)/include
 
 DOXYGEN		?= doxygen
-ECHO		= echo
+ECHO		?= echo
 ELF_PATCHER     = $(OBJ_BASE)/tool/elf-patcher/elf-patcher
 
 GENOFFSETS	= $(L4DIR)/tool/bin/genoffsets.pl
@@ -191,29 +193,29 @@ GOSH		= $(firstword $(wildcard $(L4DIR)/../tools/gosh/gosh \
 				$(DROPS_STDDIR)/tool/bin/gosh \
 				 $(shell which gosh 2>/dev/null) ) \
 				 did_not_find_gosh___please_install_gosh )
-HOST_CC		= gcc
-HOST_CXX	= g++
-HOST_LD         = ld
+HOST_CC		?= gcc
+HOST_CXX	?= g++
+HOST_LD		?= ld
 INSTALL		= install
-LD		= $(SYSTEM_TARGET)ld -m $(LD_EMULATION)
+$(call dv,LD)   = $(SYSTEM_TARGET)ld -m $(LD_EMULATION)
 LATEX		= latex
 PDFLATEX	= pdflatex
 GREP		= GREP_OPTIONS= grep
 LN		= ln
 MKDIR		= mkdir -p
 MKFLAGS		+=$(MKFLAGS_$@)
-NM		= $(SYSTEM_TARGET)nm
-OBJCOPY		= $(SYSTEM_TARGET)objcopy
+NM		?= $(SYSTEM_TARGET)nm
+OBJCOPY		?= $(SYSTEM_TARGET)objcopy
 PKG_CONFIG      = pkg-config
 PWDCMD		= pwd -P
-RANLIB		= $(SYSTEM_TARGET)ranlib
-RM		= rm -f
+RANLIB		?= $(SYSTEM_TARGET)ranlib
+$(call dv,RM)   = rm -f
 SCRUB		= $(RM) $(wildcard *.old) $(wildcard *~) $(wildcard *.bak) \
-                        $(wildcard \#*\#)
+		        $(wildcard \#*\#)
 SED		= sed
 SHELL		= bash
-SIZE		= $(SYSTEM_TARGET)size
-STRIP		= $(SYSTEM_TARGET)strip
+SIZE		?= $(SYSTEM_TARGET)size
+STRIP		?= $(SYSTEM_TARGET)strip
 SVN		= svn
 TR		= tr
 GEN_DOPECODE	= $(L4DIR)/tool/gen_dopecode/gen_dopecode
@@ -236,6 +238,7 @@ endif
 
 # include this one early to be able to set OBJ_BASE
 -include $(L4DIR)/Makeconf.local
+-include $(L4DIR)/conf/Makeconf.local
 
 ifeq ($(filter $(IGNORE_OBJDIR_TARGETS),$(MAKECMDGOALS)),)
 # output directory
@@ -362,6 +365,7 @@ ifneq ($(strip $(INCLUDE_MAKE_RULES_EXPANDED)),)
 endif
 
 -include $(OBJ_BASE)/Makeconf.local
+-include $(OBJ_BASE)/conf/Makeconf.local
 ifneq ($(PKGDIR_ABS),)
 -include $(PKGDIR_ABS)/Makeconf.local
 endif
@@ -566,6 +570,8 @@ $(GENERAL_D_LOC): $(L4DIR)/mk/Makeconf $(EXTRA_GENERAL_D_DEP)
 		$(OBJ_BASE)/Makeconf.local)
 	$(DEPEND_VERBOSE)$(call BID_DEPEND_GENERAL_D_COND,\
 		$(L4DIR)/Makeconf.local)
+	$(DEPEND_VERBOSE)$(call BID_DEPEND_GENERAL_D_COND,\
+		$(L4DIR)/conf/Makeconf.local)
 	$(DEPEND_VERBOSE)$(foreach m,$(wildcard $(INCLUDE_MAKE_RULES)),\
 	        $(call BID_DEPEND_GENERAL_D_COND,$(m)); )
 	$(if $(PKGDIR_ABS),$(DEPEND_VERBOSE)$(call BID_DEPEND_GENERAL_D_COND,\

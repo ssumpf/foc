@@ -72,6 +72,22 @@ public:
   { return l4_task_unmap_batch_u(cap(), fpages, num_fpages, map_mask, utcb); }
 
   /**
+   * \copydoc l4_task_delete_obj()
+   * \note \a task is the implicit \a this pointer.
+   */
+  l4_msgtag_t delete_obj(L4::Cap<void> obj,
+                         l4_utcb_t *utcb = l4_utcb()) throw()
+  { return l4_task_delete_obj_u(cap(), obj.cap(), utcb); }
+
+  /**
+   * \copydoc l4_task_release_cap()
+   * \note \a task is the implicit \a this pointer.
+   */
+  l4_msgtag_t release_cap(L4::Cap<void> cap,
+                          l4_utcb_t *utcb = l4_utcb()) throw()
+  { return l4_task_release_cap_u(this->cap(), cap.cap(), utcb); }
+
+  /**
    * \copydoc l4_task_cap_valid()
    * \note \a task is the implicit \a this pointer.
    */

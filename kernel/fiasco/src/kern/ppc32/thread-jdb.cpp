@@ -54,7 +54,7 @@ int
 Thread::call_nested_trap_handler(Trap_state *ts)
 {
   unsigned phys_cpu = Proc::cpu_id();
-  unsigned log_cpu = Cpu::p2l(phys_cpu);
+  unsigned log_cpu = Cpu::cpus.find_cpu(Cpu::By_phys_id(phys_cpu));
   if (log_cpu == ~0U)
     {
       printf("Trap on unknown CPU phys_id=%x\n", phys_cpu);

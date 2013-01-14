@@ -42,7 +42,7 @@
 asm(\
     "int	$3	\n\t"\
     "jmp	1f	\n\t"\
-    ".ascii	\""text "\"\n\t"\
+    ".ascii	\"" text "\"\n\t"\
     "1:			\n\t"\
     )
 #else
@@ -63,7 +63,7 @@ asm(\
 #define asm_enter_kdebug(text) \
     "int	$3	\n\t"\
     "jmp	1f	\n\t"\
-    ".ascii	\""text "\"\n\t"\
+    ".ascii	\"" text "\"\n\t"\
     "1:			\n\t"
 
 /**
@@ -78,7 +78,7 @@ asm(\
     "int	$3	\n\t"\
     "nop		\n\t"\
     "jmp	1f	\n\t"\
-    ".ascii	\""text "\"\n\t"\
+    ".ascii	\"" text "\"\n\t"\
     "1:			\n\t"\
     )
 

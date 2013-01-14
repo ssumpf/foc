@@ -52,17 +52,19 @@ public:
 //---------------------------------------------------------------------------
 INTERFACE [debug]:
 
+#include "tb_entry.h"
+
 EXTENSION class Ipc_gate
 {
 protected:
-  struct Log_ipc_gate_invoke
+  struct Log_ipc_gate_invoke : public Tb_entry
   {
     Mword gate_dbg_id;
     Mword thread_dbg_id;
     Mword label;
+    unsigned print(int max, char *buf) const;
   };
 
-  static unsigned log_fmt(Tb_entry *, int max, char *buf) asm ("__fmt_ipc_gate_invoke");
 };
 
 //---------------------------------------------------------------------------
@@ -114,10 +116,10 @@ Ipc_gate_obj::unblock_all()
 {
   while (::Prio_list_elem *h = _wait_q.first())
     {
-      Lock_guard<Cpu_lock> g1(&cpu_lock);
+      auto g1 = lock_guard(cpu_lock);
       Thread *w;
 	{
-	  Lock_guard<decltype(_wait_q.lock())> g2(_wait_q.lock());
+	  auto g2 = lock_guard(_wait_q.lock());
 	  if (EXPECT_FALSE(h != _wait_q.first()))
 	    continue;
 
@@ -286,7 +288,7 @@ Ipc_gate::block(Thread *ct, L4_timeout const &to, Utcb *u)
     }
 
     {
-      Lock_guard<decltype(_wait_q.lock())> g(_wait_q.lock());
+      auto g = lock_guard(_wait_q.lock());
       ct->set_wait_queue(&_wait_q);
       ct->sender_enqueue(&_wait_q, ct->sched_context()->prio());
     }
@@ -295,7 +297,7 @@ Ipc_gate::block(Thread *ct, L4_timeout const &to, Utcb *u)
   IPC_timeout timeout;
   if (t)
     {
-      timeout.set(t, ct->cpu());
+      timeout.set(t, ct->cpu(true));
       ct->set_timeout(&timeout);
     }
 
@@ -306,7 +308,7 @@ Ipc_gate::block(Thread *ct, L4_timeout const &to, Utcb *u)
 
   if (EXPECT_FALSE(ct->in_sender_list() && timeout.has_hit()))
     {
-      Lock_guard<decltype(_wait_q.lock())> g(_wait_q.lock());
+      auto g = lock_guard(_wait_q.lock());
       if (!ct->in_sender_list())
 	return L4_error::None;
 
@@ -347,8 +349,7 @@ Ipc_gate::invoke(L4_obj_ref /*self*/, Mword rights, Syscall_frame *f, Utcb *utcb
 
   bool ipc = _thread->check_sys_ipc(f->ref().op(), &partner, &sender, &have_rcv);
 
-  LOG_TRACE("IPC Gate invoke", "gate", current(), __fmt_ipc_gate_invoke,
-      Log_ipc_gate_invoke *l = tbe->payload<Log_ipc_gate_invoke>();
+  LOG_TRACE("IPC Gate invoke", "gate", current(), Log_ipc_gate_invoke,
       l->gate_dbg_id = dbg_id();
       l->thread_dbg_id = _thread->dbg_id();
       l->label = _id | rights;
@@ -374,10 +375,9 @@ Ipc_gate_obj::dbg_info() const
 
 IMPLEMENT
 unsigned
-Ipc_gate::log_fmt(Tb_entry *e, int max, char *buf)
+Ipc_gate::Log_ipc_gate_invoke::print(int max, char *buf) const
 {
-  Log_ipc_gate_invoke *l = e->payload<Log_ipc_gate_invoke>();
   return snprintf(buf, max, "D-gate=%lx D-thread=%lx L=%lx",
-                  l->gate_dbg_id, l->thread_dbg_id, l->label);
+                  gate_dbg_id, thread_dbg_id, label);
 }
 

@@ -45,18 +45,18 @@ void Jdb_tbuf_init::init()
 
       // minimum: 8KB (  2 pages), maximum: 2MB (512 pages)
       // must be a power of 2 (for performance reasons)
-      for (n = Config::PAGE_SIZE/sizeof(Tb_entry);
-	   n < want_entries && n*sizeof(Tb_entry)<0x200000;
-	   n<<=1)
+      for (n = Config::PAGE_SIZE / sizeof(Tb_entry_union);
+	   n < want_entries && n * sizeof(Tb_entry_union) < 0x200000;
+	   n <<= 1)
 	;
 
       if (n < want_entries)
 	panic("Cannot allocate more than %d entries for tracebuffer\n", n);
 
       max_entries(n);
-      unsigned size = n*sizeof(Tb_entry);
+      unsigned size = n * sizeof(Tb_entry_union);
 
-      if (! Vmem_alloc::page_alloc((void*) status(), Vmem_alloc::ZERO_FILL, Vmem_alloc::User))
+      if (!Vmem_alloc::page_alloc((void*) status(), Vmem_alloc::ZERO_FILL, Vmem_alloc::User))
 	panic("jdb_tbuf: alloc status page at " L4_PTR_FMT " failed", 
 	      (Address)Mem_layout::Tbuf_status_page);
 
@@ -65,7 +65,7 @@ void Jdb_tbuf_init::init()
 	{
 	  if (! Vmem_alloc::page_alloc((void*)va, Vmem_alloc::NO_ZERO_FILL, Vmem_alloc::User))
 	    panic("jdb_tbuf: alloc buffer at " L4_PTR_FMT " failed", va);
-	  
+
 	  va += Config::PAGE_SIZE;
 	}
 
@@ -75,7 +75,6 @@ void Jdb_tbuf_init::init()
       status()->window[1].size        = size / 2;
       status()->window[0].version     =
       status()->window[1].version     = 0;
-
 
       status()->scaler_tsc_to_ns = Cpu::boot_cpu()->get_scaler_tsc_to_ns();
       status()->scaler_tsc_to_us = Cpu::boot_cpu()->get_scaler_tsc_to_us();

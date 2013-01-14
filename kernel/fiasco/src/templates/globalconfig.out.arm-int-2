@@ -12,8 +12,8 @@ CONFIG_ARM=y
 # CONFIG_PF_S3C2410 is not set
 # CONFIG_PF_TEGRA2 is not set
 # CONFIG_PF_OMAP is not set
-# CONFIG_PF_XSCALE is not set
 # CONFIG_PF_SA1100 is not set
+# CONFIG_PF_XSCALE is not set
 # CONFIG_PF_KIRKWOOD is not set
 CONFIG_PF_INTEGRATOR=y
 CONFIG_BSP_NAME="integrator"
@@ -25,6 +25,7 @@ CONFIG_ARM_1176=y
 # CONFIG_ARM_ALIGNMENT_CHECK is not set
 # CONFIG_FPU is not set
 # CONFIG_ARM_1176_CACHE_ALIAS_FIX is not set
+# CONFIG_ARM_CPU_ERRATA is not set
 
 #
 # Kernel options

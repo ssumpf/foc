@@ -5,6 +5,7 @@ int fprintf(FILE *stream, const char *format, ...)
 {
   int n;
   va_list args;
+  (void)stream;
   
   va_start    (args, format);
   n = vprintf (format, args);

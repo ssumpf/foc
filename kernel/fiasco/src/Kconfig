@@ -400,6 +400,10 @@ config ARM_1176_CACHE_ALIAS_FIX
 	  using cache sizes of more than 16kB cache. Enabling this option
 	  enables the workaround of reducing the cache size to 16kB.
 
+config ARM_CPU_ERRATA
+        bool "Enable CPU errata workarounds"
+        depends on ARM && !ARM_TZ
+
 endmenu # target
 
 menu "Kernel options"
@@ -432,19 +436,6 @@ config CONTEXT_4K
 	help
 	  Use this option to use 4K kernel stacks. Only disable this option
 	  when you know what you're doing.
-
-config IO_PROT
-	bool "Enable I/O port protection"
-	default y
-	depends on PF_PC
-	help
-	  Enabling this option adds I/O port protection to the kernel. That
-	  means that every thread starts running at IOPL 0 which means that
-	  only the kernel has full access to all I/O ports. This includes
-	  the right to set and clear the interrupt flags (that is using cli
-	  and sti). Access rights to I/O ports can be mapped like memory. If
-	  a task has access to the whole I/O port space, its IOPL is raised
-	  to 3 allowing the task to use cli and sti.
 
 config SLOW_RTC
 	bool "Use RTC with 100 ticks per second"

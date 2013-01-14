@@ -3,19 +3,19 @@ INTERFACE [arm && s3c2410]: //----------------------------------------------
 EXTENSION class Mem_layout
 {
 public:
-  enum Virt_layout_s3c2410 {
-    Uart_map_base        = 0xef100000,
-    Timer_map_base       = 0xef200000,
-    Pic_map_base         = 0xef300000,
-    Watchdog_map_base    = 0xef400000,
+  enum Virt_layout_s3c2410 : Address {
+    Uart_map_base        = Devices0_map_base,
+    Timer_map_base       = Devices1_map_base,
+    Pic_map_base         = Devices2_map_base,
+    Watchdog_map_base    = Devices3_map_base,
     Uart_base            = Uart_map_base,
   };
 
-  enum Phys_layout {
-    Uart_phys_base       = 0x50000000,
-    Timer_phys_base      = 0x51000000,
-    Pic_phys_base        = 0x4a000000,
-    Watchdog_phys_base   = 0x53000000,
+  enum Phys_layout : Address{
+    Devices0_phys_base   = 0x50000000,
+    Devices1_phys_base   = 0x51000000,
+    Devices2_phys_base   = 0x4a000000,
+    Devices3_phys_base   = 0x53000000,
     Sdram_phys_base      = 0x30000000,
     Flush_area_phys_base = 0xe0000000,
   };

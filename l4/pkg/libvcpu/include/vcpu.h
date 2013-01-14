@@ -200,7 +200,7 @@ int
 l4vcpu_is_page_fault_entry(l4_vcpu_state_t *vcpu) L4_NOTHROW;
 
 /**
- * \brief Allocate state area for an extented vCPU.
+ * \brief Allocate state area for an extended vCPU.
  * \ingroup api_libvcpu_ext
  *
  * \retval vcpu      Allocated vcpu-state area.

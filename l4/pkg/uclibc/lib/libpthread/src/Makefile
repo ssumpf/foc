@@ -9,22 +9,22 @@ PC_LIBS_libpthread := -lpthread
 CONTRIBDIR = $(PKGDIR)/../uclibc/lib/contrib/uclibc
 LDSODIR    = $(CONTRIBDIR)/ldso/ldso
 
-SRC_CC      = manager.cc l4.cc
-SRC_C      += spinlock.c mutex.c condvar.c rwlock.c errno.c specific.c \
-              semaphore.c attr.c barrier.c join.c pthread.c \
-              cancel.c ptcleanup.c errno-loc.c
-SRC_C_libpthread.a += libc_pthread_init.c
-SRC_S       = tramp-$(ARCH).S
-SO_INIT     = so_init-$(ARCH)
-
-vpath %.c $(SRC_DIR)/sysdeps/generic
-#vpath dl-tls.c $(PKGDIR)/lib/contrib/uclibc/ldso/ldso
-
 DIR_amd64 := x86_64
 DIR_x86   := i386
 DIR_arm   := arm
 DIR_ppc32 := powerpc
 DIR_sparc := sparc
+
+SRC_CC      = manager.cc l4.cc
+SRC_C      += spinlock.c mutex.c condvar.c rwlock.c errno.c specific.c \
+              semaphore.c attr.c barrier.c join.c pthread.c \
+              cancel.c ptcleanup.c errno-loc.c \
+              sysdeps/$(DIR_$(ARCH))/pspinlock.c
+SRC_C_libpthread.a += libc_pthread_init.c
+SRC_S       = tramp-$(ARCH).S
+SO_INIT     = so_init-$(ARCH)
+
+vpath %.c $(SRC_DIR)/sysdeps/generic
 
 
 INCDIR-x86   = $(SRC_DIR)/sysdeps/i386/i686 $(SRC_DIR)/sysdeps/i386 \
@@ -32,8 +32,10 @@ INCDIR-x86   = $(SRC_DIR)/sysdeps/i386/i686 $(SRC_DIR)/sysdeps/i386 \
                $(LDSODIR)/$(DIR_$(ARCH))
 INCDIR-amd64 = $(SRC_DIR)/sysdeps/$(DIR_$(ARCH))
 INCDIR-arm   = $(SRC_DIR)/sysdeps/arm
-INCDIR-ppc32 = $(SRC_DIR)/sysdeps/powerpc
-INCDIR-sparc = $(SRC_DIR)/sysdeps/sparc
+INCDIR-ppc32 = $(SRC_DIR)/sysdeps/powerpc \
+               $(CONTRIBDIR)/libpthread/linuxthreads/sysdeps/powerpc
+INCDIR-sparc = $(SRC_DIR)/sysdeps/sparc \
+               $(CONTRIBDIR)/libpthread/linuxthreads/sysdeps/sparc
 
 PRIVATE_INCDIR = $(SRC_DIR) $(INCDIR-$(ARCH)) $(CONTRIBDIR)/ldso/include
 

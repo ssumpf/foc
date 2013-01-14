@@ -44,13 +44,26 @@ Pit::setup_channel2_to_20hz()
 //----------------------------------------------------------------------------
 IMPLEMENTATION[i8254 & pit_timer]:
 
+PRIVATE static
+void
+Pit::set_freq(unsigned freq)
+{
+  // set counter channel 0 to binary, mode2, lsb/msb
+  Io::out8_p(0x34, 0x43);
+
+  // set counter frequency
+  const unsigned latch = Clock_tick_rate / freq;
+  Io::out8_p(latch & 0xff, 0x40);
+  Io::out8_p(latch >> 8,   0x40);
+}
+
 // set up timer interrupt (~ 1ms)
-PUBLIC static inline NEEDS ["io.h", Pit::set_freq_normal]
+PUBLIC static inline NEEDS ["io.h", Pit::set_freq]
 void
 Pit::init()
 {
   // set counter frequency to ~1000 Hz (1000.151 Hz)
-  set_freq_normal();
+  set_freq(1000);
 }
 
 PUBLIC static inline NEEDS ["io.h", Pit::set_freq]
@@ -60,43 +73,9 @@ Pit::init(unsigned freq)
   set_freq(freq);
 }
 
-PUBLIC static inline NEEDS ["io.h"]
+PUBLIC static inline NEEDS ["io.h", Pit::set_freq]
 void
 Pit::set_freq_slow()
 {
-  // set counter channel 0 to binary, mode2, lsb/msb
-  Io::out8_p(0x34, 0x43);
-
-  // set counter frequency to 32 Hz
-  const unsigned latch = Clock_tick_rate / 32;
-  Io::out8_p(latch & 0xff, 0x40);
-  Io::out8_p(latch >> 8,   0x40);
+  set_freq(32);
 }
-
-PUBLIC static inline NEEDS ["io.h"]
-void
-Pit::set_freq_normal()
-{
-  // set counter channel 0 to binary, mode2, lsb/msb
-  Io::out8_p(0x34, 0x43);
-  
-  // set counter frequency to ~1000 Hz (1000.151 Hz)
-  const unsigned latch = Clock_tick_rate / 1000;
-  Io::out8_p(latch & 0xff, 0x40);
-  Io::out8_p(latch >> 8,   0x40);
-}
-
-PUBLIC static inline NEEDS ["io.h"]
-void
-Pit::set_freq(unsigned freq)
-{
-  // set counter channel 0 to binary, mode2, lsb/msb
-  Io::out8_p(0x34, 0x43);
-  
-  // set counter frequency
-  const unsigned latch = Clock_tick_rate / freq;
-  Io::out8_p(latch & 0xff, 0x40);
-  Io::out8_p(latch >> 8,   0x40);
-}
-
-

@@ -147,7 +147,7 @@ Kmem_alloc::unaligned_alloc(unsigned long size)
   void* ret;
 
   {
-    Lock_guard<Lock> guard(&lock);
+    auto guard = lock_guard(lock);
     ret = a->alloc(size);
   }
 
@@ -155,7 +155,7 @@ Kmem_alloc::unaligned_alloc(unsigned long size)
     {
       Kmem_alloc_reaper::morecore (/* desperate= */ true);
 
-      Lock_guard<Lock> guard (&lock);
+      auto guard = lock_guard(lock);
       ret = a->alloc(size);
     }
 
@@ -167,7 +167,7 @@ void
 Kmem_alloc::unaligned_free(unsigned long size, void *page)
 {
   assert(size >=8 /*NEW INTERFACE PARANIOIA*/);
-  Lock_guard<Lock> guard (&lock);
+  auto guard = lock_guard(lock);
   a->free(page, size);
 }
 

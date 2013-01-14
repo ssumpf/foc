@@ -10,12 +10,8 @@ IMPLEMENTATION [arm && integrator]:
 void
 map_hw(void *pd)
 {
-  // map UART
-  map_1mb(pd, Mem_layout::Uart_map_base, Mem_layout::Uart_phys_base, false, false);
-  // map Timer
-  map_1mb(pd, Mem_layout::Timer_map_base, Mem_layout::Timer_phys_base, false, false);
-  // map Pic
-  map_1mb(pd, Mem_layout::Pic_map_base, Mem_layout::Pic_phys_base, false, false);
-  // map Integrator hdr
-  map_1mb(pd, Mem_layout::Integrator_map_base, Mem_layout::Integrator_phys_base, false, false);
+  map_dev<Mem_layout::Devices0_phys_base>(pd, 0);
+  map_dev<Mem_layout::Devices1_phys_base>(pd, 1);
+  map_dev<Mem_layout::Devices2_phys_base>(pd, 2);
+  map_dev<Mem_layout::Devices3_phys_base>(pd, 3);
 }

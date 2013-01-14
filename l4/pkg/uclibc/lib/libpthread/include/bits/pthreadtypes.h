@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 #include <l4/sys/types.h>
+#include <l4/sys/scheduler.h>
 
 #define __need_schedparam
 #include <bits/sched.h>
@@ -47,6 +48,11 @@ typedef struct __pthread_attr_s
   int __stackaddr_set;
   void *__stackaddr;
   size_t __stacksize;
+
+  // L4 specifics
+  l4_sched_cpu_set_t affinity;
+  unsigned create_flags;
+
 } pthread_attr_t;
 
 

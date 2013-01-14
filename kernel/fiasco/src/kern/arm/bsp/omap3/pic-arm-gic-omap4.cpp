@@ -34,7 +34,7 @@ void Pic::restore_all(Status)
 IMPLEMENTATION [arm && mp && pic_gic && omap4]:
 
 PUBLIC static
-void Pic::init_ap()
+void Pic::init_ap(unsigned)
 {
   gic->init_ap();
 }

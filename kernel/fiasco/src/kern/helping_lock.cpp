@@ -29,8 +29,6 @@ public:
   static bool threading_system_active;
 };
 
-typedef Lock_guard<Helping_lock> Helping_lock_guard;
-
 #undef NO_INSTRUMENT
 #define NO_INSTRUMENT
 

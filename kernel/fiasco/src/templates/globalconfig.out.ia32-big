@@ -7,6 +7,8 @@
 CONFIG_IA32=y
 # CONFIG_AMD64 is not set
 # CONFIG_ARM is not set
+# CONFIG_PPC32 is not set
+# CONFIG_SPARC is not set
 CONFIG_PF_PC=y
 # CONFIG_PF_UX is not set
 CONFIG_ABI_VF=y
@@ -36,7 +38,6 @@ CONFIG_REGPARM3=y
 #
 # CONFIG_MP is not set
 CONFIG_CONTEXT_4K=y
-CONFIG_IO_PROT=y
 # CONFIG_ONE_SHOT is not set
 CONFIG_SYNC_TSC=y
 # CONFIG_FINE_GRAINED_CPUTIME is not set

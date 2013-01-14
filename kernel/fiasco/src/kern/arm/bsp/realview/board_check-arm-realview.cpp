@@ -9,7 +9,8 @@ public:
 
 private:
   static Mword read_board_id();
-  struct id_pair {
+  struct id_pair
+  {
     unsigned mask, id;
   };
   static id_pair ids[];

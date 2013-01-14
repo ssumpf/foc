@@ -100,9 +100,9 @@ L4_INLINE
 unsigned long
 __kdebug_param(unsigned long nr, unsigned long p1, unsigned long p2)
 {
-  register unsigned long r3 asm("r3") = (nr) | (1 << 31);
-  register unsigned long r4 asm("r4") = (p1);
-  register unsigned long r5 asm("r5") = (p2);
+  register unsigned long r3 __asm__ ("r3") = (nr) | (1 << 31);
+  register unsigned long r4 __asm__ ("r4") = (p1);
+  register unsigned long r5 __asm__ ("r5") = (p2);
   asm volatile ( " bla  %1 \n"
                  : "=r" (r4)
                  : "i" (L4_SYSCALL_ENTER_KDEBUG),
@@ -117,12 +117,12 @@ unsigned long
 __kdebug_param_5(unsigned long nr, unsigned long p1, unsigned long p2,
                  unsigned long p3, unsigned long p4, unsigned long p5)
 {
-  register unsigned long r3 asm("r3") = (nr) | (1 << 31);
-  register unsigned long r4 asm("r4") = (p1);
-  register unsigned long r5 asm("r5") = (p2);
-  register unsigned long r6 asm("r6") = (p3);
-  register unsigned long r7 asm("r7") = (p4);
-  register unsigned long r8 asm("r8") = (p5);
+  register unsigned long r3 __asm__ ("r3") = (nr) | (1 << 31);
+  register unsigned long r4 __asm__ ("r4") = (p1);
+  register unsigned long r5 __asm__ ("r5") = (p2);
+  register unsigned long r6 __asm__ ("r6") = (p3);
+  register unsigned long r7 __asm__ ("r7") = (p4);
+  register unsigned long r8 __asm__ ("r8") = (p5);
 
   asm volatile ( " bla %1 \n"
                  : "=r" (r4)

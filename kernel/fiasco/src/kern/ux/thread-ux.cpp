@@ -94,7 +94,7 @@ Thread::call_nested_trap_handler(Trap_state *ts)
 
   //static char nested_handler_stack [Config::PAGE_SIZE];
   unsigned phys_cpu = Cpu::phys_id_direct();
-  unsigned log_cpu = Cpu::p2l(phys_cpu);
+  unsigned log_cpu = Cpu::cpus.find_cpu(Cpu::By_phys_id(phys_cpu));
 
   if (log_cpu == ~0U)
     {
@@ -147,12 +147,6 @@ Thread::call_nested_trap_handler(Trap_state *ts)
 
   return ret == 0 ? 0 : -1;
 }
-
-PUBLIC inline
-void
-Thread::spill_fpu()
-{}
-
 
 // The "FPU not available" trap entry point
 extern "C" void thread_handle_fputrap (void) { panic ("fpu trap"); }

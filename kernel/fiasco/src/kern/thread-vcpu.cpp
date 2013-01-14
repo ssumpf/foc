@@ -35,8 +35,7 @@ Thread::vcpu_pagefault(Address pfa, Mword err, Mword ip)
     {
       spill_user_state();
       vcpu_enter_kernel_mode(vcpu);
-      LOG_TRACE("VCPU events", "vcpu", this, __context_vcpu_log_fmt,
-	  Vcpu_log *l = tbe->payload<Vcpu_log>();
+      LOG_TRACE("VCPU events", "vcpu", this, Vcpu_log,
 	  l->type = 3;
 	  l->state = vcpu->_saved_state;
 	  l->ip = ip;

@@ -235,3 +235,8 @@ trap_dump_panic(Trap_state *ts)
   ts->dump();
   panic("terminated due to trap");
 }
+
+PUBLIC inline
+bool
+Trap_state::exclude_logging()
+{ return _trapno == 1 || _trapno == 3; }

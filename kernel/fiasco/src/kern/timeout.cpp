@@ -190,7 +190,7 @@ void
 Timeout::set(Unsigned64 clock, unsigned cpu)
 {
   // XXX uses global kernel lock
-  Lock_guard<Cpu_lock> guard (&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
 
   assert (!is_set());
 
@@ -214,7 +214,7 @@ void
 Timeout::set_again(unsigned cpu)
 {
   // XXX uses global kernel lock
-  Lock_guard<Cpu_lock> guard (&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
 
   assert(! is_set());
   if (has_hit())

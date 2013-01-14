@@ -131,7 +131,8 @@ clean cleanall install::
 		PWD=$(PWD)/$$i $(MAKE) -C $$i $@ ; fi ; done
 
 cleanfast:
-	$(VERBOSE)$(RM) -r $(OBJ_BASE)/{bin,include,pkg,doc,ext-pkg,pc,lib,l4defs.mk.inc,l4defs.sh.inc,images}
+	$(VERBOSE)$(RM) -r $(addprefix $(OBJ_BASE)/,bin include pkg doc ext-pkg pc lib l4defs.mk.inc l4defs.sh.inc) \
+	                   $(IMAGES_DIR)
 
 
 L4DEF_FILE_MK ?= $(OBJ_BASE)/l4defs.mk.inc
@@ -377,7 +378,8 @@ define checkx86amd64build
 	fi
 endef
 define genimage
-	$(VERBOSE)$(entryselection);                                      \
+	+$(VERBOSE)$(entryselection);                                     \
+	$(MKDIR) $(IMAGES_DIR);                                           \
 	PWD=$(PWD)/pkg/bootstrap/server/src $(common_envvars)             \
 	    $(MAKE) -C pkg/bootstrap/server/src ENTRY="$$e"               \
 	            BOOTSTRAP_MODULES_LIST=$$ml $(1)                      \
@@ -433,7 +435,7 @@ rawimage: check_and_adjust_ram_base
 	$(call genimage,BOOTSTRAP_DO_UIMAGE= BOOTSTRAP_DO_RAW_IMAGE=y)
 
 fastboot: rawimage
-	$(VERBOSE)$(FASTBOOT_BOOT_CMD) $(OBJ_BASE)/images/bootstrap.raw
+	$(VERBOSE)$(FASTBOOT_BOOT_CMD) $(IMAGES_DIR)/bootstrap.raw
 
 ifneq ($(filter $(ARCH),x86 amd64),)
 qemu:
@@ -446,8 +448,8 @@ else
 qemu: elfimage
 	$(VERBOSE)qemu=$(if $(QEMU_PATH),$(QEMU_PATH),$(QEMU_ARCH_MAP_$(ARCH))); \
 	if [ -z "$$qemu" ]; then echo "Set QEMU_PATH!"; exit 1; fi;              \
-	echo QEmu-cmd: $$qemu -kernel $(OBJ_BASE)/images/bootstrap.elf $(QEMU_OPTIONS);    \
-	$$qemu -kernel $(OBJ_BASE)/images/bootstrap.elf $(QEMU_OPTIONS)
+	echo QEmu-cmd: $$qemu -kernel $(IMAGES_DIR)/bootstrap.elf $(QEMU_OPTIONS);    \
+	$$qemu -kernel $(IMAGES_DIR)/bootstrap.elf $(QEMU_OPTIONS)
 endif
 
 vbox: $(if $(VBOX_ISOTARGET),$(VBOX_ISOTARGET),grub2iso)
@@ -456,10 +458,10 @@ vbox: $(if $(VBOX_ISOTARGET),$(VBOX_ISOTARGET),grub2iso)
 	  echo "Need to set name of configured VirtualBox VM im 'VBOX_VM'.";   \
 	  exit 1;                                                              \
 	fi
-	$(VERBOSE)VBoxSDL                              \
-	    --startvm $(VBOX_VM)                       \
-	    --cdrom $(OBJ_BASE)/images/.current.iso    \
-	    --boot d                                   \
+	$(VERBOSE)VBoxSDL                       \
+	    --startvm $(VBOX_VM)                \
+	    --cdrom $(IMAGES_DIR)/.current.iso  \
+	    --boot d                            \
 	    $(VBOX_OPTIONS)
 
 kexec:
@@ -486,12 +488,12 @@ GRUB_TIMEOUT ?= 0
 define geniso
 	$(checkx86amd64build)
 	$(VERBOSE)$(entryselection);                                         \
-	 $(MKDIR) $(OBJ_BASE)/images;                                        \
-	 ISONAME=$(OBJ_BASE)/images/$$(echo $$e | tr '[ A-Z]' '[_a-z]').iso; \
+	 $(MKDIR) $(IMAGES_DIR);                                             \
+	 ISONAME=$(IMAGES_DIR)/$$(echo $$e | tr '[ A-Z]' '[_a-z]').iso;      \
 	 $(tool_envvars) $(common_envvars)                                   \
 	  $(L4DIR)/tool/bin/gengrub$(1)iso --timeout=$(GRUB_TIMEOUT) $$ml    \
 	     $$ISONAME "$$e"                                                 \
-	  && $(LN) -f $$ISONAME $(OBJ_BASE)/images/.current.iso
+	  && $(LN) -f $$ISONAME $(IMAGES_DIR)/.current.iso
 endef
 
 grub1iso:
@@ -503,12 +505,12 @@ grub2iso:
 exportpack:
 	$(if $(EXPORTPACKTARGETDIR),, \
 	  @echo Need to specific target directory as EXPORTPACKTARGETDIR=dir; exit 1)
-	$(VERBOSE)$(entryselection);                                         \
-	 TARGETDIR=$(EXPORTPACKTARGETDIR);                                   \
+	$(VERBOSE)$(entryselection);                                      \
+	 TARGETDIR=$(EXPORTPACKTARGETDIR);                                \
 	 qemu=$(if $(QEMU_PATH),$(QEMU_PATH),$(QEMU_ARCH_MAP_$(ARCH)));   \
 	 QEMU=$$qemu L4DIR=$(L4DIR)                                       \
-	 $(tool_envvars) $(common_envvars)                                    \
-	  $(L4DIR)/tool/bin/genexportpack --timeout=$(GRUB_TIMEOUT)         \
+	 $(tool_envvars) $(common_envvars)                                \
+	  $(L4DIR)/tool/bin/genexportpack --timeout=$(GRUB_TIMEOUT)       \
 	                                   $$ml $$TARGETDIR $$e;
 
 help::
@@ -529,7 +531,7 @@ help::
 	@echo " Modules are defined in conf/modules.list."
 
 
-.PHONY: image elfimage rawimage uimage qemu vbox ux switch_ram_base \
+.PHONY: elfimage rawimage uimage qemu vbox ux switch_ram_base \
         grub1iso grub2iso listentries shellcodeentry exportpack \
         fastboot check_and_adjust_ram_base
 

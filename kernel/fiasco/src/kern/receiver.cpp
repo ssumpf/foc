@@ -163,7 +163,7 @@ void
 Receiver::enqueue_timeout_again()
 {
   if (_timeout)
-    _timeout->set_again(current_cpu());
+    _timeout->set_again(cpu());
 }
 
 PUBLIC inline
@@ -259,8 +259,7 @@ Receiver::vcpu_async_ipc(Sender const *sender) const
   if (self->vcpu_enter_kernel_mode(vcpu))
     vcpu = vcpu_state().access();
 
-  LOG_TRACE("VCPU events", "vcpu", this, __context_vcpu_log_fmt,
-      Vcpu_log *l = tbe->payload<Vcpu_log>();
+  LOG_TRACE("VCPU events", "vcpu", this, Vcpu_log,
       l->type = 1;
       l->state = vcpu->_saved_state;
       l->ip = Mword(sender);

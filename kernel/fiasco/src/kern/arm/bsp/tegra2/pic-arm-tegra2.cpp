@@ -15,7 +15,7 @@ void Pic::init()
 {
   typedef Irq_mgr_multi_chip<8> M;
 
-  M *m = new Boot_object<M>(16);
+  M *m = new Boot_object<M>(1);
 
   gic.construct(Kmem::Gic_cpu_map_base, Kmem::Gic_dist_map_base);
   m->add_chip(0, gic, gic->nr_irqs());
@@ -35,7 +35,7 @@ void Pic::restore_all(Status)
 IMPLEMENTATION [arm && mp && pic_gic && tegra2]:
 
 PUBLIC static
-void Pic::init_ap()
+void Pic::init_ap(unsigned)
 {
   gic->init_ap();
 }

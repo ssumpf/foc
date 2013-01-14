@@ -10,12 +10,11 @@ LIBC_SRC_DIRS += $(CONTRIB_DIR)/libm \
 
 LIBC_DST_DIR  := $(OBJ_DIR)/src
 
-$(LIBC_DST_DIR)/.links-done: Makefile
-	$(MKDIR) -p $(LIBC_DST_DIR)
-	$(CP) -sfr $(LIBC_SRC_DIRS) $(LIBC_DST_DIR)
-	touch $@
+$(LIBC_DST_DIR)/.links-done: $(SRC_DIR)/Makefile $(LIBCSRC_DIR)/src_rules.mk
+	$(VEROBSE)$(MKDIR) $(LIBC_DST_DIR)
+	$(VEROBSE)$(CP) -sfr $(LIBC_SRC_DIRS) $(LIBC_DST_DIR)
+	$(VEROBSE)touch $@
 
 include $(L4DIR)/mk/lib.mk
 
-$(OBJ_DIR)/.general.d: $(LIBC_DST_DIR)/.links-done
-
+$(GENERAL_D_LOC): $(LIBC_DST_DIR)/.links-done

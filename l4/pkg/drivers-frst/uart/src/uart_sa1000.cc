@@ -17,6 +17,7 @@
  */
 
 #include "uart_sa1000.h"
+#include "poll_timeout_counter.h"
 
 namespace L4
 {
@@ -114,7 +115,8 @@ namespace L4
     _regs->write<unsigned int>(UTCR3, (old_utcr3 & ~(UTCR3_RIE|UTCR3_TIE)));
     //proc_sti_restore(st);
 
-    while (_regs->read<unsigned int>(UTSR1) & UTSR1_TBY)
+    Poll_timeout_counter i(3000000);
+    while (i.test(_regs->read<unsigned int>(UTSR1) & UTSR1_TBY))
       ;
 
     /* disable all */
@@ -144,8 +146,8 @@ namespace L4
     unsigned long old_utcr3 = _regs->read<unsigned int>(UTCR3);
     _regs->write<unsigned int>(UTCR3, old_utcr3 & ~(UTCR3_RIE|UTCR3_TIE));
 
-    while (!(_regs->read<unsigned int>(UTSR1) & UTSR1_RNE))
-      if(!blocking)
+    while (!char_avail())
+      if (!blocking)
 	return -1;
 
     ch = _regs->read<unsigned int>(UTDR);
@@ -162,7 +164,8 @@ namespace L4
   void Uart_sa1000::out_char(char c) const
   {
     // do UTCR3 thing here as well?
-    while(!(_regs->read<unsigned int>(UTSR1) & UTSR1_TNF))
+    Poll_timeout_counter i(3000000);
+    while(i.test(!(_regs->read<unsigned int>(UTSR1) & UTSR1_TNF)))
       ;
     _regs->write<unsigned int>(UTDR, c);
   }
@@ -180,7 +183,8 @@ namespace L4
       out_char(s[i]);
 
     /* wait till everything is transmitted */
-    while (_regs->read<unsigned int>(UTSR1) & UTSR1_TBY)
+    Poll_timeout_counter cnt(3000000);
+    while (cnt.test(_regs->read<unsigned int>(UTSR1) & UTSR1_TBY))
       ;
 
     _regs->write<unsigned int>(UTCR3, old_utcr3);

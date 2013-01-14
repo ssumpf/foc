@@ -67,20 +67,22 @@ l4util_cpu_has_cpuid(void)
 {
   unsigned long eax;
 
-  asm volatile("pushfl			\t\n"
+  asm volatile("pushl %%ebx             \t\n"
+               "pushfl			\t\n"
                "popl %%eax		\t\n" /* get eflags */
                "movl %%eax, %%ebx	\t\n" /* save it */
                "xorl $0x200000, %%eax	\t\n" /* toggle ID bit */
-               "pushl %%eax		\t\n" 
+               "pushl %%eax		\t\n"
                "popfl			\t\n" /* set again */
                "pushfl			\t\n"
                "popl %%eax		\t\n" /* get it again */
                "xorl %%eax, %%ebx	\t\n"
                "pushl %%ebx		\t\n"
                "popfl			\t\n" /* restore saved flags */
+               "popl %%ebx              \t\n"
                : "=a" (eax)
                : /* no input */
-               : "ebx");
+               );
 
   return eax & 0x200000;
 }
@@ -90,13 +92,16 @@ l4util_cpu_cpuid(unsigned long mode,
                  unsigned long *eax, unsigned long *ebx,
                  unsigned long *ecx, unsigned long *edx)
 {
-  asm volatile("cpuid"
-               : "=a" (*eax),
-                 "=b" (*ebx),
-                 "=c" (*ecx),
-                 "=d" (*edx)
+  asm volatile("pushl %%ebx      \t\n"
+               "cpuid            \t\n"
+               "mov %%ebx, %[b]  \t\n"
+               "popl %%ebx       \t\n"
+               :     "=a" (*eax),
+                 [b] "=m" (*ebx),
+                     "=c" (*ecx),
+                     "=d" (*edx)
                : "a"  (mode)
-               : "cc");
+               );
 }
 
 L4_INLINE unsigned int

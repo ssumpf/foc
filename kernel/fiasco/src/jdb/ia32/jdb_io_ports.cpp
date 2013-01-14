@@ -174,11 +174,11 @@ Io_m::action( int cmd, void *&args, char const *&fmt, int &)
 	case 'p': // pci
 	  if (cmd == 0)
 	    printf(" => 0x%08x",
-		   Pci::read_cfg32 (buf.pci.bus, buf.pci.dev, buf.pci.subdev, 
-				    buf.pci.reg));
+		   Pci::read_cfg(Pci::Cfg_addr(buf.pci.bus, buf.pci.dev, buf.pci.subdev,
+		                               buf.pci.reg), Pci::Cfg_width::Long));
 	  else
-	    Pci::write_cfg32 (buf.pci.bus, buf.pci.dev, buf.pci.subdev,
-			      buf.pci.reg, buf.pci.val);
+	    Pci::write_cfg(Pci::Cfg_addr(buf.pci.bus, buf.pci.dev, buf.pci.subdev,
+	                                 buf.pci.reg), (Unsigned32)buf.pci.val);
 	  putchar('\n');
 	  break;
 

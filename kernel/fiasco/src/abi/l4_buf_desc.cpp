@@ -1,6 +1,7 @@
 INTERFACE:
 
 #include "types.h"
+#include <bitfield>
 
 /**
  * Description of the mapping buffer registers contained in the UTCB 
@@ -52,36 +53,11 @@ public:
    */
   L4_buf_desc(unsigned mem, unsigned io, unsigned obj,
               unsigned flags = 0)
-  : _raw(mem | (io << 5) | (obj << 10) | flags)
+  : _raw(  mem_bfm_t::val_dirty(mem)
+         | io_bfm_t::val_dirty(io)
+         | obj_bfm_t::val_dirty(obj)
+         | flags)
   {}
-
-  /**
-   * Index of the first memory receive buffer.
-   * \return the index of the first receive buffer for memory mappings.
-   *
-   * The memory receive items use two BRs each.
-   * \see L4_fpage, L4_msg_item
-   */
-  unsigned mem() const { return _raw & ((1UL << 5)-1); }
-
-  /**
-   * Index of the first I/O-port buffer item.
-   * \return the index of the first BR containing a I/O-port buffer.
-   *
-   * The I/O-port buffer items use two BRs each.
-   * \see L4_fpage, L4_msg_item.
-   */
-  unsigned io()  const { return (_raw >> 5) & ((1UL << 5)-1); }
-
-  /**
-   * Index of the first object receive buffer.
-   * \return the BR index for the first object/capability receive buffer.
-   *
-   * An object receive buffer may use one or two BRs depending on the
-   * value in the L4_msg_item in the first BR.
-   * \see L4_msg_item, L4_fpage.
-   */
-  unsigned obj() const { return (_raw >> 10) & ((1UL << 5)-1); }
 
   /**
    * The flags of the BDR.
@@ -106,4 +82,28 @@ private:
    * - Bits 24..31: Flags as defined above (only #Inherit_fpu is in use).
    */
   Mword _raw;
+
+public:
+  /** \name Index of the first memory receive buffer
+   *
+   * The memory receive items use two BRs each.
+   * \see L4_fpage, L4_msg_item
+   */
+  CXX_BITFIELD_MEMBER( 0,  4, mem, _raw);
+
+  /** \name Index of the first IO-port receive buffer
+   *
+   * The I/O-port buffer items use two BRs each.
+   * \see L4_fpage, L4_msg_item.
+   */
+  CXX_BITFIELD_MEMBER( 5,  9, io, _raw);
+
+  /** \name Index of the first object receive buffer
+   *
+   * An object receive buffer may use one or two BRs depending on the
+   * value in the L4_msg_item in the first BR.
+   * \see L4_msg_item, L4_fpage.
+   */
+  CXX_BITFIELD_MEMBER(10, 14, obj, _raw);
+
 };

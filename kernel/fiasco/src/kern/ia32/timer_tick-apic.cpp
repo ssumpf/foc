@@ -69,5 +69,3 @@ thread_timer_interrupt_stop(void)
 {
   Apic::irq_ack();
 }
-
-

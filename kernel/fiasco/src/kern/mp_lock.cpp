@@ -33,10 +33,10 @@ Mp_lock::test_and_set()
 
   Context *const c = current();
 
-  Lock_guard<Cpu_lock> g(&cpu_lock);
+  auto g = lock_guard(cpu_lock);
 
     {
-      Lock_guard<Queue::Inner_lock> guard(_q.q_lock());
+      auto guard = lock_guard(_q.q_lock());
       if (EXPECT_FALSE(_q.invalid()))
 	return Invalid;
 
@@ -89,7 +89,7 @@ Mp_lock::clear()
   Queue_item *f;
 
     {
-      Lock_guard<Queue::Inner_lock> guard(_q.q_lock());
+      auto guard = lock_guard(_q.q_lock());
       //LOG_MSG_3VAL(current(), "clear", (Mword)this, current_cpu(), *((Mword*)this));
       assert_kdb (_q.blocked());
 
@@ -114,10 +114,10 @@ Mp_lock::wait_free()
 
   Context *const c = current();
 
-  Lock_guard<Cpu_lock> g(&cpu_lock);
+  auto g = lock_guard(cpu_lock);
 
     {
-      Lock_guard<Queue::Inner_lock> guard(_q.q_lock());
+      auto guard = lock_guard(_q.q_lock());
       assert_kdb (invalid());
 
       if (!_q.blocked())
@@ -157,14 +157,14 @@ void
 Mp_lock::invalidate()
 {
     {
-      Lock_guard<Queue::Inner_lock> guard(_q.q_lock());
+      auto guard = lock_guard(_q.q_lock());
       _q.invalidate();
     }
       
   Queue_item *f;
   while (1)
     {
-      Lock_guard<Queue::Inner_lock> guard(_q.q_lock());
+      auto guard = lock_guard(_q.q_lock());
       f = _q.first();
 
       //LOG_MSG_3VAL(current(), "deq", Mword(f), 0, 0);

@@ -6,8 +6,10 @@ srcdir = $(shell pwd)/../
 
 all:
 
-runconfig = cp globalconfig.out.$(2) globalconfig.out ;    \
-            make $(1) && sed -e '3,4d'                     \
+runconfig = export INCLUDE_PPC32=y;                      \
+	    export INCLUDE_SPARC=y;                      \
+	    cp globalconfig.out.$(2) globalconfig.out ;  \
+            make $(1) && sed -e '3,4d'                   \
 		globalconfig.out > globalconfig.out.$(2)
 
 cleanup = make mrproper && \

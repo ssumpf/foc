@@ -135,6 +135,7 @@ ifeq ($(CALLED_FOR),sharedlib)
 
 ifneq ($(SYSTEM),)
 
+NOTARGETSTOINSTALL = y
 L4_CRT0_SO = $(CRT0)
 L4_CRTN_SO = $(CRTN)
 

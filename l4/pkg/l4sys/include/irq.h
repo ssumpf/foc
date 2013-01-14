@@ -123,8 +123,14 @@ l4_irq_detach_u(l4_cap_idx_t irq, l4_utcb_t *utcb) L4_NOTHROW;
  * \param irq    IRQ to trigger.
  * \pre \a irq must be a reference to an IRQ.
  *
- * \return Syscall return tag, note this is a send only operation, i.e. there
- *         is no return value except for failed sending.
+ * \return Syscall return tag.
+ *
+ * Note that this function is a send only operation, i.e. there is no return
+ * value except for a failed send operation. Especially l4_error() will
+ * return an error value from the message tag which still contains the IRQ
+ * protocol used for the send operation.
+ *
+ * Use l4_ipc_error() to check for (send) errors.
  */
 L4_INLINE l4_msgtag_t
 l4_irq_trigger(l4_cap_idx_t irq) L4_NOTHROW;

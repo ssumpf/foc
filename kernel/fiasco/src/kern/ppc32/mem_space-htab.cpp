@@ -233,7 +233,7 @@ PRIVATE inline
 Mem_space::Status
 Mem_space::pte_attrib_upgrade(Address pte_addr, unsigned page_attribs)
 {
-  Lock_guard<Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
   Pte_htab * pte_phys = Pte_htab::addr_to_pte(pte_addr);
   if(EXPECT_FALSE((pte_phys->phys() | page_attribs) 
 	 	  == pte_phys->phys()))
@@ -315,7 +315,7 @@ IMPLEMENT
 unsigned long
 Mem_space::v_delete_htab(Address pte_addr, unsigned page_attribs = Page_all_attribs)
 {
-  Lock_guard<Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
   unsigned long ret;
   Pte_htab *pte_phys = Pte_htab::addr_to_pte(pte_addr);
 

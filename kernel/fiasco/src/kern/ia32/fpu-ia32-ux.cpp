@@ -118,7 +118,9 @@ Fpu::init(unsigned cpu)
   disable();
 
   // At first, noone owns the FPU
-  set_owner(cpu, 0);
+  Fpu &f = Fpu::fpu.cpu(cpu);
+
+  f.set_owner(0);
 
   init_disable();
 
@@ -137,19 +139,19 @@ Fpu::init(unsigned cpu)
       Unsigned32 eax, ecx, edx;
       Cpu::cpus.cpu(cpu).cpuid_0xd(0, &eax, &cpu_size, &ecx, &edx);
       cpu_align = 64;
-      fpu(cpu)._variant = Variant_xsave;
+      f._variant = Variant_xsave;
     }
   else if (Cpu::have_fxsr())
     {
       cpu_size  = sizeof(sse_regs);
       cpu_align = 16;
-      fpu(cpu)._variant  = Variant_fxsr;
+      f._variant  = Variant_fxsr;
     }
   else
     {
       cpu_size  = sizeof(fpu_regs);
       cpu_align = 4;
-      fpu(cpu)._variant  = Variant_fpu;
+      f._variant  = Variant_fpu;
     }
 
   if (cpu_size > _state_size)

@@ -39,7 +39,7 @@ IMPLEMENTATION:
 #include "watchdog.h"
 
 
-Jdb_tbuf_output::Format_entry_fn *Jdb_tbuf_output::_format_entry_fn[Tbuf_max];
+Jdb_tbuf_output::Format_entry_fn *Jdb_tbuf_output::_format_entry_fn[Tbuf_dynentries];
 bool Jdb_tbuf_output::show_names;
 
 static void
@@ -99,7 +99,7 @@ PUBLIC static
 void
 Jdb_tbuf_output::register_ff(Unsigned8 type, Format_entry_fn format_entry_fn)
 {
-  assert(type < Tbuf_max);
+  assert(type < Tbuf_dynentries);
 
   if (   (_format_entry_fn[type] != 0)
       && (_format_entry_fn[type] != dummy_format_entry))
@@ -157,13 +157,13 @@ formatter_default(Tb_entry *tb, const char *tidstr, unsigned tidlen,
       snprintf(ip_buf, sizeof(ip_buf), " @ " L4_PTR_FMT, e->ip());
       snprintf(buf, maxlen, "\"%s\" "
                L4_PTR_FMT " " L4_PTR_FMT " " L4_PTR_FMT "%s",
-               e->msg(), e->val1(), e->val2(), e->val3(),
+               e->msg(), e->v[0], e->v[1], e->v[2],
                e->ip() ? ip_buf : "");
 
       return maxlen;
     }
 
-  return fmt(tb, maxlen, buf);
+  return fmt->print(tb, maxlen, buf);
 }
 
 PUBLIC static

@@ -17,28 +17,6 @@ public:
     Idle_time  = 2,
   };
 
-  class Cpu_set
-  {
-  private:
-    Mword _w;
-
-  public:
-    Mword offset() const { return (_w & 0x00ffffff) & (~0 << granularity()); }
-    Mword granularity() const { return (_w >> 24) & (MWORD_BITS-1) ; }
-    bool contains(unsigned cpu, Mword map) const
-    {
-      if (offset() > cpu)
-	return false;
-
-      cpu -= offset();
-      cpu >>= granularity();
-      if (cpu >= MWORD_BITS)
-	return false;
-
-      return map & (1UL << cpu);
-    }
-  };
-
   static Scheduler scheduler;
 private:
   Irq_base *_irq;
@@ -49,6 +27,7 @@ IMPLEMENTATION:
 
 #include "thread_object.h"
 #include "l4_buf_iter.h"
+#include "l4_types.h"
 #include "entry_frame.h"
 
 FIASCO_DEFINE_KOBJ(Scheduler);
@@ -68,30 +47,6 @@ Scheduler::Scheduler() : _irq(0)
   initial_kobjects.register_obj(this, 7);
 }
 
-PRIVATE static
-Mword
-Scheduler::first_online(Cpu_set const *cpus, Mword bm)
-{
-  unsigned cpu = cpus->offset();
-
-  for (;;)
-    {
-      unsigned b = (cpu - cpus->offset()) >> cpus->granularity();
-      if (cpu >= Config::Max_num_cpus || b >= MWORD_BITS)
-	return ~0UL;
-
-      if (!(bm & (1UL << b)))
-	{
-	  cpu += 1UL << cpus->granularity();
-	  continue;
-	}
-
-      if (Cpu::online(cpu))
-	return cpu;
-
-      ++cpu;
-    }
-}
 
 PRIVATE
 L4_msg_tag
@@ -108,6 +63,20 @@ Scheduler::sys_run(unsigned char /*rights*/, Syscall_frame *f, Utcb const *utcb)
   if (EXPECT_FALSE(tag.words() < 5))
     return commit_result(-L4_err::EInval);
 
+  unsigned long sz = sizeof (L4_sched_param_legacy);
+
+    {
+      L4_sched_param const *sched_param = reinterpret_cast<L4_sched_param const*>(&utcb->values[1]);
+      if (sched_param->sched_class < 0)
+        sz = sched_param->length;
+
+      sz += sizeof(Mword) - 1;
+      sz /= sizeof(Mword);
+
+      if (sz + 1 > tag.words())
+	return commit_result(-L4_err::EInval);
+    }
+
   if (EXPECT_FALSE(!tag.items() || !snd_items.next()))
     return commit_result(-L4_err::EInval);
 
@@ -119,35 +88,30 @@ Scheduler::sys_run(unsigned char /*rights*/, Syscall_frame *f, Utcb const *utcb)
   if (!thread)
     return commit_result(-L4_err::EInval);
 
-  Cpu_set const *cpus = reinterpret_cast<Cpu_set const *>(&utcb->values[1]);
 
-  Thread::Migration_info info;
+  Mword _store[sz];
+  memcpy(_store, &utcb->values[1], sz * sizeof(Mword));
+
+  L4_sched_param const *sched_param = reinterpret_cast<L4_sched_param const *>(_store);
+
+  Thread::Migration info;
 
   unsigned t_cpu = thread->cpu();
-  if (cpus->contains(t_cpu, utcb->values[2]))
+
+  if (Cpu::online(t_cpu) && sched_param->cpus.contains(t_cpu))
     info.cpu = t_cpu;
-  else if (cpus->contains(curr_cpu, utcb->values[2]))
+  else if (sched_param->cpus.contains(curr_cpu))
     info.cpu = curr_cpu;
   else
-    info.cpu = first_online(cpus, utcb->values[2]);
-#if 0
-  if (info.cpu == Invalid_cpu)
-    return commit_result(-L4_err::EInval);
-#endif
-  info.prio = utcb->values[3];
-  info.quantum = utcb->values[4];
-#if 0
-  printf("CPU[%lx]: current_cpu=%u run(thread=%lx, prio=%ld, quantum=%ld, cpu=%ld (%lx,%u,%u)\n",
-         dbg_id(), curr_cpu, thread->dbg_id(), info.prio, info.quantum, info.cpu, utcb->values[2], cpus->offset(), cpus->granularity());
-#endif
+    info.cpu = sched_param->cpus.first(Cpu::online_mask(), Config::Max_num_cpus);
 
-  if (info.prio > 255)
-    info.prio = 255;
-  if (!info.quantum)
-    info.quantum = Config::Default_time_slice;
+  info.sp = sched_param;
+  if (0)
+    printf("CPU[%lx]: current_cpu=%u run(thread=%lx, cpu=%u (%lx,%lu,%lu)\n",
+           dbg_id(), curr_cpu, thread->dbg_id(), info.cpu,
+           utcb->values[2], sched_param->cpus.offset(), sched_param->cpus.granularity());
 
-
-  thread->migrate(info);
+  thread->migrate(&info);
 
   return commit_result(0);
 }
@@ -160,9 +124,9 @@ Scheduler::sys_idle_time(unsigned char,
   if (f->tag().words() < 3)
     return commit_result(-L4_err::EInval);
 
-  Cpu_set const *cpus = reinterpret_cast<Cpu_set const *>(&utcb->values[1]);
-  Mword const cpu = first_online(cpus, utcb->values[2]);
-  if (cpu == ~0UL)
+  L4_cpu_set cpus = access_once(reinterpret_cast<L4_cpu_set const *>(&utcb->values[1]));
+  Mword const cpu = cpus.first(Cpu::online_mask(), Config::Max_num_cpus);
+  if (EXPECT_FALSE(cpu == Config::Max_num_cpus))
     return commit_result(-L4_err::EInval);
 
   reinterpret_cast<Utcb::Time_val *>(utcb->values)->t
@@ -174,24 +138,24 @@ Scheduler::sys_idle_time(unsigned char,
 PRIVATE
 L4_msg_tag
 Scheduler::sys_info(unsigned char, Syscall_frame *f,
-                      Utcb const *iutcb, Utcb *outcb)
+                    Utcb const *iutcb, Utcb *outcb)
 {
   if (f->tag().words() < 2)
     return commit_result(-L4_err::EInval);
 
-  Cpu_set const *s = reinterpret_cast<Cpu_set const*>(&iutcb->values[1]);
+  L4_cpu_set_descr const s = access_once(reinterpret_cast<L4_cpu_set_descr const*>(&iutcb->values[1]));
   Mword rm = 0;
   Mword max = Config::Max_num_cpus;
-  Mword const offset = s->offset() << s->granularity();
+  Mword const offset = s.offset() << s.granularity();
   if (offset >= max)
     return commit_result(-L4_err::EInval);
 
-  if (max > offset + ((Mword)MWORD_BITS << s->granularity()))
-    max = offset + ((Mword)MWORD_BITS << s->granularity());
+  if (max > offset + ((Mword)MWORD_BITS << s.granularity()))
+    max = offset + ((Mword)MWORD_BITS << s.granularity());
 
   for (Mword i = 0; i < max - offset; ++i)
     if (Cpu::online(i + offset))
-      rm |= (1 << (i >> s->granularity()));
+      rm |= (1 << (i >> s.granularity()));
 
   outcb->values[0] = rm;
   outcb->values[1] = Config::Max_num_cpus;
@@ -207,7 +171,6 @@ Scheduler::icu_get_irq(unsigned irqnum)
 
   return _irq;
 }
-
 
 PUBLIC inline
 void

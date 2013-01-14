@@ -107,6 +107,8 @@ Svm::Svm(unsigned cpu)
     }
   printf("NASID: 0x%x\n", ebx);
   _max_asid = ebx - 1;
+
+  // FIXME: MUST NOT PANIC ON CPU HOTPLUG
   assert(_max_asid > 0);
 
   enum
@@ -118,6 +120,7 @@ Svm::Svm(unsigned cpu)
   };
 
   /* 16kB IO permission map and Vmcb (16kB are good for the buddy allocator)*/
+  // FIXME: MUST NOT PANIC ON CPU HOTPLUG
   check(_iopm = Kmem_alloc::allocator()->unaligned_alloc(Io_pm_size + Vmcb_size));
   _iopm_base_pa = Kmem::virt_to_phys(_iopm);
   _kernel_vmcb = (Vmcb*)((char*)_iopm + Io_pm_size);
@@ -131,6 +134,7 @@ Svm::Svm(unsigned cpu)
   memset(_kernel_vmcb, 0, Vmcb_size);
 
   /* 8kB MSR permission map */
+  // FIXME: MUST NOT PANIC ON CPU HOTPLUG
   check(_msrpm = Kmem_alloc::allocator()->unaligned_alloc(Msr_pm_size));
   _msrpm_base_pa = Kmem::virt_to_phys(_msrpm);
   memset(_msrpm, ~0, Msr_pm_size);
@@ -141,6 +145,7 @@ Svm::Svm(unsigned cpu)
   set_msr_perm(MSR_SYSENTER_ESP, Msr_rw);
 
   /* 4kB Host state-safe area */
+  // FIXME: MUST NOT PANIC ON CPU HOTPLUG
   check(_vm_hsave_area = Kmem_alloc::allocator()->unaligned_alloc(State_save_area_size));
   Unsigned64 vm_hsave_pa = Kmem::virt_to_phys(_vm_hsave_area);
 
@@ -237,6 +242,7 @@ Svm::next_asid ()
     {
       _global_asid_generation++;
       _next_asid = 1;
+      // FIXME: must not crash on an overrun
       assert (_global_asid_generation < ~0U);
       _flush_all_asids = true;
     }

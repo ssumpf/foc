@@ -49,9 +49,9 @@ extern "C" void sys_ipc_log_wrapper(void)
 	    dbg_id = ~0UL;
 	}
       Tb_entry_ipc _local;
-      Tb_entry_ipc *tb = static_cast<Tb_entry_ipc*>
-	(EXPECT_TRUE(Jdb_ipc_trace::log_buf()) ? Jdb_tbuf::new_entry()
-					   : &_local);
+      Tb_entry_ipc *tb = EXPECT_TRUE(Jdb_ipc_trace::log_buf())
+                       ? Jdb_tbuf::new_entry<Tb_entry_ipc>()
+                       : &_local;
       tb->set(curr, regs->ip(), ipc_regs, utcb,
 	      dbg_id, curr->sched_context()->left());
 

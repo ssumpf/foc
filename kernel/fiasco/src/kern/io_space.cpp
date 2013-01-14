@@ -97,7 +97,7 @@ IMPLEMENTATION [io]:
 #include "kmem_alloc.h"
 #include "panic.h"
 #include "paging.h"
-  
+
 
 PUBLIC template< typename SPACE >
 static inline
@@ -148,14 +148,14 @@ Generic_io_space<SPACE>::~Generic_io_space()
       Kmem_alloc::allocator()
 	->q_free_phys(ram_quota(), Config::PAGE_SHIFT,
 	              iopte.e[0].addr());
-      
+
       if (iopte.e[1].valid())
 	Kmem_alloc::allocator()
 	  ->q_free_phys(ram_quota(), Config::PAGE_SHIFT,
 	                iopte.e[1].addr());
-  
+
       Pdir::Iter iopde = mem_space()->dir()->walk(Virt_addr(Mem_layout::Io_bitmap), 0);
-      
+
       // free the page table
       Kmem_alloc::allocator()
 	->q_free_phys(ram_quota(), Config::PAGE_SHIFT,
@@ -179,9 +179,9 @@ Generic_io_space<SPACE>::is_superpage()
 { return _io_counter & 0x10000000; }
 
 
-// 
+//
 // Utilities for map<Generic_io_space> and unmap<Generic_io_space>
-// 
+//
 
 PUBLIC template< typename SPACE >
 virtual
@@ -195,8 +195,8 @@ Generic_io_space<SPACE>::v_fabricate(Addr address, Phys_addr *phys,
 }
 
 PUBLIC template< typename SPACE >
-inline NEEDS[Generic_io_space::is_superpage] 
-bool 
+inline NEEDS[Generic_io_space::is_superpage]
+bool
 Generic_io_space<SPACE>::v_lookup(Addr virt, Phys_addr *phys = 0,
                                   Size *size = 0, unsigned *attribs = 0)
 {
@@ -289,7 +289,7 @@ Generic_io_space<SPACE>::tlb_flush()
 
 PUBLIC template< typename SPACE >
 inline static
-bool 
+bool
 Generic_io_space<SPACE>::need_tlb_flush()
 { return false; }
 
@@ -323,9 +323,9 @@ Generic_io_space<SPACE>::addto_io_counter(int incr)
 
 
 /** Lookup one IO port in the IO space.
-    @param port_number port address to lookup; 
+    @param port_number port address to lookup;
     @return true if mapped
-     false if not 
+     false if not
  */
 PROTECTED template< typename SPACE >
 bool
@@ -342,8 +342,8 @@ Generic_io_space<SPACE>::io_lookup(Address port_number)
     return false;		// no bitmap -> no ports
 
   // so there is memory mapped in the IO bitmap
-  char * port = static_cast<char *>(Kmem::phys_to_virt(port_addr));
-  
+  char *port = static_cast<char *>(Kmem::phys_to_virt(port_addr));
+
   // bit == 1 disables the port
   // bit == 0 enables the port
   return !(*port & get_port_bit(port_number));
@@ -370,8 +370,8 @@ Generic_io_space<SPACE>::io_insert(Address port_number)
     {
       // nothing mapped! Get a page and map it in the IO bitmap
       void *page;
-      if (!(page=Kmem_alloc::allocator()->q_alloc(ram_quota(),
-	      Config::PAGE_SHIFT)))
+      if (!(page = Kmem_alloc::allocator()->q_alloc(ram_quota(),
+                                                    Config::PAGE_SHIFT)))
 	return Insert_err_nomem;
 
       // clear all IO ports
@@ -387,13 +387,13 @@ Generic_io_space<SPACE>::io_insert(Address port_number)
 
       if (status == Mem_space::Insert_err_nomem)
 	{
-	  Kmem_alloc::allocator()->free(Config::PAGE_SHIFT,page);
+	  Kmem_alloc::allocator()->free(Config::PAGE_SHIFT, page);
 	  ram_quota()->free(Config::PAGE_SIZE);
 	  return Insert_err_nomem;
 	}
 
       // we've been careful, so insertion should have succeeded
-      assert(status == Mem_space::Insert_ok); 
+      assert(status == Mem_space::Insert_ok);
 
       port_phys = mem_space()->virt_to_phys(port_virt);
       assert(port_phys != ~0UL);
@@ -404,7 +404,7 @@ Generic_io_space<SPACE>::io_insert(Address port_number)
 
   if (*port & get_port_bit(port_number)) // port disabled?
     {
-      *port &= ~ get_port_bit(port_number);
+      *port &= ~get_port_bit(port_number);
       addto_io_counter(1);
       return Insert_ok;
     }
@@ -433,7 +433,7 @@ Generic_io_space<SPACE>::io_delete(Address port_number)
     return 0;
 
   // so there is memory mapped in the IO bitmap -> disable the ports
-  char * port = static_cast<char *> (Kmem::phys_to_virt(port_addr));
+  char *port = static_cast<char *>(Kmem::phys_to_virt(port_addr));
 
   // bit == 1 disables the port
   // bit == 0 enables the port
@@ -457,7 +457,7 @@ Generic_io_space<SPACE>::get_phys_port_addr(Address const port_number) const
 }
 
 template< typename SPACE >
-INLINE 
+INLINE
 Unsigned8
 Generic_io_space<SPACE>::get_port_bit(Address const port_number) const
 {

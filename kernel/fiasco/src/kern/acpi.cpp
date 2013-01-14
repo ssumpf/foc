@@ -32,47 +32,20 @@ public:
 } __attribute__((packed));
 
 
-template< typename T >
-class Acpi_sdt : public Acpi_table_head
+class Acpi_sdt
 {
-public:
-  T ptrs[0];
-
-} __attribute__((packed));
-
-typedef Acpi_sdt<Unsigned32> Acpi_rsdt;
-typedef Acpi_sdt<Unsigned64> Acpi_xsdt;
-
-class Acpi_rsdp
-{
-public:
-  char       signature[8];
-  Unsigned8  chk_sum;
-  char       oem[6];
-  Unsigned8  rev;
-  Unsigned32 rsdt_phys;
-  Unsigned32 len;
-  Unsigned64 xsdt_phys;
-  Unsigned8  ext_chk_sum;
-  char       reserved[3];
-
-  Acpi_rsdt const *rsdt() const;
-  Acpi_xsdt const *xsdt() const;
-
-  bool checksum_ok() const;
-
-  static Acpi_rsdp const *locate();
-} __attribute__((packed));
+private:
+  unsigned _num_tables;
+  Acpi_table_head const **_tables;
+};
 
 class Acpi
 {
 public:
-  static Acpi_rsdt const *rsdt() { return _rsdt; }
-  static Acpi_xsdt const *xsdt() { return _xsdt; }
+  static Acpi_sdt const *sdt() { return &_sdt; }
 
 private:
-  static Acpi_rsdt const *_rsdt;
-  static Acpi_xsdt const *_xsdt;
+  static Acpi_sdt _sdt;
   static bool _init_done;
 };
 
@@ -113,15 +86,55 @@ private:
   char data[0];
 } __attribute__((packed));
 
+template< bool >
+struct Acpi_helper_get_msb
+{ template<typename P> static Address msb(P) { return 0; } };
+
+template<>
+struct Acpi_helper_get_msb<true>
+{ template<typename P> static Address msb(P p) { return p >> (sizeof(Address) * 8); } };
+
 
 IMPLEMENTATION:
 
+#include "boot_alloc.h"
 #include "kmem.h"
 #include <cctype>
 
-Acpi_rsdt const *Acpi::_rsdt;
-Acpi_xsdt const *Acpi::_xsdt;
+Acpi_sdt Acpi::_sdt;
 bool Acpi::_init_done;
+
+template< typename T >
+class Acpi_sdt_p : public Acpi_table_head
+{
+public:
+  T ptrs[0];
+
+} __attribute__((packed));
+
+typedef Acpi_sdt_p<Unsigned32> Acpi_rsdt_p;
+typedef Acpi_sdt_p<Unsigned64> Acpi_xsdt_p;
+
+class Acpi_rsdp
+{
+public:
+  char       signature[8];
+  Unsigned8  chk_sum;
+  char       oem[6];
+  Unsigned8  rev;
+  Unsigned32 rsdt_phys;
+  Unsigned32 len;
+  Unsigned64 xsdt_phys;
+  Unsigned8  ext_chk_sum;
+  char       reserved[3];
+
+  Acpi_rsdt_p const *rsdt() const;
+  Acpi_xsdt_p const *xsdt() const;
+
+  bool checksum_ok() const;
+
+  static Acpi_rsdp const *locate();
+} __attribute__((packed));
 
 
 static void
@@ -153,19 +166,66 @@ Acpi_table_head::print_info() const
   printf("\n");
 }
 
-PUBLIC template< typename T >
+PUBLIC
 void
-Acpi_sdt<T>::print_summary() const
+Acpi_sdt::print_summary() const
 {
-  for (unsigned i = 0; i < ((len-sizeof(Acpi_table_head))/sizeof(ptrs[0])); ++i)
-    {
-      Acpi_table_head const *t = Kmem::dev_map.map((Acpi_table_head const*)ptrs[i]);
-      if (t == (Acpi_table_head const *)~0UL)
-	continue;
+  for (unsigned i = 0; i < _num_tables; ++i)
+    if (_tables[i])
+      _tables[i]->print_info();
+}
 
-      t->print_info();
+PUBLIC template< typename T >
+unsigned
+Acpi_sdt_p<T>::entries() const
+{ return (len - sizeof(Acpi_table_head)) / sizeof(ptrs[0]); }
+
+PUBLIC template< typename SDT >
+void
+Acpi_sdt::init(SDT *sdt)
+{
+  unsigned entries = sdt->entries();
+  _tables = (Acpi_table_head const **)Boot_alloced::alloc(sizeof(*_tables) * entries);
+  if (_tables)
+    {
+      _num_tables = entries;
+      for (unsigned i = 0; i < entries; ++i)
+        if (sdt->ptrs[i])
+          this->map_entry(i, sdt->ptrs[i]);
     }
 }
+
+
+PRIVATE template< typename T >
+Acpi_table_head const *
+Acpi_sdt::map_entry(unsigned idx, T phys)
+{
+  if (idx >= _num_tables)
+    {
+      printf("ACPI: table index out of range (%d >= %d)\n", idx, _num_tables);
+      return 0;
+    }
+
+  // is the acpi address bigger that our handled physical addresses
+  if (Acpi_helper_get_msb<(sizeof(phys) > sizeof(Address))>::msb(phys))
+    {
+      printf("ACPI: cannot map phys address %llx, out of range (%zdbit)\n",
+             (unsigned long long)phys, sizeof(Address) * 8);
+      return 0;
+    }
+
+  Acpi_table_head const *t = Kmem::dev_map.map((Acpi_table_head const*)(unsigned long)phys);
+  if (t == (Acpi_table_head const *)~0UL)
+    {
+      printf("ACPI: cannot map phys address %llx, map failed\n",
+             (unsigned long long)phys);
+      return 0;
+    }
+
+  _tables[idx] = t;
+  return t;
+}
+
 
 
 PUBLIC static
@@ -189,36 +249,35 @@ Acpi::init_virt()
 
   if (rsdp->rev && rsdp->xsdt_phys)
     {
-      Acpi_xsdt const *x = Kmem::dev_map.map((const Acpi_xsdt *)rsdp->xsdt_phys);
-      if (x == (Acpi_xsdt const *)~0UL)
+      Acpi_xsdt_p const *x = Kmem::dev_map.map((const Acpi_xsdt_p *)rsdp->xsdt_phys);
+      if (x == (Acpi_xsdt_p const *)~0UL)
         printf("ACPI: Could not map XSDT\n");
       else if (!x->checksum_ok())
         printf("ACPI: Checksum mismatch in XSDT\n");
       else
         {
-          _xsdt = x;
+          _sdt.init(x);
           x->print_info();
+          _sdt.print_summary();
+          return;
         }
     }
 
   if (rsdp->rsdt_phys)
     {
-      Acpi_rsdt const *r = Kmem::dev_map.map((const Acpi_rsdt *)rsdp->rsdt_phys);
-      if (r == (Acpi_rsdt const *)~0UL)
+      Acpi_rsdt_p const *r = Kmem::dev_map.map((const Acpi_rsdt_p *)(unsigned long)rsdp->rsdt_phys);
+      if (r == (Acpi_rsdt_p const *)~0UL)
         printf("ACPI: Could not map RSDT\n");
       else if (!r->checksum_ok())
         printf("ACPI: Checksum mismatch in RSDT\n");
       else
         {
-          _rsdt = r;
+          _sdt.init(r);
           r->print_info();
+          _sdt.print_summary();
+          return;
         }
     }
-
-  if (_xsdt)
-    _xsdt->print_summary();
-  else if (_rsdt)
-    _rsdt->print_summary();
 }
 
 PUBLIC static
@@ -226,29 +285,24 @@ template< typename T >
 T
 Acpi::find(const char *s)
 {
-  T a = 0;
   init_virt();
-  if (_xsdt)
-    a = static_cast<T>(_xsdt->find(s));
-  else if (_rsdt)
-    a = static_cast<T>(_rsdt->find(s));
-  return a;
+  return static_cast<T>(sdt()->find(s));
 }
 
 IMPLEMENT
-Acpi_rsdt const *
+Acpi_rsdt_p const *
 Acpi_rsdp::rsdt() const
 {
-  return (Acpi_rsdt const*)rsdt_phys;
+  return (Acpi_rsdt_p const*)(unsigned long)rsdt_phys;
 }
 
 IMPLEMENT
-Acpi_xsdt const *
+Acpi_xsdt_p const *
 Acpi_rsdp::xsdt() const
 {
   if (rev == 0)
     return 0;
-  return (Acpi_xsdt const*)xsdt_phys;
+  return (Acpi_xsdt_p const*)xsdt_phys;
 }
 
 IMPLEMENT
@@ -285,9 +339,30 @@ Acpi_table_head::checksum_ok() const
 }
 
 PUBLIC
+Acpi_table_head const *
+Acpi_sdt::find(char const sig[4]) const
+{
+  for (unsigned i = 0; i < _num_tables; ++i)
+    {
+      Acpi_table_head const *t = _tables[i];
+      if (!t)
+	continue;
+
+      if (t->signature[0] == sig[0]
+	  && t->signature[1] == sig[1]
+	  && t->signature[2] == sig[2]
+	  && t->signature[3] == sig[3]
+          && t->checksum_ok())
+	return t;
+    }
+
+  return 0;
+}
+
+PUBLIC
 template< typename T >
 Acpi_table_head const *
-Acpi_sdt<T>::find(char const sig[4]) const
+Acpi_sdt_p<T>::find(char const sig[4]) const
 {
   for (unsigned i = 0; i < ((len-sizeof(Acpi_table_head))/sizeof(ptrs[0])); ++i)
     {

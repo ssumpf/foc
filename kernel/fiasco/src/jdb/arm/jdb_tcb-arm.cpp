@@ -14,7 +14,7 @@ EXTENSION class Jdb_tcb
 };
 
 IMPLEMENT
-void Jdb_tcb::print_entry_frame_regs(Thread *)
+void Jdb_tcb::print_entry_frame_regs(Thread *t)
 {
   Jdb_entry_frame *ef = Jdb::get_entry_frame(Jdb::current_cpu);
   int from_user       = ef->from_user();
@@ -22,13 +22,13 @@ void Jdb_tcb::print_entry_frame_regs(Thread *)
   printf("Registers (before debug entry from %s mode):\n"
          "[0] %08lx %08lx %08lx %08lx  %08lx %08lx %08lx %08lx\n"
          "[8] %08lx %08lx %08lx %08lx  %08lx %08lx %08lx %s%08lx\033[m\n"
-         "upsr = %08lx\n",
+         "upsr=%08lx tpidr: urw=%08lx uro=%08lx\n",
          from_user ? "user" : "kernel",
 	 ef->r[0], ef->r[1],ef->r[2], ef->r[3],
 	 ef->r[4], ef->r[5],ef->r[6], ef->r[7],
 	 ef->r[8], ef->r[9],ef->r[10], ef->r[11],
 	 ef->r[12], ef->usp, ef->ulr, Jdb::esc_iret, ef->pc,
-	 ef->psr);
+	 ef->psr, t->tpidrurw(), t->tpidruro());
 }
 
 IMPLEMENT

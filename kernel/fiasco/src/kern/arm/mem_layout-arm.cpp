@@ -3,7 +3,7 @@ INTERFACE [arm && !kern_start_0xd]:
 EXTENSION class Mem_layout
 {
 public:
-  enum Virt_layout_umax {
+  enum Virt_layout_umax : Address {
     User_max             = 0xc0000000,
   };
 };
@@ -15,7 +15,7 @@ INTERFACE [arm && kern_start_0xd]:
 EXTENSION class Mem_layout
 {
 public:
-  enum Virt_layout_umax {
+  enum Virt_layout_umax : Address {
     User_max             = 0xd0000000,
   };
 };
@@ -29,7 +29,7 @@ INTERFACE [arm]:
 EXTENSION class Mem_layout
 {
 public:
-  enum Virt_layout {
+  enum Virt_layout : Address {
     Utcb_addr            = User_max - 0x10000,
     Service_page         = 0xeac00000,
     Tbuf_status_page     = Service_page + 0x5000,
@@ -42,7 +42,7 @@ public:
     Cache_flush_area     = 0xef000000,
     Cache_flush_area_end = 0xef100000,
     Registers_map_start  = 0xef100000,
-    Registers_map_end    = 0xef500000,
+    Registers_map_end    = 0xeff00000,
     Map_base             = 0xf0000000,
     Map_end              = 0xf5000000,
     Caps_start           = 0xf5000000,
@@ -55,6 +55,17 @@ public:
     Syscalls		 = 0xfffff000,
 
     Kernel_max           = 0x00000000,
+
+    Devices0_map_base    = Registers_map_start + 0x00000000,
+    Devices1_map_base    = Registers_map_start + 0x00100000,
+    Devices2_map_base    = Registers_map_start + 0x00200000,
+    Devices3_map_base    = Registers_map_start + 0x00300000,
+    Devices4_map_base    = Registers_map_start + 0x00400000,
+    Devices5_map_base    = Registers_map_start + 0x00500000,
+    Devices6_map_base    = Registers_map_start + 0x00600000,
+    Devices7_map_base    = Registers_map_start + 0x00700000,
+    Devices8_map_base    = Registers_map_start + 0x00800000,
+    Devices9_map_base    = Registers_map_start + 0x00900000,
   };
 };
 

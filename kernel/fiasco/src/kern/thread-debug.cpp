@@ -1,13 +1,15 @@
 INTERFACE [debug]:
 
+#include "tb_entry.h"
+
 EXTENSION class Thread
 {
 protected:
-  struct Log_thread_exregs
+  struct Log_thread_exregs : public Tb_entry
   {
     Mword       id, ip, sp, op;
+    unsigned print(int, char *) const;
   };
-  static unsigned fmt_exregs(Tb_entry *, int, char *) asm ("__fmt_thread_exregs");
 };
 
 //--------------------------------------------------------------------------
@@ -25,19 +27,15 @@ IMPLEMENTATION [debug]:
 
 IMPLEMENT
 unsigned
-Thread::fmt_exregs(Tb_entry *e, int max, char *buf)
+Thread::Log_thread_exregs::print(int max, char *buf) const
 {
-  Log_thread_exregs *l = e->payload<Log_thread_exregs>();
   return snprintf(buf, max, "D=%lx ip=%lx sp=%lx op=%s%s%s",
-                  l->id, l->ip, l->sp,
-                  l->op & Exr_cancel ? "Cancel" : "",
-                  ((l->op & (Exr_cancel |
-                             Exr_trigger_exception))
-                   == (Exr_cancel |
-                       Exr_trigger_exception))
+                  id, ip, sp,
+                  op & Exr_cancel ? "Cancel" : "",
+                  ((op & (Exr_cancel | Exr_trigger_exception))
+                   == (Exr_cancel | Exr_trigger_exception))
                    ? ","
-                   : ((l->op & (Exr_cancel |
-                                Exr_trigger_exception))
+                   : ((op & (Exr_cancel | Exr_trigger_exception))
                       == 0 ? "0" : "") ,
-                  l->op & Exr_trigger_exception ? "TrExc" : "");
+                  op & Exr_trigger_exception ? "TrExc" : "");
 }

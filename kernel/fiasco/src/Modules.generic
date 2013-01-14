@@ -18,12 +18,15 @@ INTERFACES_KERNEL	:= cpu_mask rcupdate kobject_mapdb context_base \
 			   main config vmem_alloc paging fpu                 \
 			   fpu_state fpu_alloc cpu entry_frame               \
 			   kernel_console ipc_gate task sigma0_task          \
-                           kernel_task          \
+                           kernel_task platform_control_object          \
 			   irq_controller irq_chip irq_mgr terminate         \
-			   continuation timer_tick                           \
+			   continuation timer_tick platform_control          \
 			   sched_context utcb_init perf_cnt trap_state       \
 			   buddy_alloc vkey kdb_ke prio_list ipi scheduler   \
 			   clock vm_factory sys_call_page boot_alloc
 
+platform_control_IMPL   := platform_control
+
 syscalls_IMPL		:= syscalls syscalls-log
+
 timer_tick_IMPL         := timer_tick

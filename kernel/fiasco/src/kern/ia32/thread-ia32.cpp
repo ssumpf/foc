@@ -62,8 +62,7 @@ Thread::Thread()
   _exc_handler(Thread_ptr::Invalid),
   _del_observer(0)
 {
-  //assert (current() == thread_lock()->lock_owner());
-  assert (state() == Thread_invalid);
+  assert (state(false) == Thread_invalid);
 
   inc_ref();
   _space.space(Kernel_task::kernel_task());
@@ -80,7 +79,7 @@ Thread::Thread()
 
   arch_init();
 
-  state_add_dirty(Thread_dead | Thread_suspended);
+  state_add_dirty(Thread_dead, false);
 
   // ok, we're ready to go!
 }
@@ -159,7 +158,7 @@ thread_restore_exc_state()
   current_thread()->restore_exc_state();
 }
 
-PRIVATE static 
+PRIVATE static
 void
 Thread::print_page_fault_error(Mword e)
 {
@@ -232,20 +231,19 @@ Thread::handle_slow_trap(Trap_state *ts)
   check_f00f_bug(ts);
 
   // so we were in user mode -- look for something to emulate
-  
+
   // We continue running with interrupts off -- no sti() here. But
   // interrupts may be enabled by the pagefault handler if we get a
   // pagefault in peek_user().
 
   // Set up exception handling.  If we suffer an un-handled user-space
   // page fault, kill the thread.
-  jmp_buf pf_recovery; 
+  jmp_buf pf_recovery;
   unsigned error;
   if (EXPECT_FALSE ((error = setjmp(pf_recovery)) != 0) )
     {
-      WARN ("%p killed:\n"
-	    "\033[1mUnhandled page fault, code=%08x\033[m\n",
-	    this, error);
+      WARN("%p killed:\n"
+           "\033[1mUnhandled page fault, code=%08x\033[m\n", this, error);
       goto fail_nomsg;
     }
 
@@ -288,9 +286,8 @@ check_exception:
 
 fail:
   // can't handle trap -- kill the thread
-  WARN ("%p killed:\n"
-	"\033[1mUnhandled trap \033[m\n",
-	this);
+  WARN("%p killed:\n"
+       "\033[1mUnhandled trap \033[m\n", this);
 
 fail_nomsg:
   if ((int)Config::Warn_level >= Warning)
@@ -792,7 +789,7 @@ Thread::handle_not_nested_trap(Trap_state *ts)
   int r;
   // cannot use normal getchar because it may block with hlt and irq's
   // are off here
-  while ((r=Kconsole::console()->getchar(false)) == -1)
+  while ((r = Kconsole::console()->getchar(false)) == -1)
     Proc::pause();
 
   if (r == '\033')
@@ -806,6 +803,30 @@ int
 Thread::sys_control_arch(Utcb *)
 {
   return 0;
+}
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [(ia32 | amd64) & (debug | kdb) & !mp]:
+
+PRIVATE static inline unsigned Thread::dbg_find_cpu() { return 0; }
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [(ia32 | amd64) & (debug | kdb) & mp]:
+
+#include "apic.h"
+
+PRIVATE static inline NEEDS["apic.h"]
+unsigned
+Thread::dbg_find_cpu()
+{
+  unsigned long phys_cpu = Apic::get_id();
+  unsigned log_cpu = Apic::find_cpu(phys_cpu);
+  if (log_cpu == ~0U)
+    {
+      printf("Trap on unknown CPU phys_id=%lx\n", phys_cpu);
+      log_cpu = 0;
+    }
+  return log_cpu;
 }
 
 

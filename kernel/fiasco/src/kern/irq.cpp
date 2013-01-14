@@ -351,7 +351,7 @@ Irq_sender::free(Receiver *t)
 
   if (ret)
     {
-      Lock_guard<Cpu_lock> guard(&cpu_lock);
+      auto guard = lock_guard(cpu_lock);
       mask();
 
       if (EXPECT_TRUE(t != 0))
@@ -390,7 +390,7 @@ PUBLIC
 void
 Irq_sender::destroy(Kobject ***rl)
 {
-  Lock_guard<Cpu_lock> g(&cpu_lock);
+  auto g = lock_guard(cpu_lock);
   if (_irq_thread)
     free(_irq_thread);
 

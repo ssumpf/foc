@@ -216,7 +216,7 @@ static inline NOEXPORT
 Sched_context *
 Jdb_thread_list::sc_wfq_iter_prev(Sched_context *t)
 {
-  Sched_context::Ready_queue &rq = Sched_context::rq(cpu);
+  Sched_context::Ready_queue &rq = Sched_context::rq.cpu(cpu);
   Sched_context **rl = RQP::link(t);
   if (!rl || rl == RQP::idle(rq))
     return RQP::cnt(rq) ? RQP::heap(rq)[RQP::cnt(rq) - 1] : *RQP::idle(rq);
@@ -232,7 +232,7 @@ static inline NOEXPORT
 Sched_context *
 Jdb_thread_list::sc_wfq_iter_next(Sched_context *t)
 {
-  Sched_context::Ready_queue &rq = Sched_context::rq(cpu);
+  Sched_context::Ready_queue &rq = Sched_context::rq.cpu(cpu);
   Sched_context **rl = RQP::link(t);
   if (!rl || rl == RQP::idle(rq))
     return RQP::cnt(rq) ? RQP::heap(rq)[0] : *RQP::idle(rq);
@@ -255,7 +255,7 @@ Sched_context *
 Jdb_thread_list::sc_fp_iter_prev(Sched_context *t)
 {
   unsigned prio = RQP::prio(t);
-  Sched_context::Ready_queue &rq = Sched_context::_ready_q.cpu(cpu);
+  Sched_context::Ready_queue &rq = Sched_context::rq.cpu(cpu);
 
   if (t != RQP::prio_next(rq, prio))
     return RQP::prev(t);
@@ -275,7 +275,7 @@ Sched_context *
 Jdb_thread_list::sc_fp_iter_next(Sched_context *t)
 {
   unsigned prio = RQP::prio(t);
-  Sched_context::Ready_queue &rq = Sched_context::_ready_q.cpu(cpu);
+  Sched_context::Ready_queue &rq = Sched_context::rq.cpu(cpu);
 
   if (RQP::next(t) != RQP::prio_next(rq, prio))
     return RQP::next(t);
@@ -734,10 +734,10 @@ Jdb_thread_list::list_threads(Thread *t_start, char pr)
     {
       // Hm, we are in JDB, however we have to make the assertion in
       // ready_enqueue happy.
-      Lock_guard<Cpu_lock> g(&cpu_lock);
+      auto g = lock_guard(cpu_lock);
       // enqueue current, which may not be in the ready list due to lazy queueing
       if (!t_current->in_ready_list())
-        t_current->ready_enqueue(false);
+        Sched_context::rq.cpu(t_current->cpu()).ready_enqueue(t_current->sched());
     }
 
   Jdb::clear_screen();

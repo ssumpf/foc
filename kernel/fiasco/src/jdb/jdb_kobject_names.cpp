@@ -80,7 +80,7 @@ Jdb_kobject_name::operator new (size_t) throw()
       void **o = reinterpret_cast<void**>(n);
       if (!*o)
 	{
-	  Lock_guard<Spin_lock<> > g(&allocator_lock);
+	  auto g = lock_guard(allocator_lock);
 	  if (!*o)
 	    {
 	      *o = (void*)10;
@@ -99,7 +99,7 @@ IMPLEMENT
 void
 Jdb_kobject_name::operator delete (void *p)
 {
-  Lock_guard<Spin_lock<> > g(&allocator_lock);
+  auto g = lock_guard(allocator_lock);
   void **o = reinterpret_cast<void**>(p);
   *o = 0;
 }

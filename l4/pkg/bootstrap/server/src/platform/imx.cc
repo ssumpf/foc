@@ -36,6 +36,10 @@ class Platform_arm_imx : public Platform_single_region_ram
 #elif defined(PLATFORM_TYPE_imx51)
     static L4::Io_register_block_mmio r(0x73fbc000);
     static L4::Uart_imx51 _uart;
+#elif defined(PLATFORM_TYPE_imx6)
+    //static L4::Io_register_block_mmio r(0x02020000); // UART1
+    static L4::Io_register_block_mmio r(0x021e8000); // UART2
+    static L4::Uart_imx6 _uart;
 #else
 #error Which platform type?
 #endif

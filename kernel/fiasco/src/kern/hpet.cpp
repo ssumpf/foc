@@ -64,7 +64,6 @@ public:
         return i;
     return ~0U;
   }
-
 } __attribute__((packed));
 
 class Hpet_device

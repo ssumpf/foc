@@ -33,34 +33,37 @@ Jdb_kern_info_pci::show()
       "data aquisition/signal processing controller" };
   Mword bus, buses, dev, subdev, subdevs;
 
-  for (bus=0, buses=1; bus<buses; bus++)
+  for (bus = 0, buses = 1; bus < buses; bus++)
     {
-      for (dev=0; dev<32; dev++)
-	{
-	  Unsigned8 hdr_type = Pci::read_cfg8 (bus, dev, 0, 0x0E);
-	  subdevs = (hdr_type & 0x80) ? 8 : 1;
+      for (dev = 0; dev < 32; dev++)
+        {
+          Pci::Cfg_addr _device(bus, dev);
 
-	  for (subdev=0; subdev<subdevs; subdev++)
-	    {
-	      Unsigned16 vendor = Pci::read_cfg16 (bus, dev, subdev, 0x00);
-	      Unsigned16 device = Pci::read_cfg16 (bus, dev, subdev, 0x02);
+          Unsigned8 hdr_type; Pci::read_cfg(_device + 0x0E, &hdr_type);
+          subdevs = (hdr_type & 0x80) ? 8 : 1;
 
-	      if ((vendor == 0xffff && device == 0xffff) ||
-		  (device == 0x0000 && device == 0x0000))
-		break;
+          for (subdev = 0; subdev < subdevs; subdev++)
+            {
+              _device.func(subdev);
+              Unsigned16 vendor; Pci::read_cfg(_device + 0x00, &vendor);
+              Unsigned16 device; Pci::read_cfg(_device + 0x02, &device);
 
-	      Unsigned8 classcode = Pci::read_cfg8 (bus, dev, subdev, 0x0b);
-	      Unsigned8 subclass  = Pci::read_cfg8 (bus, dev, subdev, 0x0a);
+              if ((vendor == 0xffff && device == 0xffff) ||
+                  (device == 0x0000 && device == 0x0000))
+                break;
 
-	      if (classcode == 0x06 && subclass == 0x04)
-		buses++;
+              Unsigned8 classcode; Pci::read_cfg(_device + 0x0b, &classcode);
+              Unsigned8 subclass;  Pci::read_cfg(_device + 0x0a, &subclass);
 
-	      printf ("%02lx:%02lx.%1lx Class %02x%02x: %04x:%04x ",
-		  bus, dev, subdev, classcode, subclass, device, vendor);
-	      if (classcode < sizeof(classes)/sizeof(classes[0]))
-		printf("%s", classes[classcode]);
-	      putchar('\n');
-	    }
-	}
+              if (classcode == 0x06 && subclass == 0x04)
+                buses++;
+
+              printf ("%02lx:%02lx.%1lx Class %02x%02x: %04x:%04x ",
+                  bus, dev, subdev, classcode, subclass, device, vendor);
+              if (classcode < sizeof(classes)/sizeof(classes[0]))
+                printf("%s", classes[classcode]);
+              putchar('\n');
+            }
+        }
     }
 }

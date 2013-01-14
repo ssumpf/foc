@@ -132,6 +132,54 @@ L4_INLINE l4_msgtag_t
 l4_task_unmap_batch_u(l4_cap_idx_t task, l4_fpage_t const *fpages,
                       unsigned num_fpages, unsigned long map_mask,
                       l4_utcb_t *u) L4_NOTHROW;
+
+/**
+ * \brief Release capability and delete object.
+ * \ingroup l4_task_api
+ *
+ * \param task          Capability selector of destination task
+ * \param obj           Capability selector of object to delete
+ *
+ * \return Syscall return tag
+ *
+ * The object will be deleted if the obj has sufficient rights. No error
+ * will be reported if the rights are insufficient, however, the capability
+ * is removed in all cases.
+ *
+ * This is operating calls l4_task_unmap() with #L4_FP_DELETE_OBJ.
+ */
+L4_INLINE l4_msgtag_t
+l4_task_delete_obj(l4_cap_idx_t task, l4_cap_idx_t obj) L4_NOTHROW;
+
+/**
+ * \internal
+ */
+L4_INLINE l4_msgtag_t
+l4_task_delete_obj_u(l4_cap_idx_t task, l4_cap_idx_t obj,
+                     l4_utcb_t *u) L4_NOTHROW;
+
+/**
+ * \brief Release capability.
+ * \ingroup l4_task_api
+ *
+ * \param task          Capability selector of destination task
+ * \param cap           Capability selector to release
+ *
+ * \return Syscall return tag
+ *
+ * This operation unmaps the capability from the specified task.
+ */
+L4_INLINE l4_msgtag_t
+l4_task_release_cap(l4_cap_idx_t task, l4_cap_idx_t cap) L4_NOTHROW;
+
+/**
+ * \internal
+ */
+L4_INLINE l4_msgtag_t
+l4_task_release_cap_u(l4_cap_idx_t task, l4_cap_idx_t cap,
+                      l4_utcb_t *u) L4_NOTHROW;
+
+
 /**
  * \brief Test whether a capability selector points to a valid capability.
  * \ingroup l4_task_api
@@ -327,6 +375,35 @@ l4_task_unmap_batch(l4_cap_idx_t task, l4_fpage_t const *fpages,
 {
   return l4_task_unmap_batch_u(task, fpages, num_fpages, map_mask,
                                l4_utcb());
+}
+
+L4_INLINE l4_msgtag_t
+l4_task_delete_obj_u(l4_cap_idx_t task, l4_cap_idx_t obj,
+                     l4_utcb_t *u) L4_NOTHROW
+{
+  return l4_task_unmap_u(task, l4_obj_fpage(obj, 0, L4_CAP_FPAGE_RWSD),
+                         L4_FP_DELETE_OBJ, u);
+}
+
+L4_INLINE l4_msgtag_t
+l4_task_delete_obj(l4_cap_idx_t task, l4_cap_idx_t obj) L4_NOTHROW
+{
+  return l4_task_delete_obj_u(task, obj, l4_utcb());
+}
+
+
+L4_INLINE l4_msgtag_t
+l4_task_release_cap_u(l4_cap_idx_t task, l4_cap_idx_t cap,
+                      l4_utcb_t *u) L4_NOTHROW
+{
+  return l4_task_unmap_u(task, l4_obj_fpage(cap, 0, L4_CAP_FPAGE_RWSD),
+                         L4_FP_ALL_SPACES, u);
+}
+
+L4_INLINE l4_msgtag_t
+l4_task_release_cap(l4_cap_idx_t task, l4_cap_idx_t cap) L4_NOTHROW
+{
+  return l4_task_release_cap_u(task, cap, l4_utcb());
 }
 
 L4_INLINE l4_msgtag_t

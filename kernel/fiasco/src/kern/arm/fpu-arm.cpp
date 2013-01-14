@@ -59,6 +59,28 @@ Fpu::save_user_exception_state(Trap_state *, Exception_state_user *)
 {}
 
 // ------------------------------------------------------------------------
+IMPLEMENTATION [arm && fpu && !armv6plus]:
+
+PRIVATE static inline
+void
+Fpu::copro_enable()
+{}
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [arm && fpu && armv6plus]:
+
+PRIVATE static inline
+void
+Fpu::copro_enable()
+{
+  asm volatile("mrc  p15, 0, %0, c1, c0, 2\n"
+               "orr  %0, %0, %1           \n"
+               "mcr  p15, 0, %0, c1, c0, 2\n"
+               : : "r" (0), "I" (0x00f00000));
+  Mem::dsb();
+}
+
+// ------------------------------------------------------------------------
 IMPLEMENTATION [arm && fpu]:
 
 #include <cassert>
@@ -163,11 +185,11 @@ Fpu::is_emu_insn(Mword opcode)
 
 PUBLIC static inline
 bool
-Fpu::emulate_insns(Mword opcode, Trap_state *ts, unsigned cpu)
+Fpu::emulate_insns(Mword opcode, Trap_state *ts)
 {
   unsigned reg = (opcode >> 16) & 0xf;
   unsigned rt  = (opcode >> 12) & 0xf;
-  Mword fpsid = Fpu::fpu(cpu).fpsid();
+  Mword fpsid = Fpu::fpu.current().fpsid();
   switch (reg)
     {
     case 0: // FPSID
@@ -199,12 +221,11 @@ IMPLEMENT
 void
 Fpu::init(unsigned cpu)
 {
-  asm volatile(" mcr  p15, 0, %0, c1, c0, 2   \n" : : "r"(0x00f00000));
-  Mem::dsb();
+  copro_enable();
 
   Mword s = fpsid_read();
 
-  _fpu.cpu(cpu)._fpsid = s;
+  fpu.cpu(cpu)._fpsid = s;
 
   printf("FPU%d: Arch: %s(%lx), Part: %s(%lx), r: %lx, v: %lx, i: %lx, t: %s, p: %s\n",
          cpu, fpsid_arch_version(s) == 1
@@ -221,7 +242,7 @@ Fpu::init(unsigned cpu)
 
   disable();
 
-  set_owner(cpu, 0);
+  fpu.cpu(cpu).set_owner(0);
 }
 
 IMPLEMENT inline NEEDS ["fpu_state.h", "mem.h", "static_assert.h", <cstring>]
@@ -251,7 +272,7 @@ Fpu::save_state(Fpu_state *s)
 
 IMPLEMENT
 void
-Fpu::restore_state (Fpu_state *s)
+Fpu::restore_state(Fpu_state *s)
 {
   assert (s->state_buffer());
   Fpu_regs *fpu_regs = reinterpret_cast<Fpu_regs *>(s->state_buffer());

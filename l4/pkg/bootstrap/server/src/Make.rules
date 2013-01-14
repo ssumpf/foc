@@ -10,6 +10,9 @@
 # - BOOTSTRAP_UIMAGE_COMPRESSION: set to none, gzip, or bzip2
 # - BOOTSTRAP_CMDLINE: compiled-in command line, only used if no cmdline
 #                      given via multi-boot boot loader (e.g. on arm)
+# - BOOTSTRAP_OUTPUT_DIR: Optional alternative output directory for all
+#                         images (and generated files), preferable some
+#                         tmpfs directory
 
 DEFAULT_RELOC_arm   := 0x01000000
 DEFAULT_RELOC_x86   := 0x002d0000
@@ -54,11 +57,13 @@ ifeq ($(BUILD_ARCH),$(filter $(BUILD_ARCH),arm ppc32 sparc))
   ENTRY := auto-build-entry
 endif
 
+od := $(if $(BOOTSTRAP_OUTPUT_DIR),$(if $(wildcard $(BOOTSTRAP_OUTPUT_DIR)),,$(shell mkdir $(BOOTSTRAP_OUTPUT_DIR))))
+od := $(if $(BOOTSTRAP_OUTPUT_DIR),$(BOOTSTRAP_OUTPUT_DIR)/)
 
 PRIVATE_INCDIR	 = $(SRC_DIR) $(SRC_DIR)/ARCH-$(ARCH)
 
-TARGET		:= $(BOOTSTRAP_ELF_NAME)
-TARGET_BIN	 = $(BOOTSTRAP_ELF_NAME)
+TARGET		:= $(od)$(BOOTSTRAP_ELF_NAME)
+TARGET_BIN	 = $(od)$(BOOTSTRAP_ELF_NAME)
 MODE		 = lib
 
 SUPPORT_CC_arm-sa1000      := platform/sa1000.cc
@@ -66,7 +71,7 @@ SUPPORT_CC_arm-pxa         := platform/pxa.cc
 SUPPORT_CC_arm-integrator  := platform/integrator.cc
 SUPPORT_CC_arm-rv          := platform/rv.cc
 SUPPORT_CC_arm-rv_pbx      := platform/rv.cc
-SUPPORT_CC_arm-rv_vexpress := platform/rv.cc
+SUPPORT_CC_arm-rv_vexpress := platform/rv_vexpress.cc
 SUPPORT_CC_arm-omap3evm    := platform/omap.cc
 SUPPORT_CC_arm-omap3_am33xx:= platform/omap.cc
 SUPPORT_CC_arm-beagleboard := platform/omap.cc
@@ -75,6 +80,7 @@ SUPPORT_CC_arm-tegra2      := platform/tegra2.cc
 SUPPORT_CC_arm-imx21       := platform/imx.cc
 SUPPORT_CC_arm-imx35       := platform/imx.cc
 SUPPORT_CC_arm-imx51       := platform/imx.cc
+SUPPORT_CC_arm-imx6        := platform/imx.cc
 SUPPORT_CC_arm-om          := platform/om.cc
 SUPPORT_CC_arm-kirkwood    := platform/kirkwood.cc
 DEFAULT_RELOC_arm-imx21    := 0x00200000  # because of blob
@@ -163,7 +169,8 @@ ENTRY_FN := $(shell echo "$(ENTRY)" | tr '[ ]' '[_]' )
 ifneq ($(ENTRY),)
  ifeq ($(filter clean cleanall,$(MAKECMDGOALS)),)
   BUILD_MOD_CMD = ( SEARCHPATH="$(BOOTSTRAP_SEARCH_PATH):$(BOOTSTRAP_MODULE_PATH_BINLIB)" \
-                    CROSS_COMPILE=$(SYSTEM_TARGET) \
+                    CROSS_COMPILE=$(SYSTEM_TARGET) MAKE_INC_FILE=$(PWD)/mod.make.inc \
+                    OUTPUT_DIR="$(BOOTSTRAP_OUTPUT_DIR)" \
                     OPT_ARCH=$(ARCH) OPT_COMPRESS=$(COMPRESS) L4DIR=$(L4DIR) \
                     $(SRC_DIR)/build.pl $(1) $(BOOTSTRAP_MODULES_LIST) "$(ENTRY)" || \
                     (echo "processing-of-module-list-failed"; exit 1))
@@ -173,7 +180,7 @@ endif
 
 # we need to re-do if some things change
 .redo-change-tracker: FORCE
-	$(VERBOSE)echo "$(ENTRY) '$(COMPRESS)' '$(BOOTSTRAP_CMDLINE)' '$(BOOTSTRAP_SEARCH_PATH):$(BOOTSTRAP_MODULE_PATH_BINLIB)' '$(RAM_SIZE_MB)' '$(PLATFORM_TYPE)' '$(LOADER_MBI)'" > $@.tmp
+	$(VERBOSE)echo "$(ENTRY) '$(COMPRESS)' '$(BOOTSTRAP_CMDLINE)' '$(BOOTSTRAP_SEARCH_PATH):$(BOOTSTRAP_MODULE_PATH_BINLIB)' '$(RAM_SIZE_MB)' '$(PLATFORM_TYPE)' '$(LOADER_MBI)' '$(od)'" > $@.tmp
 	$(if $(BUILD_MOD_CMD),$(VERBOSE)$(call BUILD_MOD_CMD,dump) >> $@.tmp)
 	$(VERBOSE)if  test ! -r "$@" || ! cmp -s $@ $@.tmp; then \
 	  mv $@.tmp $@;  \
@@ -183,24 +190,24 @@ endif
 
 ifneq ($(ENTRY),)
 
-INSTALL_TARGET  = $(BOOTSTRAP_ELF_NAME) bootstrap_$(ENTRY_FN) bootstrap_$(ENTRY_FN).elf
+INSTALL_FILES  = $(BOOTSTRAP_ELF_NAME) bootstrap_$(ENTRY_FN) bootstrap_$(ENTRY_FN).elf
 ifeq ($(ARCH),amd64)
-INSTALL_TARGET += bootstrap32.elf
+INSTALL_FILES += bootstrap32.elf
 BOOTSTRAP_LINK_SOURCE = bootstrap32.elf
 else
 BOOTSTRAP_LINK_SOURCE = $(BOOTSTRAP_ELF_NAME)
 endif
 
-bootstrap_$(ENTRY_FN): $(BOOTSTRAP_LINK_SOURCE)
+$(od)bootstrap_$(ENTRY_FN): $(od)$(BOOTSTRAP_LINK_SOURCE)
 	$(VERBOSE)$(LN) -f $< $@
 
-bootstrap_$(ENTRY_FN).elf: $(BOOTSTRAP_LINK_SOURCE)
+$(od)bootstrap_$(ENTRY_FN).elf: $(od)$(BOOTSTRAP_LINK_SOURCE)
 	$(VERBOSE)$(LN) -f $< $@
 
-bootstrap_$(ENTRY_FN).raw: bootstrap.raw
+$(od)bootstrap_$(ENTRY_FN).raw: $(od)bootstrap.raw
 	$(VERBOSE)$(LN) -f $< $@
 
-bootstrap_$(ENTRY_FN).uimage: bootstrap.uimage
+$(od)bootstrap_$(ENTRY_FN).uimage: $(od)bootstrap.uimage
 	$(VERBOSE)$(LN) -f $< $@
 
  ifeq ($(ARCH),$(filter $(ARCH),arm ppc32))
@@ -212,12 +219,12 @@ bootstrap_$(ENTRY_FN).uimage: bootstrap.uimage
              exit 1; } ; $(if $(BOOTSTRAP_NO_STRIP),,$(STRIP) $@)
 
    ifneq ($(BOOTSTRAP_DO_RAW_IMAGE)$(BOOTSTRAP_DO_UIMAGE),)
-     BOOTSTRAP_RAW      := bootstrap.raw
-     INSTALL_TARGET     += bootstrap.raw bootstrap_$(ENTRY_FN).raw
+     BOOTSTRAP_RAW      := $(od)bootstrap.raw
+     INSTALL_FILES      += bootstrap.raw bootstrap_$(ENTRY_FN).raw
      ifneq ($(BOOTSTRAP_DO_UIMAGE),)
        ifneq ($(shell command -v $(MKIMAGE)),)
-         BOOTSTRAP_UIMAGE   := bootstrap.uimage
-         INSTALL_TARGET     += bootstrap.uimage bootstrap_$(ENTRY_FN).uimage
+         BOOTSTRAP_UIMAGE := $(od)bootstrap.uimage
+         INSTALL_FILES    += bootstrap.uimage bootstrap_$(ENTRY_FN).uimage
        else
          $(error mkimage($(MKIMAGE)) host tool missing, cannot build bootstrap.uimage)
        endif
@@ -225,36 +232,29 @@ bootstrap_$(ENTRY_FN).uimage: bootstrap.uimage
    endif
  endif
 
-all:: $(addprefix $(IMAGES_DIR)/,$(INSTALL_TARGET))
+all:: $(addprefix $(IMAGES_DIR)/,$(INSTALL_FILES))
 	$(VERBOSE)echo "  Image size(s) in bytes:"
-	$(VERBOSE)for f in $(filter bootstrap_$(ENTRY_FN).elf bootstrap.raw bootstrap.uimage, $(INSTALL_TARGET)); do \
-	  find . -name $$f -printf " %30f:  %s\n"; \
+	$(VERBOSE)for f in $(filter bootstrap_$(ENTRY_FN).elf bootstrap.raw bootstrap.uimage, $(INSTALL_FILES)); do \
+	  find $(if $(od),$(od),.) -name $$f -printf " %30f:  %s\n"; \
 	done
 	$(if $(LDFLAGS_bootstrap.elf),$(VERBOSE)echo "  Start address: $(patsubst --defsym=__executable_start=%,%,$(LDFLAGS_bootstrap.elf))")
 	$(VERBOSE)echo "  --> Build-Nr: $$(cat .build_nr)"
 
 # install images into easy to reach directory in build dir
-$(IMAGES_DIR)/%: % $(IMAGES_DIR)/Makefile
+$(IMAGES_DIR)/%: $(od)%
 	$(VERBOSE)if [ "$(ENTRY)" != "auto-build-entry" ]; then \
 	  echo "  ==> Installing $< in image directory";        \
-	  $(LN) -sf $(PWD)/$< $(dir $@);                        \
+	  (cd $(dir $@) && $(LN) -sf $(if $(od),,$(PWD)/)$<);   \
 	fi
-
-$(IMAGES_DIR)/Makefile: $(SRC_DIR)/Make.rules
-	@echo "  ==> Preparing image directory"
-	$(VERBOSE)install -d $(dir $@)
-	$(VERBOSE)$(ECHO) "# Automatically generated by bootstrap"                           > $@
-	$(VERBOSE)$(ECHO) "\$$(if \$$(MAKECMDGOALS),%,a):"                                  >> $@
-	$(VERBOSE)$(ECHO) "	\$$(MAKE) -C .. image \$$(if \$$(MAKECMDGOALS),E=\"\$$@\")" >> $@
 else
-  INSTALL_TARGET = bootstrap
+  INSTALL_FILES = bootstrap
 endif # ENTRY
 
 ifneq ($(REALMODE_LOADING),0)
 LOADER_MBI	 = 1
 CPPFLAGS	+= -DREALMODE_LOADING -DSINGLE_SECTION
 # don't install bootstrap_$(ENTRY_FN).elf
-INSTALL_TARGET	 = bootstrap.load
+INSTALL_FILES	 = bootstrap.load
 endif
 
 ifneq ($(LOADER_MBI),0)
@@ -277,7 +277,7 @@ endif
 CXXFLAGS += -fno-rtti -fno-exceptions
 CXXFLAGS += $(call checkcxx,-fno-threadsafe-statics)
 
-ifneq ($(ENTRY),)
+ifneq ($(BUILD_MOD_CMD),)
  ifeq ($(filter clean cleanall,$(MAKECMDGOALS)),)
 
 processing-of-module-list-failed:
@@ -287,13 +287,13 @@ processing-of-module-list-failed:
 	@exit 1
 
 mod.make.inc: $(GENERAL_D_LOC) $(shell $(call BUILD_MOD_CMD,list))
-	@echo Building entry "$(ENTRY)".
+	@echo Building entry \""$(ENTRY)"\".
 	$(VERBOSE)$(call BUILD_MOD_CMD,build)
 
   -include mod.make.inc
   BOOTSTRAP_LD_dep             += mod.make.inc
   STARTUP_C_dep                := mod.make.inc
-  OBJS_$(BOOTSTRAP_ELF_NAME)   += $(MODULE_OBJECT_FILES)
+  OBJS_$(od)$(BOOTSTRAP_ELF_NAME)   += $(MODULE_OBJECT_FILES)
  endif
 
  CPPFLAGS                     += -DIMAGE_MODE
@@ -383,7 +383,7 @@ clean::
 	$(VERBOSE)$(RM) .redo-change-tracker
 
 cleanall::
-	$(VERBOSE)$(RM) bootstrap_* bootstrap.*
+	$(VERBOSE)$(RM) $(od)bootstrap_* $(od)bootstrap.*
 
 ifeq ($(ARCH),amd64)
 
@@ -435,3 +435,5 @@ else
 bootstrap: $(BOOTSTRAP_ELF_NAME)
 	$(VERBOSE)$(LN) -f $^ $@
 endif
+
+INSTALL_TARGET := $(if $(od),,$(INSTALL_FILES))

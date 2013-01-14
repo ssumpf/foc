@@ -60,5 +60,5 @@ IPC_timeout::expired()
 
   // Flag reschedule if owner's priority is higher than the current
   // thread's (own or timeslice-donated) priority.
-  return _owner->sched()->deblock(current_cpu(), current()->sched(), false);
+  return Sched_context::rq.current().deblock(_owner->sched(), current()->sched(), false);
 }

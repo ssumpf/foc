@@ -98,8 +98,11 @@ ALL = $(foreach subsys, $(SUBSYSTEMS), $($(subsys)) $($(subsys)_EXTRA))
 $(foreach m, $(GENERATED_MODULES), auto/stamp-$(m).ready): $(MODULES_FILES)
 
 .PRECIOUS: .Modules.deps
-.Modules.deps: $(MODULES_FILES) globalconfig.h
+.Modules.deps: $(MODULES_FILES) globalconfig.h source
 	@mkdir -p auto
+	@echo "Cleaning up build directory"
+	$(VERBOSE)$(RM_R) *.o fiasco *.d .*.d .*.d.new *.d.new
+	$(VERBOSE)$(RM_R) auto/*.cc auto/*.h auto/*.S auto/stamp-*.ready
 	@echo "Creating $@"
 	@($(foreach mod, $(GENERATED_MODULES),				\
 	    echo 'auto/stamp-$(mod).ready:				\
@@ -148,6 +151,7 @@ all doc $(addsuffix .ps,$(DEPS_FILES)) $(addsuffix .svg,$(DEPS_FILES)) TAGS tags
 %.o %_t: $(MODULES_FILES) .Modules.deps create-sources globalconfig.h
 	$(MAKE) srcdir=$(srcdir) objbase=$(objbase) -f $(srcdir)/Makefile.sub2 $@
 
+
 # Divert any target we do not explicitly mention in this Makefile to
 # Makefile.sub2.  (Unfortunately 1, this does not work for file
 # targets that already exist in this directory.  Unfortunately 2,
@@ -170,6 +174,10 @@ endif # ! config xconfig menuconfig oldconfig
 
 auto:
 	test -e auto || mkdir auto
+
+source:
+	test -e source || ln -sf $(srcdir) source
+
 
 BSP_DIR            := $(srcdir)/kern/arm/bsp $(srcdir)/kern/ppc32/bsp $(srcdir)/kern/sparc/bsp
 KCONFIG_FILE       := Kconfig
@@ -226,9 +234,10 @@ clean: $(foreach subsys, $(SUBSYSTEMS), clean-$(subsys))
 	$(RM) .Clean-auto .Compiler-config
 
 cleanall: clean $(foreach subsys, $(SUBSYSTEMS), cleanall-$(subsys))
-	$(foreach subdir, $(SUBDIRS), $(RM) $(subdir)/{.,}*.d)
-	$(RM) {.,}*.d {.,}*.d.new *~ globalconfig.{h,h.old} Circular
-	$(RM) .Modules.deps
+	$(foreach subdir, $(SUBDIRS), $(RM) $(subdir)/*.d $(subdir)/.*.d)
+	$(RM) *.d .*.d .*.d.new *.d.new *~
+	$(RM) globalconfig.h globalconfig.h.old Circular
+	$(RM) .Modules.deps source
 
 mrproper: cleanall
 	$(RM_R) globalconfig.out Modules.* DEPS*

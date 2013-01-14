@@ -343,13 +343,6 @@ Mem_space::set_attributes(Address virt, unsigned page_attribs)
   return true;
 }
 
-PROTECTED
-void
-Mem_space::destroy()
-{
-  reset_asid();
-}
-
 /**
  * \brief Free all memory allocated for this Mem_space.
  * \pre Runs after the destructor!
@@ -357,6 +350,7 @@ Mem_space::destroy()
 PUBLIC
 Mem_space::~Mem_space()
 {
+  reset_asid();
   if (_dir)
     {
       _dir->free_page_tables(0, (void*)Mem_layout::User_max,
@@ -523,7 +517,7 @@ Mem_space::asid()
       // FIFO ASID replacement strategy
       unsigned char new_asid = next_asid(cpu);
       Mem_space **bad_guy = &_active_asids.cpu(cpu)[new_asid];
-      while (Mem_space *victim = access_once(*bad_guy))
+      while (Mem_space *victim = access_once(bad_guy))
 	{
 	  // need ASID replacement
 	  if (victim == current_mem_space(cpu))
@@ -536,13 +530,19 @@ Mem_space::asid()
 
 	  //LOG_MSG_3VAL(current(), "ASIDr", new_asid, (Mword)*bad_guy, (Mword)this);
 	  Mem_unit::tlb_flush(new_asid);
-          if (victim != reinterpret_cast<Mem_space*>(~0UL))
-            victim->_asid[cpu] = ~0UL;
+
+          // If the victim is valid and we get a 1 written to the ASID array
+          // then we have to reset the ASID of our victim, else the
+          // reset_asid function is currently resetting the ASIDs of the
+          // victim on a different CPU.
+          if (victim != reinterpret_cast<Mem_space*>(~0UL) &&
+              mp_cas(bad_guy, victim, reinterpret_cast<Mem_space*>(1)))
+            write_now(&victim->_asid[cpu], ~0UL);
 	  break;
 	}
 
-      *bad_guy = this;
       _asid[cpu] = new_asid;
+      write_now(bad_guy, this);
     }
 
   //LOG_MSG_3VAL(current(), "ASID", (Mword)this, _asid[cpu], (Mword)__builtin_return_address(0));
@@ -555,12 +555,16 @@ Mem_space::reset_asid()
 {
   for (unsigned i = 0; i < Config::Max_num_cpus; ++i)
     {
-      unsigned asid = access_once(_asid[i]);
+      unsigned asid = access_once(&_asid[i]);
       if (asid == ~0UL)
         continue;
 
       Mem_space **a = &_active_asids.cpu(i)[asid];
-      mp_cas(a, this, reinterpret_cast<Mem_space*>(~0UL));
+      if (!mp_cas(a, this, reinterpret_cast<Mem_space*>(~0UL)))
+        // It could be our ASID is in the process of being preempted,
+        // so wait until this is done.
+        while (access_once(a) == reinterpret_cast<Mem_space*>(1))
+          ;
     }
 }
 

@@ -182,7 +182,7 @@ Jdb_pf_trace::show()
   if (_log)
     {
       int res_enabled = 0;
-      BEGIN_LOG_EVENT("Page fault results", "pfr", 0)
+      BEGIN_LOG_EVENT("Page fault results", "pfr", Tb_entry_pf)
       res_enabled = 1;
       END_LOG_EVENT;
       printf("PF logging%s%s enabled",

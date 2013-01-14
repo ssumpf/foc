@@ -23,15 +23,17 @@ private:
 // ------------------------------------------------------------------------
 INTERFACE [svm && debug]:
 
+#include "tb_entry.h"
+
 EXTENSION class Vm_svm
 {
 protected:
-  struct Log_vm_svm_exit
+  struct Log_vm_svm_exit : public Tb_entry
   {
     Mword exitcode, exitinfo1, exitinfo2, rip;
+    unsigned print(int max, char *buf) const;
   };
 
-  static unsigned log_fmt_svm(Tb_entry *, int max, char *buf) asm ("__fmt_vm_svm_exit");
 };
 
 // ------------------------------------------------------------------------
@@ -642,8 +644,7 @@ Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
 
   vmcb_s->control_area.n_cr3 = orig_ncr3;
 
-  LOG_TRACE("VM-SVM", "svm", current(), __fmt_vm_svm_exit,
-            Log_vm_svm_exit *l = tbe->payload<Log_vm_svm_exit>();
+  LOG_TRACE("VM-SVM", "svm", current(), Log_vm_svm_exit,
             l->exitcode = vmcb_s->control_area.exitcode;
             l->exitinfo1 = vmcb_s->control_area.exitinfo1;
             l->exitinfo2 = vmcb_s->control_area.exitinfo2;
@@ -710,9 +711,8 @@ IMPLEMENTATION [svm && debug]:
 
 IMPLEMENT
 unsigned
-Vm_svm::log_fmt_svm(Tb_entry *e, int max, char *buf)
+Vm_svm::Log_vm_svm_exit::print(int max, char *buf) const
 {
-  Log_vm_svm_exit *l = e->payload<Log_vm_svm_exit>();
   return snprintf(buf, max, "ec=%lx ei1=%08lx ei2=%08lx rip=%08lx",
-                  l->exitcode, l->exitinfo1, l->exitinfo2, l->rip);
+                  exitcode, exitinfo1, exitinfo2, rip);
 }

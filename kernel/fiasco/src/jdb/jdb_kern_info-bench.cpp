@@ -128,7 +128,7 @@ Jdb_kern_info_bench::do_mp_benchmark()
   for (unsigned u = 0; u < Config::Max_num_cpus; ++u)
     if (Cpu::online(u))
       {
-        printf("l%2u(p%8u): ", u, Cpu::cpus.cpu(u).phys_id());
+        printf("l%2u: ", u);
 
 	for (unsigned v = 0; v < Config::Max_num_cpus; ++v)
 	  if (Cpu::online(v))

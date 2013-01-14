@@ -8,7 +8,7 @@ namespace L4
   class Uart_imx : public Uart
   {
   public:
-    enum platform_type { Type_imx21, Type_imx35, Type_imx51 };
+    enum platform_type { Type_imx21, Type_imx35, Type_imx51, Type_imx6 };
     explicit Uart_imx(enum platform_type type)
        : _type(type) {}
     bool startup(Io_register_block const *);
@@ -40,6 +40,12 @@ namespace L4
   {
   public:
     Uart_imx51() : Uart_imx(Type_imx51) {}
+  };
+
+  class Uart_imx6 : public Uart_imx
+  {
+  public:
+    Uart_imx6() : Uart_imx(Type_imx6) {}
   };
 };
 

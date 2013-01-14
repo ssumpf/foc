@@ -122,7 +122,6 @@ Address volatile &
 Cpu::kernel_sp() const
 { return *reinterpret_cast<Address volatile *>(&get_tss()->_esp0); }
 
-
 //----------------------------------------------------------------------------
 IMPLEMENTATION[ia32]:
 
@@ -130,11 +129,11 @@ PUBLIC static inline
 void
 Cpu:: set_cs()
 {
-  asm volatile ("ljmp %0,$1f ; 1:" 
-		: : "i"(Gdt::gdt_code_kernel | Gdt::Selector_kernel));
+  asm volatile("ljmp %0, $1f ; 1:"
+               : : "i"(Gdt::gdt_code_kernel | Gdt::Selector_kernel));
 }
 
-extern "C" void entry_vec08_dbf ();
+extern "C" void entry_vec08_dbf();
 extern "C" Address dbf_stack_top;
 
 PUBLIC FIASCO_INIT_CPU
@@ -143,7 +142,7 @@ Cpu::init_tss_dbf(Address tss_dbf_mem, Address kdir)
 {
   tss_dbf = reinterpret_cast<Tss*>(tss_dbf_mem);
 
-  gdt->set_entry_byte(Gdt::gdt_tss_dbf/8, tss_dbf_mem, sizeof(Tss)-1,
+  gdt->set_entry_byte(Gdt::gdt_tss_dbf / 8, tss_dbf_mem, sizeof(Tss) - 1,
 		      Gdt_entry::Access_kernel | Gdt_entry::Access_tss |
 		      Gdt_entry::Accessed, 0);
 
@@ -168,7 +167,7 @@ Cpu::init_tss(Address tss_mem, size_t tss_size)
 {
   tss = reinterpret_cast<Tss*>(tss_mem);
 
-  gdt->set_entry_byte(Gdt::gdt_tss/8, tss_mem, tss_size,
+  gdt->set_entry_byte(Gdt::gdt_tss / 8, tss_mem, tss_size,
 		      Gdt_entry::Access_kernel | Gdt_entry::Access_tss, 0);
 
   tss->set_ss0(Gdt::gdt_data_kernel);
@@ -186,23 +185,20 @@ Cpu::init_gdt(Address gdt_mem, Address user_max)
   // cache line, respectively; pre-set all "accessed" flags so that
   // the CPU doesn't need to do this later
 
-  gdt->set_entry_4k(Gdt::gdt_code_kernel/8, 0, 0xffffffff,
-		    Gdt_entry::Access_kernel | 
-		    Gdt_entry::Access_code_read |
-  		    Gdt_entry::Accessed, Gdt_entry::Size_32);
-  gdt->set_entry_4k(Gdt::gdt_data_kernel/8, 0, 0xffffffff,
-		    Gdt_entry::Access_kernel | 
-	  	    Gdt_entry::Access_data_write | 
-  		    Gdt_entry::Accessed, Gdt_entry::Size_32);
-  gdt->set_entry_4k(Gdt::gdt_code_user/8, 0, user_max,
-		    Gdt_entry::Access_user | 
-		    Gdt_entry::Access_code_read | 
-		    Gdt_entry::Accessed, Gdt_entry::Size_32);
-  gdt->set_entry_4k(Gdt::gdt_data_user/8, 0, user_max,
+  gdt->set_entry_4k(Gdt::gdt_code_kernel / 8, 0, 0xffffffff,
+                    Gdt_entry::Access_kernel |
+                    Gdt_entry::Access_code_read |
+                    Gdt_entry::Accessed, Gdt_entry::Size_32);
+  gdt->set_entry_4k(Gdt::gdt_data_kernel / 8, 0, 0xffffffff,
+                    Gdt_entry::Access_kernel |
+                    Gdt_entry::Access_data_write |
+                    Gdt_entry::Accessed, Gdt_entry::Size_32);
+  gdt->set_entry_4k(Gdt::gdt_code_user / 8, 0, user_max,
 		    Gdt_entry::Access_user |
-	  	    Gdt_entry::Access_data_write | 
-  		    Gdt_entry::Accessed, Gdt_entry::Size_32);
+		    Gdt_entry::Access_code_read |
+		    Gdt_entry::Accessed, Gdt_entry::Size_32);
+  gdt->set_entry_4k(Gdt::gdt_data_user / 8, 0, user_max,
+                    Gdt_entry::Access_user |
+                    Gdt_entry::Access_data_write |
+                    Gdt_entry::Accessed, Gdt_entry::Size_32);
 }
-
-
-

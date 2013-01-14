@@ -109,10 +109,10 @@ l4_mem_arm_op_call(unsigned long op,
                    unsigned long width,
                    unsigned long value)
 {
-  register unsigned long _op    asm ("r0") = op;
-  register unsigned long _va    asm ("r1") = va;
-  register unsigned long _width asm ("r2") = width;
-  register unsigned long _value asm ("r3") = value;
+  register unsigned long _op    __asm__ ("r0") = op;
+  register unsigned long _va    __asm__ ("r1") = va;
+  register unsigned long _width __asm__ ("r2") = width;
+  register unsigned long _value __asm__ ("r3") = value;
 
   __asm__ __volatile__
     ("@ l4_cache_op_arm_call(start) \n\t"

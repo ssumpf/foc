@@ -1395,7 +1395,7 @@ Jdb::remote_work_ipi(unsigned this_cpu, unsigned to_cpu,
   if (!Cpu::online(to_cpu))
     return false;
 
-  Lock_guard<Spin_lock<> > guard(&_remote_call_lock);
+  auto guard = lock_guard(_remote_call_lock);
 
   _remote_work_ipi_func      = f;
   _remote_work_ipi_func_data = data;

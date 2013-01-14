@@ -36,7 +36,7 @@ int Thread::handle_page_fault (Address pfa, Mword error_code, Mword pc,
   //if (Config::Log_kernel_page_faults && !PF::is_usermode_error(error_code))
   if (0 && current_cpu() != 0)
     {
-      Lock_guard<Cpu_lock> guard(&cpu_lock);
+      auto guard = lock_guard(cpu_lock);
       printf("*KP[cpu=%u, sp=%lx, pfa=%lx, pc=%lx, error=(%lx)", current_cpu(), Proc::stack_pointer(), pfa, pc, error_code);
       print_page_fault_error(error_code);
       printf("]\n");

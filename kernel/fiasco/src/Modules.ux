@@ -105,8 +105,8 @@ INTERFACES_KERNEL	:= mem_region simpleio kernel_console panic warn \
 			   thread_lock timeslice_timeout	  \
 			   ipc_timeout thread_state	  \
 			   sender receiver ipc_sender thread thread_object \
-			   kobject_helper timer_tick \
-			   syscalls					  \
+			   kobject_helper timer_tick platform_control     \
+			   syscalls            		 		  \
 			   kernel_thread dirq irq_chip irq_mgr \
 			   irq_chip_ia32 irq_chip_pic  \
 			   banner fpu_alloc irq icu_helper main 	  \
@@ -117,7 +117,7 @@ INTERFACES_KERNEL	:= mem_region simpleio kernel_console panic warn \
 			   jdb_lines jdb_tcb jdb_prompt_module jdb_bt	  \
 			   jdb_mapdb jdb_ptab jdb_kern_info jdb_counters  \
 			   glibc_getchar jdb_trace jdb_trace_set	  \
-			   tb_entry_output jdb_tbuf_init kern_cnt  	  \
+			   jdb_tbuf_init kern_cnt  	  \
 			   jdb_tbuf_output jdb_tbuf_show                  \
 			   jdb_misc checksum watchdog terminate		  \
 			   jdb_screen push_console jdb_bp		  \
@@ -133,10 +133,10 @@ INTERFACES_KERNEL	:= mem_region simpleio kernel_console panic warn \
 			   jdb_entry_frame kdb_ke jdb_ipi app_cpu_thread  \
 			   jdb_rcupdate jdb_kobject jdb_kobject_names     \
                            jdb_list jdb_ipc_gate jdb_obj_space            \
-			   jdb_log jdb_factory scheduler    \
+			   jdb_log jdb_factory scheduler \
+                           platform_control_object    \
 			   jdb_scheduler clock jdb_sender_list            \
 			   jdb_disasm jdb_regex
-
 
 boot_info_IMPL		:= boot_info boot_info-ia32 boot_info-ux
 clock_IMPL              := clock clock-ia32
@@ -199,7 +199,7 @@ utcb_init_IMPL		:= utcb_init utcb_init-ux
 vmem_alloc_IMPL		:= vmem_alloc vmem_alloc-ia32 vmem_alloc-ux
 spin_lock_IMPL		:= spin_lock spin_lock-ia32
 
-CXXSRC_KERNEL		:= libc_backend_nolock.cc glue_libc_ux.cc
+CXXSRC_KERNEL		:= libc_backend_nolock.cc glue_libc_ux.cc tb_entry_output.cc
 ASSRC_KERNEL		:= entry-ux.S entry.S sighandler.S \
                            sys_call_page-asm.S 
 
@@ -335,6 +335,7 @@ endif
 # UNITTEST subsystem
 #
 # disabled until unittests fixed
+ifeq (1,2)
 SUBSYSTEMS		+= UNITTEST
 VPATH			+= test/unit
 
@@ -342,6 +343,7 @@ INTERFACES_UNITTEST	+= mapdb_t map_util_t
 
 # Compile all unit tests without -DNDEBUG.
 NONDEBUG += $(patsubst %.o, %, $(OBJ_UNITTEST))
+endif
 
 MODULES_FILES = $(MODULES_FILE) $(MODULES_FILE_BSP)
 

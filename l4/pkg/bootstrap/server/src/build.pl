@@ -20,19 +20,21 @@ use L4::ModList;
 my $cross_compile_prefix = $ENV{CROSS_COMPILE} || '';
 my $arch                 = $ENV{OPT_ARCH}     || "x86";
 
-my $module_path  = $ENV{SEARCHPATH}   || ".";
-my $prog_objcopy = $ENV{OBJCOPY}      || "${cross_compile_prefix}objcopy";
-my $prog_cc      = $ENV{CC}           || "${cross_compile_prefix}gcc";
-my $prog_ld      = $ENV{LD}           || "${cross_compile_prefix}ld";
-my $prog_cp      = $ENV{PROG_CP}      || "cp";
-my $prog_gzip    = $ENV{PROG_GZIP}    || "gzip";
-my $compress     = $ENV{OPT_COMPRESS} || 0;
-my $strip        = $ENV{OPT_STRIP}    || 1;
+my $module_path   = $ENV{SEARCHPATH}    || ".";
+my $prog_objcopy  = $ENV{OBJCOPY}       || "${cross_compile_prefix}objcopy";
+my $prog_cc       = $ENV{CC}            || "${cross_compile_prefix}gcc";
+my $prog_ld       = $ENV{LD}            || "${cross_compile_prefix}ld";
+my $prog_cp       = $ENV{PROG_CP}       || "cp";
+my $prog_gzip     = $ENV{PROG_GZIP}     || "gzip";
+my $compress      = $ENV{OPT_COMPRESS}  || 0;
+my $strip         = $ENV{OPT_STRIP}     || 1;
+my $output_dir    = $ENV{OUTPUT_DIR}    || '.';
+my $make_inc_file = $ENV{MAKE_INC_FILE} || "mod.make.inc";
+
 my $flags_cc     = "";
 $flags_cc = "-m32" if $arch eq 'x86';
 $flags_cc = "-m64" if $arch eq 'amd64';
 
-my $make_inc_file = $ENV{MAKE_INC_FILE} || "mod.make.inc";
 
 my $modulesfile      = $ARGV[1];
 my $entryname        = $ARGV[2];
@@ -70,7 +72,8 @@ sub build_obj($$$)
   my $file = L4::ModList::search_file($_file, $module_path)
     || die "Cannot find file $_file! Used search path: $module_path";
 
-  printf STDERR "Merging image %s to %s\n", $file, $modname;
+  printf STDERR "Merging image %s to %s [%dkB]\n",
+                $file, $modname, ((-s $file) + 1023) / 1024;
   # make sure that the file isn't already compressed
   system("$prog_gzip -dc $file > $modname.ugz 2> /dev/null");
   $file = "$modname.ugz" if !$?;
@@ -166,7 +169,7 @@ sub build_objects(@)
 {
   my %entry = @_;
   my @mods = @{$entry{mods}};
-  my $objs = "mbi_modules.bin";
+  my $objs = "$output_dir/mbi_modules.bin";
   
   unlink($make_inc_file);
 
@@ -180,7 +183,7 @@ sub build_objects(@)
   for (my $i = 0; $i < @mods; $i++) {
     build_obj($mods[$i]->{cmdline}, $mods[$i]->{modname},
 	      $mods[$i]->{type} =~ /.+-nostrip$/);
-    $objs .= " $mods[$i]->{modname}.bin";
+    $objs .= " $output_dir/$mods[$i]->{modname}.bin";
   }
 
   my $make_inc_str = "MODULE_OBJECT_FILES += $objs\n";
@@ -212,6 +215,15 @@ if (!$ARGV[2]) {
   usage();
   exit 1;
 }
+
+if (defined $output_dir)
+  {
+    if (not -d $output_dir)
+      {
+        mkdir $output_dir || die "Cannot create '$output_dir': $!";
+      }
+    chdir $output_dir || die "Cannot change to directory '$output_dir': $!";
+  }
 
 my %entry = L4::ModList::get_module_entry($modulesfile, $entryname);
 

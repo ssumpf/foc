@@ -1,7 +1,8 @@
 INTERFACE [sparc]:
 
 #include "entry_frame.h"
-extern "C" 
+
+extern "C"
 Mword
 pagefault_entry(Address, Mword, Mword, Return_frame *);
 
@@ -72,6 +73,7 @@ IMPLEMENTATION [sparc]:
 #include "paging.h"
 #include "std_macros.h"
 #include "kmem.h"
+#include "kmem_alloc.h"
 #include "logdefs.h"
 #include "panic.h"
 #include "lock_guard.h"
@@ -84,7 +86,7 @@ IMPLEMENTATION [sparc]:
 PUBLIC explicit inline
 Mem_space::Mem_space(Ram_quota *q) : _quota(q), _dir(0) {}
 
-PROTECTED inline
+PROTECTED inline NEEDS["kmem_alloc.h"]
 bool
 Mem_space::initialize()
 {

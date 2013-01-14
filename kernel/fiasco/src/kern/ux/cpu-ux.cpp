@@ -101,7 +101,7 @@ Cpu::print() const
           div32(frequency(), 1000000));
 }
 
-IMPLEMENT inline
+PUBLIC inline
 unsigned
 Cpu::phys_id() const
 { return _tid; }

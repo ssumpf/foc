@@ -4,6 +4,8 @@ class Trap_state;
 
 EXTENSION class Thread
 {
+public:
+  static void init_per_cpu(unsigned cpu);
 private:
   bool _in_exception;
 
@@ -59,6 +61,8 @@ Thread::fast_return_to_user(Mword ip, Mword sp, Vcpu_state *arg)
              // fill_user_state()
   fill_user_state();
 
+  load_tpidruro();
+
   r->psr &= ~Proc::Status_thumb;
 
     {
@@ -73,6 +77,12 @@ Thread::fast_return_to_user(Mword ip, Mword sp, Vcpu_state *arg)
     }
   panic("__builtin_trap()");
 }
+
+IMPLEMENT_DEFAULT inline
+void
+Thread::init_per_cpu(unsigned)
+{}
+
 
 //
 // Public services
@@ -244,6 +254,8 @@ extern "C" {
 
   void slowtrap_entry(Trap_state *ts)
   {
+    if (0)
+      printf("Trap: pfa=%08lx pc=%08lx err=%08lx psr=%lx\n", ts->pf_address, ts->pc, ts->error_code, ts->psr);
     Thread *t = current_thread();
 
     LOG_TRAP;
@@ -379,7 +391,7 @@ Thread::Thread()
   r->ip(0);
   r->psr = Proc::Status_mode_user;
 
-  state_add(Thread_dead | Thread_suspended);
+  state_add_dirty(Thread_dead, false);
 
   // ok, we're ready to go!
 }
@@ -459,7 +471,7 @@ Thread::do_trigger_exception(Entry_frame *r, void *ret_handler)
 }
 
 
-PRIVATE static inline
+PRIVATE static inline NEEDS[Thread::get_ts_tpidruro]
 bool FIASCO_WARN_RESULT
 Thread::copy_utcb_to_ts(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
                         unsigned char rights)
@@ -471,30 +483,30 @@ Thread::copy_utcb_to_ts(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
   if (EXPECT_FALSE(rcv->exception_triggered()))
     {
       // triggered exception pending
-      Mem::memcpy_mwords (ts, snd_utcb->values, s > 15 ? 15 : s);
-      if (EXPECT_TRUE(s > 19))
+      Mem::memcpy_mwords (ts, snd_utcb->values, s > 16 ? 16 : s);
+      if (EXPECT_TRUE(s > 20))
 	{
 	  // sanitize processor mode
 	  // XXX: fix race
-	  snd_utcb->values[19] &= ~Proc::Status_mode_mask; // clear mode
-	  snd_utcb->values[19] |=  Proc::Status_mode_supervisor
-	    | Proc::Status_interrupts_disabled;
+	  snd_utcb->values[20] &= ~Proc::Status_mode_mask; // clear mode
+	  snd_utcb->values[20] |=   Proc::Status_mode_supervisor
+                                  | Proc::Status_interrupts_disabled;
 
 	  Continuation::User_return_frame const *s
-	    = reinterpret_cast<Continuation::User_return_frame const *>((char*)&snd_utcb->values[15]);
+	    = reinterpret_cast<Continuation::User_return_frame const *>((char*)&snd_utcb->values[16]);
 
 	  rcv->_exc_cont.set(ts, s);
 	}
     }
   else
     {
-      Mem::memcpy_mwords (ts, snd_utcb->values, s > 18 ? 18 : s);
-      if (EXPECT_TRUE(s > 18))
-	ts->pc = snd_utcb->values[18];
+      Mem::memcpy_mwords (ts, snd_utcb->values, s > 19 ? 19 : s);
       if (EXPECT_TRUE(s > 19))
+	ts->pc = snd_utcb->values[19];
+      if (EXPECT_TRUE(s > 20))
 	{
 	  // sanitize processor mode
-	  Mword p = snd_utcb->values[19];
+	  Mword p = snd_utcb->values[20];
 	  p &= ~(Proc::Status_mode_mask | Proc::Status_interrupts_mask); // clear mode & irqs
 	  p |=  Proc::Status_mode_user;
 	  ts->psr = p;
@@ -507,6 +519,8 @@ Thread::copy_utcb_to_ts(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
   if ((tag.flags() & 0x8000) && (rights & L4_fpage::W))
     rcv->utcb().access()->user[2] = snd_utcb->values[25];
 
+  rcv->get_ts_tpidruro(ts);
+
   bool ret = transfer_msg_items(tag, snd, snd_utcb,
                                 rcv, rcv->utcb().access(), rights);
 
@@ -515,7 +529,8 @@ Thread::copy_utcb_to_ts(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
 }
 
 
-PRIVATE static inline NEEDS[Thread::save_fpu_state_to_utcb]
+PRIVATE static inline NEEDS[Thread::save_fpu_state_to_utcb,
+                            Thread::set_ts_tpidruro]
 bool FIASCO_WARN_RESULT
 Thread::copy_ts_to_utcb(L4_msg_tag const &, Thread *snd, Thread *rcv,
                         unsigned char rights)
@@ -523,20 +538,22 @@ Thread::copy_ts_to_utcb(L4_msg_tag const &, Thread *snd, Thread *rcv,
   Trap_state *ts = (Trap_state*)snd->_utcb_handler;
 
   {
-    Lock_guard <Cpu_lock> guard (&cpu_lock);
+    auto guard = lock_guard(cpu_lock);
     Utcb *rcv_utcb = rcv->utcb().access();
 
-    Mem::memcpy_mwords (rcv_utcb->values, ts, 15);
+    snd->set_ts_tpidruro(ts);
+
+    Mem::memcpy_mwords(rcv_utcb->values, ts, 16);
     Continuation::User_return_frame *d
-      = reinterpret_cast<Continuation::User_return_frame *>((char*)&rcv_utcb->values[15]);
+      = reinterpret_cast<Continuation::User_return_frame *>((char*)&rcv_utcb->values[16]);
 
     snd->_exc_cont.get(d, ts);
 
 
     if (EXPECT_TRUE(!snd->exception_triggered()))
       {
-        rcv_utcb->values[18] = ts->pc;
-        rcv_utcb->values[19] = ts->psr;
+        rcv_utcb->values[19] = ts->pc;
+        rcv_utcb->values[20] = ts->psr;
       }
 
     if (rcv_utcb->inherit_fpu() && (rights & L4_fpage::W))
@@ -547,11 +564,17 @@ Thread::copy_ts_to_utcb(L4_msg_tag const &, Thread *snd, Thread *rcv,
   return true;
 }
 
-PROTECTED inline
+PROTECTED inline NEEDS[Thread::set_tpidruro]
 L4_msg_tag
-Thread::invoke_arch(L4_msg_tag /*tag*/, Utcb * /*utcb*/)
+Thread::invoke_arch(L4_msg_tag tag, Utcb *utcb)
 {
-  return commit_result(-L4_err::ENosys);
+  switch (utcb->values[0] & Opcode_mask)
+    {
+    case Op_set_tpidruro_arm:
+      return set_tpidruro(tag, utcb);
+    default:
+      return commit_result(-L4_err::ENosys);
+    }
 }
 
 PROTECTED inline
@@ -603,12 +626,60 @@ Thread::vcpu_resume_user_arch()
                : : "r" (utcb().access(true)->values[25]) : "memory");
 }
 
+PRIVATE inline
+L4_msg_tag
+Thread::set_tpidruro(L4_msg_tag tag, Utcb *utcb)
+{
+  if (EXPECT_FALSE(tag.words() < 2))
+    return commit_result(-L4_err::EInval);
+
+  _tpidruro = utcb->values[1];
+  if (EXPECT_FALSE(state() & Thread_vcpu_enabled))
+    arch_update_vcpu_state(vcpu_state().access());
+
+  if (this == current_thread())
+    load_tpidruro();
+
+  return commit_result(0);
+}
+
+PRIVATE inline
+void
+Thread::get_ts_tpidruro(Trap_state *ts)
+{
+  _tpidruro = ts->tpidruro;
+}
+
+PRIVATE inline
+void
+Thread::set_ts_tpidruro(Trap_state *ts)
+{
+  ts->tpidruro = _tpidruro;
+}
+
 // ------------------------------------------------------------------------
 IMPLEMENTATION [arm && !armv6plus]:
 
 PROTECTED inline
 void
 Thread::vcpu_resume_user_arch()
+{}
+
+PRIVATE inline
+L4_msg_tag
+Thread::set_tpidruro(L4_msg_tag, Utcb *)
+{
+  return commit_result(-L4_err::EInval);
+}
+
+PRIVATE inline
+void
+Thread::get_ts_tpidruro(Trap_state *)
+{}
+
+PRIVATE inline
+void
+Thread::set_ts_tpidruro(Trap_state *)
 {}
 
 //-----------------------------------------------------------------------------
@@ -702,14 +773,14 @@ Thread::handle_fpu_trap(Unsigned32 opcode, Trap_state *ts)
 
   if (Fpu::is_enabled())
     {
-      assert(Fpu::owner(current_cpu()) == current_thread());
+      assert(Fpu::fpu.current().owner() == current());
       if (Fpu::is_emu_insn(opcode))
-        return Fpu::emulate_insns(opcode, ts, current_cpu());
+        return Fpu::emulate_insns(opcode, ts);
     }
   else if (current_thread()->switchin_fpu())
     {
       if (Fpu::is_emu_insn(opcode))
-        return Fpu::emulate_insns(opcode, ts, current_cpu());
+        return Fpu::emulate_insns(opcode, ts);
       ts->pc -= (ts->psr & Proc::Status_thumb) ? 2 : 4;
       return true;
     }

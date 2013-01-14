@@ -50,7 +50,7 @@ PUBLIC
 bool
 Ram_quota::alloc(signed long bytes)
 { 
-  Lock_guard<Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
   if (unlimited() || _current + bytes <= _max)
     {
       _current += bytes;

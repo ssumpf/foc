@@ -145,9 +145,9 @@ IMPLEMENTATION[arm && mp]:
 IMPLEMENT static inline
 unsigned Proc::cpu_id()
 {
-  unsigned int cpunum;
-  __asm__("mrc p15, 0, %0, c0, c0, 5": "=r" (cpunum));
-  return cpunum & 0xf;
+  unsigned mpidr;
+  __asm__("mrc p15, 0, %0, c0, c0, 5": "=r" (mpidr));
+  return mpidr & 0x7; // mind gic softirq
 }
 
 //----------------------------------------------------------------

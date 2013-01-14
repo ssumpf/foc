@@ -121,7 +121,7 @@ inline
 Context * NO_INSTRUMENT
 Switch_lock::lock_owner() const
 {
-  Lock_guard<Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
   return (Context*)(_lock_owner & ~1UL);
 }
 
@@ -134,7 +134,7 @@ inline
 Switch_lock::Status NO_INSTRUMENT
 Switch_lock::test() const
 {
-  Lock_guard<Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
   if (EXPECT_FALSE(!valid()))
     return Invalid;
   return (_lock_owner  & ~1UL) ? Locked : Not_locked;
@@ -151,7 +151,7 @@ inline NEEDS["atomic.h"]
 Switch_lock::Status NO_INSTRUMENT
 Switch_lock::try_lock()
 {
-  Lock_guard<Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
 
   if (EXPECT_FALSE(!valid()))
     return Invalid;
@@ -175,7 +175,7 @@ PUBLIC
 Switch_lock::Status NO_INSTRUMENT
 Switch_lock::lock()
 {
-  Lock_guard <Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
   return lock_dirty();
 }
 
@@ -322,7 +322,7 @@ PUBLIC
 void NO_INSTRUMENT
 Switch_lock::clear()
 {
-  Lock_guard<Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
 
   switch_dirty(clear_no_switch_dirty());
 }
@@ -359,7 +359,7 @@ PUBLIC inline
 void NO_INSTRUMENT
 Switch_lock::invalidate()
 {
-  Lock_guard<Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
   _lock_owner |= 1;
 }
 
@@ -367,7 +367,7 @@ PUBLIC
 void NO_INSTRUMENT
 Switch_lock::wait_free()
 {
-  Lock_guard<Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
 
   assert (!valid());
 

@@ -1,5 +1,9 @@
+#ifndef _POSIX_SOURCE
 #define _POSIX_SOURCE
+#endif
+#ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE
+#endif
 #include <stddef.h>
 #include <string.h>
 

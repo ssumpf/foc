@@ -58,6 +58,11 @@ Cpu::init(bool is_boot_cpu)
   //printf("Timebase: %lu\n", Boot_info::get_time_base());
 }
 
+PUBLIC inline
+unsigned
+Cpu::phys_id() const
+{ return _phys_id; }
+
 IMPLEMENT
 void
 Cpu::early_init()

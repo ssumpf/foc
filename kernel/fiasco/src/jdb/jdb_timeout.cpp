@@ -217,9 +217,11 @@ Jdb_list_timeouts::get_owner(Timeout *t)
         return static_cast<Thread*>(context_of(t));
       case Timeout_timeslice:
         return static_cast<Thread*>(Context::kernel_context(0));
+#if 0
         // XXX: current_sched does not work from the debugger
         if (Context::current_sched())
           return static_cast<Thread*>(Context::current_sched()->context());
+#endif
       default:
         return 0;
     }

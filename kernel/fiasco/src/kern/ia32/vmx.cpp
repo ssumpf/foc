@@ -454,6 +454,7 @@ Vmx::Vmx(unsigned cpu)
     }
 
   // allocate a 4kb region for kernel vmcs
+  // FIXME: MUST NOT PANIC ON CPU HOTPLUG
   check(_kernel_vmcs = Kmem_alloc::allocator()->alloc(12));
   _kernel_vmcs_pa = Kmem::virt_to_phys(_kernel_vmcs);
   // clean vmcs
@@ -462,6 +463,7 @@ Vmx::Vmx(unsigned cpu)
   *(int *)_kernel_vmcs = (info.basic & 0xFFFFFFFF);
 
   // allocate a 4kb aligned region for VMXON
+  // FIXME: MUST NOT PANIC ON CPU HOTPLUG
   check(_vmxon = Kmem_alloc::allocator()->alloc(12));
 
   _vmxon_base_pa = Kmem::virt_to_phys(_vmxon);
@@ -481,6 +483,7 @@ Vmx::Vmx(unsigned cpu)
   asm volatile("vmclear %1 \n\t"
 	       "pushf      \n\t"
 	       "pop %0     \n\t" : "=r"(eflags) : "m"(_kernel_vmcs_pa):);
+  // FIXME: MUST NOT PANIC ON CPU HOTPLUG
   if (eflags & 0x41)
     panic("VMX: vmclear: VMFailInvalid, vmcs pointer not valid\n");
 
@@ -489,6 +492,7 @@ Vmx::Vmx(unsigned cpu)
 	       "pushf      \n\t"
 	       "pop %0     \n\t" : "=r"(eflags) : "m"(_kernel_vmcs_pa):);
 
+  // FIXME: MUST NOT PANIC ON CPU HOTPLUG
   if (eflags & 0x41)
     panic("VMX: vmptrld: VMFailInvalid, vmcs pointer not valid\n");
 

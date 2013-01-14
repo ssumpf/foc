@@ -158,6 +158,38 @@ public:
   };
 };
 
+INTERFACE [arm && (mpcore || armca9)]:
+
+class Scu
+{
+public:
+  enum
+  {
+    Control      = Mem_layout::Mp_scu_map_base + 0x0,
+    Config       = Mem_layout::Mp_scu_map_base + 0x4,
+    Power_status = Mem_layout::Mp_scu_map_base + 0x8,
+    Inv          = Mem_layout::Mp_scu_map_base + 0xc,
+
+    Control_ic_standby     = 1 << 6,
+    Control_scu_standby    = 1 << 5,
+    Control_force_port0    = 1 << 4,
+    Control_spec_linefill  = 1 << 3,
+    Control_ram_parity     = 1 << 2,
+    Control_addr_filtering = 1 << 1,
+    Control_enable         = 1 << 0,
+  };
+
+  static void reset() { Io::write<Mword>(0xffffffff, Inv); }
+
+  static void enable(Mword bits = 0)
+  {
+    Unsigned32 ctrl = Io::read<Unsigned32>(Control);
+    if (!(ctrl & Control_enable))
+      Io::write<Unsigned32>(ctrl | bits | Control_enable, Control);
+  }
+};
+
+
 INTERFACE [arm]:
 
 EXTENSION class Cpu
@@ -167,6 +199,24 @@ public:
     Cp15_c1_cache_enabled  = Cp15_c1_generic | Cp15_c1_cache_bits,
     Cp15_c1_cache_disabled = Cp15_c1_generic,
   };
+};
+
+//---------------------------------------------------------------------------
+INTERFACE [arm && !bsp_cpu]:
+
+EXTENSION class Cpu
+{
+private:
+  void bsp_init(bool) {}
+};
+
+//---------------------------------------------------------------------------
+INTERFACE [arm && (mpcore || armca9) && !bsp_cpu]:
+
+EXTENSION class Scu
+{
+public:
+  enum { Bsp_enable_bits = 0 };
 };
 
 //-------------------------------------------------------------------------
@@ -183,22 +233,18 @@ Cpu::midr()
 
 IMPLEMENTATION [arm && armv6]: // -----------------------------------------
 
-PUBLIC static inline void
+PUBLIC static inline NEEDS[Cpu::set_actrl]
+void
 Cpu::enable_smp()
 {
-  asm volatile ("mrc p15, 0, %0, c1, c0, 1   \n"
-                "orr %0, %1                  \n"
-                "mcr p15, 0, %0, c1, c0, 1   \n"
-                : : "r" (0), "i" (0x20));
+  set_actrl(0x20);
 }
 
-PUBLIC static inline void
+PUBLIC static inline NEEDS[Cpu::clear_actrl]
+void
 Cpu::disable_smp()
 {
-  asm volatile ("mrc p15, 0, %0, c1, c0, 1   \n"
-                "bic %0, %1                  \n"
-                "mcr p15, 0, %0, c1, c0, 1   \n"
-                : : "r" (0), "i" (0x20));
+  clear_actrl(0x20);
 }
 
 IMPLEMENTATION [arm && armv7]: //------------------------------------------
@@ -224,17 +270,14 @@ Cpu::enable_smp()
     asm volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (actrl | 0x41));
 }
 
-PUBLIC static inline
+PUBLIC static inline NEEDS[Cpu::clear_actrl]
 void
 Cpu::disable_smp()
 {
   if (!is_smp_capable())
     return;
 
-  asm volatile ("mrc p15, 0, %0, c1, c0, 1   \n"
-                "bic %0, %1                  \n"
-                "mcr p15, 0, %0, c1, c0, 1   \n"
-                : : "r" (0), "i" (0x40));
+  clear_actrl(0x41);
 }
 
 //---------------------------------------------------------------------------
@@ -243,15 +286,8 @@ IMPLEMENTATION [arm && (mpcore || armca9)]:
 PRIVATE static inline void
 Cpu::early_init_platform()
 {
-  enum {
-    Scu_control      = Mem_layout::Mp_scu_map_base + 0x0,
-    Scu_config       = Mem_layout::Mp_scu_map_base + 0x4,
-    Scu_power_status = Mem_layout::Mp_scu_map_base + 0x8,
-    Scu_inv          = Mem_layout::Mp_scu_map_base + 0xc,
-  };
-
-  Io::write<Mword>(0xffffffff, Scu_inv);
-  Io::write<Mword>(Io::read<Mword>(Scu_control) | 1, Scu_control);
+  Scu::reset();
+  Scu::enable(Scu::Bsp_enable_bits);
 
   Io::write<Mword>(Io::read<Mword>(Mem_layout::Gic_cpu_map_base + 0) | 1,
                    Mem_layout::Gic_cpu_map_base + 0);
@@ -361,17 +397,17 @@ void Cpu::init_mmu()
 {
   extern char ivt_start;
   // map the interrupt vector table to 0xffff0000
-  Pte pte = Kmem_space::kdir()->walk((void*)Kmem_space::Ivt_base, 4096,
-      true, Kmem_alloc::q_allocator(Ram_quota::root), Kmem_space::kdir());
+  Pte pte = Kmem_space::kdir()->walk((void*)Kmem_space::Ivt_base, 4096, true,
+                                     Kmem_alloc::q_allocator(Ram_quota::root),
+                                     Kmem_space::kdir());
 
   pte.set((unsigned long)&ivt_start, 4096,
-      Mem_page_attr(Page::KERN_RW | Page::CACHEABLE),
-      true);
+          Mem_page_attr(Page::KERN_RW | Page::CACHEABLE), true);
 
   Mem_unit::tlb_flush();
 }
 
-IMPLEMENT inline
+PUBLIC inline
 unsigned
 Cpu::phys_id() const
 { return _phys_id; }
@@ -391,6 +427,7 @@ Cpu::init(bool is_boot_cpu)
   init_tz();
   id_init();
   init_errata_workarounds();
+  bsp_init(is_boot_cpu);
 
   print_infos();
 }
@@ -402,7 +439,7 @@ Cpu::enable_dcache()
   asm volatile("mrc     p15, 0, %0, c1, c0, 0 \n"
                "orr     %0, %1                \n"
                "mcr     p15, 0, %0, c1, c0, 0 \n"
-               : : "r" (0), "i" (1 << 2));
+               : : "r" (0), "i" (Cp15_c1_cache));
 }
 
 PUBLIC static inline
@@ -412,7 +449,7 @@ Cpu::disable_dcache()
   asm volatile("mrc     p15, 0, %0, c1, c0, 0 \n"
                "bic     %0, %1                \n"
                "mcr     p15, 0, %0, c1, c0, 0 \n"
-               : : "r" (0), "i" (1 << 2));
+               : : "r" (0), "i" (Cp15_c1_cache));
 }
 
 //---------------------------------------------------------------------------
@@ -423,9 +460,6 @@ void
 Cpu::id_init()
 {
 }
-
-PRIVATE static inline
-void Cpu::init_errata_workarounds() {}
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && armv6plus]:
@@ -440,6 +474,40 @@ Cpu::set_actrl(Mword bit_mask)
                "mcr p15, 0, %0, c1, c0, 1 \n\t"
                : "=r"(t) : "r" (bit_mask));
 }
+
+PRIVATE static inline
+void
+Cpu::clear_actrl(Mword bit_mask)
+{
+  Mword t;
+  asm volatile("mrc p15, 0, %0, c1, c0, 1 \n\t"
+               "bic %0, %1                \n\t"
+               "mcr p15, 0, %0, c1, c0, 1 \n\t"
+               : "=r"(t) : "r" (bit_mask));
+}
+
+IMPLEMENT
+void
+Cpu::id_init()
+{
+  __asm__("mrc p15, 0, %0, c0, c1, 0": "=r" (_cpu_id._pfr[0]));
+  __asm__("mrc p15, 0, %0, c0, c1, 1": "=r" (_cpu_id._pfr[1]));
+  __asm__("mrc p15, 0, %0, c0, c1, 2": "=r" (_cpu_id._dfr0));
+  __asm__("mrc p15, 0, %0, c0, c1, 3": "=r" (_cpu_id._afr0));
+  __asm__("mrc p15, 0, %0, c0, c1, 4": "=r" (_cpu_id._mmfr[0]));
+  __asm__("mrc p15, 0, %0, c0, c1, 5": "=r" (_cpu_id._mmfr[1]));
+  __asm__("mrc p15, 0, %0, c0, c1, 6": "=r" (_cpu_id._mmfr[2]));
+  __asm__("mrc p15, 0, %0, c0, c1, 7": "=r" (_cpu_id._mmfr[3]));
+}
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [!arm_cpu_errata || !armv6plus]:
+
+PRIVATE static inline
+void Cpu::init_errata_workarounds() {}
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [arm_cpu_errata && armv6plus]:
 
 PRIVATE static inline
 void
@@ -503,20 +571,6 @@ Cpu::init_errata_workarounds()
             set_c15_c0_1(1 << 11);
         }
     }
-}
-
-IMPLEMENT
-void
-Cpu::id_init()
-{
-  __asm__("mrc p15, 0, %0, c0, c1, 0": "=r" (_cpu_id._pfr[0]));
-  __asm__("mrc p15, 0, %0, c0, c1, 1": "=r" (_cpu_id._pfr[1]));
-  __asm__("mrc p15, 0, %0, c0, c1, 2": "=r" (_cpu_id._dfr0));
-  __asm__("mrc p15, 0, %0, c0, c1, 3": "=r" (_cpu_id._afr0));
-  __asm__("mrc p15, 0, %0, c0, c1, 4": "=r" (_cpu_id._mmfr[0]));
-  __asm__("mrc p15, 0, %0, c0, c1, 5": "=r" (_cpu_id._mmfr[1]));
-  __asm__("mrc p15, 0, %0, c0, c1, 6": "=r" (_cpu_id._mmfr[2]));
-  __asm__("mrc p15, 0, %0, c0, c1, 7": "=r" (_cpu_id._mmfr[3]));
 }
 
 //---------------------------------------------------------------------------

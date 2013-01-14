@@ -37,16 +37,17 @@ private:
 // ------------------------------------------------------------------------
 INTERFACE [debug]:
 
+#include "tb_entry.h"
+
 EXTENSION class Timer_tick
 {
 public:
-  struct Log
+  struct Log : public Tb_entry
   {
     Irq_base *obj;
     Address user_ip;
+    unsigned print(int, char *) const;
   };
-
-  static unsigned tt_log_fmt(Tb_entry *, int, char *) asm ("__tt_log_fmt");
 };
 
 // ------------------------------------------------------------------------
@@ -108,10 +109,9 @@ IMPLEMENTATION [debug]:
 
 IMPLEMENT
 unsigned
-Timer_tick::tt_log_fmt(Tb_entry *e, int maxlen, char *buf)
+Timer_tick::Log::print(int maxlen, char *buf) const
 {
-  Log *l = e->payload<Log>();
-  return snprintf(buf, maxlen, "u-ip=0x%lx", l->user_ip);
+  return snprintf(buf, maxlen, "u-ip=0x%lx", user_ip);
 }
 
 PUBLIC inline NEEDS["logdefs.h"]
@@ -119,8 +119,7 @@ void
 Timer_tick::log_timer()
 {
   Context *c = current();
-  LOG_TRACE("Timer IRQs (kernel scheduling)", "timer", c, __tt_log_fmt,
-      Log *l      = tbe->payload<Log>();
+  LOG_TRACE("Timer IRQs (kernel scheduling)", "timer", c, Log,
       l->user_ip  = c->regs()->ip();
       l->obj      = this;
   );

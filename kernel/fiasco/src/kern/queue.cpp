@@ -72,6 +72,7 @@ void
 Queue::enqueue(Queue_item *i)
 {
   // Queue i at the end of the list
+  assert_kdb (i && !i->queued());
   assert_kdb (_m.head().test());
   i->_q = this;
   _m.push_back(i);

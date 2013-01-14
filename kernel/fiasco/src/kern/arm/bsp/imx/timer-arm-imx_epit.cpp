@@ -39,7 +39,7 @@ public:
 };
 
 
-INTERFACE [arm && imx51]: // ----------------------------------------------
+INTERFACE [arm && (imx51 || imx53)]: // -----------------------------------
 
 EXTENSION class Timer
 {

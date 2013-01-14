@@ -47,6 +47,8 @@ IMPLEMENT FIASCO_INIT FIASCO_NOINLINE
 void
 Startup::stage2()
 {
+  // the logical ID of the boot CPU is always 0
+  enum { Boot_cpu = 0 };
   Kip_init::init();
   Kmem_alloc::init();
 
@@ -58,13 +60,13 @@ Startup::stage2()
 
   // Initialize cpu-local data management and run constructors for CPU 0
   Per_cpu_data::init_ctors();
-  Per_cpu_data_alloc::alloc(0);
-  Per_cpu_data::run_ctors(0);
+  Per_cpu_data_alloc::alloc(Boot_cpu);
+  Per_cpu_data::run_ctors(Boot_cpu);
 
   // set frequency in KIP to that of the boot CPU
-  Kip_init::init_freq(Cpu::cpus.cpu(0));
+  Kip_init::init_freq(Cpu::cpus.cpu(Boot_cpu));
 
-  bool use_io_apic = Io_apic::init();
+  bool use_io_apic = Io_apic::init(Boot_cpu);
   if (use_io_apic)
     {
       Config::apic = true;
@@ -79,13 +81,14 @@ Startup::stage2()
   Kernel_task::init(); // enables current_mem_space()
 
   // initialize initial TSS, GDT, IDT
-  Kmem::init_cpu(Cpu::cpus.cpu(0));
+  Kmem::init_cpu(Cpu::cpus.cpu(Boot_cpu));
   Utcb_init::init();
   Idt::init();
-  Fpu::init(0);
+  Fpu::init(Boot_cpu);
   Apic::init();
-  Ipi::init(0);
-  Timer::init(0);
+  Apic::apic.cpu(Boot_cpu).construct();
+  Ipi::init(Boot_cpu);
+  Timer::init(Boot_cpu);
   int timer_irq = Timer::irq();
   if (use_io_apic)
     {
@@ -100,7 +103,7 @@ Startup::stage2()
 	  Io_apic *const apic = static_cast<Io_apic*>(irq.chip);
 
 	  Io_apic_entry e = apic->read_entry(irq.pin);
-	  e.vector(Config::Apic_timer_vector);
+	  e.vector() = Config::Apic_timer_vector;
 	  apic->write_entry(irq.pin, e);
 	}
     }
@@ -113,7 +116,7 @@ Startup::stage2()
     }
 
   Idt::set_vectors_run();
-  Timer::master_cpu(0);
+  Timer::master_cpu(Boot_cpu);
   Apic::check_still_getting_interrupts();
 //  Cpu::init_global_features();
 }

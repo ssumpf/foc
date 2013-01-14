@@ -303,7 +303,7 @@ fpage_map(Space *from, L4_fpage fp_from, Space *to,
  if (Map_traits<Mem_space>::match(fp_from, fp_to))
     return mem_map(from, fp_from, to, fp_to, control);
 
-#ifdef CONFIG_IO_PROT
+#ifdef CONFIG_PF_PC
   if (Map_traits<Io_space>::match(fp_from, fp_to))
     return io_map(from, fp_from, to, fp_to, control);
 #endif
@@ -489,7 +489,7 @@ map(MAPDB* mapdb,
       if (has_superpages && i_size == from_superpage_size)
 	{
 	  if (i_size > snd_size
-	      // want to send less that a superpage?
+	      // want to send less than a superpage?
 	      || i_size > r_size         // not enough space for superpage map?
 	      || snd_addr.offset(Size(SUPERPAGE_SIZE)) // snd page not aligned?
 	      || rcv_addr.offset(Size(SUPERPAGE_SIZE)) // rcv page not aligned?
@@ -669,7 +669,6 @@ unmap(MAPDB* mapdb, SPACE* space, Space *space_id,
 {
 
   typedef typename SPACE::Size Size;
-  typedef typename SPACE::Addr Addr;
   typedef typename MAPDB::Mapping Mapping;
   typedef typename MAPDB::Iterator Iterator;
   typedef typename MAPDB::Frame Frame;

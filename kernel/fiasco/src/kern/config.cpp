@@ -27,7 +27,7 @@ INTERFACE:
 
 #define GREETING_COLOR_ANSI_OFF    "\033[0m"
 
-#define FIASCO_KERNEL_SUBVERSION 0
+#define FIASCO_KERNEL_SUBVERSION 1
 
 class Config
 {
@@ -216,6 +216,10 @@ int  Config::serial_esc = Config::SERIAL_NO_ESC;
 unsigned Config::tbuf_entries = 0x20000 / sizeof(Mword); //1024;
 bool Config::getchar_does_hlt_works_ok = false;
 unsigned Config::num_ap_cpus;
+
+#ifdef CONFIG_FINE_GRAINED_CPUTIME
+KIP_KERNEL_FEATURE("fi_gr_cputime");
+#endif
 
 //-----------------------------------------------------------------------------
 IMPLEMENTATION:

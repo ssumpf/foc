@@ -68,10 +68,10 @@ void
 Jdb_set_trace::set_cpath()
 {
   Jdb_ipc_trace::_cpath = 0;
-  BEGIN_LOG_EVENT("Context switches", "csw", 0)
+  BEGIN_LOG_EVENT("Context switches", "csw", Tb_entry_empty)
   Jdb_ipc_trace::_cpath = 1;
   END_LOG_EVENT;
-  BEGIN_LOG_EVENT("Shortcut", "sc", 0)
+  BEGIN_LOG_EVENT("Shortcut", "sc", Tb_entry_empty)
   Jdb_ipc_trace::_cpath = 1;
   END_LOG_EVENT;
   set_ipc_vector();

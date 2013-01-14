@@ -35,5 +35,7 @@ public:
 
   Mword _entry_sp;
   Mword _entry_ip;
+
+  // kernel-internal private state
   Mword _sp;
 };

@@ -56,28 +56,28 @@ static void show_grid()
 {
   int i, j;
 
-  printf ("\033[H");
+  printf("\033[H");
 
   for (i = j = 0; i < 264; i++)
     {
       if (grid[i])
-        printf ("\033[m\033[1;4%d;30m  \033[40m", grid[i]);
+        printf("\033[m\033[1;4%d;30m  \033[40m", grid[i]);
       else
-        putstr ("  ");
+        putstr("  ");
 
       if (i % 12 == 11)
         {
           for (; j <= i && j < 48; j++)
             if (next[j])
-              printf ("\033[m\033[1;4%d;30m  \033[40m", next[j]);
+              printf("\033[m\033[1;4%d;30m  \033[40m", next[j]);
             else
-              putstr ("\033[m\033[30m  \033[m");
+              putstr("\033[m\033[30m  \033[m");
 
-          putchar ('\n');
+          putchar('\n');
         }
-    }  
+    }
 
-  printf ("\033[mLines: %d   Score: %d   %s\033[K", lines, score, modes[mode]);
+  printf("\033[mLines: %d   Score: %d   %s\033[K", lines, score, modes[mode]);
 }
 
 IMPLEMENTATION [!ux]:
@@ -91,28 +91,28 @@ static void show_grid()
 {
   int i, j;
 
-  printf ("\033[H");
+  printf("\033[H");
 
   for (i = j = 0; i < 264; i++)
     {
       if (grid[i])
-        printf ("\033[1;3%dm\333\333", grid[i]);
+        printf("\033[1;3%dm\333\333", grid[i]);
       else
-        putstr ("  ");
+        putstr("  ");
 
       if (i % 12 == 11)
         {
           for (; j <= i && j < 48; j++)
             if (next[j])
-              printf ("\033[1;3%dm\333\333", next[j]);
+              printf("\033[1;3%dm\333\333", next[j]);
             else
-              putstr ("  ");
+              putstr("  ");
 
-          putchar ('\n');
+          putchar('\n');
         }
-    }  
+    }
 
-  printf ("Lines: %d   Score: %d   %s\033[K", lines, score, modes[mode]);
+  printf("Lines: %d   Score: %d   %s\033[K", lines, score, modes[mode]);
 }
 
 IMPLEMENTATION:
@@ -125,7 +125,7 @@ static int getchar_timeout()
   to = slice_to_timeout(to);
   while (--to)
     {
-      if ((c = Kconsole::console()->getchar (false)) != -1)
+      if ((c = Kconsole::console()->getchar(false)) != -1)
 	return c;
 
       if (Config::getchar_does_hlt_works_ok)
@@ -145,14 +145,14 @@ static void add_score(int value)
     slice--;
 
   if (slice < 0)
-      slice = 0;
+    slice = 0;
 
   score += value;
 }
 
-static long unsigned int myrand() 
+static long unsigned int myrand()
 {
-  randseed = (randseed * 13561+14000) % 150001;
+  randseed = (randseed * 13561 + 14000) % 150001;
   return randseed;
 }
 
@@ -171,27 +171,27 @@ static int try_move (int pos, int *tile)
 
   return 1;
 }
- 
-static void set_grid (int color)
+
+static void set_grid(int color)
 {
   grid[current_pos] =
-  grid[current_pos+current_tile[2]] =
-  grid[current_pos+current_tile[3]] =
-  grid[current_pos+current_tile[4]] = color;
+  grid[current_pos + current_tile[2]] =
+  grid[current_pos + current_tile[3]] =
+  grid[current_pos + current_tile[4]] = color;
 }
 
 static void set_next (int color)
 {
   next[17] =
-  next[17+next_tile[2]] =
-  next[17+next_tile[3]] =
-  next[17+next_tile[4]] = color;
+  next[17 + next_tile[2]] =
+  next[17 + next_tile[3]] =
+  next[17 + next_tile[4]] = color;
 }
 
 void show_tile (void)
 {
   set_grid(current_tile[5]);
-  set_next(next_tile[5]);   
+  set_next(next_tile[5]);
 
   show_grid();
 
@@ -204,7 +204,7 @@ void show_tile (void)
  *
  * This module makes fun.
  */
-class Jdb_tetris_m 
+class Jdb_tetris_m
   : public Jdb_module
 {
 public:
@@ -220,7 +220,7 @@ Jdb_tetris_m::Jdb_tetris_m()
 
 PUBLIC
 Jdb_module::Action_code
-Jdb_tetris_m::action( int, void *&, char const *&, int & )
+Jdb_tetris_m::action(int, void *&, char const *&, int &)
 {
   int i, j, k, c;
 
@@ -228,20 +228,20 @@ Jdb_tetris_m::action( int, void *&, char const *&, int & )
   slice = 300;
   randseed= Cpu::rdtsc() & 0xffffffff;
 
-  puts ("\nDisabling output of serial console -- quit Tetris with 'q'!");
+  puts("\nDisabling output of serial console -- quit Tetris with 'q'!");
   Kconsole::console()->change_state(Console::UART, 0, ~Console::OUTENABLED, 0);
 
-  printf ("\033[H\033[J");
+  printf("\033[H\033[J");
 
   // Setup grid borders
   for (i = 0; i < 264; i++)
     grid[i] = (i % 12 == 0 || i % 12 == 11 || i > 251) ? 7 : 0;
 
-  try_move (17, new_tile());
+  try_move(17, new_tile());
   next_tile = new_tile();
 
   while (1)
-    {      
+    {
       if (c < 0)
         {
           if (!try_move (current_pos + 12, current_tile))
@@ -250,45 +250,50 @@ Jdb_tetris_m::action( int, void *&, char const *&, int & )
 
               for (i = k = 0; i < 252; i += 12)
                 for (j = i; grid[++j];)
-                  if (j - i == 10) {   
-                    while (j > i) grid[j--] = 0;            show_grid();
-                    while (--j) grid[j + 12] = grid[j];     show_grid();
-                    k++;
-                  }         
+                  if (j - i == 10)
+                    {
+                      while (j > i)
+                        grid[j--] = 0;
+                      show_grid();
+                      while (--j)
+                        grid[j + 12] = grid[j];
+                      show_grid();
+                      k++;
+                    }
 
               lines += k;
-              add_score (k ? (1 << k) * 10 : 1);
+              add_score(k ? (1 << k) * 10 : 1);
 
-              if (!try_move (17, next_tile))
+              if (!try_move(17, next_tile))
                 break;
 
               next_tile = new_tile();
             }
-        }  
+        }
 
       // Move left
       else if (c == KEY_CURSOR_LEFT)
-        try_move (current_pos - 1, current_tile);
+        try_move(current_pos - 1, current_tile);
 
       // Move right
       else if (c == KEY_CURSOR_RIGHT)
-        try_move (current_pos + 1, current_tile);
+        try_move(current_pos + 1, current_tile);
 
       // Drop tile
       else if (c == ' ')
-        while (try_move (current_pos + 12, current_tile))
+        while (try_move(current_pos + 12, current_tile))
           {
             show_tile();
             add_score(3);
           }
-        
+
       // Left-turn tile
       else if (c == KEY_CURSOR_DOWN)
-        try_move (current_pos, tiles + 6 ** current_tile);
+        try_move(current_pos, tiles + 6 ** current_tile);
 
       // Right-turn tile
       else if (c == KEY_CURSOR_UP)
-        try_move (current_pos, tiles + 6 ** (current_tile+1));
+        try_move(current_pos, tiles + 6 ** (current_tile + 1));
 
       // Quit
       else if (c == 'q' || c == KEY_ESC)
@@ -304,7 +309,7 @@ Jdb_tetris_m::action( int, void *&, char const *&, int & )
     }
 
   Kconsole::console()->change_state(Console::UART, 0, ~0U, Console::OUTENABLED);
-  printf ("\033[0m");
+  printf("\033[0m");
 
   return NOTHING;
 }
@@ -312,7 +317,7 @@ Jdb_tetris_m::action( int, void *&, char const *&, int & )
 PUBLIC
 int
 Jdb_tetris_m::num_cmds() const
-{ 
+{
   return 1;
 }
 
@@ -321,7 +326,7 @@ Jdb_module::Cmd const *
 Jdb_tetris_m::cmds() const
 {
   static Cmd cs[] =
-    { 
+    {
 	{ 0, "X", "X", "",
 	   "X\tPlay Tetris (cursor keys = left/right/rotate;\n"
 	   "\t[space] = drop; q = quit)", 0 },

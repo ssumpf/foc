@@ -17,13 +17,9 @@ class Trap_state;
 class Fpu
 {
 public:
-
-  static Context *owner(unsigned cpu);
-  static void set_owner(unsigned cpu, Context *owner);
-  static bool is_owner(unsigned cpu, Context *owner);
-
   // all the following methods are arch dependent
   static void init(unsigned cpu) FIASCO_INIT_CPU;
+
   static unsigned state_size();
   static unsigned state_align();
   static void init_state(Fpu_state *);
@@ -32,42 +28,22 @@ public:
   static void disable();
   static void enable();
 
+  static Per_cpu<Fpu> fpu;
+
+  Context *owner() const { return _owner; }
+  void set_owner(Context *owner) { _owner = owner; }
+  bool is_owner(Context *owner) const { return _owner == owner; }
+
 private:
   Context *_owner;
-
-  static Per_cpu<Fpu> _fpu;
 };
 
 IMPLEMENTATION:
 
 #include "fpu_state.h"
 
-DEFINE_PER_CPU Per_cpu<Fpu> Fpu::_fpu;
+DEFINE_PER_CPU Per_cpu<Fpu> Fpu::fpu;
 
-IMPLEMENT inline
-Context * Fpu::owner(unsigned cpu)
-{
-  return _fpu.cpu(cpu)._owner;
-}
-
-IMPLEMENT inline
-void Fpu::set_owner(unsigned cpu, Context *owner)
-{
-  _fpu.cpu(cpu)._owner = owner;
-}
-
-IMPLEMENT inline
-bool Fpu::is_owner(unsigned cpu, Context *owner)
-{
-  return _fpu.cpu(cpu)._owner == owner;
-}
-
-PUBLIC static inline
-Fpu &
-Fpu::fpu(unsigned cpu)
-{
-  return _fpu.cpu(cpu);
-}
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [!fpu]:

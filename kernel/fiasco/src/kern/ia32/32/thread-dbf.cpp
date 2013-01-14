@@ -52,7 +52,7 @@ Thread::handle_double_fault (void)
     {
       puts ("Return reboots, \"k\" tries to enter the L4 kernel debugger...");
 
-      while ((c=Kconsole::console()->getchar(false)) == -1)
+      while ((c = Kconsole::console()->getchar(false)) == -1)
 	Proc::pause();
 
       if (c == 'k' || c == 'K')

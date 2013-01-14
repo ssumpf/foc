@@ -17,7 +17,7 @@ Thread::fast_return_to_user(Mword ip, Mword sp, T arg)
     ("mov %0, %%rsp \t\n"
      "iretq         \t\n"
      :
-     : "r" (static_cast<Return_frame*>(regs())), "d"(arg)
+     : "r" (static_cast<Return_frame*>(regs())), "D"(arg)
     );
   __builtin_trap();
 }
@@ -132,7 +132,7 @@ Thread::copy_ts_to_utcb(L4_msg_tag const &, Thread *snd, Thread *rcv,
   Trap_state *ts = (Trap_state*)snd->_utcb_handler;
   Utcb *rcv_utcb = rcv->utcb().access();
   {
-    Lock_guard <Cpu_lock> guard (&cpu_lock);
+    auto guard = lock_guard(cpu_lock);
     if (EXPECT_FALSE(snd->exception_triggered()))
       {
 	Mem::memcpy_mwords (rcv_utcb->values, ts, 19);
@@ -205,14 +205,7 @@ Thread::call_nested_trap_handler(Trap_state *ts)
 {
   Proc::cli();
 
-  unsigned long phys_cpu = Cpu::phys_id_direct();
-  unsigned log_cpu = Cpu::p2l(phys_cpu);
-  if (log_cpu == ~0U)
-    {
-      printf("Trap on unknown CPU phys_id=%lx\n", phys_cpu);
-      log_cpu = 0;
-    }
-
+  unsigned log_cpu = dbg_find_cpu();
   unsigned long &ntr = nested_trap_recover.cpu(log_cpu);
 
 #if 0

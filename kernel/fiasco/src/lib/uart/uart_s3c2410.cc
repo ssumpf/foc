@@ -1,4 +1,5 @@
 #include "uart_s3c2410.h"
+#include "poll_timeout_counter.h"
 
 namespace L4
 {
@@ -75,7 +76,8 @@ namespace L4
   void Uart_s3c::fifo_reset()
   {
     _regs->write<unsigned int>(UFCON, UFCON_RX_FIFO_RESET | UFCON_TX_FIFO_RESET);
-    while (_regs->read<unsigned int>(UFCON) & (UFCON_RX_FIFO_RESET | UFCON_TX_FIFO_RESET))
+    Poll_timeout_counter i(3000000);
+    while (i.test(_regs->read<unsigned int>(UFCON) & (UFCON_RX_FIFO_RESET | UFCON_TX_FIFO_RESET)))
       ;
   }
 
@@ -168,13 +170,15 @@ namespace L4
 
   void Uart_s3c2410::wait_for_empty_tx_fifo() const
   {
-    while (_regs->read<unsigned int>(UFSTAT) & (UFSTAT_2410_Tx_COUNT_MASK | UFSTAT_2410_TxFULL))
+    Poll_timeout_counter i(3000000);
+    while (i.test(_regs->read<unsigned int>(UFSTAT) & (UFSTAT_2410_Tx_COUNT_MASK | UFSTAT_2410_TxFULL)))
       ;
   }
 
   void Uart_s3c2410::wait_for_non_full_tx_fifo() const
   {
-    while (_regs->read<unsigned int>(UFSTAT) & UFSTAT_2410_TxFULL)
+    Poll_timeout_counter i(3000000);
+    while (i.test(_regs->read<unsigned int>(UFSTAT) & UFSTAT_2410_TxFULL))
       ;
   }
 
@@ -192,13 +196,15 @@ namespace L4
 
   void Uart_s3c64xx::wait_for_empty_tx_fifo() const
   {
-    while (_regs->read<unsigned int>(UFSTAT) & (UFSTAT_64XX_Tx_COUNT_MASK | UFSTAT_64XX_TxFULL))
+    Poll_timeout_counter i(3000000);
+    while (i.test(_regs->read<unsigned int>(UFSTAT) & (UFSTAT_64XX_Tx_COUNT_MASK | UFSTAT_64XX_TxFULL)))
       ;
   }
 
   void Uart_s3c64xx::wait_for_non_full_tx_fifo() const
   {
-    while (_regs->read<unsigned int>(UFSTAT) & UFSTAT_64XX_TxFULL)
+    Poll_timeout_counter i(3000000);
+    while (i.test(_regs->read<unsigned int>(UFSTAT) & UFSTAT_64XX_TxFULL))
       ;
   }
 
@@ -216,13 +222,15 @@ namespace L4
 
   void Uart_s5pv210::wait_for_empty_tx_fifo() const
   {
-    while (_regs->read<unsigned int>(UFSTAT) & (UFSTAT_S5PV210_Tx_COUNT_MASK | UFSTAT_S5PV210_TxFULL))
+    Poll_timeout_counter i(3000000);
+    while (i.test(_regs->read<unsigned int>(UFSTAT) & (UFSTAT_S5PV210_Tx_COUNT_MASK | UFSTAT_S5PV210_TxFULL)))
       ;
   }
 
   void Uart_s5pv210::wait_for_non_full_tx_fifo() const
   {
-    while (_regs->read<unsigned int>(UFSTAT) & UFSTAT_S5PV210_TxFULL)
+    Poll_timeout_counter i(3000000);
+    while (i.test(_regs->read<unsigned int>(UFSTAT) & UFSTAT_S5PV210_TxFULL))
       ;
   }
 

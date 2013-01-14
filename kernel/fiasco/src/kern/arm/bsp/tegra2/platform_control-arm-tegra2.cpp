@@ -2,7 +2,7 @@ INTERFACE [arm && mp && tegra2]:
 
 #include "mem_layout.h"
 
-class Boot_mp
+EXTENSION class Platform_control
 {
 private:
   enum
@@ -13,22 +13,33 @@ private:
     Unhalt_addr                    = Mem_layout::Devices1_map_base + 0x7014,
   };
 
-  Mword _orig_reset_vector;
+  static Mword _orig_reset_vector;
 };
 
 IMPLEMENTATION [arm && mp && tegra2]:
 
 #include "io.h"
+#include <cstdlib>
 
-PUBLIC
+Mword Platform_control::_orig_reset_vector;
+
+PRIVATE static
+void Platform_control::reset_orig_reset_vector()
+{
+  Io::write<Mword>(_orig_reset_vector, Reset_vector_addr);
+}
+
+PUBLIC static
 void
-Boot_mp::start_ap_cpus(Address phys_reset_vector)
+Platform_control::boot_ap_cpus(Address phys_reset_vector)
 {
   // remember original reset vector
   _orig_reset_vector = Io::read<Mword>(Reset_vector_addr);
 
   // set (temporary) new reset vector
   Io::write<Mword>(phys_reset_vector, Reset_vector_addr);
+
+  atexit(reset_orig_reset_vector);
 
   // clocks on other cpu
   Mword r = Io::read<Mword>(Clk_rst_ctrl_clk_cpu_cmplx);
@@ -40,9 +51,3 @@ Boot_mp::start_ap_cpus(Address phys_reset_vector)
   Io::write<Mword>(0, Unhalt_addr);
 }
 
-PUBLIC
-void
-Boot_mp::cleanup()
-{
-  Io::write<Mword>(_orig_reset_vector, Reset_vector_addr);
-}

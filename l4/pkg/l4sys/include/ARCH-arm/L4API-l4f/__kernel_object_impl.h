@@ -28,9 +28,9 @@
 L4_INLINE l4_msgtag_t
 l4_invoke_debugger(l4_cap_idx_t obj, l4_msgtag_t tag, l4_utcb_t *utcb) L4_NOTHROW
 {
-  register unsigned long _obj asm ("r2") = obj;
-  register unsigned long _a1  asm ("r0") = tag.raw;
-  register void* _a4  asm ("r1") = utcb;
+  register unsigned long _obj __asm__ ("r2") = obj;
+  register unsigned long _a1  __asm__ ("r0") = tag.raw;
+  register void* _a4  __asm__ ("r1") = utcb;
 
   __asm__ __volatile__
     ("@ l4_syscall_debugger(start) \n\t"

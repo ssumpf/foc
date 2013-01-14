@@ -83,7 +83,7 @@ PUBLIC static
 unsigned
 Hostproc::create()
 {
-  Lock_guard <Cpu_lock> guard(&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
 
   static unsigned long esp;
   static Mword _stack[256];

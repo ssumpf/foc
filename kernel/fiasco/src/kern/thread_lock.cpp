@@ -96,7 +96,7 @@ PUBLIC
 Thread_lock::Status
 Thread_lock::test_and_set()
 {
-  Lock_guard <Cpu_lock> guard (&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
   return test_and_set_dirty();
 }
 
@@ -163,7 +163,7 @@ Thread_lock::clear()
 {
   Switch_hint hint = _switch_hint;	// Save hint before unlocking
 
-  Lock_guard <Cpu_lock> guard (&cpu_lock);
+  auto guard = lock_guard(cpu_lock);
 
   // Passing on the thread lock implies both passing _switch_lock
   // and setting context()'s donatee to the new owner.  This must be
@@ -198,7 +198,7 @@ Thread_lock::clear()
 
   // Switch to lockee's execution context and timeslice if its priority
   // is higher than the current priority
-  if (context()->sched()->deblock(current_cpu(), current()->sched(), true))
+  if (Sched_context::rq.current().deblock(context()->sched(), current()->sched(), true))
     current()->switch_to_locked(context());
 }
 
@@ -248,13 +248,13 @@ Thread_lock::clear_dirty()
   // Switch to lockee's execution context if the switch hint says so
   if (hint == SWITCH_ACTIVATE_LOCKEE)
     {
-      check(!current()->switch_exec_locked (context(), Context::Not_Helping));
+      check(!current()->switch_exec_locked(context(), Context::Not_Helping));
       return;
     }
 
   // Switch to lockee's execution context and timeslice if its priority
   // is higher than the current priority
-  if (context()->sched()->deblock(current_cpu(), current()->sched(), true))
+  if (Sched_context::rq.current().deblock(context()->sched(), current()->sched(), true))
     current()->switch_to_locked(context());
 }
 

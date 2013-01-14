@@ -18,33 +18,11 @@ public:
   virtual ~Context_base() = 0;
 
 protected:
-  Mword _state;
-};
-
-//---------------------------------------------------------------------------
-INTERFACE [mp]:
-
-EXTENSION class Context_base
-{
-protected:
   friend unsigned &__cpu_of(const void *);
+  Mword _state;
   unsigned _cpu;
 };
 
-//---------------------------------------------------------------------------
-IMPLEMENTATION [!mp]:
-
-inline
-void set_cpu_of(const void *ptr, unsigned cpu)
-{ (void)ptr; (void)cpu; }
-
-inline
-unsigned cpu_of(const void *)
-{ return 0; }
-
-inline
-unsigned current_cpu()
-{ return 0; }
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION:
@@ -65,11 +43,6 @@ inline NEEDS [context_of, "processor.h"]
 Context *current()
 { return context_of((void *)Proc::stack_pointer()); }
 
-//---------------------------------------------------------------------------
-IMPLEMENTATION [mp]:
-
-#include "config.h"
-
 inline NEEDS ["config.h"]
 unsigned &__cpu_of(const void *ptr)
 { return reinterpret_cast<Context_base*>(context_of(ptr))->_cpu; }
@@ -82,6 +55,16 @@ void set_cpu_of(const void *ptr, unsigned cpu)
 inline NEEDS [__cpu_of]
 unsigned cpu_of(const void *ptr)
 { return __cpu_of(ptr); }
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [!mp]:
+
+inline
+unsigned current_cpu()
+{ return 0; }
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [mp]:
 
 inline NEEDS [current, cpu_of]
 unsigned current_cpu()

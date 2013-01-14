@@ -18,6 +18,7 @@ public:
     DIST_IRQ_SEC      = 0x080,
     DIST_ENABLE_SET   = 0x100,
     DIST_ENABLE_CLEAR = 0x180,
+    DIST_CLR_PENDING  = 0x280,
     DIST_PRI          = 0x400,
     DIST_TARGET       = 0x800,
     DIST_CONFIG       = 0xc00,
@@ -108,15 +109,20 @@ Gic::init_ap()
 }
 
 PUBLIC
-Gic::Gic(Address cpu_base, Address dist_base, int nr_irqs_override = -1)
-  : _cpu_base(cpu_base), _dist_base(dist_base)
+unsigned
+Gic::init(bool primary_gic, int nr_irqs_override = -1)
 {
+  if (!primary_gic)
+    {
+      init_ap();
+      return 0;
+    }
+
   Io::write<Mword>(0, _dist_base + DIST_CTRL);
 
   unsigned num = hw_nr_irqs();
   if (nr_irqs_override != -1)
     num = nr_irqs_override;
-  printf("Number of IRQs available at this GIC: %d\n", num);
 
   if (!Config_mxc_tzic)
     {
@@ -155,9 +161,31 @@ Gic::Gic(Address cpu_base, Address dist_base, int nr_irqs_override = -1)
       Io::write<Mword>(0xf0, _cpu_base + CPU_PRIMASK);
     }
 
+  return num;
+}
+
+PUBLIC
+Gic::Gic(Address cpu_base, Address dist_base, int nr_irqs_override = -1)
+  : _cpu_base(cpu_base), _dist_base(dist_base)
+{
+  unsigned num = init(true, nr_irqs_override);
+
+  printf("Number of IRQs available at this GIC: %d\n", num);
+
   Irq_chip_gen::init(num);
 
   //enable_tz_support();
+}
+
+/**
+ * \brief Create a GIC device that is a physical alias for the
+ *        master GIC.
+ */
+PUBLIC inline
+Gic::Gic(Address cpu_base, Address dist_base, Gic *master_mapping)
+  : _cpu_base(cpu_base), _dist_base(dist_base)
+{
+  Irq_chip_gen::init(master_mapping->nr_irqs());
 }
 
 PUBLIC inline NEEDS["io.h"]
