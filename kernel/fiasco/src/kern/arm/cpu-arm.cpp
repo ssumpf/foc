@@ -462,13 +462,7 @@ Cpu::id_init()
 }
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION [arm && armv6plus && omap4_pandaboard]:
-
-PRIVATE static inline
-void Cpu::init_errata_workarounds() {}
-
-//---------------------------------------------------------------------------
-IMPLEMENTATION [arm && armv6plus && !omap4_pandaboard]:
+IMPLEMENTATION [arm && armv6plus]:
 
 PRIVATE static inline
 void
@@ -507,7 +501,7 @@ Cpu::id_init()
 }
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION [!arm_cpu_errata || !armv6plus]:
+IMPLEMENTATION [!arm_cpu_errata || !armv6plus || omap4_pandaboard]:
 
 PRIVATE static inline
 void Cpu::init_errata_workarounds() {}
