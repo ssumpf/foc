@@ -45,7 +45,7 @@ public:
 
   enum
   {
-    Cache_enabled = true,
+    Cache_enabled = false,
   };
   static const char char_micro;
 

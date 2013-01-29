@@ -477,7 +477,7 @@ void Page_table::activate(unsigned long asid)
 }
 
 //-----------------------------------------------------------------------------
-IMPLEMENTATION [armv7 && armca9]:
+IMPLEMENTATION [armv7 && (armca9 || armca15)]:
 
 PUBLIC
 void Page_table::activate(unsigned long asid)

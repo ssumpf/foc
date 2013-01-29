@@ -1,0 +1,15 @@
+# PF: EXYNOS5
+# PFDESCR: Samsung Exynos5
+# PFDEPENDS: ARM
+
+choice
+	prompt "Exynos5 Platform"
+	default PF_EXYNOS5_ARNDALE
+
+config PF_EXYNOS5_ARNDALE
+	bool "Samsung Arndale"
+	depends on PF_EXYNOS5
+	select CAN_ARM_CPU_CORTEX_A15
+	help
+	  Choose for Arndale board platform.
+endchoice
