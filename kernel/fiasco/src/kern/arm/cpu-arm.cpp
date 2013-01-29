@@ -139,10 +139,19 @@ EXTENSION class Cpu
 {
 public:
   enum {
-    Cp15_c1_sw              = 1 << 10,
     Cp15_c1_ha              = 1 << 17,
-    Cp15_c1_ee              = 1 << 25,
     Cp15_c1_nmfi            = 1 << 27,
+  };
+};
+
+INTERFACE [arm && armv7 && (armca9 || armca15)]:
+
+EXTENSION class Cpu
+{
+public:
+  enum {
+    Cp15_c1_sw              = 1 << 10,
+    Cp15_c1_ee              = 1 << 25,
     Cp15_c1_te              = 1 << 30,
     Cp15_c1_rao_sbop        = (0xf << 3) | (1 << 16) | (1 << 18) | (1 << 22) | (1 << 23),
 
@@ -507,7 +516,7 @@ PRIVATE static inline
 void Cpu::init_errata_workarounds() {}
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION [arm_cpu_errata && armv6plus]:
+IMPLEMENTATION [arm_cpu_errata && armv6plus && !omap4_pandaboard]:
 
 PRIVATE static inline
 void
