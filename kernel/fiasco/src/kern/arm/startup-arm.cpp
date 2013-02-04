@@ -65,4 +65,5 @@ Startup::stage2()
   Timer::init(0);
   Kern_lib_page::init();
   Utcb_init::init();
+  puts("Startup::stage2 finished");
 }

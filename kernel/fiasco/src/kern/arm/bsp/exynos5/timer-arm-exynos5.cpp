@@ -1,14 +1,28 @@
 INTERFACE [arm & exynos5]:
 
+#include "kmem.h"
+
 EXTENSION class Timer
 {
-  public:
-    static unsigned irq() { return  64; /* timer0 */ }
+public:
+  enum {
+    BASE = Kmem::Timer_map_base,
+    CFG0      = BASE,
+    CFG1      = BASE + 0x4,
+    TCON      = BASE + 0x8,
+    TCNTB0    = BASE + 0xc,
+    TCMPB0    = BASE + 0x10,
+    TINT_STAT = BASE + 0x44,
+    ONE_MS    = 33000, /* HZ */
+  };
+
+    static unsigned irq() { return  68; /* timer0 */ }
 };
 
 IMPLEMENTATION [arm && exynos5]:
 
-#include "warn.h"
+#include "mmu.h"
+#include "io.h"
 
 IMPLEMENT inline
 void
@@ -21,19 +35,35 @@ Timer::update_one_shot(Unsigned64 wakeup)
 IMPLEMENT
 void Timer::init(unsigned)
 {
-//	NOT_IMPL_PANIC;
+  /* prescaler to one */
+  Io::write<Mword>(0x1, CFG0);
+  /* divider to 1 */
+  Io::write<Mword>(0x0, CFG1);
+
+  /* program 1ms */
+  Io::write<Mword>(ONE_MS, TCNTB0);
+  Io::write<Mword>(0x0, TCMPB0);
+
+  /* enable IRQ */
+  Io::write<Mword>(0x1, TINT_STAT);
+
+  /* load and start timer in invterval mode*/
+  Io::write<Mword>(0xa, TCON);
+  Io::write<Mword>(0x9, TCON);
 }
 
-IMPLEMENT inline NEEDS["warn.h"]
+IMPLEMENT inline NEEDS["config.h", "kip.h"]
 Unsigned64
 Timer::system_clock()
 {
-	NOT_IMPL_PANIC;
-  return 0;
+  if (Config::Scheduler_one_shot)
+    return 0;
+  else
+    return Kip::k()->clock;
 }
 
-PUBLIC static inline NEEDS["warn.h"]
+PUBLIC static inline NEEDS["io.h"]
 void Timer::acknowledge()
 {
-	NOT_IMPL_PANIC;
+  Io::set<Mword>(0x20, TINT_STAT);
 }

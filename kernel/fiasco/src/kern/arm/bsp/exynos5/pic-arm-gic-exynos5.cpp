@@ -1,14 +1,24 @@
-IMPLEMENTATION [arm && exynos5]:
+INTERFACE [arm && pic_gic exynos5]:
 
-#include "panic.h"
-#include "warn.h"
-#include "initcalls.h"
+#include "gic.h"
+
+IMPLEMENTATION [arm && pic_gic exynos5]:
+
+#include "irq_mgr_multi_chip.h"
+#include "kmem.h"
 
 IMPLEMENT FIASCO_INIT
 void
 Pic::init()
 {
-  NOT_IMPL_PANIC;
+  typedef Irq_mgr_multi_chip<8> M;
+
+  M *m = new Boot_object<M>(16);
+
+  gic.construct(Kmem::Gic_cpu_map_base, Kmem::Gic_dist_map_base);
+  m->add_chip(0, gic, gic->nr_irqs());
+
+  Irq_mgr::mgr = m;
 }
 
 IMPLEMENT inline
@@ -19,8 +29,3 @@ IMPLEMENT inline
 void Pic::restore_all(Status)
 {}
 
-extern "C"
-void irq_handler()
-{
-	NOT_IMPL_PANIC;
-}
