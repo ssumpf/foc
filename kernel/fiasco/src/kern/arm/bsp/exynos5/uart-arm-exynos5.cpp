@@ -1,6 +1,6 @@
 IMPLEMENTATION [arm && exynos5]: // ------------------------------
 
-IMPLEMENT int Uart::irq() const { return 32 + 54; }
+IMPLEMENT int Uart::irq() const { return 32 + 53; }
 
 IMPLEMENTATION: // --------------------------------------------------------
 
