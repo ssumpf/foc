@@ -25,7 +25,7 @@ set_asid()
 {}
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION [arm && armv6plus && (mpcore || armca9)]:
+IMPLEMENTATION [arm && armv6plus && (mpcore || armca9 || armca15)]:
 
 enum
 {
@@ -33,7 +33,7 @@ enum
 };
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION [arm && armv6plus && !(mpcore || armca9)]:
+IMPLEMENTATION [arm && armv6plus && !(mpcore || armca9 || armca15)]:
 
 enum
 {

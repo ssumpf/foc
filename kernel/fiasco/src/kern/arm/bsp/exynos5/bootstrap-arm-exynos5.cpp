@@ -16,4 +16,5 @@ map_hw(void *pd)
   map_dev<Mem_layout::Devices2_phys_base>(pd, 2);
   map_dev<Mem_layout::Devices3_phys_base>(pd, 3);
   map_dev<Mem_layout::Devices4_phys_base>(pd, 4);
+  map_dev<Mem_layout::Devices5_phys_base>(pd, 5);
 }

@@ -309,7 +309,44 @@ Cpu::early_init_platform()
 }
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION [arm && !(mpcore || armca9)]:
+IMPLEMENTATION [arm && armca15]:
+PRIVATE static inline void
+Cpu::early_init_platform()
+{
+  Io::write<Mword>(Io::read<Mword>(Mem_layout::Gic_cpu_map_base + 0) | 1,
+                   Mem_layout::Gic_cpu_map_base + 0);
+  Io::write<Mword>(Io::read<Mword>(Mem_layout::Gic_dist_map_base + 0) | 1,
+                   Mem_layout::Gic_dist_map_base + 0);
+
+  Mem_unit::clean_dcache();
+
+  enable_smp();
+}
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [arm && mp && (mpcore || armca9)]:
+
+PUBLIC static inline NEEDS["mem_layout.h", "io.h"]
+int
+Cpu::num_cpus()
+{
+  return (Io::read<Mword>(Mem_layout::Mp_scu_map_base + 4) & 3) + 1;
+}
+
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [arm && mp && armca15]:
+
+PUBLIC static inline int
+Cpu::num_cpus()
+{
+  unsigned num;
+  asm volatile ("mrc p15, 1, %0, c9, c0, 2" : "=r"(num));
+  return ((num >> 24) & 0x3)+ 1;
+}
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [arm && !(mpcore || armca9 || armca15)]:
 
 PRIVATE static inline void Cpu::early_init_platform()
 {}

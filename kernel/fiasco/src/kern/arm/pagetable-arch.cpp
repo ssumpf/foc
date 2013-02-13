@@ -42,7 +42,7 @@ public:
 };
 
 //---------------------------------------------------------------------------
-INTERFACE[arm && !(mpcore || armca9)]:
+INTERFACE[arm && !(mpcore || armca9 || armca15)]:
 
 EXTENSION class Mem_page_attr
 {
@@ -59,7 +59,7 @@ public:
 };
 
 //---------------------------------------------------------------------------
-INTERFACE[arm && (mpcore || armca9)]:
+INTERFACE[arm && (mpcore || armca9 || armca15)]:
 
 EXTENSION class Mem_page_attr
 {
@@ -78,7 +78,7 @@ public:
 };
 
 //---------------------------------------------------------------------------
-INTERFACE[arm && armca9]:
+INTERFACE[arm && (armca9 || armca15)]:
 
 EXTENSION class Page_table
 {

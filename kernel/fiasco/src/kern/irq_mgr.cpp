@@ -124,5 +124,9 @@ IMPLEMENT
 void
 Irq_mgr::set_cpu(Mword irqnum, unsigned cpu) const
 {
-  WARNX(Warning, "IRQ%ld: ignoring CPU setting (%d).\n", irqnum, cpu);
+  Irq i = chip(irqnum);
+  if (!i.chip)
+    return;
+
+  i.chip->set_cpu(i.pin, cpu);
 }

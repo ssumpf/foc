@@ -8,6 +8,7 @@ public:
     Devices2_phys_base = 0x12c00000,
     Devices3_phys_base = 0x10400000,
     Devices4_phys_base = 0x12d00000,
+    Devices5_phys_base = 0x02000000,
   };
 
   enum Virt_layout_exynos5 : Address {
