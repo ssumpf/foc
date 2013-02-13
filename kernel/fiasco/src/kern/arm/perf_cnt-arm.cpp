@@ -11,7 +11,7 @@ public:
 };
 
 // ------------------------------------------------------------------------
-INTERFACE [arm && perf_cnt && !(mpcore || armca8 || armca9)]:
+INTERFACE [arm && perf_cnt && !(mpcore || armca8 || armca9 || armca15)]:
 
 EXTENSION class Perf_cnt
 {
@@ -81,7 +81,7 @@ private:
 };
 
 // ------------------------------------------------------------------------
-INTERFACE [arm && perf_cnt && (armca8 || armca9)]:
+INTERFACE [arm && perf_cnt && (armca8 || armca9 || armca15)]:
 
 EXTENSION class Perf_cnt
 {
@@ -184,7 +184,7 @@ private:
 };
 
 // ------------------------------------------------------------------------
-INTERFACE [arm && perf_cnt && armca9]:
+INTERFACE [arm && perf_cnt && (armca9 || armca15)]:
 
 EXTENSION class Perf_cnt
 {
@@ -199,7 +199,7 @@ private:
 IMPLEMENTATION [arm && perf_cnt]:
 
 // ------------------------------------------------------------------------
-IMPLEMENTATION [arm && perf_cnt && !(mpcore || armca8 || armca9)]:
+IMPLEMENTATION [arm && perf_cnt && !(mpcore || armca8 || armca9 || armca15)]:
 
 char const *Perf_cnt::perf_type_str = "none";
 
@@ -284,7 +284,7 @@ Perf_cnt::mon_event_type(int nr)
 { return Io::read<unsigned char>(mon_event_type_addr(nr)); }
 
 // ------------------------------------------------------------------------
-IMPLEMENTATION [arm && perf_cnt && (armca8 || armca9)]:
+IMPLEMENTATION [arm && perf_cnt && (armca8 || armca9 || armca15)]:
 
 #include "cpu.h"
 

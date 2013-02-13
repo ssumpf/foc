@@ -44,11 +44,13 @@ _tramp_mp_entry:
 	msr   cpsr_c, r0
 
 	// enable SMP
+#ifndef CONFIG_ARM_CORTEX_A15
 	adr   r0, .Lmpcore_phys_base
 	ldr   r0, [r0]
 	ldr   r1, [r0]
 	orr   r1, #1
 	str   r1, [r0]
+#endif
 
 #ifdef CONFIG_ARM_V7
 	bl    invalidate_l1_v7
@@ -65,7 +67,7 @@ _tramp_mp_entry:
 #ifdef CONFIG_ARM_V7
 	// ACTRL is implementation defined
 	mrc   p15, 0, r0, c0, c0, 0  // read MIDR
-	adr   r3, .Lactrl_cpuid_a9   // load addr
+	adr   r3, .Lactrl_cpuid      // load addr
 	ldm   r3, {r1,r2}            // load mask + val
 	and   r0, r1                 // apply mask
 	teq   r0, r2                 // check value
@@ -73,9 +75,11 @@ _tramp_mp_entry:
 #endif
 
 	mrc   p15, 0, r0, c1, c0, 1
-#ifdef CONFIG_ARM_V7
-        tst   r0, #0x40
-        bne   2f
+#ifdef CONFIG_ARM_CORTEX_A15
+	orr  r0, r0, #0x40
+#elif defined CONFIG_ARM_V7
+	tst   r0, #0x40
+	bne   2f
 	orr   r0, r0, #0x41
 #else
 	orr   r0, r0, #0x20
@@ -114,10 +118,20 @@ _tramp_mp_entry:
 .Lmpcore_phys_base:
 	.long MPCORE_PHYS_BASE
 
-// only one currently
-.Lactrl_cpuid_a9:
+#ifdef CONFIG_ARM_CORTEX_A9
+.Lactrl_cpuid:
          .long 0xff0ffff0
          .long 0x410fc090
+#elif defined CONFIG_ARM_CORTEX_A15
+.Lactrl_cpuid:
+         .long 0xff0ffff0
+         .long 0x410fc0f0
+#else
+.Lactrl_cpuid:
+         .long 0xffffffff
+         .long 0x0
+#endif
+
 
 	// we run paged now
 _tramp_mp_virt:

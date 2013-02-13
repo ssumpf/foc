@@ -29,3 +29,11 @@ IMPLEMENT inline
 void Pic::restore_all(Status)
 {}
 
+// ------------------------------------------------------------------------
+IMPLEMENTATION [arm && mp && pic_gic && exynos5]:
+
+PUBLIC static
+void Pic::init_ap(unsigned)
+{
+  gic->init_ap();
+}

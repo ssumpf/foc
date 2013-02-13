@@ -85,7 +85,7 @@ config ABI_VF
 
 config PF_ARM_MP_CAPABLE
 	bool
-	default y if ARM_MPCORE || ARM_CORTEX_A9
+	default y if ARM_MPCORE || ARM_CORTEX_A9 || ARM_CORTEX_A15
 
 config CAN_ARM_CPU_SA1100
 	bool
