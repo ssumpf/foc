@@ -46,10 +46,10 @@ void Timer::init(unsigned)
 {
   unsigned cpu_id = Proc::cpu_id();
 
-  if (!Cpu::boot_cpu()->phys_id() == cpu_id)
+  if (Cpu::boot_cpu()->phys_id() == cpu_id)
     {
       // prescaler to one
-      Io::write<Mword>(0x1, CFG0);
+      Io::write<Mword>(0x101, CFG0);
       // divider to 1
       Io::write<Mword>(0x0, CFG1);
     }
