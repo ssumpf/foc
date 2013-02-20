@@ -20,6 +20,16 @@ void
 Platform_control::init(unsigned)
 {}
 
+IMPLEMENT inline NEEDS["l4_types.h"]
+int
+Platform_control::system_suspend()
+{ return -L4_err::EBusy; }
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [!cpu_suspend || !mp]:
+
+#include "l4_types.h"
+
 IMPLEMENT inline
 bool
 Platform_control::cpu_offline_available()
@@ -34,8 +44,3 @@ IMPLEMENT inline NEEDS["l4_types.h"]
 int
 Platform_control::resume_cpu(unsigned)
 { return -L4_err::ENodev; }
-
-IMPLEMENT inline NEEDS["l4_types.h"]
-int
-Platform_control::system_suspend()
-{ return -L4_err::EBusy; }

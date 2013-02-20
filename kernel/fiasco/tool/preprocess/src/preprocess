@@ -734,7 +734,8 @@ sub parse_file
 	    }
   
 	  # Member function definition?
-	  if (/^([^\{\(]*?)             # pretext, maybe w template decl tag
+#          if (/^([^\{\(]*?)             # pretext, maybe w template decl tag
+          if (/^((?:[^\{\(]|\(\()*?)             # pretext, maybe w template decl tag
 	       \b ($identifier (?: $s :: $s $identifier)*) # class name
 	       ($s $template_arg)?      # optional class-template args
 	       $s :: $s
@@ -745,7 +746,7 @@ sub parse_file
 	    {
 	      my ($pretext, $class, $templateargs, $name, $args, $posttext)
 	        = ($1, $2, (defined $3 ? $3 : ''), $4, $5, $6);
-#print "P<$pretext> C<$class> T<$templateargs> N<$name> A<$args> P<$posttext>\n";
+#print "Member: P<$pretext> C<$class> T<$templateargs> N<$name> A<$args> P<$posttext>\n";
 	      # Canonify operator names
 	      $name =~ s/(?<=\w)(?:$s_once)+(?=\W)//gs;
 	      $name =~ s/(?<=\W)(?:$s_once)+(?=\w)//gs;
@@ -769,6 +770,7 @@ sub parse_file
                $s( \( $paren_expr \) [^:\{\(\)=]*) # arg list
                (\{.*)$/sx)              # body
 	    {
+#print "Free function: $2 T(" . (defined $3 ? $3 : "") . ") PRE($1) ARGS($4) POST($5)\n";
 	      my $function = { class => '',
 			       name => $2,
 			       templateargs => (defined $3
@@ -869,7 +871,7 @@ sub read_more ()	# Read one more line of code. Stow away
 	  s/\003/$saved/s;
 	}
 
-      while (s|(//(?!-\s*\n).*)$|\001$number\001|m) # Do not match magic "//-"
+      while (s|(//(?!-\s*\n).*\n)|\001$number\001|m) # Do not match magic "//-"
 	{			# The \001 signifies whitespace.
 	  push @comments, $1;
 	  $number++;
@@ -1145,7 +1147,6 @@ sub handle_function
 	    if ($match =~ /^(?:${s}template$s<${s}>)+${s}$/s);
 
           $func->{pretext} =~ s/\Q$match//s;
-#         $func->{pretext} =~ s|$template[ \t]*||s;
 	  next;
         }
 

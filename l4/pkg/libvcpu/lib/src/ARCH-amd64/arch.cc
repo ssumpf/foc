@@ -22,11 +22,10 @@
 void l4vcpu_print_state_arch(l4_vcpu_state_t *vcpu,
                              const char *prefix) L4_NOTHROW
 {
-  printf("%svcpu=%p ip=%08lx sp=%08lx trapno=%08lx label=%lx\n",
-         prefix, vcpu, vcpu->r.ip, vcpu->r.sp, vcpu->r.trapno, vcpu->i.label);
+  printf("%sip=%08lx sp=%08lx trapno=%08lx\n",
+         prefix, vcpu->r.ip, vcpu->r.sp, vcpu->r.trapno);
   printf("%sax=%08lx dx=%08lx bx=%08lx cx=%08lx\n",
          prefix, vcpu->r.ax, vcpu->r.dx, vcpu->r.bx, vcpu->r.cx);
   printf("%ssi=%08lx di=%08lx bp=%08lx flags=%08lx\n",
          prefix, vcpu->r.si, vcpu->r.di, vcpu->r.bp, vcpu->r.flags);
 }
-

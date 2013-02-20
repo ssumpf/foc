@@ -18,6 +18,7 @@ define SRC_libc/sysdeps/linux_large_file
 endef
 
 SRC_libc/sysdeps/linux_arm += aeabi_atexit
+SRC_libc/sysdeps/linux_arm += find_exidx
 
 define SRC_libc/sysdeps/linux_sparc__with_soft_fp
   soft-fp/q_add
@@ -202,9 +203,28 @@ define SRC_libc/string
 endef
 
 define SRC_libc/string_wchar
+  wcscmp
   wcsnlen
   wcslen
+  wcsncpy
   wmemcpy
+  wcsstr
+  wcscasecmp
+  wcscpy
+  wcsncasecmp
+  wcstok
+  wcscat
+  wcscspn
+  wcspbrk
+  wcschr
+  wcsdup
+  wcsncat
+  wcsrchr
+  wcsxfrm
+  wcschrnul
+  wcslcpy
+  wcsncmp
+  wcsspn
 endef
 
 SRC_libc/string_arm := _memcpy
@@ -257,6 +277,7 @@ define SRC_libc/misc
   locale/localeconv
   locale/nl_langinfo
   locale/setlocale
+  regex/regex_old
   search/hcreate_r
   search/hdestroy_r
   search/hsearch
@@ -325,6 +346,22 @@ define SRC_libc/misc_wchar
   wctype/iswctype
   wctype/wctype
   wctype/_wctype
+  wctype/towlower
+  wctype/towupper
+  wctype/towctrans
+  wctype/wctrans
+  wctype/iswxdigit
+  wctype/iswupper
+  wctype/iswlower
+  wctype/iswspace
+  wctype/iswpunct
+  wctype/iswprint
+  wctype/iswgraph
+  wctype/iswdigit
+  wctype/iswcntrl
+  wctype/iswblank
+  wctype/iswalpha
+  wctype/iswalnum
 endef
 
 define SRC_libc/stdio

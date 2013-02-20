@@ -49,16 +49,18 @@ namespace L4
     UART011_IMSC = 0x38,
     UART011_MIS  = 0x40,
     UART011_ICR  = 0x44,
-  };
 
+    Default_baud = 115200,
+  };
 
   bool Uart_pl011::startup(Io_register_block const *regs)
   {
     _regs = regs;
     _regs->write<unsigned int>(UART011_CR, UART01x_CR_UARTEN | UART011_CR_TXE | UART011_CR_RXE);
-    _regs->write<unsigned int>(UART011_FBRD, 2);
-    _regs->write<unsigned int>(UART011_IBRD, 13);
-    _regs->write<unsigned int>(UART011_LCRH, 0x60);
+    unsigned fi_val = _freq * 4 / Default_baud;
+    _regs->write<unsigned int>(UART011_FBRD, fi_val & 0x3f);
+    _regs->write<unsigned int>(UART011_IBRD, fi_val >> 6);
+    _regs->write<unsigned int>(UART011_LCRH, UART01x_LCRH_WLEN_8);
     _regs->write<unsigned int>(UART011_IMSC, 0);
     Poll_timeout_counter i(3000000);
     while (i.test() && _regs->read<unsigned int>(UART01x_FR) & UART01x_FR_BUSY)
@@ -88,14 +90,12 @@ namespace L4
 
   bool Uart_pl011::change_mode(Transfer_mode, Baud_rate r)
   {
-    if (r != 115200)
-      return false;
-
     unsigned long old_cr = _regs->read<unsigned int>(UART011_CR);
     _regs->write<unsigned int>(UART011_CR, 0);
 
-    _regs->write<unsigned int>(UART011_FBRD, 2);
-    _regs->write<unsigned int>(UART011_IBRD, 13);
+    unsigned fi_val = _freq * 4 / r;
+    _regs->write<unsigned int>(UART011_FBRD, fi_val & 0x3f);
+    _regs->write<unsigned int>(UART011_IBRD, fi_val >> 6);
     _regs->write<unsigned int>(UART011_LCRH, UART01x_LCRH_WLEN_8 | UART01x_LCRH_FEN);
 
     _regs->write<unsigned int>(UART011_CR, old_cr);

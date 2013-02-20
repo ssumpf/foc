@@ -12,13 +12,3 @@ create_stack<int>()
 {
   return new stack<int>();
 }
-
-#line 192 "template.cpp"
-
-
-
-template <> stack_t<bool>*
-create_stack<bool>()
-{
-  return new stack<bool>();
-}

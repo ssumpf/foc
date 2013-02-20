@@ -782,33 +782,37 @@ restart:
             {
               typedef Tb_entry::Group_order Group_order;
 
-              Tb_entry const *ce = Jdb_tbuf::lookup(_absy + addy);
-              Tb_entry_formatter const *fmt = Tb_entry_formatter::get_fmt(ce);
               Group_order pt;
+              Tb_entry const *ce = Jdb_tbuf::lookup(_absy + addy);
 
-              if (fmt)
-                pt = fmt->has_partner(ce);
-
-              if (!pt.not_grouped())
+              if (ce)
                 {
-                  if (!pt.is_first())
-                    find_group(&group, ce, true, lines, pt.depth());
-                  if (!pt.is_last())
-                    find_group(&group, ce, false, lines, pt.depth());
-                }
+                  Tb_entry_formatter const *fmt = Tb_entry_formatter::get_fmt(ce);
 
-              for (unsigned i = 0; i < group.size(); ++i)
-                {
-                  Entry_group::Item const &item = group[i];
-                  Jdb::cursor(item.y - _absy + Tbuf_start_line, 3);
-                  putstr(Jdb::esc_emph);
-                  if (item.order.is_first())
-                    putstr("<++");
-                  else if (item.order.is_last())
-                    putstr("++>");
-                  else if (item.order.grouped())
-                    putstr("+++");
-                  putstr("\033[m");
+                  if (fmt)
+                    pt = fmt->has_partner(ce);
+
+                  if (!pt.not_grouped())
+                    {
+                      if (!pt.is_first())
+                        find_group(&group, ce, true, lines, pt.depth());
+                      if (!pt.is_last())
+                        find_group(&group, ce, false, lines, pt.depth());
+                    }
+
+                  for (unsigned i = 0; i < group.size(); ++i)
+                    {
+                      Entry_group::Item const &item = group[i];
+                      Jdb::cursor(item.y - _absy + Tbuf_start_line, 3);
+                      putstr(Jdb::esc_emph);
+                      if (item.order.is_first())
+                        putstr("<++");
+                      else if (item.order.is_last())
+                        putstr("++>");
+                      else if (item.order.grouped())
+                        putstr("+++");
+                      putstr("\033[m");
+                    }
                 }
             }
 

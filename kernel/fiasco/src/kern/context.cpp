@@ -317,11 +317,13 @@ protected:
   Migration *_migration;
   bool _need_to_finish_migration;
 
+public:
   void arch_load_vcpu_kern_state(Vcpu_state *vcpu, bool do_load);
+
+protected:
   void arch_load_vcpu_user_state(Vcpu_state *vcpu, bool do_load);
   void arch_update_vcpu_state(Vcpu_state *vcpu);
 
-protected:
   // XXX Timeout for both, sender and receiver! In normal case we would have
   // to define own timeouts in Receiver and Sender but because only one
   // timeout can be set at one time we use the same timeout. The timeout

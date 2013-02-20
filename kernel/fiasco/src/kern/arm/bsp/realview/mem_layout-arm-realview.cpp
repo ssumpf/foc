@@ -79,7 +79,7 @@ public:
   };
 
   enum Phys_layout_realview_mp : Address {
-    Devices1_phys_base   = 0x1f000000,
+    Devices1_phys_base   = 0x10100000,
     Devices2_phys_base   = Invalid_address,
   };
 };

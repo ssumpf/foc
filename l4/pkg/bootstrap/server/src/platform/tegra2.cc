@@ -21,16 +21,14 @@
 #include <l4/drivers/uart_pxa.h>
 
 namespace {
-class Platform_arm_tegra2 : public Platform_base
+class Platform_arm_tegra2 : public Platform_single_region_ram
 {
-private:
   void some_delay(int d) const
     {
       for (int i = 0; i <  d; i++)
         asm volatile("":::"memory");
     }
 
-public:
   bool probe() { return true; }
 
   void init()
@@ -69,18 +67,11 @@ public:
 
     some_delay(5000);
 
-    static L4::Uart_16550 _uart(L4::Uart_16550::Base_rate_pxa);
+    static L4::Uart_16550 _uart(13478400);
     static L4::Io_register_block_mmio r(0x70006300, 2);
     _uart.startup(&r);
-    _uart.change_mode(3, 7876);
+    _uart.change_mode(3, 115200);
     set_stdio_uart(&_uart);
-  }
-
-  void setup_memory_map(l4util_mb_info_t *,
-                        Region_list *ram, Region_list *)
-  {
-    ram->add(Region::n(0x0,        448 << 20, ".ram", Region::Ram));
-    ram->add(Region::n(512 << 20, 1024 << 20, ".ram", Region::Ram));
   }
 };
 }

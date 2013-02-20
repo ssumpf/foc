@@ -19,6 +19,8 @@
 #ifndef	_FNMATCH_H
 #define	_FNMATCH_H	1
 
+#include <features.h>
+
 #ifdef	__cplusplus
 extern "C" {
 #endif

@@ -286,7 +286,7 @@ processing-of-module-list-failed:
 	@echo
 	@exit 1
 
-mod.make.inc: $(GENERAL_D_LOC) $(shell $(call BUILD_MOD_CMD,list))
+mod.make.inc $(od)mbi_modules.bin: $(GENERAL_D_LOC) $(shell $(call BUILD_MOD_CMD,list))
 	@echo Building entry \""$(ENTRY)"\".
 	$(VERBOSE)$(call BUILD_MOD_CMD,build)
 

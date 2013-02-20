@@ -65,7 +65,10 @@ public:
   { return !_d.push; }
 
   void free()
-  { _d.push = 0; }
+  {
+    _d.push = 0;
+    _d.irq_adr = 0;
+  }
 
   unsigned char vector() const
   { return _d.vector; }

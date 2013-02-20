@@ -108,9 +108,9 @@ public:
   {
     mask_and_ack();
     ui->ack();
+    unmask();
     if (!Vkey::check_())
       kdb_ke("IRQ ENTRY");
-    unmask();
   }
 };
 

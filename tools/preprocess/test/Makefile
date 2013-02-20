@@ -13,7 +13,7 @@ TOOL_TESTS = mapping mapping_inline random random_inline extern_c static \
   parser parser_noinline \
   multifile variable line line_not line_nh interface comment_in_string \
   default_args drop_single1 drop_single2 drop_single3 drop_multi1 \
-  drop_multi2
+  drop_multi2 implement_template
 
 mapping_inline_src = mapping
 mapping_inline_flags = -i

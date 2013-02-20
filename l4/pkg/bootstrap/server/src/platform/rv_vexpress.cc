@@ -27,7 +27,7 @@ class Platform_arm_rv_vexpress : public Platform_single_region_ram
   void init()
   {
     static L4::Io_register_block_mmio r(0x10009000);
-    static L4::Uart_pl011 _uart;
+    static L4::Uart_pl011 _uart(24019200);
     _uart.startup(&r);
     set_stdio_uart(&_uart);
   }

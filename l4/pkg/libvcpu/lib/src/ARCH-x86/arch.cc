@@ -31,4 +31,3 @@ void l4vcpu_print_state_arch(l4_vcpu_state_t *vcpu,
   printf("%sds=%08lx es=%08lx gs=%08lx fs=%08lx\n",
          prefix, vcpu->r.ds, vcpu->r.es, vcpu->r.gs, vcpu->r.fs);
 }
-

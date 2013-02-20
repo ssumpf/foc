@@ -20,7 +20,7 @@ PRIVATE_INCDIR_ARCH-x86/perform.s.o = ARCH-x86
 
 include $(L4DIR)/mk/lib.mk
 
-ARCH-x86/perform.o:	ARCH-x86/pmc_events.h
+ARCH-x86/perform.o ARCH-x86/perform.s.o: ARCH-x86/pmc_events.h
 ARCH-x86/pmc_events.h: pmc_events.in
 	@$(GEN_MESSAGE)
 	$(VERBOSE)sort < $^ > $(OBJ_DIR)/$(^F).sorted || rm $(OBJ_DIR)/$(^F).sorted

@@ -19,6 +19,6 @@ IMPLEMENT Address Uart::base() const { return Mem_layout::Uart_base; }
 
 IMPLEMENT L4::Uart *Uart::uart()
 {
-  static L4::Uart_pl011 uart;
+  static L4::Uart_pl011 uart(24019200);
   return &uart;
 }

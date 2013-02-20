@@ -10,6 +10,26 @@ private:
 };
 
 // ------------------------------------------------------------------------
+IMPLEMENTATION [arm && vcache]:
+
+#include "mem_unit.h"
+
+PRIVATE static inline NEEDS["mem_unit.h"]
+void
+Timer::kipclock_cache()
+{
+  Mem_unit::clean_dcache((void *)&Kip::k()->clock);
+}
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [arm && !vcache]:
+
+PRIVATE static inline
+void
+Timer::kipclock_cache()
+{}
+
+// ------------------------------------------------------------------------
 IMPLEMENTATION [arm]:
 
 #include "config.h"
@@ -24,13 +44,14 @@ Timer::init_system_clock()
   Kip::k()->clock = 0;
 }
 
-IMPLEMENT inline NEEDS["config.h", "globals.h", "kip.h", "watchdog.h"]
+IMPLEMENT inline NEEDS["config.h", "globals.h", "kip.h", "watchdog.h", Timer::kipclock_cache]
 void
 Timer::update_system_clock(unsigned cpu)
 {
   if (cpu == 0)
     {
       Kip::k()->clock += Config::Scheduler_granularity;
+      kipclock_cache();
       Watchdog::touch();
     }
 }

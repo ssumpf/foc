@@ -41,7 +41,7 @@ IMPLEMENTATION [imx6]:
 
 #include "uart_imx.h"
 
-IMPLEMENT int Uart::irq() const { return 90; }
+IMPLEMENT int Uart::irq() const { return 59; }
 
 IMPLEMENT L4::Uart *Uart::uart()
 {

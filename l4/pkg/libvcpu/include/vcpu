@@ -147,17 +147,19 @@ public:
   { l4vcpu_irq_restore(this, s, utcb, do_event_work_cb, setup_ipc); }
 
   /**
-   * \brief Halt/block the vCPU.
+   * \brief Wait for event.
    *
    * \param utcb             The UTCB to use.
    * \param do_event_work_cb Call-back function that is called in case an
    *                         event (such as an interrupt) is pending.
    * \param setup_ipc        Call-back function that is called before an
    *                         IPC operation is called.
+   *
+   * Note that event delivery remains disabled after this function returns.
    */
-  void halt(l4_utcb_t *utcb, l4vcpu_event_hndl_t do_event_work_cb,
-            l4vcpu_setup_ipc_t setup_ipc) throw()
-  { l4vcpu_halt(this, utcb, do_event_work_cb, setup_ipc); }
+  void wait_for_event(l4_utcb_t *utcb, l4vcpu_event_hndl_t do_event_work_cb,
+                      l4vcpu_setup_ipc_t setup_ipc) throw()
+  { l4vcpu_wait_for_event(this, utcb, do_event_work_cb, setup_ipc); }
 
   /**
    * \brief Set the task of the vCPU.

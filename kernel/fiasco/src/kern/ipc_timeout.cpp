@@ -55,7 +55,10 @@ IPC_timeout::expired()
 {
   Receiver * const _owner = owner();
 
-  // Set thread ready
+  Mword ipc_state = _owner->state() & Thread_ipc_mask;
+  if (!ipc_state || (ipc_state & Thread_receive_in_progress))
+    return false;
+
   _owner->state_change_dirty(~Thread_ipc_mask, Thread_ready | Thread_timeout);
 
   // Flag reschedule if owner's priority is higher than the current

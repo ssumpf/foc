@@ -9,6 +9,6 @@ IMPLEMENT int Uart::irq() const { return 1; }
 
 IMPLEMENT L4::Uart *Uart::uart()
 {
-  static L4::Uart_pl011 uart;
+  static L4::Uart_pl011 uart(24019200);
   return &uart;
 }

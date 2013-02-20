@@ -109,8 +109,23 @@ template <> stack_t<int>*
 create_stack();
 
 #line 195 "template.cpp"
-template <> stack_t<bool>*
+template <> inline stack_t<bool>*
 create_stack();
+
+//
+// IMPLEMENTATION of inline functions (and needed classes)
+//
+
+
+#line 192 "template.cpp"
+
+
+
+template <> inline stack_t<bool>*
+create_stack<bool>()
+{
+  return new stack<bool>();
+}
 
 //
 // IMPLEMENTATION of function templates

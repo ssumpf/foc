@@ -61,6 +61,15 @@ Apic::mp_ipi_idle_timeout(Cpu const *c, Unsigned32 wait)
   return mp_ipi_idle();
 }
 
+PRIVATE static inline
+void
+Apic::delay(Cpu const *c, Unsigned32 wait)
+{
+  Unsigned64 wait_till = c->time_us() + wait;
+  while (c->time_us() < wait_till)
+    Proc::pause();
+}
+
 PUBLIC static inline NEEDS [<cassert>]
 void
 Apic::mp_send_ipi(Unsigned32 dest, Unsigned32 vect,
@@ -132,6 +141,8 @@ Apic::mp_startup(Cpu const *current_cpu, Unsigned32 dest, Address tramp_page)
 
   // Send INIT IPI
   mp_send_ipi(dest, 0, APIC_IPI_INIT);
+
+  delay(current_cpu, 200);
 
   // delay for 10ms (=10,000us)
   if (!mp_ipi_idle_timeout(current_cpu, 10000))

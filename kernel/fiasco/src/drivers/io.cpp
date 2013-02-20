@@ -127,17 +127,17 @@ IMPLEMENTATION:
 IMPLEMENT inline
 template< typename T>
 void Io::mask(T mask, Address address)
-{ write(read<T>(address) & mask, address); }
+{ write<T>(read<T>(address) & mask, address); }
 
 IMPLEMENT inline
 template< typename T>
 void Io::clear(T clearbits, Address address)
-{ write(read<T>(address) & ~clearbits, address); }
+{ write<T>(read<T>(address) & ~clearbits, address); }
 
 IMPLEMENT inline
 template< typename T>
 void Io::set(T setbits, Address address)
-{ write(read<T>(address) | setbits, address); }
+{ write<T>(read<T>(address) | setbits, address); }
 
 
 

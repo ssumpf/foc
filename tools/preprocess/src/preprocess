@@ -164,6 +164,7 @@ our $print_indent = 0;
 clear_head();
 
 my %classes = ();
+my %functions = ();
 my %sections = ();
 my %impl_parts = ();
 my %includes = ();
@@ -733,7 +734,8 @@ sub parse_file
 	    }
   
 	  # Member function definition?
-	  if (/^([^\{\(]*?)             # pretext, maybe w template decl tag
+#          if (/^([^\{\(]*?)             # pretext, maybe w template decl tag
+          if (/^((?:[^\{\(]|\(\()*?)             # pretext, maybe w template decl tag
 	       \b ($identifier (?: $s :: $s $identifier)*) # class name
 	       ($s $template_arg)?      # optional class-template args
 	       $s :: $s
@@ -744,7 +746,7 @@ sub parse_file
 	    {
 	      my ($pretext, $class, $templateargs, $name, $args, $posttext)
 	        = ($1, $2, (defined $3 ? $3 : ''), $4, $5, $6);
-#print "P<$pretext> C<$class> T<$templateargs> N<$name> A<$args> P<$posttext>\n";
+#print "Member: P<$pretext> C<$class> T<$templateargs> N<$name> A<$args> P<$posttext>\n";
 	      # Canonify operator names
 	      $name =~ s/(?<=\w)(?:$s_once)+(?=\W)//gs;
 	      $name =~ s/(?<=\W)(?:$s_once)+(?=\w)//gs;
@@ -768,6 +770,7 @@ sub parse_file
                $s( \( $paren_expr \) [^:\{\(\)=]*) # arg list
                (\{.*)$/sx)              # body
 	    {
+#print "Free function: $2 T(" . (defined $3 ? $3 : "") . ") PRE($1) ARGS($4) POST($5)\n";
 	      my $function = { class => '',
 			       name => $2,
 			       templateargs => (defined $3
@@ -868,7 +871,7 @@ sub read_more ()	# Read one more line of code. Stow away
 	  s/\003/$saved/s;
 	}
 
-      while (s|(//(?!-\s*\n).*)$|\001$number\001|m) # Do not match magic "//-"
+      while (s|(//(?!-\s*\n).*\n)|\001$number\001|m) # Do not match magic "//-"
 	{			# The \001 signifies whitespace.
 	  push @comments, $1;
 	  $number++;
@@ -1066,6 +1069,14 @@ sub handle_function
 	  $func->{visibility} = "implementation_only";
           $func->{pretext} =~ s|IMPLEMENT[ \t]*||s;
         }
+      elsif (s/^($s)IMPLEMENT_DEFAULT([\s\n])/$1$2/s)
+        {
+	  # Use a visibility attribute that is never used in adding
+	  # declarations to classes in print_classdecl.
+	  $func->{visibility} = "implementation_only";
+	  $func->{default_impl} = 1;
+          $func->{pretext} =~ s|IMPLEMENT_DEFAULT[ \t]*||s;
+        }
 
       if ($func->{posttext} =~ s/$s=${s}0$s;$s$//s)
         {
@@ -1136,7 +1147,6 @@ sub handle_function
 	    if ($match =~ /^(?:${s}template$s<${s}>)+${s}$/s);
 
           $func->{pretext} =~ s/\Q$match//s;
-#         $func->{pretext} =~ s|$template[ \t]*||s;
 	  next;
         }
 
@@ -1211,6 +1221,18 @@ sub handle_function
 
 	  next;
         }
+      if (s/^($s)IMPLEMENT_DEFAULT([\s\n])/$1$2/s)
+        {
+          $func->{pretext} =~ s/IMPLEMENT_DEFAULT[ \t]*//s;
+
+	  if ($func->{class} eq '')
+	    {
+	      $func->{visibility} = "implementation_only";
+              $func->{default_impl} = 1;
+	    }
+
+	  next;
+        }
 
       if (s/^($s)explicit([\s\n])/$1$2/s)
         {
@@ -1240,6 +1262,23 @@ sub handle_function
     {
       die "${ARGV}:${lineno}: Function " . $func->{name} 
           . " in INTERFACE section;";
+    }
+
+  if (defined $functions{"$func->{class}::$func->{name}"})
+    {
+      my $f = $functions{"$func->{class}::$func->{name}"};
+      if (defined $f->{default_impl})
+        {
+          $f->{printed} = 1;
+        }
+      elsif (defined $func->{default_impl})
+        {
+          $func->{printed} = 1;
+        }
+    }
+  else
+    {
+      $functions{"$func->{class}::$func->{name}"} = $func;
     }
 
   push @{$classes{$func->{class}}->{funcs}}, $func;

@@ -53,7 +53,8 @@ Mem_op::l1_inv_dcache(Address start, Address end)
       end &= ~Mem_unit::Cache_line_mask;
     }
 
-  Mem_unit::inv_dcache((void *)start, (void *)end);
+  if (start < end)
+    Mem_unit::inv_dcache((void *)start, (void *)end);
 }
 
 PRIVATE static void
@@ -217,8 +218,10 @@ PRIVATE static
 void
 Mem_op::outer_cache_op(int op, Address start, Address end)
 {
-  Mem_space::Vaddr v = Virt_addr(Address(start));
-  Mem_space::Vaddr e = Virt_addr(Address(end));
+
+  Virt_addr s = Virt_addr(start);
+  Virt_addr v = Virt_addr(start);
+  Virt_addr e = Virt_addr(end);
 
   Context *c = current();
 
@@ -227,30 +230,36 @@ Mem_op::outer_cache_op(int op, Address start, Address end)
       Mem_space::Size phys_size;
       Mem_space::Phys_addr phys_addr;
       unsigned attrs;
+      bool mapped =    c->mem_space()->v_lookup(Mem_space::Vaddr(v), &phys_addr, &phys_size, &attrs)
+                    && (attrs & Mem_space::Page_user_accessible);
 
-      if (   c->mem_space()->v_lookup(v, &phys_addr, &phys_size, &attrs)
-          && (attrs & Mem_space::Page_user_accessible))
+      Virt_size sz = Virt_size(phys_size);
+      Virt_size offs = Virt_size(Virt_addr(v).value() & (Mem_space::Size(phys_size).value() - 1));
+      sz -= offs;
+      if (e - v < sz)
+        sz = e - v;
+
+      if (mapped)
         {
-          unsigned long sz = Virt_size(phys_size).value();
-          if (Address(end) - Address(start) < sz)
-            sz = Address(end) - Address(start);
+          Virt_addr vstart = Virt_addr(phys_addr) | offs;
+          Virt_addr vend = vstart + sz;
           switch (op)
             {
             case Op_cache_l2_clean:
-              Outer_cache::clean(Virt_addr(phys_addr).value(),
-                                 Virt_addr(phys_addr).value() + sz, false);
+              Outer_cache::clean(Virt_addr(vstart).value(),
+                                 Virt_addr(vend).value(), false);
               break;
             case Op_cache_l2_flush:
-              Outer_cache::flush(Virt_addr(phys_addr).value(),
-                                 Virt_addr(phys_addr).value() + sz, false);
+              Outer_cache::flush(Virt_addr(vstart).value(),
+                                 Virt_addr(vend).value(), false);
               break;
             case Op_cache_l2_inv:
-              Outer_cache::invalidate(Virt_addr(phys_addr).value(),
-                                      Virt_addr(phys_addr).value() + sz, false);
+              Outer_cache::invalidate(Virt_addr(vstart).value(),
+                                      Virt_addr(vend).value(), false);
               break;
             }
         }
-      v += phys_size;
+      v += sz;
     }
   Outer_cache::sync();
 }

@@ -142,7 +142,7 @@ INTERFACE:
 #define CONFIG_KERNEL_VERSION_STRING \
   GREETING_COLOR_ANSI_TITLE "Welcome to Fiasco.OC (" CONFIG_XARCH ")!\\n"            \
   GREETING_COLOR_ANSI_INFO "L4/Fiasco.OC " ARCH_NAME " "                \
-                           "microkernel (C) 1998-2012 TU Dresden\\n"           \
+                           "microkernel (C) 1998-2013 TU Dresden\\n"           \
                            "Rev: " CODE_VERSION " compiled with gcc " COMPILER \
                             " for " TARGET_NAME "    [" CONFIG_LABEL "]\\n"    \
                            "Build: #" BUILD_NR " " BUILD_DATE "\\n"            \

@@ -87,7 +87,7 @@ $(OBJ_BASE)/pc:
 
 # deps on disappearing aliases.d-files are not handled...
 $(OBJ_BASE)/pkg/.Package.deps: $(L4DIR)/mk/pkgdeps \
-                               $(if $(filter update up,$(MAKECMDGOALS)),Makefile) \
+                               $(if $(filter update up,$(MAKECMDGOALS)),,Makefile) \
                                $(wildcard $(foreach d,$(ALIASES_DIRS),$(d)/*)) \
 			       $(OBJ_BASE)/pc \
                                $(wildcard $(foreach d,$(BUILD_SUBDIRS),$(d)/Control))

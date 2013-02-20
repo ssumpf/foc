@@ -16,6 +16,7 @@ namespace L4
   class Uart_pl011 : public Uart
   {
   public:
+    Uart_pl011(unsigned freq) : _freq(freq) {}
     bool startup(Io_register_block const *);
     void shutdown();
     bool change_mode(Transfer_mode m, Baud_rate r);
@@ -24,6 +25,9 @@ namespace L4
     int char_avail() const;
     inline void out_char(char c) const;
     int write(char const *s, unsigned long count) const;
+
+  private:
+    unsigned _freq;
   };
 };
 

@@ -6,18 +6,19 @@ $(filter kip%.o,$(OBJ_ABI)): $(VERSION)
 
 $(VERSION): FORCE
 		$(GENVER_MESSAGE)
-		$(VERBOSE)if [ -d $(srcdir)/.svn ]; then               \
-		   v=`svnversion -nc $(srcdir)`; v=$${v%[A-Z]};        \
-		   echo "#define CODE_VERSION \"r$${v#*:}\"" > $@;     \
-		elif [ -d $(srcdir)/.git ]; then                       \
-		   v=`git rev-parse --verify --short HEAD 2>/dev/null` \
-		   echo "#define CODE_VERSION \"$$v\"" > $@;           \
-		elif [ -d $(srcdir)/.hg ]; then                        \
-		   v=`hg id 2>/dev/null`                               \
-		   echo "#define CODE_VERSION \"$${v% *}\"" > $@;      \
-		else                                                   \
-		   echo "#define CODE_VERSION \"UNKNOWN\"" > $@;       \
-		fi
+		$(VERBOSE)v=`git rev-parse --verify --short HEAD 2>/dev/null`;\
+		if [ -z "$$v" ]; then                                  \
+		   v=`svnversion -nc $(srcdir)`;                       \
+		   if [ -n "$$v" ]; then                               \
+		     v=$${v%[A-Z]}; v="r$${v#*:}";                     \
+		   else                                                \
+		     v=`hg id 2>/dev/null`;                            \
+		     if [ -n "$$v" ]; then                             \
+		       v="$${v% *}";                                   \
+		     fi                                                \
+		   fi                                                  \
+		fi;                                                    \
+		echo "#define CODE_VERSION \"$$v\"" > $@
 		$(VERBOSE)echo "#define BUILD_DATE \"$$(date)\"" >> $@
 		$(VERBOSE)if [ -e .build_nr ]; then                    \
 		  nr=$$(($$(cat .build_nr) + 1));                      \

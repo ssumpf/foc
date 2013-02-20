@@ -6,12 +6,16 @@
  * Please see the COPYING-LGPL-2.1 file for details.
  */
 
+#include "support.h"
+
 void
 reboot_arch(void) __attribute__((noreturn));
 
 void
 reboot_arch(void)
 {
-  for (;;)
+  Platform_base::platform->reboot();
+
+  while (1)
     ;
 }

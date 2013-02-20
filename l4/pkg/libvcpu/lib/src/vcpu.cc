@@ -27,8 +27,9 @@ l4vcpu_print_state(l4_vcpu_state_t *vcpu,
 {
   printf("%svcpu=%p state=%x savedstate=%x label=%lx\n",
          prefix, vcpu, vcpu->state, vcpu->saved_state, vcpu->i.label);
-  printf("%ssticky=%x user_task=%lx\n",
-         prefix, vcpu->sticky_flags, vcpu->user_task << L4_CAP_SHIFT);
+  printf("%ssticky=%x user_task=%lx  pfa=%lx\n",
+         prefix, vcpu->sticky_flags, vcpu->user_task << L4_CAP_SHIFT,
+         vcpu->r.pfa);
   printf("%sentry_sp=%lx entry_ip=%lx\n",
          prefix, vcpu->entry_sp, vcpu->entry_ip);
   l4vcpu_print_state_arch(vcpu, prefix);

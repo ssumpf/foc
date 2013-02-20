@@ -481,7 +481,10 @@ Vm_vmx::resume_vcpu(Context *ctxt, Vcpu_state *vcpu, bool user_mode)
   assert_kdb (user_mode);
 
   if (EXPECT_FALSE(!(ctxt->state(true) & Thread_ext_vcpu_enabled)))
-    return -L4_err::EInval;
+    {
+      ctxt->arch_load_vcpu_kern_state(vcpu, true);
+      return -L4_err::EInval;
+    }
 
   void *vmcs_s = reinterpret_cast<char *>(vcpu) + 0x400;
 
@@ -494,6 +497,7 @@ Vm_vmx::resume_vcpu(Context *ctxt, Vcpu_state *vcpu, bool user_mode)
 	{
 	  // XXX: check if this is correct, we set external irq exit as reason
 	  write<Unsigned32>(vmcs_s, Vmx::F_exit_reason, 1);
+          ctxt->arch_load_vcpu_kern_state(vcpu, true);
 	  return 1; // return 1 to indicate pending IRQs (IPCs)
 	}
 
@@ -501,7 +505,10 @@ Vm_vmx::resume_vcpu(Context *ctxt, Vcpu_state *vcpu, bool user_mode)
 
       // test for error or non-IRQ exit reason
       if (r <= 0)
-	return r;
+        {
+          ctxt->arch_load_vcpu_kern_state(vcpu, true);
+          return r;
+        }
 
       // check for IRQ exits and allow to handle the IRQ
       if (r == 1)
@@ -514,7 +521,10 @@ Vm_vmx::resume_vcpu(Context *ctxt, Vcpu_state *vcpu, bool user_mode)
       // with bogus state.
       Thread *t = nonull_static_cast<Thread*>(ctxt);
       if (t->continuation_test_and_restore())
-        t->fast_return_to_user(vcpu->_entry_ip, vcpu->_entry_sp,
-                               t->vcpu_state().usr().get());
+        {
+          ctxt->arch_load_vcpu_kern_state(vcpu, true);
+          t->fast_return_to_user(vcpu->_entry_ip, vcpu->_entry_sp,
+                                 t->vcpu_state().usr().get());
+        }
     }
 }

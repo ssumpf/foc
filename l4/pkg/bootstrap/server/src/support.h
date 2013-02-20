@@ -37,6 +37,12 @@ public:
                                 Region_list *ram, Region_list *regions) = 0;
   virtual bool probe() = 0;
 
+  virtual void reboot()
+  {
+    while (1)
+      ;
+  }
+
   // remember the chosen platform
   static Platform_base *platform;
 

@@ -17,17 +17,21 @@ public:
   void * 
   operator new(size_t);	// funny comment
   
+  
 #line 16 "operator.cpp"
   Foo&
   operator+(const Foo&);	// funny comment
+  
   
 #line 22 "operator.cpp"
   Foo&
   operator=(const Foo&);	// funny comment
   
+  
 #line 28 "operator.cpp"
   Foo&
   operator*(const Foo&);	// funny comment
+  
 };
 
 #line 34 "operator.cpp"

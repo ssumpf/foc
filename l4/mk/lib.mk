@@ -116,7 +116,7 @@ $(filter-out $(LINK_INCR) %.so %.o.a %.o.pr.a, $(TARGET)):%.a: $(OBJS)
 $(filter %.so, $(TARGET)):%.so: $(OBJS) $(CRTN) $(CRT0) $(CRTP) $(LIBDEPS)
 	@$(LINK_SHARED_MESSAGE)
 	$(VERBOSE)[ -d "$(dir $@)" ] || $(MKDIR) $(dir $@)
-	$(VERBOSE)$(call MAKEDEP,$(LD)) $(LD) -m $(LD_EMULATION) \
+	$(VERBOSE)$(call MAKEDEP,$(LD)) $(LD) \
 	   -o $@ $(LDFLAGS_SO) $(addprefix -T,$(LDSCRIPT)) $(CRTP) \
 	   $(OBJS) $(REQUIRES_LIBS_LIST) $(LDFLAGS) \
 	   $(GCCLIB_SO) $(GCCLIB_EH) $(CRTN)
@@ -129,7 +129,7 @@ LINK_INCR_TARGETS = $(filter $(LINK_INCR) %.o.a %.o.pr.a, $(TARGET))
 $(LINK_INCR_TARGETS):%.a: $(OBJS) $(LIBDEPS) $(foreach x,$(LINK_INCR_TARGETS),$(LINK_INCR_ONLYGLOBSYMFILE_$(x)))
 	@$(LINK_PARTIAL_MESSAGE)
 	$(VERBOSE)[ -d "$(dir $@)" ] || $(MKDIR) $(dir $@)
-	$(VERBOSE)$(call MAKEDEP,$(LD)) $(LD) -m $(LD_EMULATION) \
+	$(VERBOSE)$(call MAKEDEP,$(LD)) $(LD) \
 	   -T$(LDSCRIPT_INCR) \
 	   -o $@ -r $(OBJS) $(LDFLAGS)
 	$(if $(LINK_INCR_ONLYGLOBSYM_$@)$(LINK_INCR_ONLYGLOBSYMFILE_$@), \

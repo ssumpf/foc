@@ -23,8 +23,7 @@
  */
 #pragma once
 
-#include <l4/sys/ipc.h>
-#include <l4/sys/task.h>
+#include <l4/sys/types.h>
 
 /**
  * \defgroup l4_vm_svm_api VM API for SVM

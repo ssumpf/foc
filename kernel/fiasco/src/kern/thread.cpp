@@ -1105,7 +1105,13 @@ Thread::handle_remote_requests_irq()
   if (migration_q)
     resched |= static_cast<Thread*>(migration_q)->do_migration();
 
-  if ((c->handle_drq() || resched) && !Sched_context::rq.current().schedule_in_progress)
+  resched |= c->handle_drq();
+  if (Sched_context::rq.current().schedule_in_progress)
+    {
+      if (c->state() & Thread_ready_mask)
+        Sched_context::rq.current().ready_enqueue(c->sched());
+    }
+  else if (resched)
     c->schedule();
 }
 

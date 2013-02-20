@@ -141,7 +141,7 @@ l4vcpu_wait(l4_vcpu_state_t *vcpu, l4_utcb_t *utcb,
             l4vcpu_setup_ipc_t setup_ipc) L4_NOTHROW;
 
 /**
- * \brief Halt the vCPU (sleep).
+ * \brief Wait for event.
  * \ingroup api_libvcpu
  *
  * \param vcpu             Pointer to vCPU area.
@@ -150,12 +150,14 @@ l4vcpu_wait(l4_vcpu_state_t *vcpu, l4_utcb_t *utcb,
  *                         awakes and needs to handle an event/IRQ.
  * \param setup_ipc        Function call-back that is called right before
  *                         any IPC operation.
+ *
+ * Note that event delivery remains disabled after this function returns.
  */
 L4_CV L4_INLINE
 void
-l4vcpu_halt(l4_vcpu_state_t *vcpu, l4_utcb_t *utcb,
-            l4vcpu_event_hndl_t do_event_work_cb,
-            l4vcpu_setup_ipc_t setup_ipc) L4_NOTHROW;
+l4vcpu_wait_for_event(l4_vcpu_state_t *vcpu, l4_utcb_t *utcb,
+                      l4vcpu_event_hndl_t do_event_work_cb,
+                      l4vcpu_setup_ipc_t setup_ipc) L4_NOTHROW;
 
 
 /**
@@ -290,12 +292,11 @@ l4vcpu_irq_restore(l4_vcpu_state_t *vcpu, l4vcpu_irq_state_t s,
 
 L4_CV L4_INLINE
 void
-l4vcpu_halt(l4_vcpu_state_t *vcpu, l4_utcb_t *utcb,
-            l4vcpu_event_hndl_t do_event_work_cb,
-            l4vcpu_setup_ipc_t setup_ipc) L4_NOTHROW
+l4vcpu_wait_for_event(l4_vcpu_state_t *vcpu, l4_utcb_t *utcb,
+                      l4vcpu_event_hndl_t do_event_work_cb,
+                      l4vcpu_setup_ipc_t setup_ipc) L4_NOTHROW
 {
   l4vcpu_wait(vcpu, utcb, L4_IPC_NEVER, do_event_work_cb, setup_ipc);
-  l4vcpu_irq_enable(vcpu, utcb, do_event_work_cb, setup_ipc);
 }
 
 __END_DECLS
