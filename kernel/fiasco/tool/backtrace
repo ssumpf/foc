@@ -24,9 +24,9 @@ if (!defined $ARGV[0])
   exit 1;
 }
 
-my $nm = 'nm';
+my $nm = 'genode-x86-nm';
 $nm = "$ENV{'SYSTEM_TARGET'}$nm" if defined $ENV{"SYSTEM_TARGET"};
-$nm = 'arm-linux-nm' if !(system("file -L $ARGV[0] | grep -qw ARM") >> 8);
+$nm = 'genode-arm-nm' if !(system("file -L $ARGV[0] | grep -qw ARM") >> 8);
 
 while (@ARGV)
   {
