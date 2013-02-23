@@ -212,7 +212,7 @@ INTERFACES_JDB		:= jdb_handler_queue jdb_module jdb_pic            \
 			   jdb_trace_set jdb_entry_frame                   \
 			   jdb_kobject jdb_kobject_names                   \
 			   jdb_util jdb_space jdb_utcb                     \
-			   jdb_trap_state jdb_ipi jdb_rcupdate             \
+			   jdb_trap_state jdb_ipi jdb_rcupdate jdb_bt      \
 			   jdb_ipc_gate jdb_obj_space jdb_log jdb_factory  \
 			   jdb_thread jdb_scheduler jdb_sender_list\
 			   jdb_perf jdb_vm jdb_regex jdb_disasm jdb_bp \
@@ -231,6 +231,7 @@ jdb_tcb_IMPL		:= jdb_tcb jdb_tcb-arm
 jdb_ptab_IMPL		:= jdb_ptab jdb_ptab-ia32-ux-arm jdb_ptab-arm
 jdb_entry_frame_IMPL	:= jdb_entry_frame-arm
 jdb_trace_set_IMPL	:= jdb_trace_set jdb_trace_set-arm
+jdb_bt_IMPL             := jdb_bt-arm
 jdb_bp			:= jdb_bp
 thread_IMPL		+= thread-debug 
 
