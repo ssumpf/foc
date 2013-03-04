@@ -1,4 +1,4 @@
-INTERFACE:
+INTERFACE[arm && !armca15]:
 
 #include "mem.h"
 #include "std_macros.h"
@@ -17,6 +17,29 @@ public:
     Icache_line_mask = Icache_line_size - 1,
   };
 };
+
+
+//---------------------------------------------------------------------------
+INTERFACE[arm && armca15]:
+
+#include "mem.h"
+#include "std_macros.h"
+
+EXTENSION class Mmu
+{
+public:
+  static void btc_flush();
+  static void btc_inv();
+
+  enum
+  {
+    Cache_line_size = 64,
+    Cache_line_mask = Cache_line_size - 1,
+    Icache_line_size = 64,
+    Icache_line_mask = Icache_line_size - 1,
+  };
+};
+
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && armv5]:
@@ -344,7 +367,7 @@ EXTENSION class Mmu
 };
 
 //-----------------------------------------------------------------------------
-INTERFACE [arm && (armca9 || armca15)]:
+INTERFACE [arm && armca9]:
 
 EXTENSION class Mmu
 {
@@ -357,6 +380,24 @@ EXTENSION class Mmu
     SET_INCR      = 1 << 5,
     WAY_INCR      = 1 << 30,
     WAY_SIZE      = 4,
+  };
+
+};
+
+
+
+//-----------------------------------------------------------------------------
+INTERFACE [arm && armca15]:
+
+EXTENSION class Mmu
+{
+  enum
+  {
+    SET_SIZE_32KB = 1 << 13,
+    SET_SIZE      = SET_SIZE_32KB,
+    SET_INCR      = 1 << 6,
+    WAY_INCR      = 1 << 31,
+    WAY_SIZE      = 2,
   };
 
 };

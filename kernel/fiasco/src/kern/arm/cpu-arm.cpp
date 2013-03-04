@@ -616,6 +616,11 @@ Cpu::init_errata_workarounds()
           if (rev < 0x30)
             set_c15_c0_1(1 << 11);
         }
+      // errata: 774769 (must be done in secure mode)
+      if (part == 0xc0f)
+         {
+           clear_actrl(0x1 << 25);
+         }
     }
 }
 

@@ -137,7 +137,7 @@ Pte::need_cache_clean()
 }
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION [arm && !vcache && !armca9]:
+IMPLEMENTATION [arm && !vcache && !armca9 && !armca15]:
 
 PUBLIC static inline
 bool
@@ -147,7 +147,7 @@ Pte::need_cache_clean()
 }
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION [arm && !vcache && armca9]:
+IMPLEMENTATION [arm && !vcache && (armca9 || armca15)]:
 
 PUBLIC static inline
 bool

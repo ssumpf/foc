@@ -2,7 +2,7 @@
 
 SUBSYSTEMS       += LIBUART
 OBJECTS_LIBUART  += uart_s3c2410.o
-PREPROCESS_PARTS += exynos5 libuart
+PREPROCESS_PARTS += exynos5 libuart arm_cpu_errata
 PREPROCESS_PARTS += $(if $(CONFIG_PF_EXYNOS5_ARNDALE), exynos5_arndale pic_gic)
 
 CONFIG_KERNEL_LOAD_ADDR := 0x40000000
