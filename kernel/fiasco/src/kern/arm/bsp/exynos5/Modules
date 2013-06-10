@@ -1,0 +1,25 @@
+# vim:set ft=make:
+
+SUBSYSTEMS       += LIBUART
+OBJECTS_LIBUART  += uart_s3c2410.o
+PREPROCESS_PARTS += exynos5 libuart arm_cpu_errata
+PREPROCESS_PARTS += $(if $(CONFIG_PF_EXYNOS5_ARNDALE), exynos5_arndale pic_gic)
+
+CONFIG_KERNEL_LOAD_ADDR := 0x40000000
+#no memory mapped SCU on exynos5
+MPCORE_PHYS_BASE        := 0x0 
+
+INTERFACES_KERNEL+= $(if $(CONFIG_PF_EXYNOS5_ARNDALE),gic)
+
+bootstrap_IMPL        += bootstrap-arm-exynos5
+clock_IMPL            += clock-generic
+config_IMPL           += config-arm-exynos5
+kernel_uart_IMPL      += kernel_uart-arm-exynos5
+mem_layout_IMPL       += mem_layout-arm-exynos5
+pic_IMPL              += pic-gic pic-arm-gic-exynos5
+platform_control_IMPL += platform_control-arm-exynos5
+reset_IMPL            += reset-arm-exynos5
+timer_IMPL            += timer-arm-exynos5
+timer_tick_IMPL       += timer_tick-multi-vector
+uart_IMPL             += uart-arm-exynos5
+warn_IMPL             += warn warn-exynos5

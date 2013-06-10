@@ -42,7 +42,7 @@ public:
 };
 
 //---------------------------------------------------------------------------
-INTERFACE[arm && !(mpcore || armca9)]:
+INTERFACE[arm && !(mpcore || armca9 || armca15)]:
 
 EXTENSION class Mem_page_attr
 {
@@ -59,7 +59,7 @@ public:
 };
 
 //---------------------------------------------------------------------------
-INTERFACE[arm && (mpcore || armca9)]:
+INTERFACE[arm && (mpcore || armca9 || armca15)]:
 
 EXTENSION class Mem_page_attr
 {
@@ -78,7 +78,7 @@ public:
 };
 
 //---------------------------------------------------------------------------
-INTERFACE[arm && armca9]:
+INTERFACE[arm && (armca9 || armca15)]:
 
 EXTENSION class Page_table
 {
@@ -137,7 +137,7 @@ Pte::need_cache_clean()
 }
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION [arm && !vcache && !armca9]:
+IMPLEMENTATION [arm && !vcache && !armca9 && !armca15]:
 
 PUBLIC static inline
 bool
@@ -147,7 +147,7 @@ Pte::need_cache_clean()
 }
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION [arm && !vcache && armca9]:
+IMPLEMENTATION [arm && !vcache && (armca9 || armca15)]:
 
 PUBLIC static inline
 bool
@@ -477,7 +477,7 @@ void Page_table::activate(unsigned long asid)
 }
 
 //-----------------------------------------------------------------------------
-IMPLEMENTATION [armv7 && armca9]:
+IMPLEMENTATION [armv7 && (armca9 || armca15)]:
 
 PUBLIC
 void Page_table::activate(unsigned long asid)

@@ -1,4 +1,4 @@
-INTERFACE:
+INTERFACE[arm && !armca15]:
 
 #include "mem.h"
 #include "std_macros.h"
@@ -17,6 +17,29 @@ public:
     Icache_line_mask = Icache_line_size - 1,
   };
 };
+
+
+//---------------------------------------------------------------------------
+INTERFACE[arm && armca15]:
+
+#include "mem.h"
+#include "std_macros.h"
+
+EXTENSION class Mmu
+{
+public:
+  static void btc_flush();
+  static void btc_inv();
+
+  enum
+  {
+    Cache_line_size = 64,
+    Cache_line_mask = Cache_line_size - 1,
+    Icache_line_size = 64,
+    Icache_line_mask = Icache_line_size - 1,
+  };
+};
+
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && armv5]:
@@ -171,7 +194,7 @@ FIASCO_NOINLINE void Mmu<Flush_area, Ram>::inv_dcache(void const *start, void co
 }
 
 //-----------------------------------------------------------------------------
-IMPLEMENTATION [arm && (mpcore || arm1136 || arm1176 || armca8 || armca9)]:
+IMPLEMENTATION [arm && (mpcore || arm1136 || arm1176 || armca8 || armca9 || armca15)]:
 
 IMPLEMENT inline
 template< unsigned long Flush_area, bool Ram >
@@ -303,7 +326,7 @@ void Mmu<Flush_area, Ram>::flush_dcache()
 
 
 //-----------------------------------------------------------------------------
-INTERFACE [arm && (armca8 || armca9)]:
+INTERFACE [arm && (armca8 || armca9 || armca15)]:
 
 EXTENSION class Mmu
 {
@@ -361,8 +384,26 @@ EXTENSION class Mmu
 
 };
 
+
+
+//-----------------------------------------------------------------------------
+INTERFACE [arm && armca15]:
+
+EXTENSION class Mmu
+{
+  enum
+  {
+    SET_SIZE_32KB = 1 << 13,
+    SET_SIZE      = SET_SIZE_32KB,
+    SET_INCR      = 1 << 6,
+    WAY_INCR      = 1 << 31,
+    WAY_SIZE      = 2,
+  };
+
+};
+
 //-----------------------------------------
-IMPLEMENTATION [arm && (armca8 || armca9)]:
+IMPLEMENTATION [arm && (armca8 || armca9 || armca15)]:
 
 PRIVATE
 template< unsigned long Flush_area, bool Ram >

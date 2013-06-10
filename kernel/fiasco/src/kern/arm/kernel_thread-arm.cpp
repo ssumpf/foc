@@ -45,9 +45,9 @@ Kernel_thread::boot_app_cpus()
   extern volatile Mword _tramp_mp_startup_pdbr;
   extern volatile Mword _tramp_mp_start_dcr;
 
-  unsigned num_ap_cpus = (Io::read<Mword>(Mem_layout::Mp_scu_map_base + 4) & 3);
+  unsigned num_ap_cpus = Cpu::num_cpus();
 
-  printf("Number of CPUs: %d\n", num_ap_cpus + 1);
+  printf("Number of CPUs: %d\n", num_ap_cpus);
 
   _tramp_mp_startup_cp15_c1 = Config::Cache_enabled
                               ? Cpu::Cp15_c1_cache_enabled : Cpu::Cp15_c1_cache_disabled;

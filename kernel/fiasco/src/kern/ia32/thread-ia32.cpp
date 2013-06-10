@@ -92,7 +92,10 @@ Thread::user_ip() const
 IMPLEMENT inline
 Mword
 Thread::user_flags() const
-{ return regs()->flags(); }
+{
+    // pass thread-ready state in carry flag (Thread_ready is bit 0)
+    return (regs()->flags() & ~Thread_ready) | (state() & Thread_ready);
+}
 
 /** Check if the pagefault occured at a special place: At some places in the
     kernel we want to ensure that a specific address is mapped. The regular
@@ -187,6 +190,10 @@ Thread::handle_slow_trap(Trap_state *ts)
       Ipi::eoi(Ipi::Debug, cpu());
       goto generic_debug;
     }
+
+  if (Config::user_single_step && ts->_trapno == 1 && from_user)
+    if (send_exception(ts))
+      goto success;
 
   if (from_user && _space.user_mode())
     {
@@ -435,7 +442,8 @@ Thread::send_exception_arch(Trap_state *ts)
   // thread (not alien) and it's a debug trap,
   // debug traps for aliens are always reflected as exception IPCs
   if (!(state() & Thread_alien)
-      && (ts->_trapno == 1 || ts->_trapno == 3))
+      && ((ts->_trapno == 1 && !Config::user_single_step)
+      ||   ts->_trapno == 3))
     return 0; // we do not handle this
 
   if (ts->_trapno == 3)
@@ -487,6 +495,11 @@ Thread::user_ip(Mword ip)
       r->ip(ip);
     }
 }
+
+IMPLEMENT inline
+void
+Thread::user_single_step(bool)
+{}
 
 //----------------------------------------------------------------------------
 IMPLEMENTATION [(ia32,amd64,ux) && !io]:
@@ -840,3 +853,16 @@ PRIVATE static inline
 int
 Thread::call_nested_trap_handler(Trap_state *)
 { return -1; }
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [ia32]:
+
+IMPLEMENT inline
+void
+Thread::user_single_step(bool enable)
+{
+  if (!Config::user_single_step)
+    return;
+
+  regs()->flags(enable ? user_flags() | EFLAGS_TF : user_flags() & ~EFLAGS_TF);
+}

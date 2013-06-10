@@ -222,7 +222,7 @@ void Proc::halt()
 }
 
 //----------------------------------------------------------------
-IMPLEMENTATION[arm && (armca8 || armca9)]:
+IMPLEMENTATION[arm && (armca8 || armca9 || armca15)]:
 
 IMPLEMENT static inline
 void Proc::pause()

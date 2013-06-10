@@ -25,7 +25,7 @@ set_asid()
 {}
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION [arm && armv6plus && (mpcore || armca9)]:
+IMPLEMENTATION [arm && armv6plus && (mpcore || armca9 || armca15)]:
 
 enum
 {
@@ -33,7 +33,7 @@ enum
 };
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION [arm && armv6plus && !(mpcore || armca9)]:
+IMPLEMENTATION [arm && armv6plus && !(mpcore || armca9 || armca15)]:
 
 enum
 {
@@ -79,6 +79,19 @@ do_arm_1176_cache_alias_workaround()
 IMPLEMENTATION [arm && !arm1176_cache_alias_fix]:
 
 static void do_arm_1176_cache_alias_workaround() {}
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [arm && exynos5_arndale]:
+
+static inline void supervisor_mode()
+{
+  asm volatile ("cps #19");
+}
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [arm && !exynos5_arndale]:
+
+static inline void supervisor_mode() { }
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm]:
@@ -144,6 +157,8 @@ extern "C" void bootstrap_main()
 {
   extern char kernel_page_directory[];
   void *const page_dir = kernel_page_directory + Virt_ofs;
+
+  supervisor_mode();
 
   Address va, pa;
   // map sdram linear from 0xf0000000

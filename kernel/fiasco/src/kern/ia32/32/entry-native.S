@@ -46,6 +46,30 @@
 	jmp	slowtraps
 .endm
 
+#ifdef CONFIG_USER_SINGLE_STEP
+.macro HANDLE_USER_TRAP1
+	/* Save EFLAGS, this may trap if user task had single stepping activated
+	 * test for single stepping
+	 */
+	pushf
+	addl	$4, %esp
+	testl	$EFLAGS_TF, -4(%esp)
+.endm
+
+.macro RESTORE_USER_TRAP1
+	/* Restore single stepping if it has been set */
+	je 1f
+	orl $EFLAGS_TF, (%esp)
+1:
+.endm
+#else
+.macro HANDLE_USER_TRAP1
+.endm
+
+.macro RESTORE_USER_TRAP1
+.endm
+#endif
+
 	.p2align 4
 	.globl	entry_vec01_debug
 entry_vec01_debug:
@@ -59,6 +83,15 @@ entry_vec01_debug:
 	cmpl	$entry_sys_fast_ipc_log, (%esp)
 	je	2f
 #endif
+
+	/* test if trap was raised within kernel */
+	testl $3, 4(%esp)
+	jne   1f
+
+	/* turn of EFLAGS.TF */
+	btrl $7, 8(%esp) 
+	iret
+
 1:	pushl	$0
 	pushl	$1
 	pusha
@@ -226,10 +259,16 @@ alien_sys_fast_ipc_log:
 	.p2align(4)
 	.global entry_sys_fast_ipc_c
 entry_sys_fast_ipc_c:
+
+	HANDLE_USER_TRAP1
+
 	pop	%esp
 	pushl	$(GDT_DATA_USER|SEL_PL_U)	/* user ss */
 	pushl	%ebp				// push user SP (get in ebp)
 	pushf                                   // fake user eflags
+
+	RESTORE_USER_TRAP1
+
 	cld
 	// Fake user cs. This cs value is never used with exception
 	// that the thread is ex_regs'd before we leave with sysexit.

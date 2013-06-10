@@ -51,9 +51,8 @@ FIASCO_DEFINE_KOBJ(Vlog);
 PUBLIC
 Vlog::Vlog()
 : _irq(0),
-  _i_flags(F_ICRNL), _o_flags(F_ONLCR), _l_flags(F_ECHO)
+  _i_flags(F_ICRNL), _o_flags(F_ONLCR), _l_flags(0)
 {
-  Vkey::set_echo(Vkey::Echo_crnl);
   // CAP idx 5 is the initial kernel stream
   initial_kobjects.register_obj(this, 5);
 }
