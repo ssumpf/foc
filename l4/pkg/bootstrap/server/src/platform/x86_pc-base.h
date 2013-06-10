@@ -877,7 +877,11 @@ public:
           }
         else if (comport == -1)
           {
-            legacy_uart(1, comirq, &board);
+            /* try to read Bios Data Area (BDA) to get comport information */
+            unsigned short comport_count = (*((unsigned short *)0x410) >> 9) & 0x7;
+            if (comport_count) comport = *((unsigned short *)0x400), comirq, &board;
+            else comport = 1;
+            legacy_uart(comport, comirq, &board);
             comport = 0;
           }
         else
