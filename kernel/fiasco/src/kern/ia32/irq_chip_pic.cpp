@@ -68,9 +68,14 @@ Irq_chip_ia32_pic::ack(Mword irq)
 }
 
 PUBLIC
-unsigned
-Irq_chip_ia32_pic::set_mode(Mword, unsigned)
-{ return Irq_base::Trigger_level | Irq_base::Polarity_low; }
+int
+Irq_chip_ia32_pic::set_mode(Mword, Mode)
+{ return 0; }
+
+PUBLIC
+bool
+Irq_chip_ia32_pic::is_edge_triggered(Mword) const
+{ return false; }
 
 PUBLIC
 void
@@ -92,7 +97,7 @@ Irq_chip_ia32_pic::unmask(Mword irq)
 
 PUBLIC
 void
-Irq_chip_ia32_pic::set_cpu(Mword, unsigned)
+Irq_chip_ia32_pic::set_cpu(Mword, Cpu_number)
 {}
 
 

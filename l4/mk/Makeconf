@@ -162,6 +162,11 @@ CXX_amd64       = $(SYSTEM_TARGET)g++
 CXX_arm         = $(SYSTEM_TARGET)g++
 CXX_ppc32       = $(SYSTEM_TARGET)g++
 CXX_sparc       = $(SYSTEM_TARGET)g++
+FC_x86          = $(SYSTEM_TARGET)gfortran
+FC_amd64        = $(SYSTEM_TARGET)gfortran
+FC_arm          = $(SYSTEM_TARGET)gfortran
+FC_ppc32        = $(SYSTEM_TARGET)gfortran
+FC_sparc        = $(SYSTEM_TARGET)gfortran
 
 SYSTEMS_ABI    := x86-l4f amd64-l4f arm-l4f ppc32-l4f sparc-l4f
 SYSTEMS_PLAIN  := x86     amd64     arm     ppc32     sparc
@@ -173,6 +178,7 @@ $(call dv,AS)	 = $(SYSTEM_TARGET)as
 AWKP		?= gawk --posix
 $(call dv,CC)    = $(if $(USE_CCACHE),ccache )$(CC_$(BUILD_ARCH))
 $(call dv,CXX)   = $(if $(USE_CCACHE),ccache )$(CXX_$(BUILD_ARCH))
+$(call dv,FC)    = $(if $(USE_CCACHE),ccache )$(FC_$(BUILD_ARCH))
 CP		?= cp
 DICE_SRCDIR	?= $(L4DIR)/../dice
 DICE_OBJDIR	?= $(DICE_SRCDIR)
@@ -231,6 +237,9 @@ absfilename_target_dir_needs_to_exist = $(foreach w,$(1),$(addsuffix /$(notdir $
 absfilename     = $(shell PWD=$$($(PWDCMD)) $(L4DIR)/mk/rel2abs.sh $(1))
 findfile	= $(firstword $(wildcard $(addsuffix /$(1),$(2))) $(1)_NOT_FOUND)
 is_dir          = $(shell test -d '$(1)' && echo yes)
+define create_dir
+  $(if $(wildcard $(1)),,$(VERBOSE)$(INSTALL) -d $(1))
+endef
 
 ifneq ($(PT),)
   PLATFORM_TYPE := $(PT)
@@ -424,6 +433,9 @@ MAKEDEP=$(LD_GENDEP_PREFIX) \
 		$(if $(4),GENDEP_BINARY_ALT1=$(4))
 endif
 
+# We recognize the following Fortran file extensions.
+FORTRAN_FILE_EXTENSIONS = .f .F .f90 .F90 .f95 .F95
+
 # macros used here and in packages
 checkcc   = $(shell if $(CC)  $(CCXX_FLAGS) $(1) -o /dev/null -c -x c \
                     /dev/null > /dev/null 2>&1; then echo "$(1)"; fi)
@@ -432,17 +444,18 @@ checkcxx  = $(shell if $(CXX) $(CCXX_FLAGS) $(1) -o /dev/null -c -x c++ \
 
 callcc    = LC_ALL=C $(CC)  $(CCXX_FLAGS)
 callcxx   = LC_ALL=C $(CXX) $(CCXX_FLAGS)
+callfc    = LC_ALL=C $(FC)  $(CCXX_FLAGS)
 
 # the gcc specific variables: version, base dir, include dir, gcc lib, ...
 # note: determining these variables is slow, and the values should
 #       be set in .config.all. However, this is the place were
 #       they are determined on a 'make config' in $(L4DIR)
-GCCVERSION_f	= $(shell $(callcc) -dumpversion | sed -e 's/\(.*\)\..*/\1/')
+GCCVERSION_f	= $(shell $(callcc) -dumpversion | sed -e 's/\([^.]\+\.[^.]\+\).*/\1/')
 GCCMAJORVERSION_f=$(shell $(callcc) -dumpversion | sed -e 's/\([^.]*\).*/\1/')
 GCCMINORVERSION_f=$(shell $(callcc) -dumpversion | sed -e 's/[^.]*\.\([^.]*\).*/\1/')
 GCCSUBVERSION_f	= $(shell $(callcc) -dumpversion | sed -e 's/.*\.\(.*\)/\1/')
 LDVERSION_f     = $(shell $(firstword $(LD)) -v | sed -e 's/.* \([0-9]\)\.\([^. ]*\).*/\1\2/')
-GCCSYSLIBDIRS_f = $(shell $(callcc) -print-search-dirs | sed '/^libraries:/{s/^libraries: /-L/;s/:/ -L/g;q;};d')
+GCCSYSLIBDIRS_f = $(shell $(callcc) -print-search-dirs | sed '/^libraries:/{s/^libraries: =\?/-L/;s/:/ -L/g;q;};d')
 GCCDIR_f	= $(shell $(callcc) -print-search-dirs | sed -ne 's+^install: \(.*[^/][^/]*\)/+\1+p' )
 GCCLIB_file_f   = $(shell $(callcc) -print-file-name=$(1))
 GCCLIB_HOST_f	= $(shell $(callcc) -print-libgcc-file-name)
@@ -450,6 +463,7 @@ GCCLIB_S_SO_f	= $(filter /%,$(shell $(callcc) -print-file-name=libgcc_s.so))
 GCCLIB_EH_f	= $(filter /%,$(shell $(callcc) -print-file-name=libgcc_eh.a))
 GCCINCDIR_f	= $(addprefix $(call GCCDIR_f),/include /include-fixed)
 GCCNOSTACKPROTOPT_f= $(call checkcc,-fno-stack-protector)
+GCCFORTRANAVAIL_f = $(shell echo | $(callfc) -dD -E - 2>&1 | grep -q __GNUC__ && echo y)
 GCCNOFPU_x86_f  = $(call checkcc,-mno-mmx) $(call checkcc,-mno-3dnow) \
                   $(call checkcc,-mno-sse) $(call checkcc,-mno-sse2)  \
                   $(call checkcc,-mno-sse3) $(call checkcc,-mno-sse4) \
@@ -659,7 +673,7 @@ generate_pcfile =                                                            \
 	;echo "Version: 0"                                         >> $(2)   \
 	;echo "Description: L4 library"                            >> $(2)   \
 	$(if $(3),;echo "Cflags: $(addprefix -I\$${incdir}/,$(3))" >> $(2))  \
-	$(if $(4),;echo "Libs: $(sort $(4))"                       >> $(2))  \
+	$(if $(4),;echo "Libs: $(4)"                               >> $(2))  \
 	$(if $(5),;echo "Requires: $(5)"                           >> $(2))  \
 	$(if $(BID_GEN_CONTROL),;echo "Provides: $(1)"             >> $(PKGDIR)/Control) \
 	$(if $(BID_GEN_CONTROL),;echo "Requires: $(5)"             >> $(PKGDIR)/Control) ;

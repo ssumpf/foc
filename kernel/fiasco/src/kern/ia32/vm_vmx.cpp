@@ -7,9 +7,9 @@ INTERFACE [vmx]:
 
 class Vmcs;
 
-class Vm_vmx : public Vm
+class Vm_vmx_b : public Vm
 {
-private:
+protected:
   static unsigned long resume_vm_vmx(Vcpu_state *regs)
     asm("resume_vm_vmx") __attribute__((__regparm__(3)));
 
@@ -18,7 +18,15 @@ private:
     EFER_LME = 1 << 8,
     EFER_LMA = 1 << 10,
   };
+};
 
+template<typename X>
+class Vm_vmx_t : public Vm_vmx_b
+{
+};
+
+class Vm_vmx : public Vm_vmx_t<Vm_vmx>
+{
 };
 
 //----------------------------------------------------------------------------
@@ -34,9 +42,16 @@ IMPLEMENTATION [vmx]:
 #include "idt.h"
 
 
+PUBLIC inline
+Vm_vmx_b::Vm_vmx_b(Ram_quota *q) : Vm(q)
+{}
+
+PUBLIC inline template<typename X>
+Vm_vmx_t<X>::Vm_vmx_t(Ram_quota *q) : Vm_vmx_b(q)
+{}
+
 PUBLIC
-Vm_vmx::Vm_vmx(Ram_quota *q)
-  : Vm(q)
+Vm_vmx::Vm_vmx(Ram_quota *q) : Vm_vmx_t<Vm_vmx>(q)
 {}
 
 PUBLIC inline
@@ -61,60 +76,57 @@ Vm_vmx::operator delete (void *ptr)
 
 PRIVATE static inline
 void *
-Vm_vmx::field_offset(void *vmcs, unsigned field)
+Vm_vmx_b::field_ptr(void *vmcs, unsigned field)
 {
-  return (void *)((char *)vmcs
-                          + ((field >> 13) * 4 + ((field >> 10) & 3) + 1) * 0x80);
+  return Vmx_user_info::Fo_table::field(vmcs, field);
 }
 
 PRIVATE static inline
 unsigned
-Vm_vmx::field_width(unsigned field)
+Vm_vmx_b::field_width(unsigned field)
 {
   static const char widths[4] = { 2, 8, 4, sizeof(Mword) };
   return widths[field >> 13];
 }
 
 
-PRIVATE inline
+PROTECTED inline
 template<typename T>
 Vmx_info::Flags<T>
-Vm_vmx::load(unsigned field, void *vmcs, Vmx_info::Bit_defs<T> const &m)
+Vm_vmx_b::load(unsigned field, void *vmcs, Vmx_info::Bit_defs<T> const &m)
 {
   T res = m.apply(read<T>(vmcs, field));
   Vmx::vmwrite(field, res);
   return Vmx_info::Flags<T>(res);
 }
 
-PRIVATE inline
+PROTECTED inline
 void
-Vm_vmx::load(unsigned field_first, unsigned field_last, void *vmcs)
+Vm_vmx_b::load(unsigned field_first, unsigned field_last, void *vmcs)
 {
   for (; field_first <= field_last; field_first += 2)
     load(field_first, vmcs);
 }
 
-PRIVATE inline static
+PRIVATE inline NEEDS[Vm_vmx_b::field_ptr] static
 template< typename T >
 T
-Vm_vmx::_internal_read(void *vmcs, unsigned field)
+Vm_vmx_b::_internal_read(void *vmcs, unsigned field)
 {
-  vmcs = field_offset(vmcs, field);
-  return *((T *)vmcs + ((field >> 1) & 0xff));
+  return *(T *)field_ptr(vmcs, field);
 }
 
-PRIVATE inline static
+PRIVATE inline NEEDS[Vm_vmx_b::field_ptr] static
 template< typename T >
 void
-Vm_vmx::_internal_write(void *vmcs, unsigned field, T value)
+Vm_vmx_b::_internal_write(void *vmcs, unsigned field, T value)
 {
-  vmcs = field_offset(vmcs, field);
-  *((T*)vmcs + ((field >> 1) & 0xff)) = value;
+  *(T*)field_ptr(vmcs, field) = value;
 }
 
-PRIVATE inline
+PROTECTED inline NEEDS[Vm_vmx_b::_internal_read]
 void
-Vm_vmx::load(unsigned field, void *vmcs)
+Vm_vmx_b::load(unsigned field, void *vmcs)
 {
   switch (field >> 13)
     {
@@ -125,9 +137,9 @@ Vm_vmx::load(unsigned field, void *vmcs)
     }
 }
 
-PRIVATE inline
+PROTECTED inline NEEDS[Vm_vmx_b::_internal_write]
 void
-Vm_vmx::store(unsigned field, void *vmcs)
+Vm_vmx_b::store(unsigned field, void *vmcs)
 {
   switch (field >> 13)
     {
@@ -138,18 +150,18 @@ Vm_vmx::store(unsigned field, void *vmcs)
     }
 }
 
-PRIVATE inline
+PROTECTED inline
 void
-Vm_vmx::store(unsigned field_first, unsigned field_last, void *vmcs)
+Vm_vmx_b::store(unsigned field_first, unsigned field_last, void *vmcs)
 {
   for (; field_first <= field_last; field_first += 2)
     store(field_first, vmcs);
 }
 
-PRIVATE inline static
+PROTECTED inline NEEDS[Vm_vmx_b::_internal_write] static
 template< typename T >
 void
-Vm_vmx::write(void *vmcs, unsigned field, T value)
+Vm_vmx_b::write(void *vmcs, unsigned field, T value)
 {
   switch (field >> 13)
     {
@@ -160,10 +172,10 @@ Vm_vmx::write(void *vmcs, unsigned field, T value)
     }
 }
 
-PRIVATE inline static
+PROTECTED inline NEEDS[Vm_vmx_b::_internal_read] static
 template< typename T >
 T
-Vm_vmx::read(void *vmcs, unsigned field)
+Vm_vmx_b::read(void *vmcs, unsigned field)
 {
   switch (field >> 13)
     {
@@ -175,10 +187,27 @@ Vm_vmx::read(void *vmcs, unsigned field)
   return 0;
 }
 
-
-PRIVATE
+PUBLIC inline
 void
-Vm_vmx::load_guest_state(unsigned cpu, void *src)
+Vm_vmx::load_vm_memory(void *src)
+{
+  if (sizeof(long) > sizeof(int))
+    {
+      if (read<Mword>(src, 0x2806) & EFER_LME)
+        Vmx::vmwrite(0x6802, (Mword)phys_dir());
+      else
+	WARN("VMX: No, not possible\n");
+    }
+  else
+    {
+      // for 32bit we can just load the Vm pdbr
+      Vmx::vmwrite(0x6802, (Mword)phys_dir());
+    }
+}
+
+PRIVATE template<typename X>
+void
+Vm_vmx_t<X>::load_guest_state(Cpu_number cpu, void *src)
 {
   Vmx &vmx = Vmx::cpus.cpu(cpu);
 
@@ -231,18 +260,7 @@ Vm_vmx::load_guest_state(unsigned cpu, void *src)
   // write natural-width fields
   load<Mword>(0x6800, src, vmx.info.cr0_defs);
 
-  if (sizeof(long) > sizeof(int))
-    {
-      if (read<Mword>(src, 0x2806) & EFER_LME)
-        Vmx::vmwrite(0x6802, (Mword)phys_dir());
-      else
-	WARN("VMX: No, not possible\n");
-    }
-  else
-    {
-      // for 32bit we can just load the Vm pdbr
-      Vmx::vmwrite(0x6802, (Mword)phys_dir());
-    }
+  static_cast<X*>(this)->load_vm_memory(src);
 
   load<Mword>(0x6804, src, vmx.info.cr4_defs);
   load(0x6806, 0x6826, src);
@@ -295,9 +313,9 @@ Vm_vmx::load_guest_state(unsigned cpu, void *src)
 }
 
 
-PRIVATE
+PROTECTED
 void
-Vm_vmx::store_guest_state(unsigned cpu, void *dest)
+Vm_vmx_b::store_guest_state(Cpu_number cpu, void *dest)
 {
   // read 16-bit fields
   store(0x800, 0x80e, dest);
@@ -335,9 +353,9 @@ Vm_vmx::store_guest_state(unsigned cpu, void *dest)
   store(0x6804, 0x6822, dest);
 }
 
-PRIVATE
+PROTECTED
 void
-Vm_vmx::store_exit_info(unsigned cpu, void *dest)
+Vm_vmx_b::store_exit_info(Cpu_number cpu, void *dest)
 {
   (void)cpu;
   // read 64-bit fields, that is a EPT pf thing
@@ -360,18 +378,18 @@ Vm_vmx::store_exit_info(unsigned cpu, void *dest)
   store(0x6400, 0x640a, dest);
 }
 
-PRIVATE
+PROTECTED
 void
-Vm_vmx::dump(void *v, unsigned f, unsigned t)
+Vm_vmx_b::dump(void *v, unsigned f, unsigned t)
 {
   for (; f <= t; f += 2)
     printf("%04x: VMCS: %16lx   V: %16lx\n",
 	   f, Vmx::vmread<Mword>(f), read<Mword>(v, f));
 }
 
-PRIVATE
+PROTECTED
 void
-Vm_vmx::dump_state(void *v)
+Vm_vmx_b::dump_state(void *v)
 {
   dump(v, 0x0800, 0x080e);
   dump(v, 0x0c00, 0x0c0c);
@@ -385,9 +403,9 @@ Vm_vmx::dump_state(void *v)
   dump(v, 0x6c00, 0x6c16);
 }
 
-PRIVATE inline NOEXPORT
+PROTECTED inline template<typename X>
 int
-Vm_vmx::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, void *vmcs_s)
+Vm_vmx_t<X>::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, void *vmcs_s)
 {
   assert (cpu_lock.test());
 
@@ -397,7 +415,7 @@ Vm_vmx::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, void *vmcs_s)
   assert (!(Cpu::get_ds() & (1 << 2)));
   assert (!(Cpu::get_es() & (1 << 2)));
 
-  unsigned cpu = current_cpu();
+  Cpu_number const cpu = current_cpu();
   Vmx &v = Vmx::cpus.cpu(cpu);
 
   if (!v.vmx_enabled())
@@ -427,17 +445,19 @@ Vm_vmx::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, void *vmcs_s)
 #endif
 
   // increment our refcount, and drop it at the end automatically
-  Ref_ptr<Vm_vmx> pin_myself(this);
+  Ref_ptr<Vm_vmx_b> pin_myself(this);
 
   // set volatile host state
+  Vmx::vmwrite<Mword>(Vmx::F_host_cr0, Cpu::get_cr0());
   Vmx::vmwrite<Mword>(Vmx::F_host_cr3, Cpu::get_pdbr()); // host_area.cr3
 
+  // host cr0 und cr4
   load_guest_state(cpu, vmcs_s);
 
   Unsigned16 ldt = Cpu::get_ldt();
 
   // set guest CR2
-  asm volatile("mov %0, %%cr2" : : "r" (read<Mword>(vmcs_s, Vmx::F_guest_cr2)));
+  asm volatile("mov %0, %%cr2" : : "r" (read<Mword>(vmcs_s, Vmx::F_sw_guest_cr2)));
 
   unsigned long ret = resume_vm_vmx(vcpu);
   // vmread error?
@@ -448,7 +468,7 @@ Vm_vmx::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, void *vmcs_s)
     {
       Mword cpu_cr2;
       asm volatile("mov %%cr2, %0" : "=r" (cpu_cr2));
-      write(vmcs_s, Vmx::F_guest_cr2, cpu_cr2);
+      write(vmcs_s, Vmx::F_sw_guest_cr2, cpu_cr2);
     }
 
   Cpu::set_ldt(ldt);
@@ -466,16 +486,24 @@ Vm_vmx::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, void *vmcs_s)
   store_guest_state(cpu, vmcs_s);
   store_exit_info(cpu, vmcs_s);
 
-  if ((read<Unsigned32>(vmcs_s, Vmx::F_exit_reason) & 0xffff) == 1)
-    return 1;
+  Unsigned32 reason = read<Unsigned32>(vmcs_s, Vmx::F_exit_reason) & 0xffff;
+  switch (reason)
+    {
+    case 1: // IRQ
+      return 1;
+    case 48: // EPT violation
+      store(0x2400, vmcs_s); // Guest phys
+      store(0x640a, vmcs_s); // Guest linear
+      break;
+    }
 
   vcpu->state &= ~(Vcpu_state::F_traps | Vcpu_state::F_user_mode);
   return 0;
 }
 
-PUBLIC
+PUBLIC template<typename X> inline
 int
-Vm_vmx::resume_vcpu(Context *ctxt, Vcpu_state *vcpu, bool user_mode)
+Vm_vmx_t<X>::resume_vcpu(Context *ctxt, Vcpu_state *vcpu, bool user_mode)
 {
   (void)user_mode;
   assert_kdb (user_mode);

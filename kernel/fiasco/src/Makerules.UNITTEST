@@ -87,12 +87,13 @@ $(ALL_TESTS): %: %.o
 	@echo "Linking test $@"
 	$(VERBOSE)$(CXX) -m32 -Wl,-Tkernel.ux.lds,--gc-sections \
 	  -static $(CXXFLAGS) $(LDFLAGS) $(PROF_FLAGS) $(OPT_CXXFLAGS) \
-	  $(filter-out kernel.ux.lds,$^) -o $@ $(TEST_LIB)
+	  $(filter-out kernel.ux.lds,$^) -o $@ $(TEST_LIB) -lutil
 
 %.ok: %
 ifeq ($(SYSTEM_TARGET)$(CONFIG_XARCH),ux)	# Test execution for non-cross UX builds
 	@echo -n "Running test $* ... "
-	@./$< --test --quiet > $*.out
+	@./$< --test --quiet > $*.out.full
+	@grep "^\[UTEST\]" $*.out.full > $*.out
 ifeq ($(RECREATE_OUTPUT),1)
 	@cp $*.out $(srcdir)/test/unit/$*.out.verify.$(CONFIG_ABI)
 endif # RECREATE_OUTPUT

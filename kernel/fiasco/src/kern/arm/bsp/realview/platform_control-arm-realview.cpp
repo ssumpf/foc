@@ -12,10 +12,10 @@ void
 Platform_control::boot_ap_cpus(Address phys_tramp_mp_addr)
 {
   // set physical start address for AP CPUs
-  Platform::write(Platform::Sys::Flags_clr, 0xffffffff);
-  Platform::write(Platform::Sys::Flags, phys_tramp_mp_addr);
+  Platform::sys->write<Mword>(0xffffffff, Platform::Sys::Flags_clr);
+  Platform::sys->write<Mword>(phys_tramp_mp_addr, Platform::Sys::Flags);
 
   // wake up AP CPUs, always from CPU 0
-  Ipi::bcast(Ipi::Global_request, 0);
+  Ipi::bcast(Ipi::Global_request, Cpu_number::boot_cpu());
 }
 

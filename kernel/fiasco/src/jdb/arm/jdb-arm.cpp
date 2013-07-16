@@ -9,6 +9,7 @@ IMPLEMENTATION [arm]:
 #include "mem_unit.h"
 #include "static_init.h"
 #include "watchdog.h"
+#include "cxx/cxx_int"
 
 STATIC_INITIALIZE_P(Jdb, JDB_INIT_PRIO);
 
@@ -17,41 +18,41 @@ DEFINE_PER_CPU static Per_cpu<Proc::Status> jdb_irq_state;
 // disable interrupts before entering the kernel debugger
 IMPLEMENT
 void
-Jdb::save_disable_irqs(unsigned cpu)
+Jdb::save_disable_irqs(Cpu_number cpu)
 {
   jdb_irq_state.cpu(cpu) = Proc::cli_save();
-  if (cpu == 0)
+  if (cpu == Cpu_number::boot_cpu())
     Watchdog::disable();
 }
 
 // restore interrupts after leaving the kernel debugger
 IMPLEMENT
 void
-Jdb::restore_irqs(unsigned cpu)
+Jdb::restore_irqs(Cpu_number cpu)
 {
-  if (cpu == 0)
+  if (cpu == Cpu_number::boot_cpu())
     Watchdog::enable();
   Proc::sti_restore(jdb_irq_state.cpu(cpu));
 }
 
 IMPLEMENT inline
 void
-Jdb::enter_trap_handler(unsigned /*cpu*/)
+Jdb::enter_trap_handler(Cpu_number)
 {}
 
 IMPLEMENT inline
 void
-Jdb::leave_trap_handler(unsigned /*cpu*/)
+Jdb::leave_trap_handler(Cpu_number)
 {}
 
 PROTECTED static inline
 void
-Jdb::monitor_address(unsigned, void *)
+Jdb::monitor_address(Cpu_number, void *)
 {}
 
 IMPLEMENT inline
 bool
-Jdb::handle_conditional_breakpoint(unsigned /*cpu*/)
+Jdb::handle_conditional_breakpoint(Cpu_number)
 { return false; }
 
 IMPLEMENT
@@ -64,15 +65,15 @@ Jdb::handle_nested_trap(Jdb_entry_frame *e)
 
 IMPLEMENT
 bool
-Jdb::handle_debug_traps(unsigned cpu)
+Jdb::handle_debug_traps(Cpu_number cpu)
 {
   Jdb_entry_frame *ef = entry_frame.cpu(cpu);
 
   if (ef->error_code == 0x00e00000)
-    snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(0)), "%s",
+    snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::first())), "%s",
              (char const *)ef->r[0]);
   else if (ef->debug_ipi())
-    snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(0)),
+    snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::first())),
              "IPI ENTRY");
 
   return true;
@@ -80,7 +81,7 @@ Jdb::handle_debug_traps(unsigned cpu)
 
 IMPLEMENT inline
 bool
-Jdb::handle_user_request(unsigned cpu)
+Jdb::handle_user_request(Cpu_number cpu)
 {
   Jdb_entry_frame *ef = Jdb::entry_frame.cpu(cpu);
   const char *str = (char const *)ef->r[0];
@@ -88,7 +89,7 @@ Jdb::handle_user_request(unsigned cpu)
   char tmp;
 
   if (ef->debug_ipi())
-    return cpu != 0;
+    return cpu != Cpu_number::boot_cpu();
 
   if (ef->error_code == 0x00e00001)
     return execute_command_ni(task, str);
@@ -140,11 +141,11 @@ Jdb::access_mem_task(Address virt, Space * task)
     {
       if (Mem_layout::in_kernel(virt))
 	{
-	  Pte p = Kmem_space::kdir()->walk((void *)virt, 0, false, Ptab::Null_alloc(), 0);
-	  if (!p.valid())
+	  auto p = Kmem_space::kdir()->walk(Virt_addr(virt));
+	  if (!p.is_valid())
 	    return 0;
 
-	  phys = p.phys((void*)virt);
+	  phys = p.page_addr() | cxx::get_lsb(virt, p.page_order());
 	}
       else
 	phys = virt;
@@ -165,14 +166,17 @@ Jdb::access_mem_task(Address virt, Space * task)
   if (addr == (Address)-1)
     {
       Mem_unit::flush_vdcache();
-      Pte pte = static_cast<Mem_space*>(Kernel_task::kernel_task())
-        ->_dir->walk((void*)Mem_layout::Jdb_tmp_map_area, 0, false, Ptab::Null_alloc(), 0);
+      auto pte = static_cast<Mem_space*>(Kernel_task::kernel_task())
+        ->_dir->walk(Virt_addr(Mem_layout::Jdb_tmp_map_area), Pdir::Super_level);
 
-      if (pte.phys() != (phys & ~(Config::SUPERPAGE_SIZE - 1)))
-        pte.set(phys & ~(Config::SUPERPAGE_SIZE - 1), Config::SUPERPAGE_SIZE,
-                Mem_page_attr(Page::KERN_RW | Page::CACHEABLE), true);
+      if (!pte.is_valid() || pte.page_addr() != cxx::mask_lsb(phys, pte.page_order()))
+        {
+          pte.create_page(Phys_mem_addr(cxx::mask_lsb(phys, pte.page_order())),
+                          Page::Attr(Page::Rights::RW()));
+          pte.write_back_if(true, Mem_unit::Asid_kernel);
+        }
 
-      Mem_unit::dtlb_flush();
+      Mem_unit::tlb_flush();
 
       addr = Mem_layout::Jdb_tmp_map_area + (phys & (Config::SUPERPAGE_SIZE - 1));
     }
@@ -295,9 +299,10 @@ IMPLEMENTATION [arm && mp]:
 
 static
 void
-Jdb::send_nmi(unsigned cpu)
+Jdb::send_nmi(Cpu_number cpu)
 {
-  printf("NMI to %d, what's that?\n", cpu);
+  printf("NMI to %d, what's that?\n",
+         cxx::int_value<Cpu_number>(cpu));
 }
 
 PROTECTED static inline
@@ -312,7 +317,7 @@ Jdb::set_monitored_address(T *dest, T val)
 
 PROTECTED static inline
 template< typename T >
-T Jdb::monitor_address(unsigned, T volatile *addr)
+T Jdb::monitor_address(Cpu_number, T volatile *addr)
 {
   asm volatile("wfe");
   return *addr;

@@ -510,7 +510,7 @@ whole_screen:
   putstr("thread  : ");
   Jdb_kobject::print_uid(t, 3);
   print_thread_uid_raw(t);
-  printf("\tCPU: %u ", t->cpu());
+  printf("\tCPU: %u ", cxx::int_value<Cpu_number>(t->cpu()));
 
   printf("\tprio: %02x  mode: %s\n",
          t->sched()->prio(),
@@ -559,7 +559,7 @@ whole_screen:
                    11 < sizeof(time_str) ? 11 : sizeof(time_str), false);
   printf("%-13s", time_str);
 
-  printf("\t\ttimeslice: %llu/%llu %cs\n"
+  printf("\t\ttimeslice: %llu/%lld %cs\n"
          "pager\t: ",
          t->sched()->left(), ~0ULL/*t->sched()->quantum()*/, Config::char_micro);
   print_kobject(t, t->_pager.raw());
@@ -869,7 +869,8 @@ Jdb_tcb::show_kobject_short(char *buf, int max, Kobject_common *o)
   int cnt = 0;
   if (t == Context::kernel_context(t->cpu()))
     {
-      cnt = snprintf(buf, max, " {KERNEL} C=%u", t->cpu());
+      cnt = snprintf(buf, max, " {KERNEL} C=%u",
+                     cxx::int_value<Cpu_number>(t->cpu()));
       max -= cnt;
       buf += cnt;
     }
@@ -877,7 +878,8 @@ Jdb_tcb::show_kobject_short(char *buf, int max, Kobject_common *o)
     return cnt + snprintf(buf, max, " R=%ld%s", t->ref_cnt(),
                           is_current ? " " JDB_ANSI_COLOR(green) "current" JDB_ANSI_END : "");
 
-  return cnt + snprintf(buf, max, " C=%u S=D:%lx R=%ld %s", t->cpu(),
+  return cnt + snprintf(buf, max, " C=%u S=D:%lx R=%ld %s",
+                        cxx::int_value<Cpu_number>(t->cpu()),
                         Kobject_dbg::pointer_to_id(t->space()),
                         t->ref_cnt(),
                         is_current ? " " JDB_ANSI_COLOR(green) "current" JDB_ANSI_END : "");
@@ -924,9 +926,9 @@ Jdb_tcb::print_thread_uid_raw(Thread *t)
 
 PRIVATE static
 void
-Jdb_tcb::print_kobject(Mword n)
+Jdb_tcb::print_kobject(Cap_index n)
 {
-  printf("[C:%4lx]       ", n);
+  printf("[C:%4lx]       ", cxx::int_value<Cap_index>(n));
 }
 
 PRIVATE static
@@ -938,7 +940,7 @@ Jdb_tcb::print_kobject(Kobject *o)
 
 PRIVATE static
 void
-Jdb_tcb::print_kobject(Thread *t, Mword capidx)
+Jdb_tcb::print_kobject(Thread *t, Cap_index capidx)
 {
   Space *space = t->space();
   if (!space)
@@ -947,14 +949,15 @@ Jdb_tcb::print_kobject(Thread *t, Mword capidx)
       return;
     }
 
-  Obj_space::Capability *c = space->get_cap(capidx);
+  Obj_space::Capability *c = space->jdb_lookup_cap(capidx);
   if (!c || !c->valid())
     {
       print_kobject(capidx);
       return;
     }
 
-  printf("[C:%4lx] D:%4lx", capidx, c->obj()->dbg_info()->dbg_id());
+  printf("[C:%4lx] D:%4lx", cxx::int_value<Cap_index>(capidx),
+         c->obj()->dbg_info()->dbg_id());
 }
 
 //

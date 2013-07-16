@@ -96,7 +96,6 @@ PC_FILES     := $(foreach pcfile,$(PC_FILENAMES),$(OBJ_BASE)/pc/$(pcfile).pc)
 get_cont = $(if $($(1)_$(2)),$($(1)_$(2)),$($(1)))
 
 $(OBJ_BASE)/pc/%.pc: $(GENERAL_D_LOC)
-	$(if $(filter-out -l%,$(call get_cont,PC_LIBS,$*)),$(error PC_LIBS contains invalid library list: $(call get_cont,PC_LIBS,$*); Only -l statements allowed.),@true)
 	$(VERBOSE)$(call generate_pcfile,$*,$@,$(call get_cont,CONTRIB_INCDIR,$*),$(call get_cont,PC_LIBS,$*),$(call get_cont,REQUIRES_LIBS,$*))
 
 all:: $(PC_FILES)

@@ -9,7 +9,7 @@ EXTENSION class Proc
 public:
   //disable power savings mode
  static Mword wake(Mword);
- static unsigned cpu_id();
+ static Cpu_phys_id cpu_id();
 };
 
 /// Unblock external interrupts
@@ -135,7 +135,7 @@ void Proc::write_alternative(Mword reg, Mword value)
 IMPLEMENTATION [sparc && !mpcore]:
 
 IMPLEMENT static inline
-unsigned Proc::cpu_id()
-{ return 0; }
+Cpu_phys_id Proc::cpu_id()
+{ return Cpu_phys_id(0); }
 
 

@@ -20,6 +20,7 @@ namespace L4_kernel_options
     F_apic              = 1 << 8,
     F_loadcnt           = 1 << 9,
     F_watchdog          = 1 << 10,
+    F_keymap_de         = 1 << 11,
     F_irq0              = 1 << 13,
     F_nosfn             = 1 << 15,
     F_jdb_never_stop    = 1 << 16,

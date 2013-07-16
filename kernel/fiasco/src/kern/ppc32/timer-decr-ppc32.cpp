@@ -1,6 +1,9 @@
 /**
  * PowerPC timer using internal decrementer
  */
+INTERFACE [ppc32]:
+
+#include "irq_chip.h"
 
 IMPLEMENTATION [ppc32]:
 
@@ -15,7 +18,7 @@ IMPLEMENTATION [ppc32]:
 
 IMPLEMENT inline NEEDS ["decrementer.h", "kip.h", "config.h", <cstdio>]
 void
-Timer::init(unsigned)
+Timer::init(Cpu_number)
 {
   printf("Using PowerPC decrementer for scheduling\n");
 
@@ -30,10 +33,10 @@ unsigned
 Timer::irq()
 { return 0; }
 
-PUBLIC static inline
-unsigned
+PUBLIC static inline NEEDS["irq_chip.h"]
+Irq_chip::Mode
 Timer::irq_mode()
-{ return 0; }
+{ return Irq_chip::Mode::F_raising_edge; }
 
 PUBLIC static inline
 void
@@ -70,9 +73,9 @@ Timer::system_clock()
 
 IMPLEMENT inline NEEDS ["decrementer.h", "config.h", "kip.h"]
 void
-Timer::update_system_clock(unsigned cpu)
+Timer::update_system_clock(Cpu_number cpu)
 {
-  if (cpu == 0)
+  if (cpu == Cpu_number::boot_cpu())
     {
       Decrementer::d()->set();
       Kip::k()->clock += Config::Scheduler_granularity;

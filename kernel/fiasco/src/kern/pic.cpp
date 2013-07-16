@@ -1,5 +1,7 @@
 INTERFACE:
 
+#include <types.h>
+
 /**
  * Encapsulation of the platforms interrupt controller
  */
@@ -71,5 +73,5 @@ public:
    * @param irq IRQ.
    * @param cpu Logical CPU.
    */
-  static void set_cpu(unsigned irq, unsigned cpu);
+  static void set_cpu(unsigned irq, Cpu_number cpu);
 };

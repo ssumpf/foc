@@ -391,59 +391,6 @@ formatter_bp(Tb_entry *tb, const char *tidstr, unsigned tidlen,
   return maxlen;
 }
 
-// context switch
-//IMPLEMENT
-unsigned
-Tb_entry_ctx_sw::print(int maxlen, char *buf) const
-{
-  char symstr[24];
-
-  Context *sctx = 0;
-  Mword sctxid = ~0UL;
-  Mword dst;
-  Mword dst_orig;
-
-  sctx = from_sched->context();
-  sctxid = static_cast<Thread*>(sctx)->dbg_id();
-
-  dst = static_cast<Thread const *>(this->dst)->dbg_id();
-  dst_orig = static_cast<Thread const *>(this->dst_orig)->dbg_id();
-
-  Address addr = kernel_ip;
-
-  if (!Jdb_symbol::match_addr_to_symbol_fuzzy(&addr, 0 /*kernel*/,
-					      symstr, sizeof(symstr)))
-    snprintf(symstr, sizeof(symstr), L4_PTR_FMT, kernel_ip);
-#if 0
-  my_snprintf(buf, maxlen, "     %-*s%s '%02lx",
-      tidlen, tidstr, spcstr, e->from_prio());
-#endif
-
-  if (sctx != ctx())
-    my_snprintf(buf, maxlen, "(%lx)", sctxid);
-
-  my_snprintf(buf, maxlen, " ==> %lx ", dst);
-
-  if (dst != dst_orig || lock_cnt)
-    my_snprintf(buf, maxlen, "(");
-
-  if (dst != dst_orig)
-    my_snprintf(buf, maxlen, "want %lx", dst_orig);
-
-  if (dst != dst_orig && lock_cnt)
-    my_snprintf(buf, maxlen, " ");
-
-  if (lock_cnt)
-    my_snprintf(buf, maxlen, "lck %ld", lock_cnt);
-
-  if (dst != dst_orig || lock_cnt)
-    my_snprintf(buf, maxlen, ") ");
-
-  my_snprintf(buf, maxlen, " krnl %s", symstr);
-
-  return maxlen;
-}
-
 
 // trap
 unsigned
@@ -462,27 +409,6 @@ Tb_entry_trap::print(int maxlen, char *buf) const
 	        trapno(),
 		error(), ip(), cs(), sp(),
 		trapno() == 14 ? cr2() : eax());
-
-  return maxlen;
-}
-
-// sched
-unsigned
-Tb_entry_sched::print(int maxlen, char *buf) const
-{
-  Thread const *_t = static_cast<Thread const *>(owner);
-  Mword t = ~0UL;
-  if (Jdb_util::is_mapped(_t))
-    t = _t->dbg_id();
-
-
-  my_snprintf(buf, maxlen, 
-              "(ts %s) owner:%lx id:%2x, prio:%2x, left:%6ld/%-6lu",
-              mode == 0 ? "save" :
-              mode == 1 ? "load" :
-              mode == 2 ? "invl" : "????",
-              t,
-              id, prio, left, quantum);
 
   return maxlen;
 }

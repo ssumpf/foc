@@ -1,13 +1,16 @@
-IMPLEMENTATION[{ia32,amd64}-pit_timer]:
+INTERFACE [{ia32,amd64}-pit_timer]:
 
 #include "irq_chip.h"
+
+IMPLEMENTATION[{ia32,amd64}-pit_timer]:
+
 #include "pit.h"
 
 #include <cstdio>
 
 IMPLEMENT
 void
-Timer::init(unsigned)
+Timer::init(Cpu_number)
 {
   printf("Using the PIT (i8254) on IRQ %d for scheduling\n", irq());
 
@@ -19,8 +22,8 @@ PUBLIC static inline
 unsigned Timer::irq() { return 0; }
 
 PUBLIC static inline NEEDS["irq_chip.h"]
-unsigned Timer::irq_mode()
-{ return Irq_base::Trigger_edge | Irq_base::Polarity_high; }
+Irq_chip::Mode Timer::irq_mode()
+{ return Irq_chip::Mode::F_raising_edge; }
 
 PUBLIC static inline
 void

@@ -9,6 +9,11 @@ INTERFACE [sparc]:
 EXTENSION class Kip
 {
 public:
+  struct Platform_info
+  {
+    char name[16];
+    Unsigned32 is_mp;
+  };
 
   /* 0x00 */
   Mword      magic;
@@ -64,7 +69,8 @@ public:
   Unsigned32 _res8[2];
 
   /* 0xF0 */
-  Unsigned32 __reserved[20];
+  Platform_info platform_info;
+  Unsigned32 __reserved[3];
 };
 
 //---------------------------------------------------------------------------

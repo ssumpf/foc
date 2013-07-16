@@ -3,7 +3,7 @@
  * \brief  Support for the kirkwood platform
  *
  * \date   2010-11
- * \author Adam Lackorznynski <adam@os.inf.tu-dresden.de>
+ * \author Adam Lackorzynski <adam@os.inf.tu-dresden.de>
  *
  */
 /*

@@ -6,6 +6,6 @@ IMPLEMENTATION[arm]:
 
 PRIVATE inline NEEDS["globals.h", "kmem_space.h"]
 Kernel_task::Kernel_task()
-: Task(Ram_quota::root, Kmem_space::kdir())
+: Task(Ram_quota::root, Kmem_space::kdir(), Caps::none())
 {}
 

@@ -197,7 +197,8 @@ void Ipc_gate_obj::operator delete (void *_f)
 
 PRIVATE inline NOEXPORT NEEDS["assert_opt.h"]
 L4_msg_tag
-Ipc_gate_ctl::bind_thread(L4_obj_ref, Mword, Syscall_frame *f, Utcb const *in, Utcb *)
+Ipc_gate_ctl::bind_thread(L4_obj_ref, L4_fpage::Rights,
+                          Syscall_frame *f, Utcb const *in, Utcb *)
 {
   L4_msg_tag tag = f->tag();
   L4_snd_item_iter snd_items(in, tag.words());
@@ -213,10 +214,10 @@ Ipc_gate_ctl::bind_thread(L4_obj_ref, Mword, Syscall_frame *f, Utcb const *in, U
   assert_opt(c_thread);
   register Space *const c_space = c_thread->space();
   assert_opt (c_space);
-  unsigned char t_rights = 0;
+  L4_fpage::Rights t_rights(0);
   Thread *t = Kobject::dcast<Thread_object*>(c_space->lookup_local(bind_thread.obj_index(), &t_rights));
 
-  if (!(t_rights & L4_fpage::CS))
+  if (!(t_rights & L4_fpage::Rights::CS()))
     return commit_result(-L4_err::EPerm);
 
 
@@ -234,7 +235,8 @@ Ipc_gate_ctl::bind_thread(L4_obj_ref, Mword, Syscall_frame *f, Utcb const *in, U
 
 PRIVATE inline NOEXPORT
 L4_msg_tag
-Ipc_gate_ctl::get_infos(L4_obj_ref, Mword, Syscall_frame *, Utcb const *, Utcb *out)
+Ipc_gate_ctl::get_infos(L4_obj_ref, L4_fpage::Rights,
+                        Syscall_frame *, Utcb const *, Utcb *out)
 {
   Ipc_gate_obj *g = static_cast<Ipc_gate_obj*>(this);
   out->values[0] = g->_id;
@@ -243,7 +245,7 @@ Ipc_gate_ctl::get_infos(L4_obj_ref, Mword, Syscall_frame *, Utcb const *, Utcb *
 
 PUBLIC
 void
-Ipc_gate_ctl::invoke(L4_obj_ref self, Mword rights, Syscall_frame *f, Utcb *utcb)
+Ipc_gate_ctl::invoke(L4_obj_ref self, L4_fpage::Rights rights, Syscall_frame *f, Utcb *utcb)
 {
   if (f->tag().proto() == L4_msg_tag::Label_kobject)
     Kobject_h<Ipc_gate_ctl, Kobject_iface>::invoke(self, rights, f, utcb);
@@ -254,7 +256,8 @@ Ipc_gate_ctl::invoke(L4_obj_ref self, Mword rights, Syscall_frame *f, Utcb *utcb
 
 PUBLIC
 L4_msg_tag
-Ipc_gate_ctl::kinvoke(L4_obj_ref self, Mword rights, Syscall_frame *f, Utcb const *in, Utcb *out)
+Ipc_gate_ctl::kinvoke(L4_obj_ref self, L4_fpage::Rights rights,
+                      Syscall_frame *f, Utcb const *in, Utcb *out)
 {
   L4_msg_tag tag = f->tag();
 
@@ -321,7 +324,7 @@ Ipc_gate::block(Thread *ct, L4_timeout const &to, Utcb *u)
 
 PUBLIC
 void
-Ipc_gate::invoke(L4_obj_ref /*self*/, Mword rights, Syscall_frame *f, Utcb *utcb)
+Ipc_gate::invoke(L4_obj_ref /*self*/, L4_fpage::Rights rights, Syscall_frame *f, Utcb *utcb)
 {
   Syscall_frame *ipc_f = f;
   //LOG_MSG_3VAL(current(), "gIPC", Mword(_thread), _id, f->obj_2_flags());
@@ -352,14 +355,14 @@ Ipc_gate::invoke(L4_obj_ref /*self*/, Mword rights, Syscall_frame *f, Utcb *utcb
   LOG_TRACE("IPC Gate invoke", "gate", current(), Log_ipc_gate_invoke,
       l->gate_dbg_id = dbg_id();
       l->thread_dbg_id = _thread->dbg_id();
-      l->label = _id | rights;
+      l->label = _id | cxx::int_value<L4_fpage::Rights>(rights);
   );
 
   if (EXPECT_FALSE(!ipc))
     f->tag(commit_error(utcb, L4_error::Not_existent));
   else
     {
-      ipc_f->from(_id | rights);
+      ipc_f->from(_id | cxx::int_value<L4_fpage::Rights>(rights));
       ct->do_ipc(f->tag(), partner, partner, have_rcv, sender,
                  f->timeout(), f, rights);
     }

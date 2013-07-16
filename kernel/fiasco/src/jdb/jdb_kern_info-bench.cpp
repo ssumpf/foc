@@ -67,7 +67,7 @@ static int ipi_cnt;
 
 PRIVATE static
 void
-Jdb_kern_info_bench::wait_for_ipi(unsigned cpu, void *)
+Jdb_kern_info_bench::wait_for_ipi(Cpu_number cpu, void *)
 {
   Jdb::restore_irqs(cpu);
   stop_timer();
@@ -82,17 +82,17 @@ Jdb_kern_info_bench::wait_for_ipi(unsigned cpu, void *)
 
 PRIVATE static
 void
-Jdb_kern_info_bench::empty_func(unsigned, void *)
+Jdb_kern_info_bench::empty_func(Cpu_number, void *)
 {
   ++ipi_cnt;
 }
 
 PRIVATE static
 void
-Jdb_kern_info_bench::do_ipi_bench(unsigned my_cpu, void *_partner)
+Jdb_kern_info_bench::do_ipi_bench(Cpu_number my_cpu, void *_partner)
 {
   Unsigned64 time;
-  unsigned partner = (unsigned long)_partner;
+  Cpu_number partner = Cpu_number((unsigned long)_partner);
   enum {
     Runs2  = 3,
     Warmup = 4,
@@ -110,7 +110,8 @@ Jdb_kern_info_bench::do_ipi_bench(unsigned my_cpu, void *_partner)
   for (i = 0; i < (1 << Runs2); i++)
     Jdb::remote_work_ipi(my_cpu, partner, empty_func, 0, true);
 
-  printf(" %2u:%8lld", partner, (get_time_now() - time) >> Runs2);
+  printf(" %2u:%8lld", cxx::int_value<Cpu_number>(partner),
+         (get_time_now() - time) >> Runs2);
 
   if (ipi_cnt != Rounds)
     printf("\nCounter mismatch: cnt=%d v %d\n", ipi_cnt, Rounds);
@@ -125,33 +126,35 @@ Jdb_kern_info_bench::do_mp_benchmark()
 {
   // IPI bench matrix
   printf("IPI round-trips:\n");
-  for (unsigned u = 0; u < Config::Max_num_cpus; ++u)
+  for (Cpu_number u = Cpu_number::first(); u < Config::max_num_cpus(); ++u)
     if (Cpu::online(u))
       {
-        printf("l%2u: ", u);
+        printf("l%2u: ", cxx::int_value<Cpu_number>(u));
 
-	for (unsigned v = 0; v < Config::Max_num_cpus; ++v)
+	for (Cpu_number v = Cpu_number::first(); v < Config::max_num_cpus(); ++v)
 	  if (Cpu::online(v))
 	    {
 	      if (u == v)
-		printf(" %2u:%8s", u, "X");
+		printf(" %2u:%8s", cxx::int_value<Cpu_number>(u), "X");
 	      else
 		{
 		  ipi_bench_spin_done = 0;
 
 		  // v is waiting for IPIs
-		  if (v != 0)
+		  if (v != Cpu_number::boot_cpu())
 		    Jdb::remote_work(v, wait_for_ipi, 0, false);
 
 		  // u is doing benchmark
-		  if (u == 0)
-		    do_ipi_bench(0, (void *)v);
+		  if (u == Cpu_number::boot_cpu())
+		    do_ipi_bench(Cpu_number::boot_cpu(),
+                                 (void *)(long)cxx::int_value<Cpu_number>(v));
 		  else
-                    Jdb::remote_work(u, do_ipi_bench, (void *)v, false);
+                    Jdb::remote_work(u, do_ipi_bench,
+                                    (void *)(long)cxx::int_value<Cpu_number>(v), false);
 
 		  // v is waiting for IPIs
-		  if (v == 0)
-		    wait_for_ipi(0, 0);
+		  if (v == Cpu_number::boot_cpu())
+		    wait_for_ipi(Cpu_number::boot_cpu(), 0);
 
 		  Mem::barrier();
 

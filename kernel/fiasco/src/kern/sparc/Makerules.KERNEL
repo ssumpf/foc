@@ -10,6 +10,7 @@ $(KERNEL).image: $(srcdir)/kernel.sparc.ld $(CRT0) $(OBJ_KERNEL) $(JDB) $(LIBK) 
 	$(LINK_MESSAGE)
 	$(VERBOSE)$(LD) $(LDFLAGS) -N -defsym kernel_load_addr=$(CONFIG_KERNEL_LOAD_ADDR) \
 	  -T $< -o $@ $(filter-out $<,$+) $(LIBGCC)
+	$(call ADD_CONFIGFILE,$@)
 
 $(KERNEL): $(KERNEL).image
 	$(LINK_MESSAGE)

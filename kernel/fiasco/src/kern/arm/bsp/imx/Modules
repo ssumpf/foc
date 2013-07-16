@@ -10,10 +10,14 @@ PREPROCESS_PARTS	+= $(if $(CONFIG_PF_IMX_51),imx51 imx_epit \
 PREPROCESS_PARTS	+= $(if $(CONFIG_PF_IMX_53),imx53 imx_epit \
                                                     pic_gic pic_gic_mxc_tzic)
 PREPROCESS_PARTS        += $(if $(CONFIG_PF_IMX_6),imx6 pic_gic mptimer)
-CONFIG_KERNEL_LOAD_ADDR := $(CONFIG_PF_IMX_RAM_PHYS_BASE)
+RAM_PHYS_BASE           := $(CONFIG_PF_IMX_RAM_PHYS_BASE)
 
 INTERFACES_KERNEL     += $(if $(CONFIG_PF_IMX_51),gic)
 INTERFACES_KERNEL     += $(if $(CONFIG_PF_IMX_6),gic)
+INTERFACES_KERNEL-$(CONFIG_PF_IMX_35) += timer_imx_epit
+INTERFACES_KERNEL-$(CONFIG_PF_IMX_51) += timer_imx_epit
+INTERFACES_KERNEL-$(CONFIG_PF_IMX_53) += timer_imx_epit
+
 MPCORE_PHYS_BASE      := 0x00a00000
 
 uart_IMPL             += uart-imx

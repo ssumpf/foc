@@ -3,7 +3,7 @@
  * \brief  Support for the x86 platform
  *
  * \date   2008-01-02
- * \author Adam Lackorznynski <adam@os.inf.tu-dresden.de>
+ * \author Adam Lackorzynski <adam@os.inf.tu-dresden.de>
  *
  */
 /*
@@ -276,11 +276,14 @@ int pci_handle_serial_dev(unsigned char bus, l4_uint32_t dev,
 	}
     }
 
+  printf("  serial IO card: mem bars: %d   io bars: %d\n", num_membars, num_iobars);
+
   if (num_membars <= 1 && num_iobars == 1)
     {
       board->first_bar = first_port;
       board->num_ports = board->bars[first_port].len / 8;
       board->port_per_bar = false;
+      printf("   use serial IO card: bar=%d ports=%d\n", first_port, board->num_ports);
       pci_enable_io(bus, dev, subdev);
       return 1;
     }
@@ -353,9 +356,13 @@ _search_pci_serial_devs(Serial_board *board, unsigned look_for_subclass,
               unsigned vendor = pci_read(bus, dev, subdev, 0, 16);
               unsigned device = pci_read(bus, dev, subdev, 2, 16);
 
-              if ((vendor == 0xffff && device == 0xffff) ||
-                  (device == 0x0000 && device == 0x0000))
-                break;
+              if (vendor == 0xffff)
+                {
+                  if (subdev == 0)
+                    break;
+                  else
+                    continue;
+                }
 
               unsigned classcode = pci_read(bus, dev, subdev, 0x0b, 8);
               unsigned subclass  = pci_read(bus, dev, subdev, 0x0a, 8);
@@ -384,7 +391,7 @@ search_pci_serial_devs(int port_idx)
 {
   Serial_board board;
   if (!_search_pci_serial_devs(&board, 0, true)) // classes should be 7:0
-    if (!_search_pci_serial_devs(&board, 0x80, false)) // but sometimes it's 7:80
+    if (!_search_pci_serial_devs(&board, 0x80, true)) // but sometimes it's 7:80
       return 0;
 
   return board.get_port(port_idx);

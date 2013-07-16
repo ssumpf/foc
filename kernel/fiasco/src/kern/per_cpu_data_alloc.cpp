@@ -5,14 +5,14 @@ INTERFACE:
 class Per_cpu_data_alloc : public Per_cpu_data
 {
 public:
-  static bool alloc(unsigned cpu);
+  static bool alloc(Cpu_number cpu);
 };
 
 
 IMPLEMENTATION [!mp]:
 
 IMPLEMENT inline
-bool Per_cpu_data_alloc::alloc(unsigned)
+bool Per_cpu_data_alloc::alloc(Cpu_number)
 { return true; }
 
 
@@ -26,9 +26,9 @@ IMPLEMENTATION [mp]:
 #include "kmem_alloc.h"
 
 IMPLEMENT
-bool Per_cpu_data_alloc::alloc(unsigned cpu)
+bool Per_cpu_data_alloc::alloc(Cpu_number cpu)
 {
-  if (cpu >= Num_cpus || valid(cpu))
+  if (cpu >= Cpu_number(Num_cpus) || valid(cpu))
     return false;
 
   extern char _per_cpu_data_start[];
@@ -36,10 +36,10 @@ bool Per_cpu_data_alloc::alloc(unsigned cpu)
 
   printf("Per_cpu_data_alloc: (orig: %p-%p)\n", _per_cpu_data_start, _per_cpu_data_end);
 
-  if (cpu == 0)
+  if (cpu == Cpu_number::boot_cpu())
     {
       // we use the master copy for CPU 0
-      _offsets[0] = 0;
+      _offsets[cpu] = 0;
       return true;
     }
 
@@ -54,7 +54,8 @@ bool Per_cpu_data_alloc::alloc(unsigned cpu)
 
   _offsets[cpu] = per_cpu - _per_cpu_data_start;
   printf("Allocate %u bytes (%uKB) for CPU[%u] local storage (offset=%lx, %p-%p)\n",
-         size, (size + 513) / 1024, cpu, _offsets[cpu],
+         size, (size + 513) / 1024, cxx::int_value<Cpu_number>(cpu),
+         _offsets[cpu],
          _per_cpu_data_start + _offsets[cpu],
          _per_cpu_data_end + _offsets[cpu]);
 

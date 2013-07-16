@@ -14,26 +14,24 @@ IMPLEMENTATION [arm]:
 
 #include "kmem_alloc.h"
 #include "kmem_space.h"
-#include "pagetable.h"
 #include "ram_quota.h"
+#include "paging.h"
 
 IMPLEMENT
 void Kern_lib_page::init()
 {
   extern char kern_lib_start;
-  Pte pte = Kmem_space::kdir()->walk((void *)Kmem_space::Kern_lib_base,
-                                     Config::PAGE_SIZE, true,
-                                     Kmem_alloc::q_allocator(Ram_quota::root),
-                                     Kmem_space::kdir());
+  auto pte = Kmem_space::kdir()->walk(Virt_addr(Kmem_space::Kern_lib_base),
+      Pdir::Depth, true,
+      Kmem_alloc::q_allocator(Ram_quota::root));
 
-  if (pte.lvl() == 0) // allocation of second level faild
+  if (pte.level == 0) // allocation of second level faild
     panic("FATAL: Error mapping kernel-lib page to %p\n",
           (void *)Kmem_space::Kern_lib_base);
 
-  pte.set((Address)&kern_lib_start - Mem_layout::Map_base
-          + Mem_layout::Sdram_phys_base,
-          Config::PAGE_SIZE, Mem_page_attr(Page::USER_RO | Page::CACHEABLE),
-          true);
+  pte.create_page(Phys_mem_addr((Address)&kern_lib_start - Mem_layout::Map_base
+          + Mem_layout::Sdram_phys_base), Page::Attr(Page::Rights::URX(), Page::Type::Normal(), Page::Kern::Global()));
+  pte.write_back_if(true, Mem_unit::Asid_kernel);
 }
 
 //---------------------------------------------------------------------------

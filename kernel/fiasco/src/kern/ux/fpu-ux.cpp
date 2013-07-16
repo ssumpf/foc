@@ -13,7 +13,7 @@ IMPLEMENTATION[ux && fpu]:
 
 PRIVATE static
 void
-Fpu::init_xsave(unsigned)
+Fpu::init_xsave(Cpu_number)
 {}
 
 PRIVATE static
@@ -33,7 +33,7 @@ Fpu::save_state(Fpu_state *s)
 
   // FIXME: assume UP here (current_meme_space(0))
   ptrace(Cpu::boot_cpu()->features() & FEAT_FXSR ? PTRACE_GETFPXREGS : PTRACE_GETFPREGS,
-         Mem_space::current_mem_space(0)->pid(), NULL, s->state_buffer());
+         Mem_space::current_mem_space(Cpu_number::boot_cpu())->pid(), NULL, s->state_buffer());
 }
 
 /**
@@ -48,7 +48,7 @@ Fpu::restore_state(Fpu_state *s)
 
   // FIXME: assume UP here (current_meme_space(0))
   ptrace(Cpu::boot_cpu()->features() & FEAT_FXSR ? PTRACE_SETFPXREGS : PTRACE_SETFPREGS,
-         Mem_space::current_mem_space(0)->pid(), NULL, s->state_buffer());
+         Mem_space::current_mem_space(Cpu_number::boot_cpu())->pid(), NULL, s->state_buffer());
 }
 
 /**

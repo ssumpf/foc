@@ -169,14 +169,6 @@ mp_cas2_arch(char *m, Mword o1, Mword o2, Mword n1, Mword n2)
 
   return ret;
 }
-inline
-bool
-tas(Mword *l)
-{
-  Mword tmp;
-  asm volatile ("xchg %0, %1" : "=r"(tmp) : "m"(*l), "0"(1) : "memory");
-  return tmp;
-}
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION[(ppc32 && !mp) || (sparc && !mp) || (arm && !armv6plus)]:

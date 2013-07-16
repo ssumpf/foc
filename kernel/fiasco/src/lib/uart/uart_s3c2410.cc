@@ -21,6 +21,7 @@ namespace L4
     UTXH    = 0x20, // transmit buffer register (little endian, 0x23 for BE)
     URXH    = 0x24, // receive buffer register (little endian, 0x27 for BE)
     UBRDIV  = 0x28, // baud rate divisor register
+    UFRACVAL= 0x2c,
     // 64xx++
     UINTP   = 0x30, // interrupt pending register
     UINTSP  = 0x34, // interrupt source pending register
@@ -242,6 +243,28 @@ namespace L4
   void Uart_s5pv210::ack_rx_irq() const
   {
     _regs->write<unsigned int>(UINTP, UINT_RXD);
+  }
+
+  void Uart_s5pv210::save(Save_block *b) const
+  {
+    b->ubrdiv   = _regs->read<unsigned>(UBRDIV);
+    b->uintm    = _regs->read<unsigned>(UINTM);
+    b->ufracval = _regs->read<unsigned>(UFRACVAL);
+    b->umcon    = _regs->read<unsigned>(UMCON);
+    b->ufcon    = _regs->read<unsigned>(UFCON);
+    b->ucon     = _regs->read<unsigned>(UCON);
+    b->ulcon    = _regs->read<unsigned>(ULCON);
+  }
+
+  void Uart_s5pv210::restore(Save_block const *b) const
+  {
+    _regs->write<unsigned>(UINTM,    b->uintm);
+    _regs->write<unsigned>(ULCON,    b->ulcon);
+    _regs->write<unsigned>(UCON,     b->ucon);
+    _regs->write<unsigned>(UFCON,    b->ufcon);
+    _regs->write<unsigned>(UMCON,    b->umcon);
+    _regs->write<unsigned>(UBRDIV,   b->ubrdiv);
+    _regs->write<unsigned>(UFRACVAL, b->ufracval);
   }
 };
 

@@ -144,13 +144,13 @@ Jdb_bt::get_user_ebp_following_kernel_stack()
   return 0;
 }
 
-struct Is_current 
+struct Is_current
 {
   Thread *tid;
   mutable Thread *c;
-  mutable unsigned cpu;
+  mutable Cpu_number cpu;
 
-  void operator () (unsigned _cpu) const
+  void operator () (Cpu_number _cpu) const
   {
     Thread *t = Jdb::get_thread(_cpu);
     if (t == tid)
@@ -173,7 +173,7 @@ Jdb_bt::get_kernel_eip_ebp(Mword &eip1, Mword &eip2, Mword &ebp)
 
       is_current.tid = tid;
       is_current.c = 0;
-      is_current.cpu = 0;
+      is_current.cpu = Cpu_number::boot_cpu();
 
       Jdb::foreach_cpu(is_current);
 
@@ -184,7 +184,8 @@ Jdb_bt::get_kernel_eip_ebp(Mword &eip1, Mword &eip2, Mword &ebp)
 	{
 	  ksp = (Mword*)Jdb::entry_frame.cpu(is_current.cpu)->sp();
 	  tcb = (Mword)is_current.c;
-	  printf("\n current on cpu %u\n", is_current.cpu);
+	  printf("\n current on cpu %u\n",
+                 cxx::int_value<Cpu_number>(is_current.cpu));
 	}
       else
 	{

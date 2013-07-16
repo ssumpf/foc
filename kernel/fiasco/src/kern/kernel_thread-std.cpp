@@ -15,17 +15,13 @@ IMPLEMENTATION:
 #include "types.h"
 #include "ram_quota.h"
 
-enum Default_base_caps
-{
-  C_task      = 1,
-  C_factory   = 2,
-  C_thread    = 3,
-  C_pager     = 4,
-  C_log       = 5,
-  C_icu       = 6,
-  C_scheduler = 7
-
-};
+static Cap_index const C_task      = Cap_index(1);
+static Cap_index const C_factory   = Cap_index(2);
+static Cap_index const C_thread    = Cap_index(3);
+static Cap_index const C_pager     = Cap_index(4);
+static Cap_index const C_log       = Cap_index(5);
+static Cap_index const C_icu       = Cap_index(6);
+static Cap_index const C_scheduler = Cap_index(7);
 
 
 IMPLEMENT
@@ -71,7 +67,7 @@ Kernel_thread::init_workload()
   check (map(sigma0,          sigma0, sigma0, C_task, 0));
   check (map(Factory::root(), sigma0, sigma0, C_factory, 0));
 
-  for (unsigned c = Initial_kobjects::First_cap; c < Initial_kobjects::End_cap; ++c)
+  for (Cap_index c = Initial_kobjects::first(); c < Initial_kobjects::end(); ++c)
     {
       Kobject_iface *o = initial_kobjects.obj(c);
       if (o)
@@ -87,7 +83,7 @@ Kernel_thread::init_workload()
   check (map(sigma0_thread, sigma0, sigma0, C_thread, 0));
 
   Address sp = init_workload_s0_stack();
-  check (sigma0_thread->control(Thread_ptr(false), Thread_ptr(false)) == 0);
+  check (sigma0_thread->control(Thread_ptr(Thread_ptr::Null), Thread_ptr(Thread_ptr::Null)) == 0);
   check (sigma0_thread->bind(sigma0, User<Utcb>::Ptr((Utcb*)Mem_layout::Utcb_addr)));
   check (sigma0_thread->ex_regs(Kip::k()->sigma0_ip, sp));
 
@@ -113,7 +109,7 @@ Kernel_thread::init_workload()
   check (map(boot_task,   boot_task, boot_task, C_task, 0));
   check (map(boot_thread, boot_task, boot_task, C_thread, 0));
 
-  check (boot_thread->control(Thread_ptr(C_pager), Thread_ptr(~0UL)) == 0);
+  check (boot_thread->control(Thread_ptr(C_pager), Thread_ptr(Thread_ptr::Null)) == 0);
   check (boot_thread->bind(boot_task, User<Utcb>::Ptr((Utcb*)Mem_layout::Utcb_addr)));
   check (boot_thread->ex_regs(Kip::k()->root_ip, Kip::k()->root_sp));
 
@@ -122,12 +118,12 @@ Kernel_thread::init_workload()
   check (s0_b_gate);
   check (map(s0_b_gate, boot_task, boot_task, C_pager, 0));
 
-  set_cpu_of(sigma0_thread, 0);
-  set_cpu_of(boot_thread, 0);
+  set_cpu_of(sigma0_thread, Cpu_number::boot_cpu());
+  set_cpu_of(boot_thread, Cpu_number::boot_cpu());
 
   sigma0_thread->activate();
-  check (obj_map(sigma0, C_factory,   1, boot_task, C_factory, 0).error() == 0);
-  for (unsigned c = Initial_kobjects::First_cap; c < Initial_kobjects::End_cap; ++c)
+  check (obj_map(sigma0, C_factory, 1, boot_task, C_factory, 0).error() == 0);
+  for (Cap_index c = Initial_kobjects::first(); c < Initial_kobjects::end(); ++c)
     {
       Kobject_iface *o = initial_kobjects.obj(c);
       if (o)

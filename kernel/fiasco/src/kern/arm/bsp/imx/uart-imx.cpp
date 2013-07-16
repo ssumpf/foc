@@ -53,4 +53,4 @@ IMPLEMENTATION:
 
 #include "mem_layout.h"
 
-IMPLEMENT Address Uart::base() const { return Mem_layout::Uart_base; }
+IMPLEMENT Address Uart::base() const { return Mem_layout::Uart_phys_base; }

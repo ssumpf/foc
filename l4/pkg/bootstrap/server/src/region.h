@@ -68,6 +68,8 @@ public:
   void end(unsigned long long e) { _end = e; }
   /** Get the name of the region. */
   char const *name() const { return _name; }
+  /** Get size of the region */
+  unsigned long long size() const { return _end - _begin + 1; }
   /** Set the name of the region. */
   void name(char const *name) { _name = name; }
   /** Get the type of the region. */
@@ -124,12 +126,15 @@ public:
    */
   void init(Region *store, unsigned size,
             const char *name,
-            unsigned long long upper_limit = ~0ULL)
+            unsigned long long max_combined_size = ~0ULL,
+            unsigned long long address_limit = ~0ULL)
   {
     _reg = _end = store;
     _max = _reg + size;
     _name = name;
-    _upper_limit = upper_limit;
+    _max_combined_size = max_combined_size;
+    _address_limit = address_limit;
+    _combined_size = 0;
   }
 
   /** Search for a region that overlaps o. */
@@ -144,12 +149,6 @@ public:
    */
   unsigned long long find_free(Region const &search,
                                unsigned long long size, unsigned align);
-
-  /**
-   * Add a new memory region to the list. The new region must not overlap
-   * any known region.
-   */
-  void add_nolimitcheck(Region const &r, bool may_overlap = false);
 
   /**
    * Add a new region, with a upper limit check and verboseness.
@@ -182,13 +181,20 @@ protected:
   Region *_reg;
 
   const char *_name;
-  unsigned long long _upper_limit;
+  unsigned long long _max_combined_size;
+  unsigned long long _address_limit;
+  unsigned long long _combined_size;
 
 private:
   void swap(Region *a, Region *b);
   unsigned long long next_free(unsigned long long start);
   bool test_fit(unsigned long long start, unsigned long long _size);
 
+  /**
+   * Add a new memory region to the list. The new region must not overlap
+   * any known region.
+   */
+  void add_nolimitcheck(Region const &r, bool may_overlap = false);
 };
 
 #endif

@@ -11,9 +11,9 @@ IMPLEMENTATION[ux && mp]:
 #include "per_cpu_data_alloc.h"
 #include "usermode.h"
 
-int FIASCO_FASTCALL boot_ap_cpu(unsigned _cpu) __asm__("BOOT_AP_CPU");
+int FIASCO_FASTCALL boot_ap_cpu(Cpu_number _cpu) __asm__("BOOT_AP_CPU");
 
-int boot_ap_cpu(unsigned _cpu)
+int boot_ap_cpu(Cpu_number _cpu)
 {
   if (!Per_cpu_data_alloc::alloc(_cpu))
     {

@@ -493,8 +493,8 @@ PUBLIC static
 int
 Jdb_bp::test_break(Mword dr6, char *errbuf, size_t bufsize)
 {
-  Thread *t = Jdb::get_thread(0);
-  Jdb_entry_frame *e = Jdb::get_entry_frame(0);
+  Thread *t = Jdb::get_thread(Cpu_number::boot_cpu());
+  Jdb_entry_frame *e = Jdb::get_entry_frame(Cpu_number::boot_cpu());
 
   for (int i=0; i<4; i++)
     if (dr6 & (1<<i))
@@ -514,8 +514,8 @@ PUBLIC static
 void
 Jdb_bp::test_log(Mword &dr6)
 {
-  Thread *t = Jdb::get_thread(0);
-  Jdb_entry_frame *e = Jdb::get_entry_frame(0);
+  Thread *t = Jdb::get_thread(Cpu_number::boot_cpu());
+  Jdb_entry_frame *e = Jdb::get_entry_frame(Cpu_number::boot_cpu());
 
   for (int i=0; i<4; i++)
     if (dr6 & (1<<i))

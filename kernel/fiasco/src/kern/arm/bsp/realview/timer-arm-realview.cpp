@@ -1,67 +1,30 @@
 // --------------------------------------------------------------------------
-INTERFACE [arm]:
+INTERFACE [arm && sp804]:
 
-#include "kmem.h"
+#include "timer_sp804.h"
 
-class Timer_sp804
+EXTENSION class Timer
 {
-public:
-  enum {
-    System_control = Kmem::System_ctrl_map_base,
-
-    Refclk = 0,
-    Timclk = 1,
-
-    Timer0_enable = 15,
-    Timer1_enable = 17,
-    Timer2_enable = 19,
-    Timer3_enable = 21,
-
-    Timer_load   = 0x00,
-    Timer_value  = 0x04,
-    Timer_ctrl   = 0x08,
-    Timer_intclr = 0x0c,
-
-    Load_0 = Kmem::Timer0_map_base + Timer_load,
-    Load_1 = Kmem::Timer1_map_base + Timer_load,
-    Load_2 = Kmem::Timer2_map_base + Timer_load,
-    Load_3 = Kmem::Timer3_map_base + Timer_load,
-
-    Value_0 = Kmem::Timer0_map_base + Timer_value,
-    Value_1 = Kmem::Timer1_map_base + Timer_value,
-    Value_2 = Kmem::Timer2_map_base + Timer_value,
-    Value_3 = Kmem::Timer3_map_base + Timer_value,
-
-    Ctrl_0 = Kmem::Timer0_map_base + Timer_ctrl,
-    Ctrl_1 = Kmem::Timer1_map_base + Timer_ctrl,
-    Ctrl_2 = Kmem::Timer2_map_base + Timer_ctrl,
-    Ctrl_3 = Kmem::Timer3_map_base + Timer_ctrl,
-
-    Intclr_0 = Kmem::Timer0_map_base + Timer_intclr,
-    Intclr_1 = Kmem::Timer1_map_base + Timer_intclr,
-    Intclr_2 = Kmem::Timer2_map_base + Timer_intclr,
-    Intclr_3 = Kmem::Timer3_map_base + Timer_intclr,
-
-    Interval = 1000,
-
-    Ctrl_ie        = 1 << 5,
-    Ctrl_periodic  = 1 << 6,
-    Ctrl_enable    = 1 << 7,
-  };
+private:
+  static Static_object<Timer_sp804> sp804;
 };
 
 // --------------------------------------------------------------------------
-INTERFACE [arm && sp804]:
+INTERFACE [arm && sp804 && realview_vexpress_a15]:
+
+EXTENSION class Timer
+{
+public:
+  static unsigned irq() { return 34; }
+};
+
+// --------------------------------------------------------------------------
+INTERFACE [arm && sp804 && !realview_vexpress_a15]:
 
 EXTENSION class Timer
 {
 public:
   static unsigned irq() { return 36; }
-
-private:
-  enum {
-    Interval = 1000,
-  };
 };
 
 // -----------------------------------------------------------------------
@@ -69,29 +32,27 @@ IMPLEMENTATION [arm && sp804]:
 
 #include "config.h"
 #include "kip.h"
-#include "io.h"
+#include "platform.h"
 
 #include <cstdio>
 
+Static_object<Timer_sp804> Timer::sp804;
+
 IMPLEMENT
-void Timer::init(unsigned)
+void Timer::init(Cpu_number)
 {
-  Mword v = Io::read<Mword>(Timer_sp804::System_control);
-  v |= Timer_sp804::Timclk << Timer_sp804::Timer0_enable;
-  Io::write<Mword>(v, Timer_sp804::System_control);
+  sp804.construct(Kmem::mmio_remap(Mem_layout::Timer0_phys_base));
+  Platform::system_control->modify<Mword>(Platform::System_control::Timer0_enable, 0, 0);
 
   // all timers off
-  Io::write<Mword>(0, Timer_sp804::Ctrl_0);
-  Io::write<Mword>(0, Timer_sp804::Ctrl_1);
-  Io::write<Mword>(0, Timer_sp804::Ctrl_2);
-  Io::write<Mword>(0, Timer_sp804::Ctrl_3);
+  sp804->disable();
+  //Io::write<Mword>(0, Timer_sp804::Ctrl_1);
+  //Io::write<Mword>(0, Timer_sp804::Ctrl_2);
+  //Io::write<Mword>(0, Timer_sp804::Ctrl_3);
 
-  Io::write<Mword>(Interval, Timer_sp804::Load_0);
-  Io::write<Mword>(Interval, Timer_sp804::Value_0);
-  Io::write<Mword>  (Timer_sp804::Ctrl_enable
-                   | Timer_sp804::Ctrl_periodic
-                   | Timer_sp804::Ctrl_ie,
-                   Timer_sp804::Ctrl_0);
+  sp804->reload_value(Timer_sp804::Interval);
+  sp804->counter_value(Timer_sp804::Interval);
+  sp804->enable(Timer_sp804::Ctrl_periodic | Timer_sp804::Ctrl_ie);
 }
 
 static inline
@@ -104,11 +65,11 @@ Unsigned64
 Timer::us_to_timer(Unsigned64 us)
 { (void)us; return 0; }
 
-PUBLIC static inline NEEDS["io.h"]
+PUBLIC static inline
 void
 Timer::acknowledge()
 {
-  Io::write<Mword>(0, Timer_sp804::Intclr_0);
+  sp804->irq_clear();
 }
 
 IMPLEMENT inline

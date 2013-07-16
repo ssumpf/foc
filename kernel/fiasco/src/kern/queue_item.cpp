@@ -1,6 +1,6 @@
 INTERFACE:
 
-#include <dlist>
+#include <cxx/dlist>
 
 class Queue;
 

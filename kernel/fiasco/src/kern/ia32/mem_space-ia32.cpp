@@ -43,7 +43,6 @@ public:
     Need_insert_tlb_flush = 0,
     Map_page_size = Config::PAGE_SIZE,
     Page_shift = Config::PAGE_SHIFT,
-    Map_superpage_size = Config::SUPERPAGE_SIZE,
     Map_max_address = Mem_layout::User_max,
     Whole_space = MWORD_BITS,
     Identity_map = 0,
@@ -51,7 +50,7 @@ public:
 
 
   void	page_map	(Address phys, Address virt,
-                         Address size, unsigned page_attribs);
+                         Address size, Attr);
 
   void	page_unmap	(Address virt, Address size);
 
@@ -91,7 +90,7 @@ Mem_space::initialize()
     return false;
 
   _dir = static_cast<Dir_type*>(b);
-  _dir->clear();	// initialize to zero
+  _dir->clear(false);	// initialize to zero
   return true; // success
 }
 
@@ -100,41 +99,14 @@ Mem_space::Mem_space(Ram_quota *q, Dir_type* pdir)
   : _quota(q), _dir(pdir)
 {
   _kernel_space = this;
-  _current.cpu(0) = this;
-}
-
-
-PUBLIC static inline
-Mword
-Mem_space::xlate_flush(unsigned char rights)
-{
-  Mword a = Page_references;
-  if (rights & L4_fpage::RX)
-    a |= Page_all_attribs;
-  else if (rights & L4_fpage::W)
-    a |= Page_writable;
-  return a;
+  _current.cpu(Cpu_number::boot_cpu()) = this;
 }
 
 PUBLIC static inline
-Mword
-Mem_space::is_full_flush(unsigned char rights)
+bool
+Mem_space::is_full_flush(L4_fpage::Rights rights)
 {
-  return rights & L4_fpage::RX;
-}
-
-PUBLIC static inline
-unsigned char
-Mem_space::xlate_flush_result(Mword attribs)
-{
-  unsigned char r = 0;
-  if (attribs & Page_referenced)
-    r |= L4_fpage::RX;
-
-  if (attribs & Page_dirty)
-    r |= L4_fpage::W;
-
-  return r;
+  return rights & L4_fpage::Rights::R();
 }
 
 PUBLIC inline NEEDS["cpu.h"]
@@ -162,22 +134,21 @@ Mem_space::tlb_flush_spaces(bool, Mem_space *, Mem_space *)
 
 IMPLEMENT inline
 Mem_space *
-Mem_space::current_mem_space(unsigned cpu) /// XXX: do not fix, deprecated, remove!
+Mem_space::current_mem_space(Cpu_number cpu) /// XXX: do not fix, deprecated, remove!
 {
   return _current.cpu(cpu);
 }
 
 PUBLIC inline
 bool
-Mem_space::set_attributes(Addr virt, unsigned page_attribs)
+Mem_space::set_attributes(Virt_addr virt, Attr page_attribs)
 {
-  Pdir::Iter i = _dir->walk(virt);
+  auto i = _dir->walk(virt);
 
-  if (!i.e->valid() || i.shift() != Config::PAGE_SHIFT)
-    return 0;
+  if (!i.is_valid())
+    return false;
 
-  i.e->del_attr(Page::MAX_ATTRIBS);
-  i.e->add_attr(page_attribs);
+  i.set_attribs(page_attribs);
   return true;
 }
 
@@ -197,61 +168,82 @@ Mem_space::dir_shutdown()
 {
   // free all page tables we have allocated for this address space
   // except the ones in kernel space which are always shared
-  _dir->destroy(Virt_addr(0),
-                Virt_addr(Kmem::mem_user_max), Pdir::Depth - 1,
+  _dir->destroy(Virt_addr(0UL),
+                Virt_addr(Kmem::mem_user_max-1), 0, Pdir::Depth,
+                Kmem_alloc::q_allocator(_quota));
+
+  // free all unshared page table levels for the kernel space
+  _dir->destroy(Virt_addr(Kmem::mem_user_max),
+                Virt_addr(~0UL), 0, Pdir::Super_level,
                 Kmem_alloc::q_allocator(_quota));
 
 }
 
 IMPLEMENT
 Mem_space::Status
-Mem_space::v_insert(Phys_addr phys, Vaddr virt, Vsize size,
-                    unsigned page_attribs, bool upgrade_ignore_size)
+Mem_space::v_insert(Phys_addr phys, Vaddr virt, Page_order size,
+                    Attr page_attribs)
 {
   // insert page into page table
 
   // XXX should modify page table using compare-and-swap
 
-  assert_kdb (size == Size(Config::PAGE_SIZE)
-              || size == Size(Config::SUPERPAGE_SIZE));
-  if (size == Size(Config::SUPERPAGE_SIZE))
-    {
-      assert (Cpu::have_superpages());
-      assert (virt.offset(Size(Config::SUPERPAGE_SIZE)) == 0);
-      assert (phys.offset(Size(Config::SUPERPAGE_SIZE)) == 0);
-    }
+  assert (cxx::get_lsb(Phys_addr(phys), size) == 0);
+  assert (cxx::get_lsb(Virt_addr(virt), size) == 0);
 
-  unsigned level = (size == Size(Config::SUPERPAGE_SIZE) ? (int)Pdir::Super_level : (int)Pdir::Depth);
-  unsigned shift = (size == Size(Config::SUPERPAGE_SIZE) ? Config::SUPERPAGE_SHIFT : Config::PAGE_SHIFT);
-  unsigned attrs = (size == Size(Config::SUPERPAGE_SIZE) ? (unsigned long)Pt_entry::Pse_bit : 0);
+  int level;
+  for (level = 0; level <= Pdir::Depth; ++level)
+    if (Page_order(Pdir::page_order_for_level(level)) <= size)
+      break;
 
-  Pdir::Iter i = _dir->walk(virt, level,
+  auto i = _dir->walk(virt, level, false,
                             Kmem_alloc::q_allocator(_quota));
 
-  if (EXPECT_FALSE(!i.e->valid() && i.shift() != shift))
+  if (EXPECT_FALSE(!i.is_valid() && i.level != level))
     return Insert_err_nomem;
 
-  if (EXPECT_FALSE(!upgrade_ignore_size
-	&& i.e->valid() && (i.shift() != shift || i.addr() != phys.value())))
+  if (EXPECT_FALSE(i.is_valid()
+                   && (i.level != level || Phys_addr(i.page_addr()) != phys)))
     return Insert_err_exists;
 
-  if (i.e->valid())
+  if (i.is_valid())
     {
-      if (EXPECT_FALSE((i.e->raw() | page_attribs) == i.e->raw()))
-	return Insert_warn_exists;
+      if (EXPECT_FALSE(!i.add_attribs(page_attribs)))
+        return Insert_warn_exists;
 
-      i.e->add_attr(page_attribs);
-      page_protect (Addr(virt).value(), Size(size).value(), i.e->raw() & Page_all_attribs);
+      page_protect(Virt_addr::val(virt), Address(1) << Page_order::val(size),
+                   *i.pte & Page_all_attribs);
 
       return Insert_warn_attrib_upgrade;
     }
   else
     {
-      *i.e = Addr(phys).value() | Pt_entry::Valid | attrs | page_attribs;
-      page_map (Addr(phys).value(), Addr(virt).value(), Size(size).value(), page_attribs);
+      i.create_page(phys, page_attribs);
+      page_map(Virt_addr::val(phys), Virt_addr::val(virt),
+               Address(1) << Page_order::val(size), page_attribs);
 
       return Insert_ok;
     }
+
+}
+
+IMPLEMENT
+void
+Mem_space::v_set_access_flags(Vaddr virt, L4_fpage::Rights access_flags)
+{
+  auto i = _dir->walk(virt);
+
+  if (EXPECT_FALSE(!i.is_valid()))
+    return;
+
+  unsigned page_attribs = 0;
+
+  if (access_flags & L4_fpage::Rights::R())
+    page_attribs |= Page_referenced;
+  if (access_flags & L4_fpage::Rights::W())
+    page_attribs |= Page_dirty;
+
+  i.add_attribs(page_attribs);
 }
 
 /**
@@ -275,7 +267,7 @@ Mem_space::virt_to_phys(Address virt) const
  */
 PUBLIC inline NEEDS ["mem_layout.h"]
 Address
-Mem_space::pmem_to_phys (Address virt) const
+Mem_space::pmem_to_phys(Address virt) const
 {
   return Mem_layout::pmem_to_phys(virt);
 }
@@ -303,56 +295,47 @@ Mem_space::virt_to_phys_s0(void *a) const
 IMPLEMENT
 bool
 Mem_space::v_lookup(Vaddr virt, Phys_addr *phys,
-                    Size *size, unsigned *page_attribs)
+                    Page_order *order, Attr *page_attribs)
 {
-  Pdir::Iter i = _dir->walk(virt);
-  if (size) *size = Size(1UL << i.shift());
+  auto i = _dir->walk(virt);
+  if (order) *order = Page_order(i.page_order());
 
-  if (!i.e->valid())
+  if (!i.is_valid())
     return false;
 
-  if (phys) *phys = Addr(i.e->addr() & (~0UL << i.shift()));
-  if (page_attribs) *page_attribs = (i.e->raw() & Page_all_attribs);
+  if (phys) *phys = Phys_addr(i.page_addr());
+  if (page_attribs) *page_attribs = i.attribs();
 
   return true;
 }
 
 IMPLEMENT
-unsigned long
-Mem_space::v_delete(Vaddr virt, Vsize size,
-                    unsigned long page_attribs = Page_all_attribs)
+L4_fpage::Rights
+Mem_space::v_delete(Vaddr virt, Page_order size, L4_fpage::Rights page_attribs)
 {
-  unsigned ret;
+  assert (cxx::get_lsb(Virt_addr(virt), size) == 0);
 
-  // delete pages from page tables
-  assert (size == Size(Config::PAGE_SIZE) || size == Size(Config::SUPERPAGE_SIZE));
+  auto i = _dir->walk(virt);
 
-  if (size == Size(Config::SUPERPAGE_SIZE))
-    {
-      assert (Cpu::have_superpages());
-      assert (!virt.offset(Size(Config::SUPERPAGE_SIZE)));
-    }
+  if (EXPECT_FALSE (! i.is_valid()))
+    return L4_fpage::Rights(0);
 
-  Pdir::Iter i = _dir->walk(virt);
+  assert (! (*i.pte & Pt_entry::global())); // Cannot unmap shared pages
 
-  if (EXPECT_FALSE (! i.e->valid()))
-    return 0;
+  L4_fpage::Rights ret = i.access_flags();
 
-  assert (! (i.e->raw() & Pt_entry::global())); // Cannot unmap shared ptables
-
-  ret = i.e->raw() & page_attribs;
-
-  if (! (page_attribs & Page_user_accessible))
+  if (! (page_attribs & L4_fpage::Rights::R()))
     {
       // downgrade PDE (superpage) rights
-      i.e->del_attr(page_attribs);
-      page_protect (Addr(virt).value(), Size(size).value(), i.e->raw() & Page_all_attribs);
+      i.del_rights(page_attribs);
+      page_protect(Virt_addr::val(virt), Address(1) << Page_order::val(size),
+                   *i.pte & Page_all_attribs);
     }
   else
     {
       // delete PDE (superpage)
-      *i.e = 0;
-      page_unmap (Addr(virt).value(), Size(size).value());
+      i.clear();
+      page_unmap(Virt_addr::val(virt), Address(1) << Page_order::val(size));
     }
 
   return ret;
@@ -412,17 +395,17 @@ Mem_space::phys_dir()
 
 IMPLEMENT inline
 void
-Mem_space::page_map (Address, Address, Address, unsigned)
+Mem_space::page_map(Address, Address, Address, Attr)
 {}
 
 IMPLEMENT inline
 void
-Mem_space::page_protect (Address, Address, unsigned)
+Mem_space::page_protect(Address, Address, unsigned)
 {}
 
 IMPLEMENT inline
 void
-Mem_space::page_unmap (Address, Address)
+Mem_space::page_unmap(Address, Address)
 {}
 
 IMPLEMENT inline NEEDS["kmem.h", "logdefs.h"]
@@ -450,26 +433,52 @@ Mem_space::sync_kernel()
 {
   _dir->sync(Virt_addr(Mem_layout::User_max), Kmem::dir(),
              Virt_addr(Mem_layout::User_max),
-             Virt_addr(-Mem_layout::User_max), Pdir::Super_level,
+             Virt_size(-Mem_layout::User_max), Pdir::Super_level,
+             false,
              Kmem_alloc::q_allocator(_quota));
 }
 
 // --------------------------------------------------------------------
 IMPLEMENTATION [amd64]:
 
+#include "cpu.h"
+
 PUBLIC static inline
 Page_number
 Mem_space::canonize(Page_number v)
 {
-  if (v & Virt_addr(1UL << 48))
-    v = v | Virt_addr(~0UL << 48);
+  if (v & Page_number(Virt_addr(1UL << 48)))
+    v = v | Page_number(Virt_addr(~0UL << 48));
   return v;
+}
+
+PUBLIC static
+void
+Mem_space::init_page_sizes()
+{
+  add_page_size(Page_order(Config::PAGE_SHIFT));
+  if (Cpu::cpus.cpu(Cpu_number::boot_cpu()).superpages())
+    add_page_size(Page_order(21)); // 2MB
+
+  if (Cpu::cpus.cpu(Cpu_number::boot_cpu()).ext_8000_0001_edx() & (1UL<<26))
+    add_page_size(Page_order(30)); // 1GB
 }
 
 // --------------------------------------------------------------------
 IMPLEMENTATION [ia32 || ux]:
 
+#include "cpu.h"
+
 PUBLIC static inline
 Page_number
 Mem_space::canonize(Page_number v)
 { return v; }
+
+PUBLIC static
+void
+Mem_space::init_page_sizes()
+{
+  add_page_size(Page_order(Config::PAGE_SHIFT));
+  if (Cpu::cpus.cpu(Cpu_number::boot_cpu()).superpages())
+    add_page_size(Page_order(22)); // 4MB
+}

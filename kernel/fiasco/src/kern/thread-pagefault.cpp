@@ -34,10 +34,12 @@ int Thread::handle_page_fault (Address pfa, Mword error_code, Mword pc,
     Return_frame *regs)
 {
   //if (Config::Log_kernel_page_faults && !PF::is_usermode_error(error_code))
-  if (0 && current_cpu() != 0)
+  if (0 && current_cpu() != Cpu_number::boot_cpu())
     {
       auto guard = lock_guard(cpu_lock);
-      printf("*KP[cpu=%u, sp=%lx, pfa=%lx, pc=%lx, error=(%lx)", current_cpu(), Proc::stack_pointer(), pfa, pc, error_code);
+      printf("*KP[cpu=%u, sp=%lx, pfa=%lx, pc=%lx, error=(%lx)",
+             cxx::int_value<Cpu_number>(current_cpu()),
+             Proc::stack_pointer(), pfa, pc, error_code);
       print_page_fault_error(error_code);
       printf("]\n");
     }

@@ -122,7 +122,7 @@ struct By_id
 }
 
 PUBLIC static
-unsigned
+Cpu_number
 Apic::find_cpu(Unsigned32 phys_id)
 {
   return apic.find_cpu(By_id(phys_id));
@@ -766,12 +766,13 @@ Apic::error_interrupt(Return_frame *regs)
 	return;
 
       printf("cpu%d: APIC invalid register access error at " L4_PTR_FMT "\n",
-	     current_cpu(), regs->ip());
+	     cxx::int_value<Cpu_number>(current_cpu()), regs->ip());
       return;
     }
 
   apic_error_cnt++;
-  printf("cpu%d: APIC error %08x(%08x)\n", current_cpu(), err1, err2);
+  printf("cpu%d: APIC error %08x(%08x)\n",
+         cxx::int_value<Cpu_number>(current_cpu()), err1, err2);
 }
 
 // deactivate APIC by writing to appropriate MSR

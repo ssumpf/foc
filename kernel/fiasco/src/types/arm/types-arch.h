@@ -41,4 +41,12 @@ enum Address_vals
 
 typedef Unsigned64             Cpu_time;
 
+#ifdef __cplusplus
+
+#include <cxx/cxx_int>
+
+typedef cxx::int_type<unsigned char, struct Cpu_phys_id_t> Cpu_phys_id;
+
+#endif
+
 #endif // TYPES_ARCH_H__

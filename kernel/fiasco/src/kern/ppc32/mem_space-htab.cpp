@@ -171,8 +171,10 @@ Mem_space::to_htab_fmt(T page_attribs)
 {
   // if page attribs has the writable bit set, make sure to erase the readable
   // bit because 0x11b is read-only on ppc
-  if(page_attribs & Page_writable)
+#ifdef FIX_THIS
+  if (page_attribs & Page_writable)
     page_attribs &= ~Page_user_accessible;
+#endif
 
   return page_attribs & (~Pt_entry::Valid & ~Pt_entry::Htab_entry);
 }
@@ -184,23 +186,28 @@ Mem_space::to_kernel_fmt(T page_attribs, bool is_htab_entry)
 {
   T attribs = page_attribs;
 
+#ifdef FIX_THIS
   attribs &= Page_all_attribs;
 
   if(!is_htab_entry)
-    attribs |=  Pte_base::Valid;
+    attribs |=  Pte_ptr::Valid;
 
   if(attribs & Page_writable)
     attribs |= Page_user_accessible;
+#endif
 
   return attribs;
 }
 
 PRIVATE
 Mem_space::Status
-Mem_space::pte_attrib_upgrade(Pte_base *e, size_t size, unsigned page_attribs)
+Mem_space::pte_attrib_upgrade(Pte_ptr *e, size_t size, unsigned page_attribs)
 {
-  Pte_base *e2 = e;
+  (void)e; (void)size; (void)page_attribs;
+
   Status ret = Insert_warn_attrib_upgrade;
+#ifdef FIX_THIS
+  Pte_ptr *e2 = e;
   page_attribs = to_htab_fmt(page_attribs);
 
   for(Address offs = 0; offs < (size / Config::PAGE_SIZE) * sizeof(Mword);
@@ -224,6 +231,7 @@ Mem_space::pte_attrib_upgrade(Pte_base *e, size_t size, unsigned page_attribs)
       else
         ret = pte_attrib_upgrade(e2->raw(), page_attribs);
     }
+#endif
 
   return ret;
 }
@@ -315,6 +323,8 @@ IMPLEMENT
 unsigned long
 Mem_space::v_delete_htab(Address pte_addr, unsigned page_attribs = Page_all_attribs)
 {
+  (void)pte_addr; (void)page_attribs;
+#ifdef FIX_THIS
   auto guard = lock_guard(cpu_lock);
   unsigned long ret;
   Pte_htab *pte_phys = Pte_htab::addr_to_pte(pte_addr);
@@ -332,6 +342,8 @@ Mem_space::v_delete_htab(Address pte_addr, unsigned page_attribs = Page_all_attr
   Mem_unit::tlb_flush(pte_phys->pte_to_ea());
   Mem_unit::sync();
   return ret;
+#endif
+  return 0;
 }
 
 IMPLEMENT inline NEEDS["kmem.h"]

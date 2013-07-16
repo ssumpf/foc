@@ -72,15 +72,15 @@ PUBLIC inline NEEDS ["trap_state.h"]
 void
 Tb_entry_trap::set(Mword ip, Trap_state *ts)
 {
-    _ip    = ip;
-    _error = ts->error_code;
-    _cpsr  = ts->psr;
-    _sp    = ts->sp();
+  _ip    = ip;
+  _error = ts->error_code;
+  _cpsr  = ts->psr;
+  _sp    = ts->sp();
 }
 
 PUBLIC inline NEEDS ["trap_state.h"]
 void
-Tb_entry_trap::set(Mword pc, Mword )
+Tb_entry_trap::set(Mword pc, Mword)
 {
-    _ip    = pc;
+  _ip    = pc;
 }

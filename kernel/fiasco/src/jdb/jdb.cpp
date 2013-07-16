@@ -15,19 +15,19 @@ class Jdb : public Jdb_core
 {
 public:
   static Per_cpu<Jdb_entry_frame*> entry_frame;
-  static unsigned current_cpu;
-  static Per_cpu<void (*)(unsigned, void *)> remote_func;
+  static Cpu_number current_cpu;
+  static Per_cpu<void (*)(Cpu_number, void *)> remote_func;
   static Per_cpu<void *> remote_func_data;
   static Per_cpu<bool> remote_func_running;
 
-  static int FIASCO_FASTCALL enter_jdb(Jdb_entry_frame *e, unsigned cpu);
+  static int FIASCO_FASTCALL enter_jdb(Jdb_entry_frame *e, Cpu_number cpu);
   static void cursor_end_of_screen();
   static void cursor_home();
   static void printf_statline(const char *prompt, const char *help,
                               const char *format, ...)
   __attribute__((format(printf, 3, 4)));
-  static void save_disable_irqs(unsigned cpu);
-  static void restore_irqs(unsigned cpu);
+  static void save_disable_irqs(Cpu_number cpu);
+  static void restore_irqs(Cpu_number cpu);
 
 private:
   Jdb();			// default constructors are undefined
@@ -52,12 +52,12 @@ private:
   static bool never_break;
   static bool jdb_active;
 
-  static void enter_trap_handler(unsigned cpu);
-  static void leave_trap_handler(unsigned cpu);
-  static bool handle_conditional_breakpoint(unsigned cpu);
+  static void enter_trap_handler(Cpu_number cpu);
+  static void leave_trap_handler(Cpu_number cpu);
+  static bool handle_conditional_breakpoint(Cpu_number cpu);
   static void handle_nested_trap(Jdb_entry_frame *e);
-  static bool handle_user_request(unsigned cpu);
-  static bool handle_debug_traps(unsigned cpu);
+  static bool handle_user_request(Cpu_number cpu);
+  static bool handle_debug_traps(Cpu_number cpu);
   static bool test_checksums();
 
 public:
@@ -105,11 +105,11 @@ char Jdb::last_cmd;
 
 char Jdb::hide_statline;		// show status line on enter_kdebugger
 DEFINE_PER_CPU Per_cpu<Jdb_entry_frame*> Jdb::entry_frame;
-unsigned Jdb::current_cpu;              // current CPU JDB is running on
+Cpu_number Jdb::current_cpu;              // current CPU JDB is running on
 Thread *Jdb::current_active;		// current running thread
 bool Jdb::was_input_error;		// error in command sequence
 
-DEFINE_PER_CPU Per_cpu<void (*)(unsigned, void *)> Jdb::remote_func;
+DEFINE_PER_CPU Per_cpu<void (*)(Cpu_number, void *)> Jdb::remote_func;
 DEFINE_PER_CPU Per_cpu<void *> Jdb::remote_func_data;
 DEFINE_PER_CPU Per_cpu<bool> Jdb::remote_func_running;
 
@@ -130,7 +130,7 @@ unsigned long Jdb::cpus_in_debugger;
 
 PUBLIC static
 bool
-Jdb::cpu_in_jdb(unsigned cpu)
+Jdb::cpu_in_jdb(Cpu_number cpu)
 { return Cpu::online(cpu) && running.cpu(cpu); }
 
 
@@ -139,7 +139,7 @@ template< typename Func >
 void
 Jdb::foreach_cpu(Func const &f)
 {
-  for (unsigned i = 0; i < Config::Max_num_cpus; ++i)
+  for (Cpu_number i = Cpu_number::first(); i < Config::max_num_cpus(); ++i)
     {
       if (!Cpu::online(i) || !running.cpu(i))
 	continue;
@@ -153,7 +153,7 @@ bool
 Jdb::foreach_cpu(Func const &f, bool positive)
 {
   bool r = positive;
-  for (unsigned i = 0; i < Config::Max_num_cpus; ++i)
+  for (Cpu_number i = Cpu_number::first(); i < Config::max_num_cpus(); ++i)
     {
       if (!Cpu::online(i) || !running.cpu(i))
 	continue;
@@ -531,11 +531,11 @@ Jdb::execute_command()
 
 PRIVATE static
 bool
-Jdb::open_debug_console(unsigned cpu)
+Jdb::open_debug_console(Cpu_number cpu)
 {
   in_service = 1;
   save_disable_irqs(cpu);
-  if (cpu == 0)
+  if (cpu == Cpu_number::boot_cpu())
     jdb_enter.execute();
 
   if (!stop_all_cpus(cpu))
@@ -551,11 +551,11 @@ Jdb::open_debug_console(unsigned cpu)
 
 PRIVATE static
 void
-Jdb::close_debug_console(unsigned cpu)
+Jdb::close_debug_console(Cpu_number cpu)
 {
   Proc::cli();
   Mem::barrier();
-  if (cpu == 0)
+  if (cpu == Cpu_number::boot_cpu())
     {
       running.cpu(cpu) = 0;
       // eat up input from console
@@ -576,10 +576,10 @@ Jdb::close_debug_console(unsigned cpu)
 
 PUBLIC static
 void
-Jdb::remote_work(unsigned cpu, void (*func)(unsigned, void *), void *data,
+Jdb::remote_work(Cpu_number cpu, void (*func)(Cpu_number, void *), void *data,
                  bool sync = true)
 {
-  if (cpu == 0)
+  if (cpu == Cpu_number::boot_cpu())
     func(cpu, data);
   else
     {
@@ -742,7 +742,7 @@ Jdb::get_current_active()
 
 PUBLIC static inline
 Jdb_entry_frame*
-Jdb::get_entry_frame(unsigned cpu)
+Jdb::get_entry_frame(Cpu_number cpu)
 {
   return entry_frame.cpu(cpu);
 }
@@ -888,7 +888,7 @@ Jdb::std_cursor_key(int c, Mword cols, Mword lines, Mword max_absy, Mword *absy,
 
 PUBLIC static inline
 Space *
-Jdb::get_task(unsigned cpu)
+Jdb::get_task(Cpu_number cpu)
 {
   if (!get_thread(cpu))
     return 0;
@@ -938,7 +938,7 @@ Jdb_base_cmds::action (int cmd, void *&, char const *&, int &)
     return NOTHING;
 
   Jdb_core::short_mode = !Jdb_core::short_mode;
-  printf("\ntoggle mode: now in %s command mode (use %s) to switch back\n",
+  printf("\ntoggle mode: now in %s command mode (use '%s' to switch back)\n",
          Jdb_core::short_mode ? "short" : "long",
          Jdb_core::short_mode ? "*" : "mode");
   return NOTHING;
@@ -1005,7 +1005,7 @@ char Jdb::esc_symbol[]   = "\033[33;1m";
 
 
 IMPLEMENT int
-Jdb::enter_jdb(Jdb_entry_frame *e, unsigned cpu)
+Jdb::enter_jdb(Jdb_entry_frame *e, Cpu_number cpu)
 {
   if (e->debug_ipi())
     {
@@ -1099,14 +1099,16 @@ Jdb::enter_jdb(Jdb_entry_frame *e, unsigned cpu)
 	                 "read-only data has changed!\n",
 	             Jdb_screen::width()-11,
 	             Jdb_screen::Line);
-	      for (unsigned i = 0; i < Config::Max_num_cpus; ++i)
+	      for (Cpu_number i = Cpu_number::first(); i < Config::max_num_cpus(); ++i)
 		if (Cpu::online(i))
 		  {
 		    if (running.cpu(i))
-		      printf("    CPU%2u [" L4_PTR_FMT "]: %s\n", i,
+		      printf("    CPU%2u [" L4_PTR_FMT "]: %s\n",
+                             cxx::int_value<Cpu_number>(i),
 		             entry_frame.cpu(i)->ip(), error_buffer.cpu(i));
 		    else
-		      printf("    CPU%2u: is not in JDB (not responding)\n", i);
+		      printf("    CPU%2u: is not in JDB (not responding)\n",
+                             cxx::int_value<Cpu_number>(i));
 		  }
 	      hide_statline = true;
 	    }
@@ -1140,7 +1142,7 @@ IMPLEMENTATION [!mp]:
 
 PRIVATE static
 bool
-Jdb::stop_all_cpus(unsigned /*current_cpu*/)
+Jdb::stop_all_cpus(Cpu_number)
 { return true; }
 
 PRIVATE
@@ -1156,7 +1158,7 @@ Jdb::check_for_cpus(bool)
 
 PRIVATE static inline
 int
-Jdb::remote_work_ipi_process(unsigned)
+Jdb::remote_work_ipi_process(Cpu_number)
 { return 1; }
 
 
@@ -1169,7 +1171,7 @@ EXTENSION class Jdb
 {
   // remote call
   static Spin_lock<> _remote_call_lock;
-  static void (*_remote_work_ipi_func)(unsigned, void *);
+  static void (*_remote_work_ipi_func)(Cpu_number, void *);
   static void *_remote_work_ipi_func_data;
   static unsigned long _remote_work_ipi_done;
 };
@@ -1177,7 +1179,7 @@ EXTENSION class Jdb
 //--------------------------------------------------------------------------
 IMPLEMENTATION [mp]:
 
-void (*Jdb::_remote_work_ipi_func)(unsigned, void *);
+void (*Jdb::_remote_work_ipi_func)(Cpu_number, void *);
 void *Jdb::_remote_work_ipi_func_data;
 unsigned long Jdb::_remote_work_ipi_done;
 Spin_lock<> Jdb::_remote_call_lock;
@@ -1187,10 +1189,10 @@ bool
 Jdb::check_for_cpus(bool try_nmi)
 {
   enum { Max_wait_cnt = 1000 };
-  for (unsigned c = 1; c < Config::Max_num_cpus; ++c)
+  for (Cpu_number c = Cpu_number::second(); c < Config::max_num_cpus(); ++c)
     {
       if (Cpu::online(c) && !running.cpu(c))
-	Ipi::send(Ipi::Debug, 0, c);
+	Ipi::send(Ipi::Debug, Cpu_number::first(), c);
     }
   Mem::barrier();
 retry:
@@ -1200,7 +1202,7 @@ retry:
       bool all_there = true;
       cpus_in_debugger = 0;
       // skip boot cpu 0
-      for (unsigned c = 1; c < Config::Max_num_cpus; ++c)
+      for (Cpu_number c = Cpu_number::second(); c < Config::max_num_cpus(); ++c)
 	{
 	  if (Cpu::online(c))
 	    {
@@ -1225,13 +1227,14 @@ retry:
     }
 
   bool do_retry = false;
-  for (unsigned c = 1; c < Config::Max_num_cpus; ++c)
+  for (Cpu_number c = Cpu_number::second(); c < Config::max_num_cpus(); ++c)
     {
       if (Cpu::online(c))
 	{
 	  if (!running.cpu(c))
 	    {
-	      printf("JDB: CPU %d: is not responding ... %s\n",c,
+	      printf("JDB: CPU %d: is not responding ... %s\n",
+                     cxx::int_value<Cpu_number>(c),
 		     try_nmi ? "trying NMI" : "");
 	      if (try_nmi)
 		{
@@ -1252,12 +1255,12 @@ retry:
 
 PRIVATE static
 bool
-Jdb::stop_all_cpus(unsigned current_cpu)
+Jdb::stop_all_cpus(Cpu_number current_cpu)
 {
   enum { Max_wait_cnt = 1000 };
-  // JDB allways runs on CPU 0, if any other CPU enters the debugger
-  // CPU 0 is notified to do enter the debugger too
-  if (current_cpu == 0)
+  // JDB allways runs on the boot CPU, if any other CPU enters the debugger
+  // the boot CPU is notified to do enter the debugger too
+  if (current_cpu == Cpu_number::boot_cpu())
     {
       // I'm CPU 0 stop all other CPUs and wait for them to enter the JDB
       jdb_active = 1;
@@ -1271,10 +1274,10 @@ Jdb::stop_all_cpus(unsigned current_cpu)
       // Huh, not CPU 0, so notify CPU 0 to enter JDB too
       // The notification is ignored if CPU 0 is already within JDB
       jdb_active = true;
-      Ipi::send(Ipi::Debug, current_cpu, 0);
+      Ipi::send(Ipi::Debug, current_cpu, Cpu_number::boot_cpu());
 
       unsigned long wait_count = Max_wait_cnt;
-      while (!running.cpu(0) && wait_count)
+      while (!running.cpu(Cpu_number::boot_cpu()) && wait_count)
 	{
 	  Proc::pause();
           Delay::delay(1);
@@ -1283,14 +1286,14 @@ Jdb::stop_all_cpus(unsigned current_cpu)
 	}
 
       if (wait_count == 0)
-	send_nmi(0);
+	send_nmi(Cpu_number::boot_cpu());
 
       // Wait for messages from CPU 0
       while ((volatile bool)jdb_active)
 	{
 	  Mem::barrier();
-	  void (**func)(unsigned, void *) = &remote_func.cpu(current_cpu);
-	  void (*f)(unsigned, void *);
+	  void (**func)(Cpu_number, void *) = &remote_func.cpu(current_cpu);
+	  void (*f)(Cpu_number, void *);
 
 	  if ((f = monitor_address(current_cpu, func)))
 	    {
@@ -1334,13 +1337,13 @@ Jdb::leave_wait_for_others()
   for (;;)
     {
       bool all_there = true;
-      for (unsigned c = 0; c < Config::Max_num_cpus; ++c)
+      for (Cpu_number c = Cpu_number::first(); c < Config::max_num_cpus(); ++c)
 	{
 	  if (Cpu::online(c) && running.cpu(c))
 	    {
 	      // notify other CPU
               set_monitored_address(&Jdb::remote_func.cpu(c),
-                                    (void (*)(unsigned, void *))0);
+                                    (void (*)(Cpu_number, void *))0);
 //	      printf("JDB: wait for CPU[%2u] to leave\n", c);
 	      all_there = false;
 	    }
@@ -1369,7 +1372,7 @@ Jdb::leave_wait_for_others()
 // The remote_work_ipi* functions are for the IPI round-trip benchmark (only)
 PRIVATE static
 int
-Jdb::remote_work_ipi_process(unsigned cpu)
+Jdb::remote_work_ipi_process(Cpu_number cpu)
 {
   if (_remote_work_ipi_func)
     {
@@ -1383,8 +1386,8 @@ Jdb::remote_work_ipi_process(unsigned cpu)
 
 PUBLIC static
 bool
-Jdb::remote_work_ipi(unsigned this_cpu, unsigned to_cpu,
-                     void (*f)(unsigned, void *), void *data, bool wait = true)
+Jdb::remote_work_ipi(Cpu_number this_cpu, Cpu_number to_cpu,
+                     void (*f)(Cpu_number, void *), void *data, bool wait = true)
 {
   if (to_cpu == this_cpu)
     {

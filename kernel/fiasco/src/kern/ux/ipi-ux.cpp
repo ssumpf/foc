@@ -40,7 +40,7 @@ Ipi::eoi(Message)
 
 PUBLIC static inline NEEDS[<cstdio>, "pic.h"]
 void
-Ipi::send(Message m, unsigned from_cpu, unsigned to_cpu)
+Ipi::send(Message m, Cpu_number from_cpu, Cpu_number to_cpu)
 {
   printf("Sending IPI:%d to cpu%d\n", m, _lcpu);
   Pic::send_ipi(_lcpu, m);
@@ -48,10 +48,10 @@ Ipi::send(Message m, unsigned from_cpu, unsigned to_cpu)
 
 PUBLIC static inline NEEDS[<cstdio>, "cpu.h", "pic.h"]
 void
-Ipi::bcast(Message m, unsigned from_cpu)
+Ipi::bcast(Message m, Cpu_number from_cpu)
 {
   printf("Bcast IPI:%d\n", m);
-  for (unsigned i = 0; i < Config::Max_num_cpus; ++i)
+  for (Cpu_number i = Cpu_number::first(); i < Config::max_num_cpus(); ++i)
     if (Cpu::online(i))
       Pic::send_ipi(i, m);
 }

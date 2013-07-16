@@ -37,7 +37,7 @@ _start:
 	 * position we're linked to.
 	 */
 	adr	r4, run		/* Running version */
-        ldr     r5, .LCrun      /* supposed to be version */
+	ldr	r5, .LCrun	/* supposed to be version */
 	cmp	r4, r5		/* If equal ... */
 	beq	run		/* ... go to run */
 
@@ -70,11 +70,11 @@ _start:
 	str	r3, [r0], #4
 	ldr	pc, .LCstart_bin
 
-3:	ldr     r6, [r4], #4
-32:     str     r6, [r5], #4
-33:     cmp     r5, r7
-34:     blt     3b
-35:     mov	pc, r9
+3:	ldr	r6, [r4], #4
+32:	str	r6, [r5], #4
+33:	cmp	r5, r7
+34:	blt	3b
+35:	mov	pc, r9
 
 	/* Copy behind, copy backwards */
 move_behind:
@@ -83,7 +83,7 @@ move_behind:
 	str	r6, [r7, #-4]!	/* Put bytes */
 	cmp	r5, r7
 	blt	3b
-	ldr     pc, .LCrun
+	ldr	pc, .LCrun
 
 
 .LCrun:       .word run
@@ -103,8 +103,16 @@ run:
 	cmp	r0, r9
 	beq	do_cpuid
 
-	mov	r9, #0xc00
-	orr 	r9, #0x009
+        mov     r3, #0xc00
+	orr 	r9, r3, #0x00f
+	cmp	r0, r9
+	beq	do_cpuid
+
+	orr 	r9, r3, #0x007
+	cmp	r0, r9
+	beq	do_cpuid
+
+	orr 	r9, r3, #0x009
 	cmp	r0, r9
 	bne	do_bootstrap               /* None matched, normal startup */
 
@@ -126,49 +134,68 @@ do_cpuid:
 	orr r0, #0xd3
 	msr cpsr_c, r0
 
-#if defined(PLATFORM_TYPE_rv) || defined(PLATFORM_TYPE_rv_pbx) || defined(PLATFORM_TYPE_rv_vexpress)
+#if defined(PLATFORM_TYPE_rv) || defined(PLATFORM_TYPE_rv_pbx) || \
+    defined(PLATFORM_TYPE_rv_vexpress) || defined(PLATFORM_TYPE_rv_vexpress_a15)
+
 	// enable GIC CPU interface + prio mask for IRQs
+	mrc	p15, 0, r0, c0, c0, 0    // r0: cpu-id
+	and	r0, r0, #0x70
+	cmp	r0, #0x70
 
 	// get board ID and retrieve MPCore-base from table
-	mov	r5, #0x10000000
-	ldr	r5, [r5]
+	movne	r7, #0x10000000
+	moveq	r7, #0x00010000
+	orreq	r7, #0x1c000000
+	ldr	r5, [r7]
 	bic	r5, #0xff
-	adr	r6, .Lmpcore_base_table
+
+	adr	r6, .Lboard_data_table
 2:
 	ldr	r4, [r6]
 	cmp	r4, #0
-	cmpne	r4, r5
-	ldreq	r4, [r6, #4]
 	beq	3f
-	add	r6, #8
+	cmp	r4, r5
+	bne	4f
+
+	ldr	r3, [r6, #4]
+	cmp	r0, r3
+	beq	3f
+	cmp	r3, #0
+	beq	3f
+4:	add	r6, #12
 	b	2b
 
 3:
-	add	r4, r4, #0x100
+	ldr	r4, [r6, #8]
 	mov	r0, #0x1
 	str	r0, [r4, #0]
 	mov	r0, #0xf0
 	str	r0, [r4, #4]
 
 1:
-	mov	r5, #0x10000000
-	ldr	r6, [r5, #0x30]
+	ldr	r6, [r7, #0x30]
 	cmp	r6, #0
 	movne	pc, r6
-	.inst 0xe320f003 /* wfi */
+	.inst	0xe320f003 /* wfi */
 	ldr	r0, [r4, #12]
 	str	r0, [r4, #16]
 	b	1b
 
-.Lmpcore_base_table:
+.Lboard_data_table:
 	/* VExpress */
 	.word	0x1190f500 /* Board ID */
-	.word	0x1e000000 /* MPCore base */
+	.word	0x00000070 /* CPU ID */
+	.word	0x2c002000 /* MPCore base */
+
+	.word	0x1190f500 /* Board ID */
+	.word	0x00000000 /* CPU ID */
+	.word	0x1e000100 /* MPCore base */
 
 	/* Default value (with #0) must come last! */
 	/* Realview */
 	.word	0
-	.word	0x1f000000
+	.word	0
+	.word	0x1f000100
 
 #else
 1:	.word 0xe320f003 /* wfi */
@@ -176,11 +203,11 @@ do_cpuid:
 #endif
 
 do_bootstrap:
-	ldr 	r3, .LCcrt0_tramppage      /* Load address of tramppage var */
-     	str 	sp, [r3]                   /* Store SP in variable          */
-	ldr 	sp, .LCstack
+	ldr	r3, .LCcrt0_tramppage      /* Load address of tramppage var */
+	str	sp, [r3]                   /* Store SP in variable          */
+	ldr	sp, .LCstack
 
-	mov     r0, r2                     /* ATAG pointer */
+	mov	r0, r2                     /* ATAG pointer */
 	bl	__main
 1:	b	1b
 
@@ -194,7 +221,7 @@ crt0_tramppage:
 	.space 4
 
 	.global crt0_stack_low
-        .align 3
+	.align 3
 crt0_stack_low:
 	.space	8192
 	.global crt0_stack_high

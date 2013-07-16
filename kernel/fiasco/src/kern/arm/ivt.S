@@ -3,37 +3,8 @@
 #include "globalconfig.h"
 #include "config_tcbsize.h"
 #include "tcboffset.h"
+#include "asm_entry.h"
 
-
-
-/**********************************************************************
- * calculate the TCB address from a stack pointer
- */
-.macro CONTEXT_OF reg, ptr
-	bic	\reg, \ptr, #((THREAD_BLOCK_SIZE-1) & 0xff)
-	bic	\reg, \reg, #((THREAD_BLOCK_SIZE-1) & 0xff00)
-.endm
-
-/**********************************************************************
- * Reset the thread cancel flag. 
- * Register r0 is scratched and contains the thread state afterwards
- */
-.macro RESET_THREAD_CANCEL_AT tcb
-	ldr 	r0, [\tcb, #(OFS__THREAD__STATE)]
-	bic	r0, r0, #0x100
-	str	r0, [\tcb, #(OFS__THREAD__STATE)]
-.endm
-
-/****************************
- * some handy definitions
- */
-#define RF_SIZE      20
-#define RF_PSR       16
-#define RF_PC        12
-#define RF_SVC_LR     8
-#define RF_USR_LR     4
-#define RF_USR_SP     0
-#define RF(reg, offs) (RF_##reg + (offs))
 
 /**************************************************************************
  * Enter kernel mode (i.e. switch from any exception mode to the 
@@ -129,14 +100,6 @@
  *
  * Stack the state and call 'slowtrap_entry' with sp and error code
  */
-.macro 	enter_slowtrap_w_stack errorcode
-	mov	r1, #\errorcode
-	stmdb	sp!, {r0, r1}
-	mov 	r0, sp
-	adr	lr, exception_return
-	ldr	pc, .LCslowtrap_entry
-.endm
-
 .macro 	enter_slowtrap errorcode
 	stmdb 	sp!, {r0 - r12}
 	make_tpidruro_space sp
@@ -197,19 +160,16 @@
  *
  * lr: must contain fault addr (from switch_to_kernel)
  */
-.macro	syscallframe	
-	add	lr, sp, #RF(PC, -8)
-	stmia	lr, {lr}^
-	sub	sp, sp, #8
-.endm
-
 .macro  enter_sys_call no_sys_call
-	ldr	lr, [sp, #RF(PC,  -8)]
+	ldr	lr, [sp, #RF(PC,  0)]
 	cmn	lr, #0x2a		@ Range Check !!! UNSIGNED !!!
 	bls	\no_sys_call		@ no syscall
 	cmn	lr, #0x08
 	bhi	\no_sys_call
-	syscallframe			
+
+	add	lr, sp, #RF(PC, 0)
+	stmia	lr, {lr}^
+
 	stmdb   sp!, {r0 - r12}
 	CONTEXT_OF	r1, sp
 	RESET_THREAD_CANCEL_AT r1       @ sets r0 to state 
@@ -226,6 +186,7 @@ fast_ret_from_irq:
         msr	cpsr_c, #0xd3 // disable IRQs
         add     sp, sp, #13*4
 
+        // XXX: use rfe here
 	/* Return */
 	ldr	lr, [sp, #RF(PSR,0)]
 	msr	spsr_cfsx, lr
@@ -235,13 +196,13 @@ fast_ret_from_irq:
 	movs	pc, lr
 .endm
 
-
 /**************************************************************************
  * The Exception vector table.
  */
 .section	.vect,"a"
 .globl	exception_vector
 exception_vector:
+#ifndef CONFIG_ARM_EM_TZ
 	nop				/* RESET	*/
 	b	undef_entry		/* UNDEF	*/
 	b	swi_entry		/* SWI		*/
@@ -250,7 +211,28 @@ exception_vector:
 	nop				/* reserved	*/
 	b	irq_entry		/* IRQ		*/
 	b	fiq_entry		/* FIQ		*/
+#else
+	nop				/* RESET	*/
+	adr     pc, (fiq_b_vector + 8)	/* UNDEF	*/
+	adr     pc, (fiq_b_vector + 16)	/* SWI		*/
+	adr     pc, (fiq_b_vector + 24) /* IABORT	*/
+	adr     pc, (fiq_b_vector + 32) /* DABORT	*/
+	nop				/* reserved	*/
+	b       irq_entry               /* IRQ   	*/
+	b	fiq_entry		/* FIQ		*/
 
+fiq_b_vector:
+	nop                             /* RESET	*/
+        nop
+	cpsid f
+        b	undef_entry		/* UNDEF	*/
+	cpsid f
+	b	swi_entry		/* SWI		*/
+	cpsid f
+	b	inst_abort_entry	/* IABORT	*/
+	cpsid f
+	b	data_abort_entry	/* DABORT	*/
+#endif
 
 /* locations to pass lr and spsr from one mode to the other
    these are globally shared !!! */
@@ -286,9 +268,9 @@ undef_entry:
  */
 swi_entry:
 	switch_to_kernel 0 0 0
+	exceptionframe
 	enter_sys_call no_sys_call
 no_sys_call:
-	exceptionframe
 	enter_slowtrap 0x00200000
 
 .align 4
@@ -542,14 +524,80 @@ irq_entry:
  *    Exception is a fast interrupt.
  *
  */
+
+#ifdef CONFIG_ARM_EM_TZ
+.pc_adjust_map_arm:
+	.long 0    /* RESET	*/
+	.long 4    /* UNDEF	*/
+	.long 4	   /* SWI	*/
+	.long 4    /* IABORT	*/
+	.long 8    /* DABORT	*/
+.pc_adjust_map_thumb:
+	.long 0    /* RESET	*/
+	.long 2    /* UNDEF	*/
+	.long 4	   /* SWI	*/
+	.long 4    /* IABORT	*/
+	.long 8    /* DABORT	*/
+#endif // ARM_EM_TZ
+
 fiq_entry:
-	switch_to_kernel 4 1 1
+#ifdef CONFIG_ARM_EM_TZ
+	mrs	r8, spsr
+	and	r9, r8, #0x1f
+	cmp	r9, #0x10
+	beq	9f
+
+	mov	r10, r0
+
+	cmp	r9, #0x13
+	bne	8f
+
+	cps	#0x13
+	mov	r0, sp
+	cps	#0x11
+	mov	r11, r0
+	mov	r0, r10 // restore
+
+	tst	r11, #0x0ff
+	tsteq	r11, #0xf00
+	bne	9f
+
+8:
+	sub	r12, lr, #4
+	movw	r11, #(fiq_b_vector - exception_vector)
+	movt	r11, #0xffff
+	cmp	r12, r11
+	subge	r12, r12, r11
+	lsrge	r12, #1
+	and	r12, r12, #0x1f
+
+	tst	r8, #0x20
+	adreq	r0, .pc_adjust_map_arm
+	adrne	r0, .pc_adjust_map_thumb
+	ldr	r0, [r0, r12]
+
+	orr	r9, #0xc0
+	msr	cpsr_c, r9
+
+	sub	lr, lr, r0
+	srsdb	#0x13!
+	cps	#0x13
+	str	lr, [sp, #-4]!
+
 	exceptionframe
 
-	stmdb   sp!, {r0 - r3, r12}   	@ Stack rest of user state
-	@ add r0, sp, #(5*4) @ debug
-	mov     lr, pc
-	ldr     pc, 1f
+	cps	#0x11
+	mov	r0, r10
+	cps	#0x13
+	b	7f
+9:
+#endif // ARM_EM_TZ
+	switch_to_kernel 4 1 1
+	exceptionframe
+7:
+	stmdb	sp!, {r0 - r3, r12}   	@ Stack rest of user state
+	mov	lr, pc
+	ldr	pc, 1f
 	ldmia	sp, {r0 - r3, r12}		@ Restore user state
 	msr	cpsr_c, #0xd3 // disable IRQs
 	add	sp, sp, #20
@@ -593,108 +641,19 @@ alien_syscall: @ Do it for an alien ---------------------------------------
 /*****************************************************************************/
 /* The syscall table stuff                                                   */
 /*****************************************************************************/
-#define SYSCALL(name) .word sys_##name##_wrapper
+GEN_SYSCALL_TABLE
+GEN_LEAVE_BY_TRIGGER_EXCEPTION
 
-.globl sys_call_table
-sys_call_table:
-	.word sys_kdb_ke
-	.word sys_kdb_ke
-/*SYSCALL(ipc)*/
-	.word sys_ipc_wrapper
-	.word sys_arm_mem_op
-SYSCALL(invoke_debug)
-	.word sys_kdb_ke
-	.word sys_kdb_ke
-	.word sys_kdb_ke
-	.word sys_kdb_ke
-	.word sys_kdb_ke
-	.word sys_kdb_ke
+.macro LOAD_USR_SP vcpu_ptr
+        add  r0, \vcpu_ptr, #(OFS__VCPU_STATE__ENTRY_SP)
+        ldm  r0, {sp}^
+.endm
 
-	.align 4	
-	.global leave_by_trigger_exception
+.macro LOAD_USR_VCPU reg, kvcpu, thread
+        mov  \reg, \kvcpu
+.endm
 
-leave_by_trigger_exception:
-	sub 	sp, sp, #RF_SIZE   @ restore old return frame
-	stmdb 	sp!, {r0 - r12}
-
-	make_tpidruro_space sp
-
-	/* restore original IP */
-	CONTEXT_OF r1, sp
-	ldr 	r0, [r1, #(OFS__THREAD__EXCEPTION_IP)]
-	str	r0, [sp, #RF(PC, 14*4)]
-
-	ldr	r0, [r1, #(OFS__THREAD__EXCEPTION_PSR)]
-	str	r0, [sp, #RF(PSR, 14*4)]
-
-	mov     r0, #~0
-	str	r0, [r1, #(OFS__THREAD__EXCEPTION_IP)]
-
-	enter_slowtrap_w_stack 0x00500000
-
-	.align 4	
-	.global leave_by_vcpu_upcall;
-
-leave_by_vcpu_upcall:
-	sub 	sp, sp, #RF_SIZE   @ restore old return frame
-        /* save r0, r1, r2 for scratch registers */
-	stmdb 	sp!, {r0 - r2}
-
-	/* restore original IP */
-	CONTEXT_OF r1, sp
-
-	/* access_vcpu() for the local case */
-	ldr	r2, [r1, #(OFS__THREAD__USER_VCPU)]
-	add	r2, r2, #(VAL__SIZEOF_TRAP_STATE - RF_SIZE)
-
-	/* r1 = current() */
-	/* r2 = &vcpu_state->ts.r[13] */
-
-	ldr 	r0, [r1, #(OFS__THREAD__EXCEPTION_IP)]
-	str	r0, [r2, #RF(PC, 0)]
-
-	ldr	r0, [r1, #(OFS__THREAD__EXCEPTION_PSR)]
-	str	r0, [r2, #RF(PSR, 0)]
-	bic	r0, #0x20 // force ARM mode
-	str	r0, [sp, #RF(PSR, 3*4)]
-
-	mov     r0, #~0
-	str	r0, [r1, #(OFS__THREAD__EXCEPTION_IP)]
-
-	ldr	r0, [sp, #RF(USR_LR, 3*4)]
-	str	r0, [r2, #RF(USR_LR, 0)]
-
-	ldr	r0, [sp, #RF(USR_SP, 3*4)]
-	str	r0, [r2, #RF(USR_SP, 0)]
-
-	stmdb   r2!, {r3-r12}
-
-	/* Restore scratch registers saved previously */
-	ldr	r0, [sp, #8]
-	str	r0, [r2, #-4]
-
-	ldr	r0, [sp, #4]
-	str	r0, [r2, #-8]
-
-	ldr	r0, [sp]
-	str	r0, [r2, #-12]!
-
-	add	sp, sp, #(3*4)
-
-	/* r2 = &vcpu_state->ts.r[0] */
-	/* r2 - 12 ->  pfa, err & tpidruro -> &vcpu_state->ts */
-	add	r0, r2, #(-12 + OFS__VCPU_STATE__ENTRY_SP)
-	ldm	r0, {sp}^
-
-	ldr	r0, [r2, #(-12 + OFS__VCPU_STATE__ENTRY_IP)]
-
-	str	r0, [sp, #RF(PC, 0)]
-
-        /* r0 needs to be vcpu_state */
-	add	r0, r2, #(-12)
-
-	b	__iret
-
+GEN_VCPU_UPCALL OFS__THREAD__USER_VCPU, LOAD_USR_SP, LOAD_USR_VCPU
 
 kernel_prefetch_abort_label: .string "Kernel prefetch abort"
 missed_excpt_ret_label:      .string "ERROR in exception return"
@@ -703,74 +662,16 @@ fiq_label:	             .string "FIQ entry"
 /**********************************************************************
 	kdebug entry
  **********************************************************************/
-
-.macro DEBUGGER_ENTRY type
-#ifdef CONFIG_JDB
-	str	sp, [sp, #(RF(USR_SP, -RF_SIZE))] @ save r[13]
-	sub	sp, sp, #(RF_SIZE)
-
-	str	lr, [sp, #RF(SVC_LR, 0)]
-	str	lr, [sp, #RF(PC, 0)]
-        mrs	lr, cpsr
-	str	lr, [sp, #RF(PSR, 0)]
-
-	stmdb	sp!, {r0 - r12}
-	make_tpidruro_space sp
-	mov	r0, #-1			@ pfa
-	mov	r1, #0x00e00000		@ err
-	orr	r1, #\type		@ + type
-	stmdb	sp!, {r0, r1}
-
-	mov	r0, sp
-	adr	lr, 1f
-	ldr	pc, 3f
-
-1:
-	add	sp, sp, #12		@ pfa, err and tpidruro
-	ldmia	sp!, {r0 - r12}
-	ldr	lr, [sp, #RF(PSR, 0)]
-	msr	cpsr, lr
-	ldr	lr, [sp, #RF(SVC_LR, 0)]
-
-	ldr	sp, [sp, #(RF(USR_SP, 0))]
-	mov	pc, lr
+GEN_DEBUGGER_ENTRIES
 
 
-3:	.word call_nested_trap_handler
-#else
-	mov	pc, lr
-#endif
-.endm
-
-	.global	kern_kdebug_entry
-	.align 4
-kern_kdebug_entry:
-	DEBUGGER_ENTRY 0
-
-	.global	kern_kdebug_sequence_entry
-	.align 4
-kern_kdebug_sequence_entry:
-	DEBUGGER_ENTRY 1
-
-
-#ifdef CONFIG_MP
-	.section ".text"
-	.global	kern_kdebug_ipi_entry
-	.align 4
-kern_kdebug_ipi_entry:
-	DEBUGGER_ENTRY 2
-	.previous
-#endif
-
-
-
-#ifdef CONFIG_ARM_TZ
+#ifdef CONFIG_ARM_EM_TZ
 
 .macro ISB_OP reg
 #ifdef CONFIG_ARM_V7
 	isb
 #else
-	mcr p15, 0, lr, c7, c5, 4	@ cp15isb
+	mcr p15, 0, \reg, c7, c5, 4	@ cp15isb
 #endif
 .endm
 
@@ -784,9 +685,8 @@ kern_kdebug_ipi_entry:
 	str	lr, [sp,#-12]
 	
 	// switch to secure world
-	mov	lr, #0
-	mcr	p15, 0, lr, c1, c1, 0
-	
+	SWITCH_TO_SECURE_MODE lr
+
 	// save gen-regs
 	ldr	lr, [sp, #\off]
 	//add	lr, lr, #8
@@ -803,7 +703,7 @@ kern_kdebug_ipi_entry:
 	stmia	r0!, {sp, lr}
 	mrs	r1, spsr
 	stmia	r0!, {r1}
-	
+
 	// fiq
 	cps	#0x11
 	stmia	r0!, {r8 - r12, sp, lr}
@@ -821,82 +721,44 @@ kern_kdebug_ipi_entry:
 	stmia	r0!, {sp, lr}
 	mrs	r1, spsr
 	stmia	r0!, {r1}
-	
+
 	// svc
 	cps	#0x13
 	stmia	r0!, {sp, lr}
 	mrs	r1, spsr
 	stmia	r0!, {r1}
-	
+
 	cps	#0x16
-	
+
 	// copy return pc/cpsr from stack
 	sub	lr, sp, #8
 	ldmia	lr, {r1, r2}
 	stmia	r0!, {r1, r2}
 	
 	// save pending virtual interrupt state
-	mrc	p15, 0, r1, c12, c1, 1	
+	mrc	p15, 0, r1, c12, c1, 0
 	stmia	r0!, {r1}
+
+        mrc     p15, 0, r1, c1, c0, 2 @ cpacr
+        str     r1, [r0], #4
+
+#ifdef CONFIG_FPU
+        mov     r1, #0x500000 @ enable CP10/11
+        mcr     p15, 0, r1, c1, c0, 2 @ cpacr
+#endif
 
 	// switch to non-secure world
-	mov	r1, #1
-	mcr	p15, 0, r1, c1, c1, 0
-	ISB_OP	r1
-	
-	mrc	p15, 0, r1, c2, c0, 0	@ read CP15_TTB0
-	stmia	r0!, {r1}
+	SWITCH_TO_NONSECURE_MODE r1
 
-	mrc	p15, 0, r1, c2, c0, 1	@ read CP15_TTB1
-	stmia	r0!, {r1}
-
-	mrc	p15, 0, r1, c2, c0, 2	@ read CP15_TTBC
-	stmia	r0!, {r1}
-
-	mrc	p15, 0, r1, c12, c0, 0	@ read CP15_VECTOR_BASE
-	stmia	r0!, {r1}
-
-	mrc	p15, 0, r1, c5, c0, 0	@ read CP15_DFSR
-	stmia	r0!, {r1}
-
-	mrc	p15, 0, r1, c6, c0, 0	@ read CP15_DFAR
-	stmia	r0!, {r1}
-
-	mrc	p15, 0, r1, c5, c0, 1	@ read CP15_IFSR
-	stmia	r0!, {r1}
-
-	mrc	p15, 0, r1, c6, c0, 2	@ read CP15_IFAR
-	stmia	r0!, {r1}
-
-	mrc	p15, 0, r1, c1, c0, 0	@ read CP15_CONTROL
-	stmia	r0!, {r1}
-
-	mrc	p15, 0, r1, c10, c2, 0	@ read CP15_PRIM_REGION_REMAP
-	stmia	r0!, {r1}
-
-	mrc	p15, 0, r1, c10, c2, 1	@ read CP15_NORM_REGION_REMAP
-	stmia	r0!, {r1}
-
-	mrc	p15, 0, r1, c13, c0, 1	@ read CP15_CID
-	stmia	r0!, {r1}
-
-	// tls regs are banked
-	mrc	p15, 0, r1, c13, c0, 2	@ read CP15_TLS1
-	stmia	r0!, {r1}
-
-	mrc	p15, 0, r1, c13, c0, 3	@ read CP15_TLS2
-	stmia	r0!, {r1}
-
-	mrc	p15, 0, r1, c13, c0, 4	@ read CP15_TLS3
-	stmia	r0!, {r1}
-
+#ifdef CONFIG_FPU
 	mrc	p10, 7, r1, cr8, cr0, 0 @ fpexc
 	stmia	r0!, {r1}
+#else
+	add	r0, #4
+#endif
 
 	// switch to secure world
-	mov	r1, #0
-	mcr	p15, 0, r1, c1, c1, 0
-	ISB_OP	r1
+        SWITCH_TO_SECURE_MODE r1
 	
 	mrc	p15, 0, r1, c5, c0, 0	@ read CP15_DFSR
 	stmia	r0!, {r1}
@@ -909,8 +771,8 @@ kern_kdebug_ipi_entry:
 	stmia	r0!,{r1}
 .endm
 
-.macro RESTORE_NONSECURE_STATE off
-	
+.macro RESTORE_AND_SWITCH_TO_NONSECURE_STATE off
+
 	ldr	r0, [sp, #\off]
 
 	// jump over general purpose register
@@ -925,7 +787,7 @@ kern_kdebug_ipi_entry:
 	ldmia	r0!, {sp, lr}
 	ldmia	r0!, {r1}
 	msr	spsr, r1
-	
+
 	// fiq
 	cps	#0x11
 	ldmia	r0!, {r8 - r12, sp, lr}
@@ -936,7 +798,7 @@ kern_kdebug_ipi_entry:
 	cps	#0x17
 	ldmia	r0!, {sp, lr}
 	ldmia	r0!, {r1}
-	mrs	r1, spsr
+	msr	spsr, r1
 
 	// und
 	cps	#0x1b
@@ -956,70 +818,20 @@ kern_kdebug_ipi_entry:
 	ldmia	r0!, {r1, r2}
 	stmdb	sp, {r1, r2}
 
-	// set pending events
-	ldmia	r0!, {r1}
-	and	r1, r1, #0x1c0
-	mcr	p15, 0, r1, c12, c1, 1
+	// skip pending events field
+	add	r0, #4
 
-#if 1
+        ldr     r1, [r0], #4
+        mrc     p15, 0, r1, c1, c0, 2 @ cpacr
+
 	// switch to non-secure world
-	mov	r1, #1
-	mcr	p15, 0, r1, c1, c1, 0
-	ISB_OP	r1
+	SWITCH_TO_NONSECURE_MODE r1
 
+#ifdef CONFIG_FPU
 	ldmia	r0!, {r1}
-	mcr	p15, 0, r1, c2, c0, 0	@ write CP15_TTB0
-
-	ldmia	r0!, {r1}
-	mcr	p15, 0, r1, c2, c0, 1	@ write CP15_TTB1
-
-	ldmia	r0!, {r1}
-	mcr	p15, 0, r1, c2, c0, 2	@ write CP15_TTBC
-
-	ldmia	r0!, {r1}
-	mcr	p15, 0, r1, c12, c0, 0	@ write CP15_VECTOR_BASE
-
-	ldmia	r0!, {r1}
-	mcr	p15, 0, r1, c5, c0, 0	@ write CP15_DFSR
-
-	ldmia	r0!, {r1}
-	mcr	p15, 0, r1, c6, c0, 0	@ write CP15_DFAR
-
-	ldmia	r0!, {r1}
-	mcr	p15, 0, r1, c5, c0, 1	@ write CP15_IFSR
-
-	ldmia	r0!, {r1}
-	mcr	p15, 0, r1, c6, c0, 2	@ write CP15_IFAR
-
-	ldmia	r0!, {r1}
-	mcr	p15, 0, r1, c1, c0, 0	@ write CP15_CONTROL
-
-	ldmia	r0!, {r1}
-	mcr	p15, 0, r1, c10, c2, 0	@ write CP15_PRIM_REGION_REMAP
-
-	ldmia	r0!, {r1}
-	mcr	p15, 0, r1, c10, c2, 1	@ write CP15_NORM_REGION_REMAP
-
-	ldmia	r0!, {r1}
-	mcr	p15, 0, r1, c13, c0, 1	@ write CP15_CID
-
-	// tls regs are banked
-	ldmia	r0!, {r1}
-	mcr	p15, 0, r1, c13, c0, 2	@ write CP15_TLS1
-
-	ldmia	r0!, {r1}
-	mcr	p15, 0, r1, c13, c0, 3	@ write CP15_TLS2
-
-	ldmia	r0!, {r1}
-	mcr	p15, 0, r1, c13, c0, 4	@ write CP15_TLS3
-
-	ldmia	r0!, {r1}
-        mcr p10, 7, r1, cr8, cr0, 0     @ fpexc
-
-	// switch to secure world
-	mov	r1, #0
-	mcr	p15, 0, r1, c1, c1, 0
-	ISB_OP	r1
+	mcr	p10, 7, r1, cr8, cr0, 0     @ fpexc
+#else
+	add	r0, #4
 #endif
 
 	// load gen-regs
@@ -1036,6 +848,8 @@ kern_kdebug_ipi_entry:
  */
 .macro SAVE_SECURE_STATE
 
+        mrc p15, 0, r5, c1, c0, 2
+        str     r5, [sp, #-4]!
 	stmdb	sp!, {r3, r4}	@ save supervisor return values
 	stmdb	sp, {sp, lr}^	@ save user-level return values
 	sub	sp, sp, #8
@@ -1055,34 +869,20 @@ kern_kdebug_ipi_entry:
 	ldmia	sp, {sp, lr}^	@ restore user-level return values
 	add	sp, sp, #8
 	ldmia	sp!, {r3, r4}	@ restore supervisor return values
+        ldr     r0, [sp], #4
+        mcr p15, 0, r0, c1, c0, 2
 .endm
 
-/**********************************************************************
- * Restore secure state when guest is interrupted by FIQ
- *
- * Don't remove secure state from stack as we need it
- * when application guest exits.
- * Just restore user-level state as this is spilled by the irq handler
- */
-.macro RESTORE_SECURE_STATE_FIQ
-
-	mov	r0, sp		@ restore stack pointer from supervisor mode
-	cps	#0x13
-	mov	sp, r0
-	cps	#0x16
-	ldmia	sp, {sp, lr}^	@ restore user-level return values
+.macro SWITCH_TO_NONSECURE_MODE reg
+	movw	\reg, #0x12d
+	mcr	p15, 0, \reg, c1, c1, 0
+	ISB_OP	\reg
 .endm
 
-.macro SWITCH_TO_NONSECURE_MODE
-	mov	lr, #0xf
-	mcr	p15, 0, lr, c1, c1, 0
-	ISB_OP	lr
-.endm
-
-.macro SWITCH_TO_SECURE_MODE
-	mov	lr, #0x0
-	mcr	p15, 0, lr, c1, c1, 0
-	ISB_OP	lr
+.macro SWITCH_TO_SECURE_MODE reg
+	mov	\reg, #0x100
+	mcr	p15, 0, \reg, c1, c1, 0
+	ISB_OP	\reg
 .endm
 
 
@@ -1101,38 +901,22 @@ monitor_vector_base:
 	b	mon_irq_entry		/* IRQ		*/
 	b	mon_fiq_entry		/* FIQ		*/
 
+.macro mon_enter_secure name, ec, sub_lr
+\name:
+.if \sub_lr
+        sub     lr, lr, #\sub_lr
+.endif
+        srsdb   sp, #0x16
+        mov     lr, #\ec
+        b       go_secure
+.endm
 
-mon_undef_entry:
-1:	b 1b
-
-mon_swi_entry:
-	srsdb	sp, #0x16		@ save return state temporarily on stack
-	mov	lr, #1			@ set exit reason
-	b	go_secure
-	
-mon_inst_abort_entry:
-	sub	lr, lr, #4
-	srsdb	sp, #0x16
-	mov	lr, #2			@ set exit reason
-	b	go_secure
-	
-mon_data_abort_entry:
-	sub	lr, lr, #4
-	srsdb	sp, #0x16
-	mov	lr, #3			@ set exit reason
-	b	go_secure
-	
-mon_irq_entry:
-	sub	lr, lr, #4
-	srsdb	sp, #0x16
-	mov	lr, #4			@ set exit reason
-	b	go_secure
-
-mon_fiq_entry:
-	sub	lr, lr, #4		@ adjust saved ip
-	srsdb	sp, #0x16
-	mov	lr, #4			@ set exit reason
-	b	go_secure
+mon_enter_secure mon_undef_entry,      6, 4
+mon_enter_secure mon_swi_entry,        1, 0
+mon_enter_secure mon_inst_abort_entry, 2, 4
+mon_enter_secure mon_data_abort_entry, 3, 8
+mon_enter_secure mon_irq_entry,        4, 4
+mon_enter_secure mon_fiq_entry,        5, 4
 
 //	cps	#0x12			@ switch to irq mode
 //	adr	lr, go_nonsecure_after_fiq + 4			@ set lr_irq
@@ -1144,7 +928,7 @@ mon_fiq_entry:
  *
  */
 go_secure:
-	SAVE_NONSECURE_STATE 16
+	SAVE_NONSECURE_STATE 20
 	RESTORE_SECURE_STATE
 	
 	mov	lr, r3
@@ -1168,17 +952,13 @@ go_secure:
 .globl go_nonsecure
 go_nonsecure:
 	SAVE_SECURE_STATE
-	RESTORE_NONSECURE_STATE 16
-	SWITCH_TO_NONSECURE_MODE
-
-//	mcr p15, 0, lr, c7, c10, 4	@ drain write buffer
-//	mcr p15, 0, lr, c8, c7, 0	@ flush TLB entry
+	RESTORE_AND_SWITCH_TO_NONSECURE_STATE 20
 
 	ldr	lr, [sp, #-4]
 	msr	spsr, lr		@ set spsr_mon with unsecure spsr
 	ldr	lr, [sp, #-8]		@ set lr_mon with unsecure ip
 	movs	pc, lr
-#endif
+#endif /* TRUSTZONE */
 
 /* -------------------------------------- TEXT ---------------------------*/
 

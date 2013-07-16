@@ -2,7 +2,7 @@ INTERFACE:
 
 #include "types.h"
 #include "l4_fpage.h"
-#include <bitfield>
+#include <cxx/bitfield>
 
 /**
  * The first word of a message item, either a send item or a receive buffer.
@@ -93,13 +93,21 @@ public:
    *
    * These flags are to control the caching attributes of memory mappings.
    */
-  enum Memory_attribs
+  struct Memory_type
+  : cxx::int_type_base<unsigned char, Memory_type>,
+    cxx::int_bit_ops<Memory_type>
   {
-    Caching_opt = 0x10, ///< This flag denotes the presence of a cachability option
-    Cached      = 0x30, ///< Map the memory cachable
-    Buffered    = 0x50, ///< Map the memory bufferable (write combining in Intel speech)
-    Uncached    = 0x10, ///< Map the memory fully uncachable
+    Memory_type() = default;
+    explicit Memory_type(unsigned char v)
+    : cxx::int_type_base<unsigned char, Memory_type>(v) {}
+
+    static Memory_type Set() { return Memory_type(0x10); }
+    static Memory_type Normal() { return Memory_type(0x20); }
+    static Memory_type Buffered() { return Memory_type(0x40); }
+    static Memory_type Uncached() { return Memory_type(0x00); }
   };
+
+  Memory_type mem_type() const { return Memory_type(attr() & 0x70); }
 
   enum Type
   {
@@ -167,7 +175,8 @@ public:
    * \return the flex page (L4_fpage) representing the single
    *         object slot with index index().
    */
-  L4_fpage get_small_buf() { return L4_fpage::obj(_raw, 0, attr() >> 4); }
+  L4_fpage get_small_buf()
+  { return L4_fpage::obj(_raw, 0, L4_fpage::Rights(attr() >> 4)); }
 
   /**
    * Create a map item.

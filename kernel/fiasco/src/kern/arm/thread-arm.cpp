@@ -5,7 +5,7 @@ class Trap_state;
 EXTENSION class Thread
 {
 public:
-  static void init_per_cpu(unsigned cpu);
+  static void init_per_cpu(Cpu_number cpu);
 private:
   bool _in_exception;
 
@@ -80,7 +80,7 @@ Thread::fast_return_to_user(Mword ip, Mword sp, Vcpu_state *arg)
 
 IMPLEMENT_DEFAULT inline
 void
-Thread::init_per_cpu(unsigned)
+Thread::init_per_cpu(Cpu_number)
 {}
 
 
@@ -102,8 +102,9 @@ Thread::user_invoke()
   Mem::memset_mwords(&ts->r[0], 0, sizeof(ts->r) / sizeof(ts->r[0]));
 
   if (current()->space()->is_sigma0())
-    ts->r[0] = Kmem_space::kdir()->walk(Kip::k(), 0, false, Ptab::Null_alloc(),
-                                        0).phys(Kip::k());
+    ts->r[0] = Mem_space::kernel_space()->virt_to_phys((Address)Kip::k());
+
+  ts->psr |= Proc::Status_always_mask;
 
   extern char __return_from_exception;
 
@@ -130,11 +131,10 @@ IMPLEMENT inline NEEDS["space.h", <cstdio>, "types.h" ,"config.h"]
 bool Thread::handle_sigma0_page_fault( Address pfa )
 {
   return (mem_space()->v_insert(
-	Mem_space::Phys_addr::create((pfa & Config::SUPERPAGE_MASK)),
-	Mem_space::Addr::create(pfa & Config::SUPERPAGE_MASK),
-	Mem_space::Size(Config::SUPERPAGE_SIZE),
-	Mem_space::Page_writable | Mem_space::Page_user_accessible
-	| Mem_space::Page_cacheable)
+	Mem_space::Phys_addr((pfa & Config::SUPERPAGE_MASK)),
+	Virt_addr(pfa & Config::SUPERPAGE_MASK),
+	Virt_order(Config::SUPERPAGE_SHIFT) /*mem_space()->largest_page_size()*/,
+	Mem_space::Attr(L4_fpage::Rights::URWX()))
       != Mem_space::Insert_err_nomem);
 }
 
@@ -189,7 +189,8 @@ extern "C" {
     if (EXPECT_FALSE(PF::is_alignment_error(error_code)))
       {
 	printf("KERNEL%d: alignment error at %08lx (PC: %08lx, SP: %08lx, FSR: %lx, PSR: %lx)\n",
-               current_cpu(), pfa, pc, ret_frame->usp, error_code, ret_frame->psr);
+               cxx::int_value<Cpu_number>(current_cpu()), pfa, pc,
+               ret_frame->usp, error_code, ret_frame->psr);
         return false;
       }
 
@@ -204,7 +205,7 @@ extern "C" {
         Proc::sti();
       }
     // or interrupts were enabled
-    else if (!(ret_frame->psr & Proc::Status_IRQ_disabled))
+    else if (!(ret_frame->psr & Proc::Status_preempt_disabled))
       Proc::sti();
 
       // Pagefault in kernel mode and interrupts were disabled
@@ -474,7 +475,7 @@ Thread::do_trigger_exception(Entry_frame *r, void *ret_handler)
 PRIVATE static inline NEEDS[Thread::get_ts_tpidruro]
 bool FIASCO_WARN_RESULT
 Thread::copy_utcb_to_ts(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
-                        unsigned char rights)
+                        L4_fpage::Rights rights)
 {
   Trap_state *ts = (Trap_state*)rcv->_utcb_handler;
   Utcb *snd_utcb = snd->utcb().access();
@@ -513,10 +514,10 @@ Thread::copy_utcb_to_ts(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
 	}
     }
 
-  if (tag.transfer_fpu() && (rights & L4_fpage::W))
+  if (tag.transfer_fpu() && (rights & L4_fpage::Rights::W()))
     snd->transfer_fpu(rcv);
 
-  if ((tag.flags() & 0x8000) && (rights & L4_fpage::W))
+  if ((tag.flags() & 0x8000) && (rights & L4_fpage::Rights::W()))
     rcv->utcb().access()->user[2] = snd_utcb->values[25];
 
   rcv->get_ts_tpidruro(ts);
@@ -533,7 +534,7 @@ PRIVATE static inline NEEDS[Thread::save_fpu_state_to_utcb,
                             Thread::set_ts_tpidruro]
 bool FIASCO_WARN_RESULT
 Thread::copy_ts_to_utcb(L4_msg_tag const &, Thread *snd, Thread *rcv,
-                        unsigned char rights)
+                        L4_fpage::Rights rights)
 {
   Trap_state *ts = (Trap_state*)snd->_utcb_handler;
 
@@ -556,7 +557,7 @@ Thread::copy_ts_to_utcb(L4_msg_tag const &, Thread *snd, Thread *rcv,
         rcv_utcb->values[20] = ts->psr;
       }
 
-    if (rcv_utcb->inherit_fpu() && (rights & L4_fpage::W))
+    if (rcv_utcb->inherit_fpu() && (rights & L4_fpage::Rights::W()))
       snd->transfer_fpu(rcv);
 
     save_fpu_state_to_utcb(ts, rcv_utcb);
@@ -704,7 +705,7 @@ public:
   Thread_remote_rq_irq()
   { set_hit(&handler_wrapper<Thread_remote_rq_irq>); }
 
-  void switch_mode(unsigned) {}
+  void switch_mode(bool) {}
 };
 
 class Thread_glbl_remote_rq_irq : public Irq_base
@@ -717,7 +718,7 @@ public:
   Thread_glbl_remote_rq_irq()
   { set_hit(&handler_wrapper<Thread_glbl_remote_rq_irq>); }
 
-  void switch_mode(unsigned) {}
+  void switch_mode(bool) {}
 };
 
 class Thread_debug_ipi : public Irq_base
@@ -733,8 +734,27 @@ public:
   Thread_debug_ipi()
   { set_hit(&handler_wrapper<Thread_debug_ipi>); }
 
-  void switch_mode(unsigned) {}
+  void switch_mode(bool) {}
 };
+
+class Thread_timer_tick_ipi : public Irq_base
+{
+public:
+  void handle(Upstream_irq const *ui)
+  {
+    //Timer_tick *self = nonull_static_cast<Timer_tick *>(_s);
+    //self->ack();
+    ui->ack();
+    //self->log_timer();
+    current_thread()->handle_timer_interrupt();
+  }
+
+  Thread_timer_tick_ipi()
+  { set_hit(&handler_wrapper<Thread_timer_tick_ipi>); }
+
+  void switch_mode(bool) {}
+};
+
 
 //-----------------------------------------------------------------------------
 IMPLEMENTATION [mp && !irregular_gic]:
@@ -744,14 +764,16 @@ class Arm_ipis
 public:
   Arm_ipis()
   {
-    Irq_mgr::mgr->alloc(&remote_rq_ipi, Ipi::Request);
-    Irq_mgr::mgr->alloc(&glbl_remote_rq_ipi, Ipi::Global_request);
-    Irq_mgr::mgr->alloc(&debug_ipi, Ipi::Debug);
+    check(Irq_mgr::mgr->alloc(&remote_rq_ipi, Ipi::Request));
+    check(Irq_mgr::mgr->alloc(&glbl_remote_rq_ipi, Ipi::Global_request));
+    check(Irq_mgr::mgr->alloc(&debug_ipi, Ipi::Debug));
+    check(Irq_mgr::mgr->alloc(&timer_ipi, Ipi::Timer));
   }
 
   Thread_remote_rq_irq remote_rq_ipi;
   Thread_glbl_remote_rq_irq glbl_remote_rq_ipi;
   Thread_debug_ipi debug_ipi;
+  Thread_timer_tick_ipi timer_ipi;
 };
 
 static Arm_ipis _arm_ipis;

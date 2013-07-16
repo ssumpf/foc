@@ -1,7 +1,7 @@
 INTERFACE [sched_fixed_prio || sched_fp_wfq]:
 
 #include "config.h"
-#include <dlist>
+#include <cxx/dlist>
 #include "member_offs.h"
 #include "types.h"
 #include "globals.h"

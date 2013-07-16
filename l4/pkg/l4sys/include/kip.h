@@ -4,7 +4,7 @@
  * \ingroup l4_api
  */
 /*
- * (c) 2008-2009 Adam Lackorzynski <adam@os.inf.tu-dresden.de>,
+ * (c) 2008-2013 Adam Lackorzynski <adam@os.inf.tu-dresden.de>,
  *               Alexander Warg <warg@os.inf.tu-dresden.de>
  *     economic rights: Technische Universität Dresden (Germany)
  *
@@ -26,14 +26,16 @@
 #include <l4/sys/compiler.h>
 #include <l4/sys/l4int.h>
 
+#include <l4/sys/__kip-arch.h>
+
 /**
  * \internal
  */
 struct l4_kip_platform_info
 {
-  l4_umword_t cpuid;     ///< reserved \internal
-  l4_umword_t mp;        ///< reserved \internal
-  char        name[16];
+  char                             name[16];
+  l4_uint32_t                      is_mp;
+  struct l4_kip_platform_info_arch arch;
 };
 
 #if L4_MWORD_BITS == 32
@@ -41,9 +43,6 @@ struct l4_kip_platform_info
 #else
 #  include <l4/sys/__kip-64bit.h>
 #endif
-
-
-
 
 /**
  * \addtogroup l4_kip_api

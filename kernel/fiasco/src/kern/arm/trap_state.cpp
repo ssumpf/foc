@@ -34,7 +34,7 @@ void
 Trap_state::sanitize_user_state()
 {
   psr &= ~(Proc::Status_mode_mask | Proc::Status_interrupts_mask);
-  psr |= Proc::Status_mode_user;
+  psr |= Proc::Status_mode_user | Proc::Status_always_mask;
 }
 
 PUBLIC inline

@@ -5,7 +5,7 @@
 
 INTERFACE [sched_fixed_prio]:
 
-#include <dlist>
+#include <cxx/dlist>
 #include "member_offs.h"
 #include "types.h"
 #include "globals.h"

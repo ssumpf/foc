@@ -13,7 +13,6 @@ IMPLEMENTATION [arm]:
 #include "initcalls.h"
 #include "kmem_alloc.h"
 #include "kip_init.h"
-#include "pagetable.h"
 #include "kdb_ke.h"
 #include "kernel_thread.h"
 #include "kernel_task.h"
@@ -118,22 +117,23 @@ int boot_ap_cpu() __asm__("BOOT_AP_CPU");
 
 int boot_ap_cpu()
 {
-  static unsigned last_cpu; // keep track of the last cpu ever appeared
+  static Cpu_number last_cpu; // keep track of the last cpu ever appeared
 
-  unsigned _cpu = Cpu::cpus.find_cpu(Cpu::By_phys_id(Proc::cpu_id()));
+  Cpu_number _cpu = Cpu::cpus.find_cpu(Cpu::By_phys_id(Proc::cpu_id()));
   bool cpu_is_new = false;
-  if (_cpu == ~0U)
+  if (_cpu == Cpu_number::nil())
     {
       _cpu = ++last_cpu; // 0 is the boot cpu, so pre increment
       cpu_is_new = true;
     }
 
-  assert (_cpu != 0);
+  assert (_cpu != Cpu_number::boot_cpu());
 
   if (cpu_is_new && !Per_cpu_data_alloc::alloc(_cpu))
     {
       extern Spin_lock<Mword> _tramp_mp_spinlock;
-      printf("CPU allocation failed for CPU%u, disabling CPU.\n", _cpu);
+      printf("CPU allocation failed for CPU%u, disabling CPU.\n",
+             cxx::int_value<Cpu_number>(_cpu));
       _tramp_mp_spinlock.clear();
 
       // FIXME: use a Platform_control API to stop the CPU

@@ -19,9 +19,9 @@ public:
   struct Find_cpu
   {
     Item const *r;
-    mutable unsigned cpu;
+    mutable Cpu_number cpu;
     Find_cpu(Item const *i) : r(i), cpu(~0U) {}
-    void operator()(unsigned _cpu) const
+    void operator()(Cpu_number _cpu) const
     {
       if (&Mp_request_queue::rq.cpu(_cpu) == r)
         {
@@ -35,11 +35,11 @@ public:
 static Jdb_mp_request_module jdb_mp_request_module INIT_PRIORITY(JDB_MODULE_INIT_PRIO);
 
 PRIVATE static
-unsigned
+Cpu_number
 Jdb_mp_request_module::find_cpu(Item const *r)
 {
   if (!r)
-    return 0;
+    return Cpu_number::boot_cpu();
 
   Find_cpu _find_cpu(r);
   Jdb::foreach_cpu(_find_cpu);
@@ -54,12 +54,12 @@ Jdb_mp_request_module::print_request(Item const *item)
          "    value  = { func = %p, arg = %p, _lock=%lu }\n"
          "    next   = %p (cpu %u)\n",
          find_cpu(item), item, item->value.func, item->value.arg, item->value._lock,
-         item->next, find_cpu(item->next));
+         item->next, Cpu_number::val(find_cpu(item->next)));
 }
 
 PRIVATE static
 void
-Jdb_mp_request_module::print_queue(unsigned cpu)
+Jdb_mp_request_module::print_queue(Cpu_number cpu)
 {
 
   if (!Jdb::cpu_in_jdb(cpu))
@@ -67,10 +67,10 @@ Jdb_mp_request_module::print_queue(unsigned cpu)
       bool online = Cpu::online(cpu);
       if (!online)
 	{
-	  printf("CPU %u is not online...\n", cpu);
+	  printf("CPU %u is not online...\n", Cpu_number::val(cpu));
 	  return;
 	}
-      printf("CPU %u has not entered JDB (try to display queue...\n", cpu);
+      printf("CPU %u has not entered JDB (try to display queue...\n", Cpu_number::val(cpu));
     }
 
   Item const *item = &Mp_request_queue::rq.cpu(cpu);
@@ -79,7 +79,7 @@ Jdb_mp_request_module::print_queue(unsigned cpu)
 
   printf("CPU[%2u]: Mp request item @%p, Mp request FIFO @%p\n"
          " Local queue Item:\n",
-         cpu, item, fifo);
+         Cpuz_number::val(cpu), item, fifo);
 
   print_request(item);
 
@@ -102,11 +102,11 @@ Jdb_module::Action_code
 Jdb_mp_request_module::action (int cmd, void *&argbuf, char const *&fmt, int &next)
 {
   char const *c = (char const *)argbuf;
-  unsigned cpu;
+  Cpu_number cpu;
   if (cmd!=0)
     return NOTHING;
 
-  if (argbuf != &cpu)
+  if (argbuf != &Cpu_number::val(cpu))
     {
       if (*c == 'a')
 	Jdb::foreach_cpu(&print_queue);

@@ -19,7 +19,7 @@ typedef void (Fast_entry_func)(void);
 
 PUBLIC static
 void
-Jdb_set_trace::ia32_set_fast_entry(unsigned cpu, void *entry)
+Jdb_set_trace::ia32_set_fast_entry(Cpu_number cpu, void *entry)
 {
   Cpu::cpus.cpu(cpu).set_fast_entry((Fast_entry_func*)entry);
 }
@@ -28,7 +28,7 @@ struct Set_fast_entry
 {
   void *entry;
   Set_fast_entry(Fast_entry_func *entry) : entry((void*)entry) {}
-  void operator () (unsigned cpu) const
+  void operator () (Cpu_number cpu) const
   { Jdb::remote_work(cpu, Jdb_set_trace::ia32_set_fast_entry, entry, true); }
 };
 

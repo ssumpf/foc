@@ -19,14 +19,13 @@ Jdb_util::is_mapped(void const *x)
 
 IMPLEMENTATION[arm]:
 
-#include "pagetable.h"
 #include "kmem_space.h"
 
-IMPLEMENT inline NEEDS["kmem_space.h", "pagetable.h"]
+IMPLEMENT inline NEEDS["kmem_space.h"]
 bool
 Jdb_util::is_mapped(void const* addr)
 {
-  return Kmem_space::kdir()->walk(const_cast<void*>(addr), 0, false, Ptab::Null_alloc(), 0).valid();
+  return Kmem_space::kdir()->virt_to_phys((Address)addr) != Address(~0UL);
 }
 
 IMPLEMENTATION[ppc32]:

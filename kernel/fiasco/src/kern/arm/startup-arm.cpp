@@ -38,31 +38,30 @@ IMPLEMENT FIASCO_INIT FIASCO_NOINLINE
 void
 Startup::stage2()
 {
+  Cpu_number const boot_cpu = Cpu_number::boot_cpu();
   puts("Hello from Startup::stage2");
+  Mem_space::init_page_sizes();
 
-  // The first 4MB of phys memory are always mapped to Map_base
-  Mem_layout::add_pmem(Mem_layout::Sdram_phys_base, Mem_layout::Map_base,
-                       4 << 20);
   Kip_init::init();
   Kmem_alloc::init();
 
   // Initialize cpu-local data management and run constructors for CPU 0
   Per_cpu_data::init_ctors();
-  Per_cpu_data_alloc::alloc(0);
-  Per_cpu_data::run_ctors(0);
+  Per_cpu_data_alloc::alloc(boot_cpu);
+  Per_cpu_data::run_ctors(boot_cpu);
 
   Kmem_space::init();
   Kernel_task::init();
   Mem_space::kernel_space(Kernel_task::kernel_task());
   Pic::init();
-  Thread::init_per_cpu(0);
+  Thread::init_per_cpu(boot_cpu);
 
   Cpu::init_mmu();
-  Cpu::cpus.cpu(0).init(true);
-  Platform_control::init(0);
-  Fpu::init(0);
-  Ipi::init(0);
-  Timer::init(0);
+  Cpu::cpus.cpu(boot_cpu).init(true);
+  Platform_control::init(boot_cpu);
+  Fpu::init(boot_cpu);
+  Ipi::init(boot_cpu);
+  Timer::init(boot_cpu);
   Kern_lib_page::init();
   Utcb_init::init();
 }

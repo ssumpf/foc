@@ -342,7 +342,7 @@ screen:
 
 PUBLIC
 void
-Jdb_table::draw_table(unsigned long row, unsigned long col, 
+Jdb_table::draw_table(unsigned long row, unsigned long col,
                       unsigned lines, unsigned columns)
 {
   for (unsigned long y = 0; y < lines; ++y)

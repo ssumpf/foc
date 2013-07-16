@@ -7,7 +7,8 @@
 
 #ifdef __cplusplus
 
-#include <type_traits>
+#include <cxx/cxx_int>
+#include <cxx/type_traits>
 #include <new>
 
 template< typename a, typename b > inline
@@ -69,138 +70,117 @@ private:
   mutable char __attribute__((aligned(sizeof(Mword)*2))) _i[sizeof(T)];
 };
 
+typedef cxx::int_type<unsigned, struct Order_t> Order;
 
-template< typename VALUE, typename TARGET >
-class Number
-{
-public:
-  typedef VALUE Value;
-  typedef TARGET Target;
-  struct Type_conversion_error;
-
-protected:
-  Number() {}
-  explicit Number(Value v) : _v(v) {}
-
-public:
-
-  static Target create(Value v)
-  { return Target(v); }
-
-  Target operator = (Target o)
-  { _v = o._v; return *static_cast<Target*>(this); }
-
-  Value value() const { return _v; }
-  Value value() const volatile { return _v; }
-  void set_value(Value v) { _v = v; }
-
-  bool operator < (Target const &o) const { return _v < o._v; }
-  bool operator > (Target const &o) const { return _v > o._v; }
-  bool operator <= (Target const &o) const { return _v <= o._v; }
-  bool operator >= (Target const &o) const { return _v >= o._v; }
-  bool operator == (Target const &o) const { return _v == o._v; }
-  bool operator != (Target const &o) const { return _v != o._v; }
-
-  operator Type_conversion_error const * () const
-  { return (Type_conversion_error const *)_v; }
-
-  Target operator | (Target const &o) const
-  { return Target(_v | o._v); }
-
-  Target operator & (Target const &o) const
-  { return Target(_v & o._v); }
-
-  Target operator + (Target const &o) const
-  { return Target(_v + o._v); }
-
-  Target operator - (Target const &o) const
-  { return Target(_v - o._v); }
-
-  Target operator << (unsigned long s) const
-  { return Target(_v << s); }
-
-  Target operator >> (unsigned long s) const
-  { return Target(_v >> s); }
-
-  void operator += (Target const &o) { _v += o._v; }
-  void operator -= (Target const &o) { _v -= o._v; }
-  void operator <<= (unsigned long s) { _v <<= s; }
-  void operator >>= (unsigned long s) { _v >>= s; }
-
-  Target operator ++ () { return Target(++_v); }
-  Target operator ++ (int) { return Target(_v++); }
-
-  Target operator -- () { return Target(--_v); }
-  Target operator -- (int) { return Target(_v--); }
-
-  Target trunc(Target const &size) const
-  { return Target(_v & ~(size._v - 1)); }
-
-  Target offset(Target const &size) const
-  { return Target(_v & (size._v - 1)); }
-
-  static Target from_shift(unsigned char shift)
-  {
-    if (shift >= (int)sizeof(Value) * 8)
-      return Target(Value(1) << Value((sizeof(Value) * 8 - 1)));
-    return Target(Value(1) << Value(shift));
-  }
-
-protected:
-  Value _v;
-};
+namespace Addr {
 
 template< int SHIFT >
-class Page_addr : public Number<Address, Page_addr<SHIFT> >
+struct Order : cxx::int_base<unsigned, Order<SHIFT> >, cxx::int_diff_ops<Order<SHIFT> >
+{
+  typedef cxx::int_base<unsigned, Order<SHIFT> > Base_class;
+  Order() = default;
+  explicit Order<SHIFT>(typename Base_class::Value v) : Base_class(v) {}
+};
+
+
+template< int SHIFT, typename T >
+class Addr_val
+: public cxx::int_base< Address, T >,
+  public cxx::int_null_chk<T>,
+  public cxx::int_shift_ops<T, Order<SHIFT> >
 {
 private:
-  typedef Number<Address, Page_addr<SHIFT> > B;
+  typedef cxx::int_base< Address, T > B;
 
-  template< int T >
-  class Itt
-  {};
-
-  template< int SH >
-  Address __shift(Address x, Itt<true>) { return x << SH; }
-
-  template< int SH >
-  Address __shift(Address x, Itt<false>) { return x >> (-SH); }
+  static Address __shift(Address x, int oshift)
+  { return ((SHIFT - oshift) >= 0) ? (x << (SHIFT - oshift)) : (x >> (oshift - SHIFT)); }
 
 public:
   enum { Shift = SHIFT };
 
   template< int OSHIFT >
-  Page_addr(Page_addr<OSHIFT> o)
-  : B(__shift<Shift-OSHIFT>(o.value(), Itt<(OSHIFT < Shift)>()))
+  Addr_val(Addr_val<OSHIFT, T> o)
+  : B(__shift(Addr_val<OSHIFT, T>::val(o), OSHIFT))
   {}
 
-  explicit Page_addr(Address a) : B(a) {}
+  explicit Addr_val(Address a) : B(a) {}
 
-  Page_addr(Page_addr const volatile &o) : B(o.value()) {}
-  Page_addr(Page_addr const &o) : B(o.value()) {}
+  //explicit Addr_val(::Order o) : B(Address(1) << (Order::val(o) - ARCH_PAGE_SHIFT + SHIFT)) {}
 
-  Page_addr() {}
+  Addr_val(Addr_val const volatile &o) : B(o._v) {}
+  Addr_val(Addr_val const &)  = default;
+  Addr_val() = default;
+
+  template< int OSHIFT >
+  T operator << (Order<OSHIFT> const &o) const
+  { return T(this->_v << (SHIFT + Order<OSHIFT>::val(o) - OSHIFT)); }
+
+protected:
+  Addr_val(typename B::Value v, int oshift) : B(__shift(v, oshift)) {}
 };
 
-class Virt_addr : public Page_addr<ARCH_PAGE_SHIFT>
+template< int SHIFT >
+struct Diff
+: public Addr_val< SHIFT, Diff<SHIFT> >,
+  cxx::int_diff_ops<Diff<SHIFT> >,
+  cxx::int_bit_ops<Diff<SHIFT> >
+{
+  typedef Addr_val< SHIFT, Diff<SHIFT> > Base_class;
+  Diff() = default;
+  Diff(Diff const &) = default;
+  explicit Diff(Address a) : Base_class(a) {}
+  //Diff(::Order o) : Base_class(o) {}
+
+  template< int OSHIFT >
+  Diff(Diff<OSHIFT> o) : Base_class(Diff<OSHIFT>::val(o), OSHIFT) {}
+};
+
+template< int SHIFT >
+struct Addr
+: public Addr_val< SHIFT, Addr<SHIFT> >,
+  cxx::int_diff_ops<Addr<SHIFT>, Diff<SHIFT> >,
+  cxx::int_bit_ops<Addr<SHIFT>, Diff<SHIFT> >
+{
+  typedef Addr_val< SHIFT, Addr<SHIFT> > Base_class;
+  Addr() = default;
+  Addr(Addr const &) = default;
+  explicit Addr(Address a) : Base_class(a) {}
+
+  template< int OSHIFT >
+  Addr(Addr<OSHIFT> o) : Base_class(Addr<OSHIFT>::val(o), OSHIFT) {}
+};
+
+} // namespace Addr
+
+class Virt_addr
+: public Addr::Addr<ARCH_PAGE_SHIFT>
 {
 public:
   template< int OSHIFT >
-  Virt_addr(Page_addr<OSHIFT> o) : Page_addr<ARCH_PAGE_SHIFT>(o) {}
+  Virt_addr(typename ::Addr::Addr<OSHIFT> const &o) : ::Addr::Addr<ARCH_PAGE_SHIFT>(o) {}
 
-  explicit Virt_addr(unsigned int a) : Page_addr<ARCH_PAGE_SHIFT>(a) {}
-  explicit Virt_addr(int a) : Page_addr<ARCH_PAGE_SHIFT>(a) {}
-  explicit Virt_addr(long int a) : Page_addr<ARCH_PAGE_SHIFT>(a) {}
-  explicit Virt_addr(unsigned long a) : Page_addr<ARCH_PAGE_SHIFT>(a) {}
-  Virt_addr(void *a) : Page_addr<ARCH_PAGE_SHIFT>(Address(a)) {}
+  template< int OSHIFT >
+  Virt_addr(typename ::Addr::Addr<OSHIFT>::Type const &o) : ::Addr::Addr<ARCH_PAGE_SHIFT>(o) {}
 
-  Virt_addr() {}
+  explicit Virt_addr(Address a) : ::Addr::Addr<ARCH_PAGE_SHIFT>(a) {}
+  explicit Virt_addr(int a) : ::Addr::Addr<ARCH_PAGE_SHIFT>(a) {}
+  explicit Virt_addr(unsigned a) : ::Addr::Addr<ARCH_PAGE_SHIFT>(a) {}
+  explicit Virt_addr(long a) : ::Addr::Addr<ARCH_PAGE_SHIFT>(a) {}
+
+  Virt_addr(void *a) : ::Addr::Addr<ARCH_PAGE_SHIFT>(Address(a)) {}
+
+  Virt_addr() = default;
 };
 
-typedef Page_addr<ARCH_PAGE_SHIFT> Virt_size;
+typedef Addr::Diff<ARCH_PAGE_SHIFT> Virt_size;
+typedef Addr::Order<ARCH_PAGE_SHIFT> Virt_order;
 
-typedef Page_addr<0> Page_number;
-typedef Page_number Page_count;
+typedef Addr::Addr<0> Page_number;
+typedef Addr::Diff<0> Page_count;
+//typedef Addr::Order<0> Page_order;
+//
+typedef Addr::Addr<ARCH_PAGE_SHIFT> Phys_mem_addr;
+typedef Addr::Diff<ARCH_PAGE_SHIFT> Phys_mem_size;
 
 template<typename T>
 struct Simple_ptr_policy
@@ -302,6 +282,18 @@ struct User
 {
   typedef Smart_ptr<T, Simple_ptr_policy, User_ptr_discr> Ptr;
 };
+
+struct Cpu_number : cxx::int_type_order_base<unsigned, Cpu_number, Order>
+{
+  Cpu_number() = default;
+  explicit Cpu_number(unsigned n) : cxx::int_type_order_base<unsigned, Cpu_number, Order>(n) {}
+
+  static Cpu_number boot_cpu() { return Cpu_number(0); }
+  static Cpu_number first()    { return Cpu_number(0); }
+  static Cpu_number second()   { return Cpu_number(1); }
+  static Cpu_number nil()      { return Cpu_number(~0); }
+};
+
 #endif
 
 /// standard size type

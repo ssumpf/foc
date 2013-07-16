@@ -223,7 +223,7 @@ public:
    * \return The index into the capability table stored in the capability
    *         selector (i.e., the most significant bits of the selector).
    */
-  unsigned long cap() const { return _raw >> 12; }
+  Cap_index cap() const { return Cap_index(_raw >> 12); }
 
   /**
    * Get the operation stored in this selector (see L4_obj_ref::Operation).
@@ -245,6 +245,8 @@ public:
    * \param op the operation to be encoded in bits 0..3.
    */
   explicit L4_obj_ref(Mword cap, Operation op = None) : _raw(cap | op) {}
+  explicit L4_obj_ref(Cap_index cap, Operation op = None)
+  : _raw((cxx::int_value<Cap_index>(cap) << L4_obj_ref::Cap_shift) | op) {}
 
   /**
    * Create a capability selector (index 0) with the given operation.
@@ -582,8 +584,11 @@ private:
   Mword _w;
 
 public:
-  Mword offset() const { return (_w & 0x00ffffff) & (~0 << granularity()); }
-  Mword granularity() const { return (_w >> 24) & (MWORD_BITS-1) ; }
+  Order granularity() const
+  { return Order((_w >> 24) & (MWORD_BITS-1)) ; }
+
+  Cpu_number offset() const
+  { return cxx::mask_lsb(Cpu_number(_w & 0x00ffffff), granularity()); }
 };
 
 class L4_cpu_set : public L4_cpu_set_descr
@@ -592,33 +597,33 @@ private:
   Mword _map;
 
 public:
-  bool contains(unsigned cpu) const
+  bool contains(Cpu_number cpu) const
   {
     if (offset() > cpu)
       return false;
 
     cpu -= offset();
     cpu >>= granularity();
-    if (cpu >= MWORD_BITS)
+    if (cpu >= Cpu_number(MWORD_BITS))
       return false;
 
-    return _map & (1UL << cpu);
+    return (_map >> cxx::int_value<Cpu_number>(cpu)) & 1;
   }
 
   template<typename MAP>
-  Mword first(MAP const &bm, unsigned max) const
+  Cpu_number first(MAP const &bm, Cpu_number max) const
   {
-    unsigned cpu = offset();
+    Cpu_number cpu = offset();
 
     for (;;)
       {
-        unsigned b = (cpu - offset()) >> granularity();
-        if (cpu >= max || b >= MWORD_BITS)
+        Cpu_number b = (cpu - offset()) >> granularity();
+        if (cpu >= max || b >= Cpu_number(MWORD_BITS))
           return max;
 
-        if (!(_map & (1UL << b)))
+        if (!((_map >> cxx::int_value<Cpu_number>(b)) & 1))
           {
-            cpu += 1UL << granularity();
+            cpu += Cpu_number(1) << granularity();
             continue;
           }
 

@@ -41,7 +41,7 @@ extern "C" void sys_ipc_log_wrapper(void)
       Mword dbg_id;
 	{
 	  Obj_cap r = ipc_regs->ref();
-	  unsigned char rights;
+          L4_fpage::Rights rights;
 	  Kobject_iface *o = r.deref(&rights, true);
 	  if (o)
 	    dbg_id = o->dbg_info()->dbg_id();

@@ -3,7 +3,7 @@
  * \brief  Support for the Beagleboard
  *
  * \date   2009-08
- * \author Adam Lackorznynski <adam@os.inf.tu-dresden.de>
+ * \author Adam Lackorzynski <adam@os.inf.tu-dresden.de>
  *
  */
 /*

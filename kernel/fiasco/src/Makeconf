@@ -171,6 +171,8 @@ OK_MESSAGE      ?=
 
 COMP_MESSAGE_NOOPT ?= $(COMP_MESSAGE)
 
+ADD_CONFIGFILE   = $(VERBOSE)$(OBJCOPY) --add-section .debug.fiasco_config=globalconfig.out $(1)
+
 ifneq ($(VERBOSE),)
 MOVE_IF_CHANGE += -q
 endif

@@ -11,8 +11,16 @@ EXTENSION class Kip
 public:
   struct Platform_info
   {
-    Unsigned32 cpuid;
-    Unsigned32 mp;
+    char name[16];
+    Unsigned32 is_mp;
+    struct
+    {
+      struct
+      {
+        Unsigned32 MIDR, CTR, ID_MMFR0, ID_ISAR0;
+      } cpuinfo;
+    } arch;
+    Unsigned32 pad[3];
   };
 
   /* 0x00 */
@@ -70,7 +78,6 @@ public:
 
   /* 0xF0 */
   Platform_info platform_info;
-  Unsigned32 __reserved[18];
 };
 
 //---------------------------------------------------------------------------

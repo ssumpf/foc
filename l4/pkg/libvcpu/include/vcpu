@@ -125,7 +125,8 @@ public:
    * \param do_event_work_cb Call-back function that is called in case an
    *                         event (such as an interrupt) is pending.
    * \param setup_ipc        Call-back function that is called before an
-   *                         IPC operation is called.
+   *                         IPC operation is called, and before event
+   *                         delivery is enabled.
    */
   void irq_enable(l4_utcb_t *utcb, l4vcpu_event_hndl_t do_event_work_cb,
                   l4vcpu_setup_ipc_t setup_ipc) throw()
@@ -139,7 +140,8 @@ public:
    * \param do_event_work_cb Call-back function that is called in case an
    *                         event (such as an interrupt) is pending.
    * \param setup_ipc        Call-back function that is called before an
-   *                         IPC operation is called.
+   *                         IPC operation is called, and before event
+   *                         delivery is enabled.
    */
   void irq_restore(Irq_state s, l4_utcb_t *utcb,
                    l4vcpu_event_hndl_t do_event_work_cb,

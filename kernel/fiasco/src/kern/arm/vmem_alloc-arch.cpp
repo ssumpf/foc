@@ -2,7 +2,7 @@
 IMPLEMENTATION [arm]:
 
 #include "mem.h"
-#include "pagetable.h"
+#include "paging.h"
 #include "mem_space.h"
 #include "kmem_alloc.h"
 #include "config.h"
@@ -30,18 +30,15 @@ void *Vmem_alloc::page_alloc(void *address, Zero_fill zf, unsigned mode)
   Mem_unit::inv_dcache(vpage, ((char*)vpage) + Config::PAGE_SIZE);
 
   // insert page into master page table
-  Pte pte = Mem_space::kernel_space()->dir()->walk(address, Config::PAGE_SIZE, true,
-                                                   Kmem_alloc::q_allocator(Ram_quota::root),
-                                                   Mem_space::kernel_space()->dir());
+  auto pte = Mem_space::kernel_space()->dir()->walk(Virt_addr(address),
+      Pdir::Depth, true, Kmem_alloc::q_allocator(Ram_quota::root));
 
-  unsigned long pa = Page::CACHEABLE;
+  Page::Rights r = Page::Rights::RWX();
   if (mode & User)
-    pa |= Page::USER_RW;
-  else
-    pa |= Page::KERN_RW;
+    r |= Page::Rights::U();
 
-  pte.set(page, Config::PAGE_SIZE, Mem_page_attr(pa), true);
-
+  pte.create_page(Phys_mem_addr(page), Page::Attr(r, Page::Type::Normal(), Page::Kern::Global()));
+  pte.write_back_if(true, Mem_unit::Asid_kernel);
   Mem_unit::dtlb_flush(address);
 
   if (zf == ZERO_FILL)

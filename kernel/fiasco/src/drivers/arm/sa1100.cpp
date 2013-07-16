@@ -1,53 +1,35 @@
 INTERFACE [sa1100]:
 
 #include "types.h"
+#include "mmio_register_block.h"
 
-template< unsigned long Hw_regs_base >
-class Sa1100_generic 
+class Sa1100 : public Mmio_register_block
 {
 public:
   enum {
-    RSRR = Hw_regs_base + 0x030000,
+    RSRR = 0x030000,
 
     /* interrupt controller */
-    ICIP = Hw_regs_base + 0x050000,
-    ICMR = Hw_regs_base + 0x050004,
-    ICLR = Hw_regs_base + 0x050008,
-    ICCR = Hw_regs_base + 0x05000c,
-    ICFP = Hw_regs_base + 0x050010,
-    ICPR = Hw_regs_base + 0x050020,
+    ICIP = 0x050000,
+    ICMR = 0x050004,
+    ICLR = 0x050008,
+    ICCR = 0x05000c,
+    ICFP = 0x050010,
+    ICPR = 0x050020,
 
     /* OS Timer */
-    OSMR0 = Hw_regs_base + 0x000000,
-    OSMR1 = Hw_regs_base + 0x000004,
-    OSMR2 = Hw_regs_base + 0x000008,
-    OSMR3 = Hw_regs_base + 0x00000c,
-    OSCR  = Hw_regs_base + 0x000010,
-    OSSR  = Hw_regs_base + 0x000014,
-    OWER  = Hw_regs_base + 0x000018,
-    OIER  = Hw_regs_base + 0x00001c,
+    OSMR0 = 0x000000,
+    OSMR1 = 0x000004,
+    OSMR2 = 0x000008,
+    OSMR3 = 0x00000c,
+    OSCR  = 0x000010,
+    OSSR  = 0x000014,
+    OWER  = 0x000018,
+    OIER  = 0x00001c,
 
     RSRR_SWR = 1,
   };
 
-  static inline void  hw_reg( Mword value, Mword reg );
-  static inline Mword hw_reg( Mword reg );
+  Sa1100(Address base) : Mmio_register_block(base) {}
 };
-
-//---------------------------------------------------------------------------
-IMPLEMENTATION [sa1100]:
-
-IMPLEMENT inline
-template< unsigned long Hw_regs_base >
-void Sa1100_generic<Hw_regs_base>::hw_reg( Mword value, Mword reg )
-{
-  *(Mword volatile*)reg = value;
-}
-
-IMPLEMENT inline
-template< unsigned long Hw_regs_base >
-Mword Sa1100_generic<Hw_regs_base>::hw_reg( Mword reg )
-{
-  return *(Mword volatile*)reg;
-}
 

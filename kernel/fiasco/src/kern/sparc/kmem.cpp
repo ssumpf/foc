@@ -13,7 +13,6 @@ public:
   static Mword *kernel_sp();
   static void kernel_sp(Mword *);
 
-  static Mword is_tcb_page_fault( Mword pfa, Mword error );
   static Mword is_kmem_page_fault( Mword pfa, Mword error );
   static Mword is_io_bitmap_page_fault( Mword pfa );
 
@@ -26,7 +25,6 @@ private:
 //---------------------------------------------------------------------------
 IMPLEMENTATION [sparc]:
 
-#include "mem_layout.h"
 #include "paging.h"
 #include "panic.h"
 
@@ -50,13 +48,6 @@ IMPLEMENT inline
 void Kmem::kernel_sp(Mword *sp)
 { _sp = sp; }
 
-PUBLIC static inline NEEDS["mem_layout.h", "panic.h"]
-Address Kmem::ipc_window(unsigned /*win*/)
-{
-  panic("%s not implemented", __PRETTY_FUNCTION__);
-  return 0;
-}
-
 IMPLEMENT inline NEEDS["paging.h"]
 Address Kmem::virt_to_phys(const void *addr)
 {
@@ -64,21 +55,10 @@ Address Kmem::virt_to_phys(const void *addr)
   return kdir()->virt_to_phys(a);
 }
 
-//------------------------------------------------------------------------------
-/*
- * dummy implementations 
- */
-
 IMPLEMENT inline
 Mword Kmem::is_kmem_page_fault(Mword pfa, Mword /*error*/)
 {
   return in_kernel(pfa);
-}
-
-IMPLEMENT inline
-Mword Kmem::is_tcb_page_fault(Mword /*pfa*/, Mword /*error*/ )
-{
-  return 0;
 }
 
 IMPLEMENT inline

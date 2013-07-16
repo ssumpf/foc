@@ -37,12 +37,10 @@ public:
     Tbuf_buffer_area	 = Service_page + 0x200000,
     Tbuf_ubuffer_area    = Tbuf_buffer_area,
     Jdb_tmp_map_area     = Service_page + 0x400000,
-    __free_1_start       = 0xee000000,
-    __free_1_end         = 0xef000000,
+    Registers_map_start  = 0xee000000,
+    Registers_map_end    = 0xef000000,
     Cache_flush_area     = 0xef000000,
     Cache_flush_area_end = 0xef100000,
-    Registers_map_start  = 0xef100000,
-    Registers_map_end    = 0xeff00000,
     Map_base             = 0xf0000000,
     Map_end              = 0xf5000000,
     Caps_start           = 0xf5000000,
@@ -55,17 +53,10 @@ public:
     Syscalls		 = 0xfffff000,
 
     Kernel_max           = 0x00000000,
+  };
 
-    Devices0_map_base    = Registers_map_start + 0x00000000,
-    Devices1_map_base    = Registers_map_start + 0x00100000,
-    Devices2_map_base    = Registers_map_start + 0x00200000,
-    Devices3_map_base    = Registers_map_start + 0x00300000,
-    Devices4_map_base    = Registers_map_start + 0x00400000,
-    Devices5_map_base    = Registers_map_start + 0x00500000,
-    Devices6_map_base    = Registers_map_start + 0x00600000,
-    Devices7_map_base    = Registers_map_start + 0x00700000,
-    Devices8_map_base    = Registers_map_start + 0x00800000,
-    Devices9_map_base    = Registers_map_start + 0x00900000,
+  enum Phys_layout : Address {
+    Sdram_phys_base      = RAM_PHYS_BASE
   };
 };
 

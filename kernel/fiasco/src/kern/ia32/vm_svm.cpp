@@ -10,8 +10,12 @@ class Vm_svm : public Vm
 private:
   static void resume_vm_svm(Mword phys_vmcb, Vcpu_state *regs)
     asm("resume_vm_svm") __attribute__((__regparm__(3)));
-  Unsigned8 _asid[Config::Max_num_cpus];
-  Unsigned32 _asid_generation[Config::Max_num_cpus];
+
+  typedef Per_cpu_array<Unsigned8> Asid_array;
+  typedef Per_cpu_array<Unsigned32> Asid_version_array;
+
+  Asid_array _asid;
+  Asid_version_array _asid_generation;
 
   enum
   {
@@ -107,13 +111,13 @@ Vm_svm::get_vm_cr3(Vmcb *v)
   //    So why is the code still here? Well, QEmu isn't so picky about the
   //    bits in the PDPE and it thus works there...
   assert_opt (this);
-  Address vm_cr3 = static_cast<Mem_space*>(this)->dir()->walk(Virt_addr(0), 0).e->addr();
+  Address vm_cr3 = static_cast<Mem_space*>(this)->dir()->walk(Virt_addr(0), 0).next_level();
   if (EXPECT_FALSE(!vm_cr3))
     {
       // force allocation of new secondary page-table level
       static_cast<Mem_space*>(this)->dir()
-                 ->walk(Virt_addr(0), 1, Kmem_alloc::q_allocator(ram_quota()));
-      vm_cr3 = static_cast<Mem_space*>(this)->dir()->walk(Virt_addr(0), 0).e->addr();
+        ->walk(Virt_addr(0), 1, false, Kmem_alloc::q_allocator(ram_quota()));
+      vm_cr3 = static_cast<Mem_space*>(this)->dir()->walk(Virt_addr(0), 0).next_level();
     }
 
   if (EXPECT_FALSE(vm_cr3 >= 1UL << 32))
@@ -160,8 +164,8 @@ PUBLIC
 Vm_svm::Vm_svm(Ram_quota *q)
   : Vm(q)
 {
-  memset(_asid, 0, sizeof(_asid));
-  memset(_asid_generation, 0, sizeof(_asid_generation));
+  memset(&_asid, 0, sizeof(_asid));
+  memset(&_asid_generation, 0, sizeof(_asid_generation));
 }
 
 PUBLIC inline

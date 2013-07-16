@@ -38,7 +38,7 @@ protected:
     } of_item_t;
 
   /* methods */
-  unsigned prom_call(const char *service, int nargs, int nret, ...) const
+  unsigned long prom_call(const char *service, int nargs, int nret, ...) const
     {
       struct prom_args args = prom_args(service, nargs, nret);
       va_list list;

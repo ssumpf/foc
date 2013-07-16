@@ -15,16 +15,10 @@ static inline int
 superpage_aligned(Address x)
 { return (x & SUPERPAGE_MASK) == 0; }
 
-static inline Address trunc_superpage(Address x)
-{ return x & ~SUPERPAGE_MASK; }
-
 static inline Address trunc_page(Address x)
 { return x & ~PAGE_MASK; }
 
 static inline Address round_page(Address x)
 { return (x + PAGE_MASK) & ~PAGE_MASK; }
-
-static inline Address round_superpage(Address x)
-{ return (x + SUPERPAGE_MASK) & ~SUPERPAGE_MASK; }
 
 #endif

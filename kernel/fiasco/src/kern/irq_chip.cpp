@@ -1,5 +1,7 @@
 INTERFACE:
 
+#include <cxx/bitfield>
+
 #include "types.h"
 
 class Irq_base;
@@ -20,6 +22,42 @@ private:
 class Irq_chip
 {
 public:
+  struct Mode
+  {
+    Mode() = default;
+    explicit Mode(unsigned m) : raw(m) {}
+
+    enum Flow_type
+    {
+      Set_irq_mode  = 0x1,
+      Trigger_edge  = 0x0,
+      Trigger_level = 0x2,
+      Trigger_mask  = 0x2,
+
+      Polarity_high = 0x0,
+      Polarity_low  = 0x4,
+      Polarity_both = 0x8,
+      Polarity_mask = 0xc,
+
+      F_level_high   = Set_irq_mode | Trigger_level | Polarity_high,
+      F_level_low    = Set_irq_mode | Trigger_level | Polarity_low,
+      F_raising_edge = Set_irq_mode | Trigger_edge  | Polarity_high,
+      F_falling_edge = Set_irq_mode | Trigger_edge  | Polarity_low,
+      F_both_edges   = Set_irq_mode | Trigger_edge  | Polarity_both
+    };
+
+    Mode(Flow_type ft) : raw(ft) {}
+
+    unsigned raw;
+    CXX_BITFIELD_MEMBER(0, 0, set_mode, raw);
+    CXX_BITFIELD_MEMBER_UNSHIFTED(1, 3, flow_type, raw);
+    CXX_BITFIELD_MEMBER_UNSHIFTED(1, 1, level_triggered, raw);
+    CXX_BITFIELD_MEMBER_UNSHIFTED(2, 3, polarity, raw);
+    CXX_BITFIELD_MEMBER(4, 5, wakeup, raw);
+    CXX_BITFIELD_MEMBER(4, 4, set_wakeup, raw);
+    CXX_BITFIELD_MEMBER(5, 5, clear_wakeup, raw);
+  };
+
   virtual void mask(Mword pin) = 0;
   virtual void unmask(Mword pin) = 0;
   virtual void ack(Mword pin) = 0;
@@ -28,14 +66,15 @@ public:
   /**
    * Set the trigger mode and polarity.
    */
-  virtual unsigned set_mode(Mword pin, unsigned) = 0;
+  virtual int set_mode(Mword pin, Mode) = 0;
+  virtual bool is_edge_triggered(Mword pin) const = 0;
 
   /**
    * Set the target CPU.
    * \param pin the pin to configure
    * \param cpu the logical CPU number.
    */
-  virtual void set_cpu(Mword pin, unsigned cpu) = 0;
+  virtual void set_cpu(Mword pin, Cpu_number cpu) = 0;
   virtual void unbind(Irq_base *irq);
   virtual ~Irq_chip() = 0;
 };
@@ -51,8 +90,9 @@ public:
   void mask_and_ack(Mword) {}
   void ack(Mword) {}
 
-  void set_cpu(Mword, unsigned) {}
-  unsigned set_mode(Mword, unsigned mode) { return mode; }
+  void set_cpu(Mword, Cpu_number) {}
+  int set_mode(Mword, Mode) { return 0; }
+  bool is_edge_triggered(Mword) const { return true; }
 
   char const *chip_type() const { return "Soft"; }
 
@@ -92,20 +132,7 @@ public:
     F_enabled = 1,
   };
 
-  enum Mode
-  {
-    Set_irq_mode  = 0x1,
-    Trigger_edge  = 0x0,
-    Trigger_level = 0x2,
-    Trigger_mask  = 0x2,
-
-    Polarity_high = 0x0,
-    Polarity_low  = 0x4,
-    Polarity_both = 0x8,
-    Polarity_mask = 0xc,
-  };
-
-  Irq_base() : _flags(Trigger_level), _next(0)
+  Irq_base() : _flags(0), _next(0)
   {
     Irq_chip_soft::sw_chip.bind(this, 0, true);
     mask();
@@ -128,15 +155,7 @@ public:
   void unmask() { if (__unmask()) _chip->unmask(_pin); }
   void ack() { _chip->ack(_pin); }
 
-
-  void set_mode(unsigned m)
-  {
-    unsigned mode = _chip->set_mode(_pin, m);
-    _flags = (_flags & ~0xe) | (mode & 0xe);
-    switch_mode(mode);
-  }
-
-  void set_cpu(unsigned cpu) { _chip->set_cpu(_pin, cpu); }
+  void set_cpu(Cpu_number cpu) { _chip->set_cpu(_pin, cpu); }
 
   unsigned get_mode() const
   { return _flags & 0xe; }
@@ -150,7 +169,7 @@ public:
   bool __unmask() { bool o = masked(); _flags |= F_enabled; return o; }
 
   void set_hit(Hit_func f) { hit_func = f; }
-  virtual void switch_mode(unsigned mode) = 0;
+  virtual void switch_mode(bool is_edge_triggered) = 0;
   virtual ~Irq_base() = 0;
 
 protected:
@@ -222,7 +241,8 @@ Irq_chip::bind(Irq_base *irq, Mword pin, bool ctor = false)
   if (ctor)
     return;
 
-  irq->set_mode(irq->get_mode());
+  irq->switch_mode(is_edge_triggered(pin));
+
   if (irq->masked())
     mask(pin);
   else

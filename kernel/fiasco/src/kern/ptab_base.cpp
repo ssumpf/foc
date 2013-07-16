@@ -1,6 +1,7 @@
 INTERFACE:
 
 #include "mem_layout.h"
+//#include <cstdio>
 
 namespace Ptab
 {
@@ -10,32 +11,36 @@ namespace Ptab
     static void *alloc(unsigned long) { return 0; }
     static void free(void *) {}
     static bool valid() { return false; }
+    static unsigned to_phys(void *) { return 0; }
   };
 
   template< typename _Head, typename _Tail >
-  class List
+  struct List
   {
-  public:
     typedef _Head Head;
     typedef _Tail Tail;
   };
 
+  template< typename ...T >
+  struct Tupel;
+
+  template< typename T >
+  struct Tupel<T>;
+
+  template< typename H, typename T >
+  struct Tupel<H, T> { typedef Ptab::List<H, T> List; };
+
+  template<typename T1, typename T2, typename T3, typename ...X>
+  struct Tupel<T1, T2, T3, X...>
+  { typedef Ptab::List<T1, typename Tupel<T2, T3, X...>::List > List; };
 
   template< typename _T, unsigned _Level >
-  class Level
+  struct Level
   {
-  public:
     typedef _T Traits;
 
     static unsigned shift(unsigned)
     { return Traits::Shift; }
-
-    static Address addr(unsigned, Mword entry)
-    {
-      struct E : public Traits::Entry
-      { E(Mword raw) { Traits::Entry::_raw = raw; } };
-      return E(entry).addr();
-    }
 
     static unsigned size(unsigned)
     { return Traits::Size; }
@@ -46,46 +51,39 @@ namespace Ptab
     static Address index(unsigned /*level*/, Address addr)
     { return (addr >> Traits::Shift) & ((1UL << Traits::Size)-1); }
 
+    static unsigned entry_size(unsigned)
+    { return sizeof(typename Traits::Entry); }
+
   };
 
   template< typename _Head, typename _Tail, unsigned _Level >
-  class Level< List<_Head, _Tail>, _Level >
+  struct Level< List<_Head, _Tail>, _Level >
   {
-  public:
-    typedef typename Level<_Tail, _Level - 1>::Traits Traits;
+    typedef Level<_Tail, _Level - 1> Next_level;
+    typedef _Head Traits;
 
     static unsigned shift(unsigned level)
     {
       if (!level)
-	return _Head::Shift;
+        return Traits::Shift;
       else
-	return Level<_Tail, _Level - 1>::shift(level - 1);
-    }
-
-    static Address addr(unsigned level, Mword entry)
-    {
-      struct E : public Traits::Entry
-      { E(Mword raw) { Traits::Entry::_raw = raw; } };
-      if (!level)
-	return E(entry).addr();
-      else
-        return Level<_Tail, _Level - 1>::addr(level - 1, entry);
+        return Next_level::shift(level - 1);
     }
 
     static unsigned size(unsigned level)
     {
       if (!level)
-	return _Head::Size;
+        return Traits::Size;
       else
-	return Level<_Tail, _Level - 1>::size(level - 1);
+        return Next_level::size(level - 1);
     }
 
     static unsigned length(unsigned level)
     {
       if (!level)
-	return 1UL << _Head::Size;
+	return 1UL << Traits::Size;
       else
-	return Level<_Tail, _Level - 1>::length(level - 1);
+	return Next_level::length(level - 1);
     }
 
     static Address index(unsigned level, Address addr)
@@ -93,20 +91,27 @@ namespace Ptab
       if (!level)
 	return (addr >> Traits::Shift) & ((1UL << Traits::Size)-1);
       else
-	return Level<_Tail, _Level - 1>::index(level - 1, addr);
+	return Next_level::index(level - 1, addr);
+    }
+
+    static unsigned entry_size(unsigned level)
+    {
+      if (!level)
+        return sizeof(typename Traits::Entry);
+      else
+        return Next_level::entry_size(level - 1);
     }
 
   };
 
   template< typename _Head, typename _Tail>
-  class Level< List<_Head, _Tail>, 0> : public Level<_Head, 0>
+  struct Level< List<_Head, _Tail>, 0> : Level<_Head, 0>
   {
   };
 
   template< typename _Traits >
-  class Entry_vec
+  struct Entry_vec
   {
-  public:
     typedef typename _Traits::Entry Entry;
     enum
     {
@@ -122,7 +127,7 @@ namespace Ptab
     static unsigned idx(Address virt)
     {
       if (Mask)
-	return (virt >> Shift) & ~(~0UL << Size);
+	return cxx::get_lsb(virt >> Shift, (Address)Size);
       else
 	return (virt >> Shift);
     }
@@ -130,41 +135,54 @@ namespace Ptab
     Entry &operator [] (unsigned idx) { return _e[idx]; }
     Entry const &operator [] (unsigned idx) const { return _e[idx]; }
 
-    void clear() { for (unsigned i=0; i < Length; ++i) _e[i].clear(); }
+    template<typename PTE_PTR>
+    void clear(unsigned level, bool force_write_back)
+    {
+      for (unsigned i=0; i < Length; ++i)
+        PTE_PTR(&_e[i], level).clear();
+
+      if (force_write_back)
+        PTE_PTR::write_back(&_e[0], &_e[Length]);
+    }
   };
 
 
-  template< typename _Last, typename Iter >
+  template< typename _Last, typename PTE_PTR, int DEPTH = 0 >
   class Walk
   {
   public:
-    enum { Depth = 0 };
+    enum { Max_depth = 0 };
+    enum { Depth = DEPTH };
     typedef _Last Level;
     typedef typename _Last::Entry Entry;
     typedef _Last Traits;
 
   private:
-    typedef Walk<_Last, Iter> This;
+    typedef Walk<_Last, PTE_PTR, DEPTH> This;
     typedef Entry_vec<Level> Vec;
     Vec _e;
 
   public:
-    void clear() { _e.clear(); }
+    void clear(bool force_write_back)
+    { _e.template clear<PTE_PTR>(Depth, force_write_back); }
 
     template< typename _Alloc >
-    Iter walk(Address virt, unsigned, _Alloc const &)
-    { return Iter(&_e[Vec::idx(virt)], Level::Shift); }
+    PTE_PTR walk(Address virt, unsigned, bool, _Alloc const &)
+    { return PTE_PTR(&_e[Vec::idx(virt)], Depth); }
 
-    void unmap(Address &start, unsigned long &size, unsigned)
+    void unmap(Address &start, unsigned long &size, unsigned, bool force_write_back)
     {
       unsigned idx = Vec::idx(start);
       unsigned cnt = size >> Traits::Shift;
       if (cnt + idx > Vec::Length)
-	cnt = Vec::Length - idx;
+        cnt = Vec::Length - idx;
       unsigned const e = idx + cnt;
 
-      for (; idx != e; ++idx)
-	_e[idx].clear();
+      for (unsigned i = idx; i != e; ++i)
+        PTE_PTR(&_e[i], Depth).clear();
+
+      if (force_write_back)
+        PTE_PTR::write_back(&_e[idx], &_e[e]);
 
       start += (unsigned long)cnt << Traits::Shift;
       size  -= (unsigned long)cnt << Traits::Shift;
@@ -172,34 +190,40 @@ namespace Ptab
 
     template< typename _Alloc >
     void map(Address &phys, Address &virt, unsigned long &size,
-	unsigned long attr, unsigned, _Alloc const &)
+             unsigned long attr, unsigned, bool force_write_back,
+             _Alloc const &)
     {
       unsigned idx = Vec::idx(virt);
       unsigned cnt = size >> Traits::Shift;
       if (cnt + idx > Vec::Length)
-	cnt = Vec::Length - idx;
+        cnt = Vec::Length - idx;
       unsigned const e = idx + cnt;
 
-      for (; idx != e; ++idx, phys += (1UL << Traits::Entry::Page_shift))
-	_e[idx].set(phys, false, true, attr);
+      for (unsigned i = idx; i != e; ++i, phys += (1ULL << (Traits::Shift + Traits::Base_shift)))
+        PTE_PTR(&_e[i], Depth).set_page(phys, attr);
+
+      if (force_write_back)
+        PTE_PTR::write_back(&_e[idx], &_e[e]);
+
       virt += (unsigned long)cnt << Traits::Shift;
       size -= (unsigned long)cnt << Traits::Shift;
     }
 
     template< typename _Alloc >
-    void destroy(Address, Address, unsigned, _Alloc const &)
+    void destroy(Address, Address, unsigned, unsigned, _Alloc const &)
     {}
 
     template< typename _Alloc >
     bool sync(Address &l_addr, This const &_r, Address &r_addr,
-	Address &size, unsigned, _Alloc const &)
+              Address &size, unsigned, bool force_write_back, _Alloc const &)
     {
       unsigned count = size >> Traits::Shift;
       unsigned const l = Vec::idx(l_addr);
       unsigned const r = Vec::idx(r_addr);
       unsigned const m = l > r ? l : r;
+
       if (m + count >= Vec::Length)
-	count = Vec::Length - m;
+        count = Vec::Length - m;
 
       Entry *le = &_e[l];
       Entry const *re = &_r._e[r];
@@ -208,9 +232,9 @@ namespace Ptab
 
       for (unsigned n = count; n > 0; --n)
 	{
-	  if (le[n-1].valid())
+	  if (PTE_PTR(&le[n-1], Depth).is_valid())
 	    need_flush = true;
-
+#if 0
 	  // This loop seems unnecessary, but remote_update is also used for
 	  // updating the long IPC window.
 	  // Now consider following scenario with super pages:
@@ -233,7 +257,12 @@ namespace Ptab
 	      if (EXPECT_TRUE(le[n - 1].raw() == *rr))
 		break;
 	    }
-	}
+#endif
+          le[n - 1] = re[n - 1];
+        }
+
+      if (force_write_back)
+        PTE_PTR::write_back(&le[0], &le[count]);
 
       l_addr += (unsigned long)count << Traits::Shift;
       r_addr += (unsigned long)count << Traits::Shift;
@@ -244,206 +273,221 @@ namespace Ptab
 
 
 
-  template< typename _Head, typename _Tail, typename Iter >
-  class Walk <List <_Head,_Tail>, Iter >
+  template< typename _Head, typename _Tail, typename PTE_PTR, int DEPTH >
+  class Walk <List <_Head,_Tail>, PTE_PTR, DEPTH >
   {
   public:
-    typedef Walk<_Tail, Iter> Next;
+    typedef Walk<_Tail, PTE_PTR, DEPTH + 1> Next;
     typedef typename Next::Level Level;
     typedef typename _Head::Entry Entry;
     typedef _Head Traits;
 
-    enum { Depth = Next::Depth + 1 };
+    enum { Max_depth = Next::Max_depth + 1 };
+    enum { Depth = DEPTH };
 
   private:
-    typedef Walk<_Head, Iter> This;
-    typedef Walk< List< _Head, _Tail >, Iter> This2;
+    typedef Walk<_Head, PTE_PTR, DEPTH> This;
+    typedef Walk< List< _Head, _Tail >, PTE_PTR, DEPTH> This2;
     typedef Entry_vec<_Head> Vec;
     Vec _e;
 
     template< typename _Alloc >
-    Next *alloc_next(Entry *e, _Alloc const &a)
+    Next *alloc_next(PTE_PTR e, _Alloc const &a, bool force_write_back)
     {
       Next *n = (Next*)a.alloc(sizeof(Next));
       if (EXPECT_FALSE(!n))
-	return 0;
+        return 0;
 
-      n->clear();
-      e->set(Mem_layout::pmem_to_phys(n), true, true);
+      n->clear(force_write_back);
+      e.set_next_level(a.to_phys(n));
+      e.write_back_if(force_write_back);
 
       return n;
     }
 
   public:
-    void clear() { _e.clear(); }
+    void clear(bool force_write_back)
+    { _e.template clear<PTE_PTR>(Depth, force_write_back); }
 
     template< typename _Alloc >
-    Iter walk(Address virt, unsigned level, _Alloc const &alloc)
+    PTE_PTR walk(Address virt, unsigned level, bool force_write_back, _Alloc const &alloc)
     {
-      Entry *e = &_e[Vec::idx(virt)];
+      PTE_PTR e(&_e[Vec::idx(virt)], Depth);
+
       if (!level)
-	return Iter(e, _Head::Shift);
-      else if (!e->valid())
-	{
-	  Next *n;
-	  if (alloc.valid() && (n = alloc_next(e, alloc)))
-	    return n->walk(virt, level - 1, alloc);
-
-	  return Iter(e, _Head::Shift);
-	}
-
-
-      if (_Head::May_be_leaf && e->leaf())
-	return Iter(e, _Head::Shift);
+        return e;
+      else if (!e.is_valid())
+        {
+          Next *n;
+          if (alloc.valid() && (n = alloc_next(e, alloc, force_write_back)))
+            return n->walk(virt, level - 1, force_write_back, alloc);
+          else
+            return e;
+        }
+      else if (e.is_leaf())
+        return e;
       else
-	{
-	  Next *n = (Next*)Mem_layout::phys_to_pmem(e->addr());
-	  return n->walk(virt, level - 1, alloc);
-	}
+        {
+          Next *n = (Next*)Mem_layout::phys_to_pmem(e.next_level());
+          return n->walk(virt, level - 1, force_write_back, alloc);
+        }
     }
 
-    void unmap(Address &start, unsigned long &size, unsigned level)
+    void unmap(Address &start, unsigned long &size, unsigned level,
+               bool force_write_back)
     {
       if (!level)
-	{
-	  reinterpret_cast<This*>(this)->unmap(start, size, 0);
-	  return;
-	}
+        {
+          reinterpret_cast<This*>(this)->unmap(start, size, 0,
+                                               force_write_back);
+          return;
+        }
 
       while (size)
-	{
-	  Entry *e = &_e[Vec::idx(start)];
+        {
+          PTE_PTR e(&_e[Vec::idx(start)], Depth);
 
-	  if (!e->valid() || e->leaf())
-	    continue;
+          if (!e.is_valid() || e.is_leaf())
+            continue;
 
-	  Next *n = (Next*)Mem_layout::phys_to_pmem(e->addr());
-	  n->unmap(start, size, level - 1);
-	}
+          Next *n = (Next*)Mem_layout::phys_to_pmem(e.next_level());
+          n->unmap(start, size, level - 1, force_write_back);
+        }
     }
 
     template< typename _Alloc >
     void map(Address &phys, Address &virt, unsigned long &size,
-	unsigned long attr, unsigned level, _Alloc const &alloc)
+             unsigned long attr, unsigned level, bool force_write_back,
+             _Alloc const &alloc)
     {
       if (!level)
-	{
-	  reinterpret_cast<This*>(this)->map(phys, virt, size, attr, 0, alloc);
-	  return;
-	}
+        {
+          reinterpret_cast<This*>(this)->map(phys, virt, size, attr, 0,
+                                             force_write_back, alloc);
+          return;
+        }
 
       while (size)
-	{
-	  Entry *e = &_e[Vec::idx(virt)];
-	  Next *n;
-	  if (!e->valid())
-	    {
-	      if (alloc.valid() && (n = alloc_next(e, alloc)))
-		n->map(phys, virt, size, attr, level - 1, alloc);
+        {
+          PTE_PTR e(&_e[Vec::idx(virt)], Depth);
+          Next *n;
+          if (!e.is_valid())
+            {
+              if (alloc.valid() && (n = alloc_next(e, alloc, force_write_back)))
+                n->map(phys, virt, size, attr, level - 1,
+                       force_write_back, alloc);
 
-	      continue;
-	    }
+              continue;
+            }
 
-	  if (_Head::May_be_leaf && e->leaf())
-	    continue;
+          if (_Head::May_be_leaf && e.is_leaf())
+            continue;
 
-	  n = (Next*)Mem_layout::phys_to_pmem(e->addr());
-	  n->map(phys, virt, size, attr, level - 1, alloc);
-	}
+          n = (Next*)Mem_layout::phys_to_pmem(e.next_level());
+          n->map(phys, virt, size, attr, level - 1, force_write_back, alloc);
+        }
     }
 
     template< typename _Alloc >
-    void destroy(Address start, Address end, unsigned level, _Alloc const &alloc)
+    void destroy(Address start, Address end,
+                 unsigned start_level, unsigned end_level,
+                 _Alloc const &alloc)
     {
-      if (!alloc.valid())
-	return;
+      //printf("destroy: %*.s%lx-%lx lvl=%d:%d depth=%d\n", Depth*2, "            ", start, end, start_level, end_level, Depth);
+      if (!alloc.valid() || Depth >= end_level)
+        return;
 
       unsigned idx_start = Vec::idx(start);
-      unsigned idx_end = Vec::idx(end + (1UL << Traits::Shift) - 1);
-      unsigned idx = idx_start;
+      unsigned idx_end = Vec::idx(end) + 1;
+      //printf("destroy: %*.sidx: %d:%d\n", Depth*2, "            ", idx_start, idx_end);
 
-      for (; idx < idx_end; ++idx)
-	{
-	  Entry *e = &_e[idx];
-	  if (!e->valid() || (_Head::May_be_leaf && e->leaf()))
-	    continue;
+      for (unsigned idx = idx_start; idx < idx_end; ++idx)
+        {
+          PTE_PTR e(&_e[idx], Depth);
+          if (!e.is_valid() || (_Head::May_be_leaf && e.is_leaf()))
+            continue;
 
-	  Next *n = (Next*)Mem_layout::phys_to_pmem(e->addr());
-	  if (level)
-	    n->destroy(idx > idx_start ? 0 : start,
-	               idx + 1 < idx_end ? 1UL << Next::Traits::Shift : end,
-	               level - 1, alloc);
-
-	  alloc.free(n, sizeof(Next));
-	}
+          Next *n = (Next*)Mem_layout::phys_to_pmem(e.next_level());
+          if (Depth < end_level)
+            n->destroy(idx > idx_start ? 0 : start,
+                       idx + 1 < idx_end ? (1UL << Traits::Shift)-1 : end,
+                       start_level, end_level, alloc);
+          if (Depth >= start_level)
+            {
+              //printf("destroy: %*.sfree: %p: %p(%d)\n", Depth*2, "            ", this, n, sizeof(Next));
+              alloc.free(n, sizeof(Next));
+            }
+        }
     }
 
     template< typename _Alloc >
     bool sync(Address &l_a, This2 const &_r, Address &r_a,
-	Address &size, unsigned level, _Alloc const &alloc)
+              Address &size, unsigned level, bool force_write_back,
+              _Alloc const &alloc)
     {
       if (!level)
-	return reinterpret_cast<This*>(this)
-	  ->sync(l_a, reinterpret_cast<This const &>(_r), r_a, size, 0, alloc);
+        return reinterpret_cast<This*>(this)
+          ->sync(l_a, reinterpret_cast<This const &>(_r), r_a, size, 0,
+              force_write_back, alloc);
 
       unsigned count = size >> Traits::Shift;
-	{
-	  unsigned const lx = Vec::idx(l_a);
-	  unsigned const rx = Vec::idx(r_a);
-	  unsigned const mx = lx > rx ? lx : rx;
-	  if (mx + count >= Vec::Length)
-	    count = Vec::Length - mx;
-	}
+        {
+          unsigned const lx = Vec::idx(l_a);
+          unsigned const rx = Vec::idx(r_a);
+          unsigned const mx = lx > rx ? lx : rx;
+          if (mx + count >= Vec::Length)
+            count = Vec::Length - mx;
+        }
 
       bool need_flush = false;
 
       for (unsigned i = count; size && i > 0; --i) //while (size)
-	{
-	  Entry *l = &_e[Vec::idx(l_a)];
-	  Entry const *r = &_r._e[Vec::idx(r_a)];
-	  Next *n = 0;
-	  if (!r->valid()
-	      || (!l->valid() && (!alloc.valid()
-		  || !(n = alloc_next(l,alloc)))))
-	    {
-	      l_a += 1UL << Traits::Shift;
-	      r_a += 1UL << Traits::Shift;
-	      if (size > 1UL << Traits::Shift)
-		{
-		  size -= 1UL << Traits::Shift;
-		  continue;
-		}
-	      break;
-	    }
+        {
+          PTE_PTR l(&_e[Vec::idx(l_a)], Depth);
+          PTE_PTR r(const_cast<Entry *>(&_r._e[Vec::idx(r_a)]), Depth);
+          Next *n = 0;
+          if (!r.is_valid()
+              || (!l.is_valid() && (!alloc.valid() || !(n = alloc_next(l, alloc, force_write_back)))))
+            {
+              l_a += 1UL << Traits::Shift;
+              r_a += 1UL << Traits::Shift;
+              if (size > 1UL << Traits::Shift)
+                {
+                  size -= 1UL << Traits::Shift;
+                  continue;
+                }
+              break;
+            }
 
-	  if (!n)
-	    n = (Next*)Mem_layout::phys_to_pmem(l->addr());
+          if (!n)
+            n = (Next*)Mem_layout::phys_to_pmem(l.next_level());
 
-	  Next *rn = (Next*)Mem_layout::phys_to_pmem(r->addr());
+          Next *rn = (Next*)Mem_layout::phys_to_pmem(r.next_level());
 
-	  if (n->sync(l_a, *rn, r_a, size, level - 1, alloc))
-	    need_flush = true;
-	}
+          if (n->sync(l_a, *rn, r_a, size, level - 1, force_write_back, alloc))
+            need_flush = true;
+        }
 
       return need_flush;
     }
 
   };
 
-  template< typename _E, unsigned _Va_shift >
-  class Iter
+  template< typename _E, typename PT >
+  struct Pte_ptr
   {
-  public:
-    Iter(_E *e, unsigned char shift) : e(e), s(shift + _Va_shift) {}
+    Pte_ptr(_E *e, unsigned char level) : e(e), l(level) {}
 
     template< typename _I2 >
-    Iter(_I2 const &o) : e(o.e), s(o.s) {}
+    Pte_ptr(_I2 const &o) : e(o.e), l(o.l) {}
 
-    unsigned char shift() const { return s; }
-    unsigned long addr() const { return e->addr() & (~0UL << s); }
+    unsigned char level() const { return l; }
+
+    unsigned page_order() const
+    { return PT::page_order_for_level(l); }
 
     _E *e;
-    unsigned char s;
+    unsigned char l;
   };
 
   template
@@ -452,41 +496,40 @@ namespace Ptab
     unsigned _Shift,
     unsigned _Size,
     bool _May_be_leaf,
-    bool _Mask = true
+    bool _Mask = true,
+    unsigned _Base_shift = 0
   >
-  class Traits
+  struct Traits
   {
-  public:
     typedef _Entry Entry;
-    typedef typename Entry::Raw Raw;
 
     enum
     {
       May_be_leaf = _May_be_leaf,
       Shift = _Shift,
       Size = _Size,
-      Mask = _Mask
+      Mask = _Mask,
+      Base_shift = _Base_shift
     };
   };
 
   template< typename _T, unsigned _Shift >
-  class Shift
+  struct Shift
   {
-  public:
     typedef _T Orig_list;
     typedef Ptab::Traits
       < typename _T::Entry,
         _T::Shift - _Shift,
         _T::Size,
         _T::May_be_leaf,
-        _T::Mask
+        _T::Mask,
+        _T::Base_shift + _Shift
       > List;
   };
 
   template< typename _Head, typename _Tail, unsigned _Shift >
-  class Shift< List<_Head, _Tail>, _Shift >
+  struct Shift< List<_Head, _Tail>, _Shift >
   {
-  public:
     typedef Ptab::List<_Head, _Tail> Orig_list;
     typedef Ptab::List
     <
@@ -495,26 +538,29 @@ namespace Ptab
     > List;
   };
 
-  class Address_wrap
+  struct Address_wrap
   {
-  public:
     enum { Shift = 0 };
     typedef Address Value_type;
     static Address val(Address a) { return a; }
   };
 
   template< typename N, int SHIFT >
-  class Page_addr_wrap
+  struct Page_addr_wrap
   {
-  public:
     enum { Shift = SHIFT };
     typedef N Value_type;
-    static Address val(N a) { return a.value(); }
+    static typename N::Value val(N a)
+    { return N::val(a); }
+
+    static typename Value_type::Diff_type::Value
+    val(typename Value_type::Diff_type a)
+    { return cxx::int_value<typename Value_type::Diff_type>(a); }
   };
 
   template
   <
-    typename _Base_entry,
+    typename PTE_PTR,
     typename _Traits,
     typename _Addr = Address_wrap
   >
@@ -522,63 +568,85 @@ namespace Ptab
   {
   public:
     typedef typename _Addr::Value_type Va;
+    typedef typename _Addr::Value_type::Diff_type Vs;
     typedef _Traits Traits;
-    typedef _Base_entry Entry;
-    typedef Ptab::Iter<Entry, _Addr::Shift> Iter;
+    typedef PTE_PTR Pte_ptr;
     typedef typename _Traits::Head L0;
 
+    enum
+    {
+      Base_shift = L0::Base_shift,
+    };
+
   private:
-    typedef Base<_Base_entry, _Traits> This;
-    typedef Ptab::Walk<_Traits, Iter> Walk;
+    typedef Ptab::Walk<_Traits, PTE_PTR> Walk;
 
   public:
-    enum { Depth = Walk::Depth };
+    enum { Depth = Walk::Max_depth };
+
+    typedef Level<Traits, Depth> Levels;
+
+    static unsigned lsb_for_level(unsigned level)
+    { return Levels::shift(level); }
+
+    static unsigned page_order_for_level(unsigned level)
+    { return Levels::shift(level) + Base_shift; }
+
+    static unsigned entries_at_level(unsigned level)
+    { return Levels::length(level); }
+
+    static unsigned bits_for_level(unsigned level)
+    { return Levels::size(level); }
 
     template< typename _Alloc >
-    Iter walk(Va virt, unsigned level, _Alloc const &alloc)
-    {
-      return _base.walk(_Addr::val(virt), level, alloc);
-    }
+    PTE_PTR walk(Va virt, unsigned level, bool force_write_back, _Alloc const &alloc)
+    { return _base.walk(_Addr::val(virt), level, force_write_back, alloc); }
 
-    Iter walk(Va virt, unsigned level = 100) const
-    {
-      return const_cast<Walk&>(_base).walk(_Addr::val(virt), level, Null_alloc());
-    }
+    PTE_PTR walk(Va virt, unsigned level = Depth) const
+    { return const_cast<Walk&>(_base).walk(_Addr::val(virt), level, false, Null_alloc()); }
 
 
-    template< typename _Alloc >
-    bool sync(Va l_addr, Base< _Base_entry, _Traits, _Addr> const *_r,
-              Va r_addr, Va size, unsigned level = 100,
+    template< typename OPTE_PTR, typename _Alloc >
+    bool sync(Va l_addr, Base< OPTE_PTR, _Traits, _Addr> const *_r,
+              Va r_addr, Vs size, unsigned level = Depth,
+              bool force_write_back = false,
               _Alloc const &alloc = _Alloc())
     {
       Address la = _Addr::val(l_addr);
       Address ra = _Addr::val(r_addr);
       Address sz = _Addr::val(size);
       return _base.sync(la, _r->_base,
-                        ra, sz, level, alloc);
+                        ra, sz, level, force_write_back,
+                        alloc);
     }
 
-    void clear() { _base.clear(); }
+    void clear(bool force_write_back)
+    { _base.clear(force_write_back); }
 
-    void unmap(Va virt, Va size, unsigned level)
+    void unmap(Va virt, Vs size, unsigned level, bool force_write_back)
     {
       Address va = _Addr::val(virt);
       unsigned long sz = _Addr::val(size);
-      _base.unmap(va, sz, level);
+      _base.unmap(va, sz, level, force_write_back);
     }
 
     template< typename _Alloc >
-    void map(Address phys, Va virt, Va size, unsigned long attr,
-	unsigned level, _Alloc const &alloc = _Alloc())
+    void map(Address phys, Va virt, Vs size, unsigned long attr,
+             unsigned level, bool force_write_back,
+             _Alloc const &alloc = _Alloc())
     {
       Address va = _Addr::val(virt);
       unsigned long sz = _Addr::val(size);
-      _base.map(phys, va, sz, attr, level, alloc);
+      _base.map(phys, va, sz, attr, level, force_write_back, alloc);
     }
 
     template< typename _Alloc >
-    void destroy(Va start, Va end, unsigned level, _Alloc const &alloc = _Alloc())
-    { _base.destroy(_Addr::val(start), _Addr::val(end), level, alloc); }
+    void destroy(Va start, Va end, unsigned start_level, unsigned end_level,
+                 _Alloc const &alloc = _Alloc())
+    {
+      _base.destroy(_Addr::val(start), _Addr::val(end),
+                    start_level, end_level, alloc);
+    }
 
 #if 0
     template< typename _New_alloc >

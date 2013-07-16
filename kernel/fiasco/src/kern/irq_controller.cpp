@@ -53,6 +53,24 @@ Icu::icu_bind_irq(Irq *irq, unsigned irqnum)
   return commit_result(0);
 }
 
+PUBLIC inline NEEDS["irq_mgr.h"]
+L4_msg_tag
+Icu::icu_set_mode(Mword pin, Irq_chip::Mode mode)
+{
+  Irq_mgr::Irq i = Irq_mgr::mgr->chip(pin);
+
+  if (!i.chip)
+    return commit_result(-L4_err::ENodev);
+
+  int r = i.chip->set_mode(i.pin, mode);
+
+  Irq_base *irq = i.chip->irq(i.pin);
+  if (irq)
+    irq->switch_mode(i.chip->is_edge_triggered(i.pin));
+
+  return commit_result(r);
+}
+
 
 PUBLIC inline NEEDS["irq_mgr.h"]
 void

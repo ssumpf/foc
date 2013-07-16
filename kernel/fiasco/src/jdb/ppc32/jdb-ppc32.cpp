@@ -15,7 +15,7 @@ DEFINE_PER_CPU static Per_cpu<Proc::Status> jdb_irq_state;
 // disable interrupts before entering the kernel debugger
 IMPLEMENT
 void
-Jdb::save_disable_irqs(unsigned cpu)
+Jdb::save_disable_irqs(Cpu_number cpu)
 {
   jdb_irq_state.cpu(cpu) = Proc::cli_save();
 }
@@ -23,24 +23,24 @@ Jdb::save_disable_irqs(unsigned cpu)
 // restore interrupts after leaving the kernel debugger
 IMPLEMENT
 void
-Jdb::restore_irqs(unsigned cpu)
+Jdb::restore_irqs(Cpu_number cpu)
 {
   Proc::sti_restore(jdb_irq_state.cpu(cpu));
 }
 
 IMPLEMENT inline
 void
-Jdb::enter_trap_handler(unsigned /*cpu*/)
+Jdb::enter_trap_handler(Cpu_number)
 {}
 
 IMPLEMENT inline
 void
-Jdb::leave_trap_handler(unsigned /*cpu*/)
+Jdb::leave_trap_handler(Cpu_number)
 {}
 
 IMPLEMENT inline
 bool
-Jdb::handle_conditional_breakpoint(unsigned /*cpu*/)
+Jdb::handle_conditional_breakpoint(Cpu_number)
 { return false; }
 
 IMPLEMENT
@@ -53,10 +53,10 @@ Jdb::handle_nested_trap(Jdb_entry_frame *e)
 
 IMPLEMENT
 bool
-Jdb::handle_debug_traps(unsigned cpu)
+Jdb::handle_debug_traps(Cpu_number cpu)
 {
   Jdb_entry_frame *ef = entry_frame.cpu(cpu);
-  snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(0)), "%s",
+  snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::boot_cpu())), "%s",
            (char const *)ef->r[2]);
 
   return true;
@@ -64,12 +64,15 @@ Jdb::handle_debug_traps(unsigned cpu)
 
 IMPLEMENT inline
 bool
-Jdb::handle_user_request(unsigned cpu)
+Jdb::handle_user_request(Cpu_number cpu)
 {
   Jdb_entry_frame *ef = Jdb::entry_frame.cpu(cpu);
   const char *str = (char const *)ef->r[2];
   Space * task = get_task(cpu);
   char tmp;
+
+  if (ef->debug_ipi())
+    return cpu != Cpu_number::boot_cpu();
 
   if (!peek(str, task, tmp) || tmp != '*')
     return false;

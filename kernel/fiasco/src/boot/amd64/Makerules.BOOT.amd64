@@ -29,9 +29,11 @@ $(KERNEL):	kernel.amd64.lds boot_img.o $(CRT0) $(OBJ_KERNEL) $(JDB) $(LIBK) $(KE
 		$(LINK_MESSAGE)
 		$(VERBOSE)$(LD) -m elf_x86_64 -N -T $< -gc-sections \
 		-o $@ $(filter-out $<,$+) $(LIBGCC) $(KERNEL_UNRES_SYMS)
+		$(call ADD_CONFIGFILE,$@)
 
+# '$(RM) main' should be removed later - Late 2012
 $(BOOT): $(KERNEL)
 		$(LINK_MESSAGE)
 		$(VERBOSE)$(STRIP) -o $@ $<
 		$(VERBOSE)chmod 755 $@
-		$(VERBOSE)ln -sf $@ fiasco
+		$(VERBOSE)$(RM) main

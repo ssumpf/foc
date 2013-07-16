@@ -1,8 +1,8 @@
 INTERFACE:
 
 #include <cassert>
-#include <dlist>
-#include <hlist>
+#include <cxx/dlist>
+#include <cxx/hlist>
 #include "member_offs.h"
 #include "spin_lock.h"
 #include "types.h"

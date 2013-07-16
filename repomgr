@@ -82,6 +82,7 @@ my %modules =
                    fb/Makefile
                    fb/spectrum
                    misc/eb_leds
+                   misc/fortran-hello
                    misc/reboot
                    libs/inputtst
                    libs/libc_thread_safe
@@ -123,6 +124,7 @@ my %modules =
                    libcrypto
                    libevent
                    libgfxbitmap
+                   libgfortran
                    libgomp
                    libiniparser
                    libio
@@ -385,7 +387,7 @@ sub do_checkout(%)
 
       foreach my $pe (@path_elems)
         {
-          if (! -d "$path/$pe/.svn")
+          if (! -d "$path/$pe")
             {
               # if we find something from path_roots then switch to that
               my $changed_path = convert_path("$path/$pe", 0,
@@ -415,7 +417,7 @@ sub do_checkout(%)
                   }
                 else
                   {
-                    my $cmd = "cd $path && svn update -r '$svnrev' --depth empty $pe";
+                    my $cmd = "cd $path && svn update -q -r '$svnrev' --depth empty $pe";
                     #print "cmd: $cmd\n";
                     system($cmd);
                     die "svn update failed" if $?;

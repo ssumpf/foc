@@ -188,7 +188,7 @@ bool Uart::valid()
   scratch3 = ier();
   ier(scratch);
 
-  return (scratch2 == 0x00 && scratch3 == 0x0f);
+  return scratch2 == 0x00 && scratch3 == 0x0f;
 }
 
 IMPLEMENT
@@ -208,9 +208,7 @@ bool Uart::startup(Address _port, int __irq)
 
   ier(Base_ier_bits);/* disable all rs-232 interrupts */
   mcr(0x0b);         /* out2, rts, and dtr enabled */
-  fcr(1);            /* enable fifo */
-  fcr(0x07);         /* clear rcv xmit fifo */
-  fcr(1);            /* enable fifo */
+  fcr(7);            /* enable and clear rcv+xmit fifo */
   lcr(0);            /* clear line control register */
 
   /* clearall interrupts */

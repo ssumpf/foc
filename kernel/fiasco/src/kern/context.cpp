@@ -27,22 +27,22 @@ class Kobject_iface;
 class Context_ptr
 {
 public:
-  explicit Context_ptr(unsigned long id) : _t(id) {}
+  explicit Context_ptr(Cap_index id) : _t(id) {}
   Context_ptr() {}
   Context_ptr(Context_ptr const &o) : _t(o._t) {}
   Context_ptr const &operator = (Context_ptr const &o)
   { _t = o._t; return *this; }
 
-  Kobject_iface *ptr(Space *, unsigned char *) const;
+  Kobject_iface *ptr(Space *, L4_fpage::Rights *) const;
 
   bool is_kernel() const { return false; }
-  bool is_valid() const { return _t != ~0UL; }
+  bool is_valid() const { return _t != Cap_index(~0UL); }
 
   // only for debugging use
-  Mword raw() const { return _t;}
+  Cap_index raw() const { return _t; }
 
 private:
-  Mword _t;
+  Cap_index _t;
 
 };
 
@@ -51,8 +51,10 @@ class Context_ptr_base : public Context_ptr
 {
 public:
   enum Invalid_type { Invalid };
-  explicit Context_ptr_base(Invalid_type) : Context_ptr(0) {}
-  explicit Context_ptr_base(unsigned long id) : Context_ptr(id) {}
+  enum Null_type { Null };
+  explicit Context_ptr_base(Invalid_type) : Context_ptr(Cap_index(~0UL)) {}
+  explicit Context_ptr_base(Null_type) : Context_ptr(Cap_index(0)) {}
+  explicit Context_ptr_base(Cap_index id) : Context_ptr(id) {}
   Context_ptr_base() {}
   Context_ptr_base(Context_ptr_base<T> const &o) : Context_ptr(o) {}
   template< typename X >
@@ -178,7 +180,7 @@ public:
 
   struct Migration
   {
-    unsigned cpu;
+    Cpu_number cpu;
     L4_sched_param const *sp;
     bool in_progress;
 
@@ -208,7 +210,7 @@ public:
           && (int)Config::Access_user_mem == Config::Access_user_mem_direct)
         return _u.get();
 
-      unsigned const cpu = current_cpu();
+      Cpu_number const cpu = current_cpu();
       if ((int)Config::Access_user_mem == Config::Must_access_user_mem_direct
           && cpu == context()->cpu()
           && Mem_space::current_mem_space(cpu) == context()->space())
@@ -350,7 +352,7 @@ public:
     void *reply;
     Context *thread;
     Drq const *rq;
-    unsigned target_cpu;
+    Cpu_number target_cpu;
     enum class Type { Send, Do_request, Do_reply, Done } type;
     bool wait;
     unsigned print(int max, char *buf) const;
@@ -416,7 +418,7 @@ DEFINE_PER_CPU Per_cpu<Context *> Context::_kernel_ctxt;
 
 IMPLEMENT inline NEEDS["kdb_ke.h"]
 Kobject_iface * __attribute__((nonnull(1, 2)))
-Context_ptr::ptr(Space *s, unsigned char *rights) const
+Context_ptr::ptr(Space *s, L4_fpage::Rights *rights) const
 {
   assert_kdb (cpu_lock.test());
 
@@ -454,7 +456,14 @@ Context::Context()
   // sys_task_new() and avoid calling us twice with different
   // space_context arguments.
 
-  set_cpu_of(this, Cpu::Invalid);
+  set_cpu_of(this, Cpu::invalid());
+}
+
+PUBLIC inline
+void
+Context::reset_kernel_sp()
+{
+  _kernel_sp = reinterpret_cast<Mword*>(regs());
 }
 
 PUBLIC inline
@@ -500,7 +509,9 @@ Context::check_for_current_cpu() const
 {
   bool r = cpu() == current_cpu() || !Cpu::online(cpu());
   if (0 && EXPECT_FALSE(!r)) // debug output disabled
-    printf("FAIL: cpu=%u (current=%u)\n", cpu(), current_cpu());
+    printf("FAIL: cpu=%u (current=%u)\n",
+           cxx::int_value<Cpu_number>(cpu()),
+           cxx::int_value<Cpu_number>(current_cpu()));
   return r;
 }
 
@@ -516,12 +527,12 @@ Context::state(bool check = true) const
 
 PUBLIC static inline
 Context*
-Context::kernel_context(unsigned cpu)
+Context::kernel_context(Cpu_number cpu)
 { return _kernel_ctxt.cpu(cpu); }
 
 PROTECTED static inline
 void
-Context::kernel_context(unsigned cpu, Context *ctxt)
+Context::kernel_context(Cpu_number cpu, Context *ctxt)
 { _kernel_ctxt.cpu(cpu) = ctxt; }
 
 
@@ -753,7 +764,7 @@ Context::schedule()
   // Ensure only the current thread calls schedule
   assert_kdb (this == current());
 
-  unsigned current_cpu = ~0U;
+  Cpu_number current_cpu = Cpu_number::nil();
   Sched_context::Ready_queue *rq = 0;
 
   // Enqueue current thread into ready-list to schedule correctly
@@ -767,7 +778,7 @@ Context::schedule()
       // I may've been migrated during the switch_exec_locked in the while
       // statement below. So check out if I've to use a new ready queue.
         {
-          unsigned new_cpu = access_once(&_cpu);
+          Cpu_number new_cpu = access_once(&_cpu);
           if (new_cpu != current_cpu)
             {
               Mem::barrier();
@@ -1181,7 +1192,7 @@ bool  FIASCO_WARN_RESULT //L4_IPC_CODE
 Context::switch_exec_locked(Context *t, enum Helping_mode mode)
 {
   // Must be called with CPU lock held
-  assert_kdb (t->cpu() != Cpu::Invalid);
+  assert_kdb (t->cpu() != Cpu::invalid());
   assert_kdb (t->cpu() == current_cpu());
   assert_kdb (cpu() == current_cpu());
   assert_kdb (cpu_lock.test());
@@ -1354,8 +1365,9 @@ Context::Drq_q::handle_requests(Drop_mode drop)
       need_resched |= execute_request(r, drop, false);
     }
 }
+
 /**
- * \biref Forced dequeue from lock wait queue, or DRQ queue.
+ * \brief Forced dequeue from lock wait queue, or DRQ queue.
  */
 PRIVATE
 void
@@ -1656,23 +1668,23 @@ IMPLEMENTATION [!mp]:
 #include "kdb_ke.h"
 
 PUBLIC inline
-unsigned
+Cpu_number
 Context::cpu(bool running = false) const
 {
   if (running)
-    return 0;
+    return Cpu_number::boot_cpu();
 
   return _cpu;
 }
 
 PUBLIC static inline
 void
-Context::enable_tlb(unsigned)
+Context::enable_tlb(Cpu_number)
 {}
 
 PUBLIC static inline
 void
-Context::disable_tlb(unsigned)
+Context::disable_tlb(Cpu_number)
 {}
 
 
@@ -1782,12 +1794,12 @@ Cpu_mask Context::_tlb_active;
 
 PUBLIC static inline
 void
-Context::enable_tlb(unsigned cpu)
+Context::enable_tlb(Cpu_number cpu)
 { _tlb_active.atomic_set(cpu); }
 
 PUBLIC static inline
 void
-Context::disable_tlb(unsigned cpu)
+Context::disable_tlb(Cpu_number cpu)
 { _tlb_active.atomic_clear(cpu); }
 
 /**
@@ -1875,7 +1887,7 @@ Context::Pending_rqq::handle_requests(Context **mq)
 
 PUBLIC
 void
-Context::global_drq(unsigned cpu, Drq::Request_func *func, void *arg,
+Context::global_drq(Cpu_number cpu, Drq::Request_func *func, void *arg,
                     Drq::Request_func *reply = 0, bool wait = true)
 {
   assert_kdb (this == current());
@@ -1890,7 +1902,7 @@ Context::global_drq(unsigned cpu, Drq::Request_func *func, void *arg,
 
   Ipi::send(Ipi::Global_request, this->cpu(), cpu);
 
-  //LOG_MSG_3VAL(src, "<drq", src->state(), Mword(this), 0);
+  //LOG_MSG_3VAL(this, "<drq", state(), Mword(this), 0);
   while (wait && (state() & Thread_drq_wait))
     {
       state_del(Thread_ready_mask);
@@ -1919,7 +1931,7 @@ Context::enqueue_drq(Drq *rq, Drq::Exec_mode /*exec*/)
       _drq_q.enq(rq);
 
       // read cpu again we may've been migrated meanwhile
-      unsigned cpu = access_once(&this->_cpu);
+      Cpu_number cpu = access_once(&this->_cpu);
 
 	{
 	  Queue &q = Context::_pending_rqq.cpu(cpu);
@@ -1999,7 +2011,7 @@ Context::shutdown_drqs()
 
 
 PUBLIC inline
-unsigned
+Cpu_number
 Context::cpu(bool running = false) const
 {
   (void)running;
@@ -2049,6 +2061,7 @@ Context::handle_remote_tlb_flush(Drq *, Context *, void *_s)
 {
   Mem_space **s = (Mem_space **)_s;
   Mem_space::tlb_flush_spaces((bool)s[0], s[1], s[2]);
+
   return 0;
 }
 
@@ -2059,8 +2072,8 @@ Context::xcpu_tlb_flush(bool flush_all_spaces, Mem_space *s1, Mem_space *s2)
 {
   auto g = lock_guard(cpu_lock);
   Mem_space *s[3] = { (Mem_space *)flush_all_spaces, s1, s2 };
-  unsigned ccpu = current_cpu();
-  for (unsigned i = 0; i < Config::Max_num_cpus; ++i)
+  Cpu_number ccpu = current_cpu();
+  for (Cpu_number i = Cpu_number::first(); i < Config::max_num_cpus(); ++i)
     if (ccpu != i && _tlb_active.get(i))
       current()->global_drq(i, Context::handle_remote_tlb_flush, s);
 }
@@ -2115,6 +2128,29 @@ void
 Context::switch_fpu(Context *)
 {}
 
+//----------------------------------------------------------------------------
+INTERFACE [debug]:
+
+#include "tb_entry.h"
+
+/** logged context switch. */
+class Tb_entry_ctx_sw : public Tb_entry
+{
+public:
+  using Tb_entry::_ip;
+
+  Context const *dst;		///< switcher target
+  Context const *dst_orig;
+  Address kernel_ip;
+  Mword lock_cnt;
+  Space const *from_space;
+  Sched_context const *from_sched;
+  Mword from_prio;
+  unsigned print(int max, char *buf) const;
+} __attribute__((packed));
+
+
+
 // --------------------------------------------------------------------------
 IMPLEMENTATION [debug]:
 
@@ -2133,6 +2169,53 @@ Context::Drq_log::print(int maxlen, char *buf) const
 
   return snprintf(buf, maxlen, "%s(%s) rq=%p to ctxt=%lx/%p (func=%p, reply=%p) cpu=%u",
       t, wait ? "wait" : "no-wait", rq, Kobject_dbg::pointer_to_id(thread),
-      thread, func, reply, target_cpu);
+      thread, func, reply, cxx::int_value<Cpu_number>(target_cpu));
 }
+
+// context switch
+IMPLEMENT
+unsigned
+Tb_entry_ctx_sw::print(int maxlen, char *buf) const
+{
+  char symstr[24];
+  int max = maxlen;
+
+  Context *sctx = 0;
+  Mword sctxid = ~0UL;
+  Mword dst;
+  Mword dst_orig;
+
+  sctx = from_sched->context();
+  sctxid = Kobject_dbg::pointer_to_id(sctx);
+
+  dst = Kobject_dbg::pointer_to_id(this->dst);
+  dst_orig = Kobject_dbg::pointer_to_id(this->dst_orig);
+
+  snprintf(symstr, sizeof(symstr), L4_PTR_FMT, kernel_ip); // Jdb_symbol::...
+
+  if (sctx != ctx())
+    maxlen -= snprintf(buf, maxlen, "(%lx)", sctxid);
+
+  maxlen -= snprintf(buf, maxlen, " ==> %lx ", dst);
+
+  if (dst != dst_orig || lock_cnt)
+    maxlen -= snprintf(buf, maxlen, "(");
+
+  if (dst != dst_orig)
+    maxlen -= snprintf(buf, maxlen, "want %lx", dst_orig);
+
+  if (dst != dst_orig && lock_cnt)
+    maxlen -= snprintf(buf, maxlen, " ");
+
+  if (lock_cnt)
+    maxlen -= snprintf(buf, maxlen, "lck %ld", lock_cnt);
+
+  if (dst != dst_orig || lock_cnt)
+    maxlen -= snprintf(buf, maxlen, ") ");
+
+  maxlen -= snprintf(buf, maxlen, " krnl %s", symstr);
+
+  return max - maxlen;
+}
+
 

@@ -215,6 +215,7 @@ SECTIONS {
   .bss : AT (ADDR(.bss) - phys_offset) {
     PROVIDE(__bss_start = .);
     . = ALIGN(4);
+    *(.bss.kernel_page_dir)
     _per_cpu_ctor_data_start = .;
     KEEP (*(.bss.per_cpu_ctor_data))
     _per_cpu_ctor_data_end = .;

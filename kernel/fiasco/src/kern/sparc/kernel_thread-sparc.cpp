@@ -17,6 +17,6 @@ void
 Kernel_thread::bootstrap_arch()
 {
   //status for kernel thread
-  Return_frame *rf = nonull_static_cast<Return_frame*>(current()->regs());
+  //Return_frame *rf = nonull_static_cast<Return_frame*>(current()->regs());
   //rf->srr1 = Msr::Msr_kernel;
 }

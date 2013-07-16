@@ -67,6 +67,22 @@ namespace L4
   public:
     Uart_s5pv210() : Uart_s3c(Type_s5pv210) {}
 
+    struct Save_block
+    {
+      unsigned ulcon;
+      unsigned ucon;
+      unsigned ufcon;
+      unsigned umcon;
+      unsigned ubrdiv;
+      unsigned ufracval;
+      unsigned uintp;
+      unsigned uintsp;
+      unsigned uintm;
+    };
+
+    void save(Save_block *) const;
+    void restore(Save_block const *) const;
+
   protected:
     void ack_rx_irq() const;
     void wait_for_empty_tx_fifo() const;

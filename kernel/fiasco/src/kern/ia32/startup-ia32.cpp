@@ -48,11 +48,12 @@ void
 Startup::stage2()
 {
   // the logical ID of the boot CPU is always 0
-  enum { Boot_cpu = 0 };
   Kip_init::init();
   Kmem_alloc::init();
 
+  Cpu::cpus.cpu(Cpu_number::boot_cpu()).identify();
   // initialize initial page tables (also used for other CPUs later)
+  Mem_space::init_page_sizes();
   Kmem::init_mmu();
 
   if (Kernel_uart::init(Kernel_uart::Init_after_mmu))
@@ -60,13 +61,13 @@ Startup::stage2()
 
   // Initialize cpu-local data management and run constructors for CPU 0
   Per_cpu_data::init_ctors();
-  Per_cpu_data_alloc::alloc(Boot_cpu);
-  Per_cpu_data::run_ctors(Boot_cpu);
+  Per_cpu_data_alloc::alloc(Cpu_number::boot_cpu());
+  Per_cpu_data::run_ctors(Cpu_number::boot_cpu());
 
   // set frequency in KIP to that of the boot CPU
-  Kip_init::init_freq(Cpu::cpus.cpu(Boot_cpu));
+  Kip_init::init_freq(Cpu::cpus.cpu(Cpu_number::boot_cpu()));
 
-  bool use_io_apic = Io_apic::init(Boot_cpu);
+  bool use_io_apic = Io_apic::init(Cpu_number::boot_cpu());
   if (use_io_apic)
     {
       Config::apic = true;
@@ -81,14 +82,14 @@ Startup::stage2()
   Kernel_task::init(); // enables current_mem_space()
 
   // initialize initial TSS, GDT, IDT
-  Kmem::init_cpu(Cpu::cpus.cpu(Boot_cpu));
+  Kmem::init_cpu(Cpu::cpus.cpu(Cpu_number::boot_cpu()));
   Utcb_init::init();
   Idt::init();
-  Fpu::init(Boot_cpu);
+  Fpu::init(Cpu_number::boot_cpu());
   Apic::init();
-  Apic::apic.cpu(Boot_cpu).construct();
-  Ipi::init(Boot_cpu);
-  Timer::init(Boot_cpu);
+  Apic::apic.cpu(Cpu_number::boot_cpu()).construct();
+  Ipi::init(Cpu_number::boot_cpu());
+  Timer::init(Cpu_number::boot_cpu());
   int timer_irq = Timer::irq();
   if (use_io_apic)
     {
@@ -116,7 +117,7 @@ Startup::stage2()
     }
 
   Idt::set_vectors_run();
-  Timer::master_cpu(Boot_cpu);
+  Timer::master_cpu(Cpu_number::boot_cpu());
   Apic::check_still_getting_interrupts();
 //  Cpu::init_global_features();
 }

@@ -43,11 +43,12 @@ INTERFACE[ux && mp]:
 EXTENSION class Pic
 {
 public:
-  static void send_ipi(unsigned _cpu, unsigned char data);
-  static bool setup_ipi(unsigned _cpu, int _tid);
+  static void send_ipi(Cpu_number _cpu, unsigned char data);
+  static bool setup_ipi(Cpu_number _cpu, int _tid);
 
 private:
-  static unsigned int ipi_fds[Config::Max_num_cpus];
+  typedef Per_cpu_array<unsigned> Fd_array;
+  static Fd_array ipi_fds;
 };
 
 // ------------------------------------------------------------------------
@@ -283,18 +284,18 @@ IMPLEMENTATION[ux && mp]:
 
 #include "ipi.h"
 
-unsigned int Pic::ipi_fds[Config::Max_num_cpus];
+Pic::Fd_array Pic::ipi_fds;
 
 IMPLEMENT
 void
-Pic::set_cpu(unsigned irq_num, unsigned cpu)
+Pic::set_cpu(unsigned irq_num, Cpu_number cpu)
 {
   printf("Pic::set_cpu(%d, %d)\n", irq_num, cpu);
 }
 
 IMPLEMENT static
 bool
-Pic::setup_ipi(unsigned _cpu, int _tid)
+Pic::setup_ipi(Cpu_number _cpu, int _tid)
 {
   int sockets[2], flags;
 
@@ -322,7 +323,7 @@ Pic::setup_ipi(unsigned _cpu, int _tid)
 
 IMPLEMENT
 void
-Pic::send_ipi(unsigned _cpu, unsigned char data)
+Pic::send_ipi(Cpu_number _cpu, unsigned char data)
 {
   if (ipi_fds[_cpu])
     if (write(ipi_fds[_cpu], &data, sizeof(data)) != sizeof(data))

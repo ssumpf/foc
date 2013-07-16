@@ -138,7 +138,7 @@ protected:
 
 #else // ! CONFIG_JDB_LOGGING
 
-#define BEGIN_LOG_EVENT(name, sc, fmt)					\
+#define BEGIN_LOG_EVENT(name, sc, fmt)				\
   if (0)							\
     { char __do_log__ = 0; (void)__do_log__;
 
@@ -177,14 +177,14 @@ PUBLIC static inline NEEDS["mem_layout.h"]
 Tracebuffer_status *
 Jdb_tbuf::status()
 {
-  return (Tracebuffer_status*) Mem_layout::Tbuf_status_page;
+  return (Tracebuffer_status *)Mem_layout::Tbuf_status_page;
 }
 
 PROTECTED static inline NEEDS["mem_layout.h"]
 Tb_entry_union *
 Jdb_tbuf::buffer()
 {
-  return (Tb_entry_union*)Mem_layout::Tbuf_buffer_area;
+  return (Tb_entry_union *)Mem_layout::Tbuf_buffer_area;
 }
 
 PUBLIC static inline
@@ -201,7 +201,7 @@ Jdb_tbuf::clear_tbuf()
 {
   Mword i;
 
-  for (i=0; i<_max_entries; i++)
+  for (i = 0; i < _max_entries; i++)
     buffer()[i].clear();
 
   _tbuf_act = buffer();
@@ -286,7 +286,7 @@ Jdb_tbuf::entries()
 
   Mword cnt = 0;
 
-  for (Mword idx=0; idx<unfiltered_entries(); idx++)
+  for (Mword idx = 0; idx<unfiltered_entries(); idx++)
     if (!buffer()[idx].hidden())
       cnt++;
 
@@ -317,14 +317,14 @@ PUBLIC static inline
 int
 Jdb_tbuf::event_valid(Mword idx)
 {
-  return (idx < _entries);
+  return idx < _entries;
 }
 
 /** Return pointer to tracebuffer event.
- * @param  position of event in tracebuffer: 
+ * @param  position of event in tracebuffer:
  *         0 is last event, 1 the event before and so on
  * @return pointer to tracebuffer event
- * 
+ *
  * event with idx == 0 is the last event queued in
  * event with idx == 1 is the event before */
 PUBLIC static
@@ -344,10 +344,10 @@ Jdb_tbuf::unfiltered_lookup(Mword idx)
 
 /** Return pointer to tracebuffer event.
  * Don't count hidden events.
- * @param  position of event in tracebuffer: 
+ * @param  position of event in tracebuffer:
  *         0 is last event, 1 the event before and so on
  * @return pointer to tracebuffer event
- * 
+ *
  * event with idx == 0 is the last event queued in
  * event with idx == 1 is the event before */
 PUBLIC static
@@ -357,7 +357,7 @@ Jdb_tbuf::lookup(Mword look_idx)
   if (!_filter_enabled)
     return unfiltered_lookup(look_idx);
 
-  for (Mword idx=0;; idx++)
+  for (Mword idx = 0;; idx++)
     {
       Tb_entry *e = unfiltered_lookup(idx);
 
@@ -392,7 +392,7 @@ Jdb_tbuf::idx(Tb_entry const *e)
     return unfiltered_idx(e);
 
   Tb_entry_union const *ef = static_cast<Tb_entry_union const*>(e);
-  Mword idx = (Mword)-1;
+  Mword idx = (Mword) - 1;
 
   for (;;)
     {
@@ -431,8 +431,8 @@ PUBLIC static
 Mword
 Jdb_tbuf::search_to_idx(Mword nr)
 {
-  if (nr == (Mword)-1)
-    return (Mword)-1;
+  if (nr == (Mword) - 1)
+    return (Mword) - 1;
 
   Tb_entry *e;
 
@@ -440,14 +440,14 @@ Jdb_tbuf::search_to_idx(Mword nr)
     {
       e = search(nr);
       if (!e)
-	return (Mword)-1;
+	return (Mword) - 1;
       return unfiltered_idx(e);
     }
 
-  for (Mword idx_u=0, idx_f=0; (e = unfiltered_lookup(idx_u)); idx_u++)
+  for (Mword idx_u = 0, idx_f = 0; (e = unfiltered_lookup(idx_u)); idx_u++)
     {
       if (e->number() == nr)
-	return e->hidden() ? (Mword)-2 : idx_f;
+	return e->hidden() ? (Mword) - 2 : idx_f;
 
       if (!e->hidden())
 	idx_f++;
@@ -487,14 +487,14 @@ Jdb_tbuf::event(Mword idx, Mword *number, Unsigned32 *kclock,
 /** Get difference CPU cycles between event idx and event idx+1.
  * @param idx position of first event in tracebuffer
  * @retval difference in CPU cycles
- * @return 0 if something wrong, 1 if everything ok */ 
+ * @return 0 if something wrong, 1 if everything ok */
 PUBLIC static
 int
 Jdb_tbuf::diff_tsc(Mword idx, Signed64 *delta)
 {
   Tb_entry *e      = lookup(idx);
-  Tb_entry *e_prev = lookup(idx+1);
-  
+  Tb_entry *e_prev = lookup(idx + 1);
+
   if (!e || !e_prev)
     return false;
 
@@ -506,14 +506,14 @@ Jdb_tbuf::diff_tsc(Mword idx, Signed64 *delta)
  * @param idx position of first event in tracebuffer
  * @param nr  number of perfcounter (0=first, 1=second)
  * @retval difference in perfcnt cycles
- * @return 0 if something wrong, 1 if everything ok */ 
+ * @return 0 if something wrong, 1 if everything ok */
 PUBLIC static
 int
 Jdb_tbuf::diff_pmc(Mword idx, Mword nr, Signed32 *delta)
 {
   Tb_entry *e      = lookup(idx);
-  Tb_entry *e_prev = lookup(idx+1);
-  
+  Tb_entry *e_prev = lookup(idx + 1);
+
   if (!e || !e_prev)
     return false;
 

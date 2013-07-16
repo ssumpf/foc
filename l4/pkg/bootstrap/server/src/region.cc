@@ -102,6 +102,7 @@ Region_list::add_nolimitcheck(Region const &region, bool may_overlap)
 
   *_end = region;
   ++_end;
+  _combined_size += region.size();
 }
 
 void
@@ -115,22 +116,41 @@ Region_list::add(Region const &region, bool may_overlap)
       return;
     }
 
-  if (mem.begin() >= _upper_limit)
+  if (mem.begin() > _address_limit)
     {
-      printf("  Dropping %s region ", _name);
+      printf("  Dropping '%s' region ", _name);
       mem.print();
-      printf(" due to %lld MB limit\n", _upper_limit >> 20);
+      printf(" due to %lld MB address limit\n", _address_limit >> 20);
       return;
     }
 
-  if (mem.end() >= _upper_limit - 1)
+  if (mem.end() >= _address_limit)
     {
-      printf("  Limiting %s region ", _name);
+      printf("  Limiting '%s' region ", _name);
       mem.print();
-      mem.end(_upper_limit - 1);
+      mem.end(_address_limit - 1);
       printf(" to ");
       mem.print();
-      printf(" due to %lld MB limit\n", _upper_limit >> 20);
+      printf(" due to %lld MB address limit\n", _address_limit >> 20);
+
+    }
+
+  if (_combined_size >= _max_combined_size)
+    {
+      printf("  Dropping '%s' region ", _name);
+      mem.print();
+      printf(" due to %lld MB size limit\n", _max_combined_size >> 20);
+      return;
+    }
+
+  if (_combined_size + mem.size() > _max_combined_size)
+    {
+      printf("  Limiting '%s' region ", _name);
+      mem.print();
+      mem.end(mem.begin() + _max_combined_size - _combined_size - 1);
+      printf(" to ");
+      mem.print();
+      printf(" due to %lld MB size limit\n", _max_combined_size >> 20);
     }
 
   add_nolimitcheck(mem, may_overlap);
@@ -159,7 +179,7 @@ Region_list::contains(Region const &o)
 void
 Region::print() const
 {
-  printf("  [%9llx, %9llx] {%9llx}", begin(), end(), end() - begin() + 1);
+  printf("  [%9llx, %9llx] {%9llx}", begin(), end(), size());
 }
 
 void

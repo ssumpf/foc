@@ -247,8 +247,7 @@ getchar(void)
 
   do
     c = uart()->get_char(0);
-  while (c == -1)
-    ;
+  while (c == -1);
   return c;
 }
 

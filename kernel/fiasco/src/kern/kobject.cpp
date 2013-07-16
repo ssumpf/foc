@@ -2,7 +2,7 @@ INTERFACE:
 
 #include "lock.h"
 #include "obj_space.h"
-#include <hlist>
+#include <cxx/hlist>
 
 
 class Kobject_mappable
@@ -178,7 +178,7 @@ Kobject::sys_dec_refcnt(L4_msg_tag tag, Utcb const *in, Utcb *out)
 
 PUBLIC
 L4_msg_tag
-Kobject::kobject_invoke(L4_obj_ref, Mword /*rights*/,
+Kobject::kobject_invoke(L4_obj_ref, L4_fpage::Rights /*rights*/,
                         Syscall_frame *f,
                         Utcb const *in, Utcb *out)
 {

@@ -38,15 +38,12 @@ private:
   unsigned char cur_pt_level;
   char dump_raw;
 
-  static unsigned max_pt_level;
-
-  static unsigned entry_valid(Mword entry, unsigned level);
-  static unsigned entry_is_pt_ptr(Mword entry, unsigned level,
+  static unsigned entry_is_pt_ptr(Pdir::Pte_ptr const &entry,
                                   unsigned *entries, unsigned *next_level);
-  static Address entry_phys(Mword entry, unsigned level);
+  static Address entry_phys(Pdir::Pte_ptr const &entry);
 
-  void print_entry(Mword entry, unsigned level);
-  void print_head(Mword entry);
+  void print_entry(Pdir::Pte_ptr const &);
+  void print_head(void *entry);
 };
 
 char Jdb_ptab_m::first_char;
@@ -61,8 +58,8 @@ Jdb_ptab::Jdb_ptab(void *pt_base = 0, Space *task = 0,
 : base((Address)pt_base), virt_base(virt_base), _level(level),
   _task(task), entries(entries), cur_pt_level(pt_level), dump_raw(0)
 {
-  if (!pt_level && entries == 0)
-    this->entries = 1UL << Ptab::Level<Pdir::Traits,0>::Traits::Size;
+  if (entries == 0)
+    this->entries = Pdir::entries_at_level(pt_level);
 }
 
 PUBLIC
@@ -92,25 +89,70 @@ PUBLIC
 void
 Jdb_ptab::draw_entry(unsigned long row, unsigned long col)
 {
-  if (col==0)
-    print_head(virt(row, 1));
+  int idx;
+  if (col == 0)
+    {
+      idx = index(row, 1);
+      if (idx >= 0)
+        print_head(pte(idx));
+      else
+        putstr("        ");
+    }
+  else if ((idx = index(row, col)) >= 0)
+    print_entry(Pdir::Pte_ptr(pte(idx), cur_pt_level));
   else
-    print_entry(*(My_pte*)(virt(row,col)), cur_pt_level);
-}
-
-PRIVATE
-Address
-Jdb_ptab::virt(unsigned long row, unsigned long col)
-{
-  Mword e = (col-1) + (row * (cols()-1));
-  return base + e * sizeof(Mword);
+    putstr("   ###  ");
 }
 
 IMPLEMENT
-void
-Jdb_ptab::print_head(Mword entry)
+Address
+Jdb_ptab::entry_phys(Pdir::Pte_ptr const &entry)
 {
-  printf(L4_PTR_FMT, entry);
+  if (!entry.is_leaf())
+    return entry.next_level();
+
+  return entry.page_addr();
+}
+
+
+PRIVATE inline
+int
+Jdb_ptab::index(unsigned row, unsigned col)
+{
+  Mword e = (col-1) + (row * (cols()-1));
+  if (e < Pdir::Levels::length(cur_pt_level))
+    return e;
+  else
+    return -1;
+}
+
+
+PRIVATE inline
+void *
+Jdb_ptab::pte(int index)
+{
+  return (void*)(base + index * Pdir::Levels::entry_size(cur_pt_level));
+}
+
+IMPLEMENT
+unsigned
+Jdb_ptab::entry_is_pt_ptr(Pdir::Pte_ptr const &entry,
+                          unsigned *entries, unsigned *next_level)
+{
+  if (!entry.is_valid() || entry.is_leaf())
+    return 0;
+
+  *entries = Pdir::entries_at_level(entry.level+1);
+  *next_level = entry.level+1;
+  return 1;
+}
+
+
+IMPLEMENT
+void
+Jdb_ptab::print_head(void *entry)
+{
+  printf(L4_PTR_FMT, (Address)entry);
 }
 
 PUBLIC
@@ -125,7 +167,7 @@ Jdb_ptab_m::handle_key(Kobject_common *o, int code)
     {
       Thread *th = Kobject::dcast<Thread_object*>(o);
       if (!th || !th->space())
-	return false;
+        return false;
 
       t = th->space();
     }
@@ -157,27 +199,30 @@ Jdb_ptab::key_pressed(int c, unsigned long &row, unsigned long &col)
     case KEY_RETURN:	// goto ptab/address under cursor
       if (_level<=7)
 	{
-	  My_pte pt_entry = *(My_pte*)virt(row,col);
-	  if (!entry_valid(pt_entry, cur_pt_level))
+          int idx = index(row, col);
+          if (idx < 0)
+            break;
+
+          Pdir::Pte_ptr pt_entry(pte(idx), cur_pt_level);
+	  if (!pt_entry.is_valid())
 	    break;
 
-	  Address pd_virt = (Address)
-	    Mem_layout::phys_to_pmem(entry_phys(pt_entry, cur_pt_level));
+	  void *pd_virt = (void*)Mem_layout::phys_to_pmem(entry_phys(pt_entry));
 
 	  unsigned next_level, entries;
 
-	  if (cur_pt_level < max_pt_level
-	      && entry_is_pt_ptr(pt_entry, cur_pt_level, &entries, &next_level))
+	  if (cur_pt_level < Pdir::Depth
+	      && entry_is_pt_ptr(pt_entry, &entries, &next_level))
 	    {
-	      Jdb_ptab pt_view((void *)pd_virt, _task, next_level, entries,
-		               disp_virt(row,col), _level+1);
+	      Jdb_ptab pt_view(pd_virt, _task, next_level, entries,
+		               disp_virt(idx), _level+1);
 	      if (!pt_view.show(0,1))
 		return Exit;
 	      return Redraw;
 	    }
 	  else if (jdb_dump_addr_task != 0)
 	    {
-	      if (!jdb_dump_addr_task(disp_virt(row,col), _task, _level+1))
+	      if (!jdb_dump_addr_task(disp_virt(idx), _task, _level+1))
 		return Exit;
 	      return Redraw;
 	    }
@@ -186,6 +231,40 @@ Jdb_ptab::key_pressed(int c, unsigned long &row, unsigned long &col)
     }
 
   return Handled;
+}
+
+PRIVATE
+Address
+Jdb_ptab::disp_virt(int idx)
+{
+  Pdir::Va e((Mword)idx << Pdir::lsb_for_level(cur_pt_level));
+  return Virt_addr::val(e) + virt_base;
+}
+
+PUBLIC
+unsigned long
+Jdb_ptab::rows() const
+{
+  if (cols() > 1)
+    return (entries + cols() - 2) / (cols()-1);
+  return 0;
+}
+
+PUBLIC
+void
+Jdb_ptab::print_statline(unsigned long row, unsigned long col)
+{
+  unsigned long sid = Kobject_dbg::pointer_to_id(_task);
+
+  Address va;
+  int idx = index(row, col);
+  if (idx >= 0)
+    va = disp_virt(idx);
+  else
+    va = -1;
+
+  Jdb::printf_statline("p:", "<Space>=mode <CR>=goto page/next level",
+                       "<level=%1d> <" L4_PTR_FMT "> task D:%lx", cur_pt_level, va, sid);
 }
 
 PUBLIC

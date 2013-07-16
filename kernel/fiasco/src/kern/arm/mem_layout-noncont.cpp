@@ -13,7 +13,7 @@ public:
   static inline unsigned long trunc_superpage(unsigned long addr)
   { return addr & ~(Config::SUPERPAGE_SIZE-1); }
 private:
-  static unsigned short __ph_to_pm[1<<(32-Config::SUPERPAGE_SHIFT)];
+  static unsigned short __ph_to_pm[1UL<<(32-Config::SUPERPAGE_SHIFT)];
 };
 
 
@@ -22,9 +22,10 @@ IMPLEMENTATION [noncont_mem]:
 #include <config.h>
 #include <cstdio>
 
+
 PUBLIC static
 Address
-Mem_layout::pmem_to_phys (Address addr)
+Mem_layout::pmem_to_phys(Address addr)
 {
   printf("Mem_layout::pmem_to_phys(Address addr=%lx) is not implemented\n",
          addr);
@@ -43,10 +44,10 @@ IMPLEMENT inline NEEDS[<config.h>]
 Address
 Mem_layout::phys_to_pmem(Address phys)
 {
-  Address virt = ((unsigned long)__ph_to_pm[phys >> Config::SUPERPAGE_SHIFT]) 
+  Address virt = ((unsigned long)__ph_to_pm[phys >> Config::SUPERPAGE_SHIFT])
     << 16;
 
-  if (!virt) 
+  if (!virt)
     return ~0UL;
 
   return virt | (phys & (Config::SUPERPAGE_SIZE-1));
@@ -54,7 +55,7 @@ Mem_layout::phys_to_pmem(Address phys)
 
 
 
-IMPLEMENT inline NEEDS[<config.h>]
+IMPLEMENT inline ALWAYS_INLINE NEEDS[<config.h>]
 void
 Mem_layout::add_pmem(Address phys, Address virt, unsigned long size)
 {
@@ -64,6 +65,6 @@ Mem_layout::add_pmem(Address phys, Address virt, unsigned long size)
       phys += Config::SUPERPAGE_SIZE;
       virt += Config::SUPERPAGE_SIZE;
     }
-
 }
+
 

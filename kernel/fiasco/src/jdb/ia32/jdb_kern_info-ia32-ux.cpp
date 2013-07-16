@@ -136,7 +136,7 @@ PRIVATE inline NEEDS["jdb_screen.h"]
 void
 Jdb_kern_info_misc::show_pdir()
 {
-  Mem_space *s = Mem_space::current_mem_space(0);
+  Mem_space *s = Mem_space::current_mem_space(Cpu_number::boot_cpu());
   printf("%s" L4_PTR_FMT "\n",
          Jdb_screen::Root_page_table, (Address)s->dir());
 }

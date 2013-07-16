@@ -5,16 +5,32 @@ INTERFACE [arm && s3c2410]:
 EXTENSION class Pic
 {
 public:
+};
+
+// ---------------------------------------------------------------------
+IMPLEMENTATION [arm && s3c2410]:
+
+#include "assert.h"
+#include "config.h"
+#include "initcalls.h"
+#include "irq_chip_generic.h"
+#include "irq_mgr.h"
+#include "mmio_register_block.h"
+
+#include <cstdio>
+
+class S3c_chip : public Irq_chip_gen, Mmio_register_block
+{
   enum
   {
-    SRCPND    = Kmem::Pic_map_base + 0x00,
-    INTMODE   = Kmem::Pic_map_base + 0x04,
-    INTMSK    = Kmem::Pic_map_base + 0x08,
-    PRIORITY  = Kmem::Pic_map_base + 0x0c,
-    INTPND    = Kmem::Pic_map_base + 0x10,
-    INTOFFSET = Kmem::Pic_map_base + 0x14,
-    SUBSRCPND = Kmem::Pic_map_base + 0x18,
-    INTSUBMSK = Kmem::Pic_map_base + 0x1c,
+    SRCPND    = 0x00,
+    INTMODE   = 0x04,
+    INTMSK    = 0x08,
+    PRIORITY  = 0x0c,
+    INTPND    = 0x10,
+    INTOFFSET = 0x14,
+    SUBSRCPND = 0x18,
+    INTSUBMSK = 0x1c,
   };
 
   enum
@@ -35,11 +51,11 @@ public:
     SUB_RXD1 = 3,
     SUB_TXD1 = 4,
     SUB_ERR1 = 5,
-    SUB_RXD2 = 6,
-    SUB_TXD2 = 7,
-    SUB_ERR2 = 8,
-    SUB_TC   = 9,
-    SUB_ADC  = 10,
+    SUB_RXD2 = 6,  // 53
+    SUB_TXD2 = 7,  // 54
+    SUB_ERR2 = 8,  // 52
+    SUB_TC   = 9,  // 64
+    SUB_ADC  = 10, // 63
   };
 
   enum // Interrupts
@@ -69,25 +85,26 @@ public:
     INT_ADC = 63,
     INT_TC  = 64,
   };
-};
 
-// ---------------------------------------------------------------------
-IMPLEMENTATION [arm && s3c2410]:
-
-#include "config.h"
-#include "io.h"
-#include "irq_chip_generic.h"
-#include "irq_mgr.h"
-
-#include <cstdio>
-
-class S3c_chip : public Irq_chip_gen
-{
 public:
-  S3c_chip() : Irq_chip_gen(32) {}
-  unsigned set_mode(Mword, unsigned) { return Irq_base::Trigger_level; }
-  void set_cpu(Mword, unsigned) {}
+  int set_mode(Mword, Mode) { return 0; }
+  bool is_edge_triggered(Mword) const { return false; }
+  void set_cpu(Mword, Cpu_number) {}
 };
+
+PUBLIC
+S3c_chip::S3c_chip()
+: Irq_chip_gen(32),
+  Mmio_register_block(Kmem::mmio_remap(Mem_layout::Pic_phys_base))
+{
+
+  write<Mword>(0xffffffff, INTMSK); // all masked
+  write<Mword>(0x7fe, INTSUBMSK);   // all masked
+  write<Mword>(0, INTMODE);         // all IRQs, no FIQs
+  modify<Mword>(0, 0, SRCPND); // clear source pending
+  modify<Mword>(0, 0, SUBSRCPND); // clear sub src pnd
+  modify<Mword>(0, 0, INTPND); // clear pending interrupt
+}
 
 
 PUBLIC
@@ -98,24 +115,24 @@ S3c_chip::mask(Mword irq)
 
   switch (irq)
     {
-      case Pic::INT_TC:        Io::set<Mword>(1 << Pic::SUB_TC,   Pic::INTSUBMSK); mainirq = Pic::MAIN_ADC;   break;
-      case Pic::INT_ADC:       Io::set<Mword>(1 << Pic::SUB_ADC,  Pic::INTSUBMSK); mainirq = Pic::MAIN_ADC;   break;
-      case Pic::INT_UART0_RXD: Io::set<Mword>(1 << Pic::SUB_RXD0, Pic::INTSUBMSK); mainirq = Pic::MAIN_UART0; break;
-      case Pic::INT_UART0_TXD: Io::set<Mword>(1 << Pic::SUB_TXD0, Pic::INTSUBMSK); mainirq = Pic::MAIN_UART0; break;
-      case Pic::INT_UART0_ERR: Io::set<Mword>(1 << Pic::SUB_ERR0, Pic::INTSUBMSK); mainirq = Pic::MAIN_UART0; break;
-      case Pic::INT_UART1_RXD: Io::set<Mword>(1 << Pic::SUB_RXD1, Pic::INTSUBMSK); mainirq = Pic::MAIN_UART1; break;
-      case Pic::INT_UART1_TXD: Io::set<Mword>(1 << Pic::SUB_TXD1, Pic::INTSUBMSK); mainirq = Pic::MAIN_UART1; break;
-      case Pic::INT_UART1_ERR: Io::set<Mword>(1 << Pic::SUB_ERR1, Pic::INTSUBMSK); mainirq = Pic::MAIN_UART1; break;
-      case Pic::INT_UART2_RXD: Io::set<Mword>(1 << Pic::SUB_RXD2, Pic::INTSUBMSK); mainirq = Pic::MAIN_UART2; break;
-      case Pic::INT_UART2_TXD: Io::set<Mword>(1 << Pic::SUB_TXD2, Pic::INTSUBMSK); mainirq = Pic::MAIN_UART2; break;
-      case Pic::INT_UART2_ERR: Io::set<Mword>(1 << Pic::SUB_ERR2, Pic::INTSUBMSK); mainirq = Pic::MAIN_UART2; break;
+      case INT_TC:        modify<Mword>(1 << SUB_TC,   0, INTSUBMSK); mainirq = MAIN_ADC;   break;
+      case INT_ADC:       modify<Mword>(1 << SUB_ADC,  0, INTSUBMSK); mainirq = MAIN_ADC;   break;
+      case INT_UART0_RXD: modify<Mword>(1 << SUB_RXD0, 0, INTSUBMSK); mainirq = MAIN_UART0; break;
+      case INT_UART0_TXD: modify<Mword>(1 << SUB_TXD0, 0, INTSUBMSK); mainirq = MAIN_UART0; break;
+      case INT_UART0_ERR: modify<Mword>(1 << SUB_ERR0, 0, INTSUBMSK); mainirq = MAIN_UART0; break;
+      case INT_UART1_RXD: modify<Mword>(1 << SUB_RXD1, 0, INTSUBMSK); mainirq = MAIN_UART1; break;
+      case INT_UART1_TXD: modify<Mword>(1 << SUB_TXD1, 0, INTSUBMSK); mainirq = MAIN_UART1; break;
+      case INT_UART1_ERR: modify<Mword>(1 << SUB_ERR1, 0, INTSUBMSK); mainirq = MAIN_UART1; break;
+      case INT_UART2_RXD: modify<Mword>(1 << SUB_RXD2, 0, INTSUBMSK); mainirq = MAIN_UART2; break;
+      case INT_UART2_TXD: modify<Mword>(1 << SUB_TXD2, 0, INTSUBMSK); mainirq = MAIN_UART2; break;
+      case INT_UART2_ERR: modify<Mword>(1 << SUB_ERR2, 0, INTSUBMSK); mainirq = MAIN_UART2; break;
       default:
          if (irq > 31)
            return; // XXX: need to add other cases
          mainirq = irq;
     };
 
-  Io::set<Mword>(1 << mainirq, Pic::INTMSK);
+  modify<Mword>(1 << mainirq, 0, INTMSK);
 }
 
 PUBLIC
@@ -126,24 +143,24 @@ S3c_chip::unmask(Mword irq)
 
   switch (irq)
     {
-      case Pic::INT_TC:        Io::clear<Mword>(1 << Pic::SUB_TC,   Pic::INTSUBMSK); mainirq = Pic::MAIN_ADC;   break;
-      case Pic::INT_ADC:       Io::clear<Mword>(1 << Pic::SUB_ADC,  Pic::INTSUBMSK); mainirq = Pic::MAIN_ADC;   break;
-      case Pic::INT_UART0_RXD: Io::clear<Mword>(1 << Pic::SUB_RXD0, Pic::INTSUBMSK); mainirq = Pic::MAIN_UART0; break;
-      case Pic::INT_UART0_TXD: Io::clear<Mword>(1 << Pic::SUB_TXD0, Pic::INTSUBMSK); mainirq = Pic::MAIN_UART0; break;
-      case Pic::INT_UART0_ERR: Io::clear<Mword>(1 << Pic::SUB_ERR0, Pic::INTSUBMSK); mainirq = Pic::MAIN_UART0; break;
-      case Pic::INT_UART1_RXD: Io::clear<Mword>(1 << Pic::SUB_RXD1, Pic::INTSUBMSK); mainirq = Pic::MAIN_UART1; break;
-      case Pic::INT_UART1_TXD: Io::clear<Mword>(1 << Pic::SUB_TXD1, Pic::INTSUBMSK); mainirq = Pic::MAIN_UART1; break;
-      case Pic::INT_UART1_ERR: Io::clear<Mword>(1 << Pic::SUB_ERR1, Pic::INTSUBMSK); mainirq = Pic::MAIN_UART1; break;
-      case Pic::INT_UART2_RXD: Io::clear<Mword>(1 << Pic::SUB_RXD2, Pic::INTSUBMSK); mainirq = Pic::MAIN_UART2; break;
-      case Pic::INT_UART2_TXD: Io::clear<Mword>(1 << Pic::SUB_TXD2, Pic::INTSUBMSK); mainirq = Pic::MAIN_UART2; break;
-      case Pic::INT_UART2_ERR: Io::clear<Mword>(1 << Pic::SUB_ERR2, Pic::INTSUBMSK); mainirq = Pic::MAIN_UART2; break;
+      case INT_TC:        modify<Mword>(0, 1 << SUB_TC,   INTSUBMSK); mainirq = MAIN_ADC;   break;
+      case INT_ADC:       modify<Mword>(0, 1 << SUB_ADC,  INTSUBMSK); mainirq = MAIN_ADC;   break;
+      case INT_UART0_RXD: modify<Mword>(0, 1 << SUB_RXD0, INTSUBMSK); mainirq = MAIN_UART0; break;
+      case INT_UART0_TXD: modify<Mword>(0, 1 << SUB_TXD0, INTSUBMSK); mainirq = MAIN_UART0; break;
+      case INT_UART0_ERR: modify<Mword>(0, 1 << SUB_ERR0, INTSUBMSK); mainirq = MAIN_UART0; break;
+      case INT_UART1_RXD: modify<Mword>(0, 1 << SUB_RXD1, INTSUBMSK); mainirq = MAIN_UART1; break;
+      case INT_UART1_TXD: modify<Mword>(0, 1 << SUB_TXD1, INTSUBMSK); mainirq = MAIN_UART1; break;
+      case INT_UART1_ERR: modify<Mword>(0, 1 << SUB_ERR1, INTSUBMSK); mainirq = MAIN_UART1; break;
+      case INT_UART2_RXD: modify<Mword>(0, 1 << SUB_RXD2, INTSUBMSK); mainirq = MAIN_UART2; break;
+      case INT_UART2_TXD: modify<Mword>(0, 1 << SUB_TXD2, INTSUBMSK); mainirq = MAIN_UART2; break;
+      case INT_UART2_ERR: modify<Mword>(0, 1 << SUB_ERR2, INTSUBMSK); mainirq = MAIN_UART2; break;
       default:
          if (irq > 31)
            return; // XXX: need to add other cases
          mainirq = irq;
     };
 
-  Io::clear<Mword>(1 << mainirq, Pic::INTMSK);
+  modify<Mword>(0, 1 << mainirq, INTMSK);
 }
 
 PUBLIC
@@ -154,25 +171,25 @@ S3c_chip::ack(Mword irq)
 
   switch (irq)
     {
-      case Pic::INT_TC:        Io::write<Mword>(1 << Pic::SUB_TC,   Pic::SUBSRCPND); mainirq = Pic::MAIN_ADC;   break;
-      case Pic::INT_ADC:       Io::write<Mword>(1 << Pic::SUB_ADC,  Pic::SUBSRCPND); mainirq = Pic::MAIN_ADC;   break;
-      case Pic::INT_UART0_RXD: Io::write<Mword>(1 << Pic::SUB_RXD0, Pic::SUBSRCPND); mainirq = Pic::MAIN_UART0; break;
-      case Pic::INT_UART0_TXD: Io::write<Mword>(1 << Pic::SUB_TXD0, Pic::SUBSRCPND); mainirq = Pic::MAIN_UART0; break;
-      case Pic::INT_UART0_ERR: Io::write<Mword>(1 << Pic::SUB_ERR0, Pic::SUBSRCPND); mainirq = Pic::MAIN_UART0; break;
-      case Pic::INT_UART1_RXD: Io::write<Mword>(1 << Pic::SUB_RXD1, Pic::SUBSRCPND); mainirq = Pic::MAIN_UART1; break;
-      case Pic::INT_UART1_TXD: Io::write<Mword>(1 << Pic::SUB_TXD1, Pic::SUBSRCPND); mainirq = Pic::MAIN_UART1; break;
-      case Pic::INT_UART1_ERR: Io::write<Mword>(1 << Pic::SUB_ERR1, Pic::SUBSRCPND); mainirq = Pic::MAIN_UART1; break;
-      case Pic::INT_UART2_RXD: Io::write<Mword>(1 << Pic::SUB_RXD2, Pic::SUBSRCPND); mainirq = Pic::MAIN_UART2; break;
-      case Pic::INT_UART2_TXD: Io::write<Mword>(1 << Pic::SUB_TXD2, Pic::SUBSRCPND); mainirq = Pic::MAIN_UART2; break;
-      case Pic::INT_UART2_ERR: Io::write<Mword>(1 << Pic::SUB_ERR2, Pic::SUBSRCPND); mainirq = Pic::MAIN_UART2; break;
+      case INT_TC:        write<Mword>(1 << SUB_TC,   SUBSRCPND); mainirq = MAIN_ADC;   break;
+      case INT_ADC:       write<Mword>(1 << SUB_ADC,  SUBSRCPND); mainirq = MAIN_ADC;   break;
+      case INT_UART0_RXD: write<Mword>(1 << SUB_RXD0, SUBSRCPND); mainirq = MAIN_UART0; break;
+      case INT_UART0_TXD: write<Mword>(1 << SUB_TXD0, SUBSRCPND); mainirq = MAIN_UART0; break;
+      case INT_UART0_ERR: write<Mword>(1 << SUB_ERR0, SUBSRCPND); mainirq = MAIN_UART0; break;
+      case INT_UART1_RXD: write<Mword>(1 << SUB_RXD1, SUBSRCPND); mainirq = MAIN_UART1; break;
+      case INT_UART1_TXD: write<Mword>(1 << SUB_TXD1, SUBSRCPND); mainirq = MAIN_UART1; break;
+      case INT_UART1_ERR: write<Mword>(1 << SUB_ERR1, SUBSRCPND); mainirq = MAIN_UART1; break;
+      case INT_UART2_RXD: write<Mword>(1 << SUB_RXD2, SUBSRCPND); mainirq = MAIN_UART2; break;
+      case INT_UART2_TXD: write<Mword>(1 << SUB_TXD2, SUBSRCPND); mainirq = MAIN_UART2; break;
+      case INT_UART2_ERR: write<Mword>(1 << SUB_ERR2, SUBSRCPND); mainirq = MAIN_UART2; break;
       default:
          if (irq > 31)
            return; // XXX: need to add other cases
         mainirq = irq;
     };
 
-  Io::write<Mword>(1 << mainirq, Pic::SRCPND); // only 1s are set to 0
-  Io::write<Mword>(1 << mainirq, Pic::INTPND); // clear pending interrupt
+  write<Mword>(1 << mainirq, SRCPND); // only 1s are set to 0
+  write<Mword>(1 << mainirq, INTPND); // clear pending interrupt
 }
 
 PUBLIC
@@ -192,13 +209,6 @@ IMPLEMENT FIASCO_INIT
 void Pic::init()
 {
   Irq_mgr::mgr = mgr.construct();
-
-  Io::write<Mword>(0xffffffff, INTMSK); // all masked
-  Io::write<Mword>(0x7fe, INTSUBMSK);   // all masked
-  Io::write<Mword>(0, INTMODE);         // all IRQs, no FIQs
-  Io::write<Mword>(Io::read<Mword>(SRCPND), SRCPND); // clear source pending
-  Io::write<Mword>(Io::read<Mword>(SUBSRCPND), SUBSRCPND); // clear sub src pnd
-  Io::write<Mword>(Io::read<Mword>(INTPND), INTPND); // clear pending interrupt
 }
 
 
@@ -213,16 +223,16 @@ IMPLEMENT inline
 void Pic::restore_all(Status)
 {}
 
-PUBLIC static inline NEEDS["io.h"]
-Unsigned32 Pic::pending()
+PUBLIC inline
+Unsigned32 S3c_chip::pending()
 {
-  int mainirq = Io::read<Mword>(INTOFFSET);
+  int mainirq = read<Mword>(INTOFFSET);
 
   switch (mainirq)
     {
     case MAIN_ADC:
 	{
-	  int subirq = Io::read<Mword>(SUBSRCPND);
+	  int subirq = read<Mword>(SUBSRCPND);
 	  if ((1 << SUB_ADC) & subirq)
 	    return INT_ADC;
 	  else if ((1 << SUB_TC) & subirq)
@@ -239,7 +249,7 @@ Unsigned32 Pic::pending()
 extern "C"
 void irq_handler()
 {
-  Unsigned32 i = Pic::pending();
+  Unsigned32 i = mgr->c.pending();
   if (i != 32)
     mgr->c.handle_irq<S3c_chip>(i, 0);
 }

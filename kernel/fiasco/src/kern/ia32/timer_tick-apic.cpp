@@ -5,12 +5,12 @@ IMPLEMENTATION [ia32 || amd64]:
 
 IMPLEMENT
 void
-Timer_tick::setup(unsigned)
+Timer_tick::setup(Cpu_number)
 {}
 
 IMPLEMENT
 void
-Timer_tick::enable(unsigned)
+Timer_tick::enable(Cpu_number)
 {
   Apic::timer_enable_irq();
   Apic::irq_ack();
@@ -18,7 +18,7 @@ Timer_tick::enable(unsigned)
 
 IMPLEMENT
 void
-Timer_tick::disable(unsigned)
+Timer_tick::disable(Cpu_number)
 {
   Apic::timer_disable_irq();
 }

@@ -59,12 +59,13 @@ IMPLEMENT
 int
 Thread::call_nested_trap_handler(Trap_state *ts)
 {
-  unsigned phys_cpu = Proc::cpu_id();
-  unsigned log_cpu = Cpu::cpus.find_cpu(Cpu::By_phys_id(phys_cpu));
-  if (log_cpu == ~0U)
+  Cpu_phys_id phys_cpu = Proc::cpu_id();
+  Cpu_number log_cpu = Cpu::cpus.find_cpu(Cpu::By_phys_id(phys_cpu));
+  if (log_cpu == Cpu_number::nil())
     {
-      printf("Trap on unknown CPU phys_id=%x\n", phys_cpu);
-      log_cpu = 0;
+      printf("Trap on unknown CPU phys_id=%x\n",
+             cxx::int_value<Cpu_phys_id>(phys_cpu));
+      log_cpu = Cpu_number::boot_cpu();
     }
 
   unsigned long &ntr = nested_trap_recover.cpu(log_cpu);
@@ -82,7 +83,7 @@ Thread::call_nested_trap_handler(Trap_state *ts)
   Mword dummy1, tmp, ret;
   {
     register Mword _ts asm("r0") = (Mword)ts;
-    register Mword _lcpu asm("r1") = log_cpu;
+    register Cpu_number _lcpu asm("r1") = log_cpu;
 
     asm volatile(
 	"mov    %[origstack], sp	 \n"

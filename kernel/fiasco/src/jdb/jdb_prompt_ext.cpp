@@ -1,6 +1,6 @@
 INTERFACE:
 
-#include <hlist>
+#include <cxx/hlist>
 
 class Jdb_prompt_ext : public cxx::H_list_item
 {

@@ -27,7 +27,7 @@ public:
     Cp15_c1_high_vector     = 1 << 13,
   };
 
-  Cpu(unsigned id) { set_id(id); }
+  Cpu(Cpu_number id) { set_id(id); }
 
 
   struct Ids {
@@ -47,7 +47,7 @@ public:
 private:
   static Cpu *_boot_cpu;
 
-  unsigned _phys_id;
+  Cpu_phys_id _phys_id;
   Ids _cpu_id;
 };
 
@@ -154,42 +154,11 @@ public:
 			      | Cp15_c1_branch_predict
 			      | Cp15_c1_high_vector
                               | Cp15_c1_rao_sbop
-			      | (Config::Cp15_c1_use_a9_swp_enable ?  Cp15_c1_sw : 0),
+			      | (Config::Cp15_c1_use_swp_enable ? Cp15_c1_sw : 0),
   };
 };
 
-INTERFACE [arm && (mpcore || armca9)]:
-
-class Scu
-{
-public:
-  enum
-  {
-    Control      = Mem_layout::Mp_scu_map_base + 0x0,
-    Config       = Mem_layout::Mp_scu_map_base + 0x4,
-    Power_status = Mem_layout::Mp_scu_map_base + 0x8,
-    Inv          = Mem_layout::Mp_scu_map_base + 0xc,
-
-    Control_ic_standby     = 1 << 6,
-    Control_scu_standby    = 1 << 5,
-    Control_force_port0    = 1 << 4,
-    Control_spec_linefill  = 1 << 3,
-    Control_ram_parity     = 1 << 2,
-    Control_addr_filtering = 1 << 1,
-    Control_enable         = 1 << 0,
-  };
-
-  static void reset() { Io::write<Mword>(0xffffffff, Inv); }
-
-  static void enable(Mword bits = 0)
-  {
-    Unsigned32 ctrl = Io::read<Unsigned32>(Control);
-    if (!(ctrl & Control_enable))
-      Io::write<Unsigned32>(ctrl | bits | Control_enable, Control);
-  }
-};
-
-
+// -------------------------------------------------------------------------------
 INTERFACE [arm]:
 
 EXTENSION class Cpu
@@ -208,15 +177,6 @@ EXTENSION class Cpu
 {
 private:
   void bsp_init(bool) {}
-};
-
-//---------------------------------------------------------------------------
-INTERFACE [arm && (mpcore || armca9) && !bsp_cpu]:
-
-EXTENSION class Scu
-{
-public:
-  enum { Bsp_enable_bits = 0 };
 };
 
 //-------------------------------------------------------------------------
@@ -254,7 +214,16 @@ bool
 Cpu::is_smp_capable()
 {
   // ACTRL is implementation defined
-  return (midr() & 0xff0ffff0) == 0x410fc090;
+  Mword id = midr();
+  if ((id & 0xff0fff00) == 0x410fc000)
+    {
+      switch ((id >> 4) & 0xf)
+        {
+        case 7: case 9: case 15: return true;
+        }
+    }
+
+  return false;
 }
 
 PUBLIC static inline
@@ -264,10 +233,12 @@ Cpu::enable_smp()
   if (!is_smp_capable())
     return;
 
+  Mword v = ((midr() >> 4) & 7) == 7 ? 0x40 : 0x41;
+
   Mword actrl;
   asm volatile ("mrc p15, 0, %0, c1, c0, 1" : "=r" (actrl));
   if (!(actrl & 0x40))
-    asm volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (actrl | 0x41));
+    asm volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (actrl | v));
 }
 
 PUBLIC static inline NEEDS[Cpu::clear_actrl]
@@ -281,18 +252,33 @@ Cpu::disable_smp()
 }
 
 //---------------------------------------------------------------------------
+INTERFACE [arm && (mpcore || armca9)]:
+
+#include "scu.h"
+
+EXTENSION class Cpu
+{
+public:
+ static Static_object<Scu> scu;
+};
+
+//---------------------------------------------------------------------------
 IMPLEMENTATION [arm && (mpcore || armca9)]:
+
+#include "kmem.h"
+
+Static_object<Scu> Cpu::scu;
 
 PRIVATE static inline void
 Cpu::early_init_platform()
 {
-  Scu::reset();
-  Scu::enable(Scu::Bsp_enable_bits);
+  if (Scu::Available)
+    {
+      scu.construct(Kmem::mmio_remap(Mem_layout::Mp_scu_phys_base));
 
-  Io::write<Mword>(Io::read<Mword>(Mem_layout::Gic_cpu_map_base + 0) | 1,
-                   Mem_layout::Gic_cpu_map_base + 0);
-  Io::write<Mword>(Io::read<Mword>(Mem_layout::Gic_dist_map_base + 0) | 1,
-                   Mem_layout::Gic_dist_map_base + 0);
+      scu->reset();
+      scu->enable(Scu::Bsp_enable_bits);
+    }
 
   Mem_unit::clean_dcache();
 
@@ -313,7 +299,7 @@ IMPLEMENTATION [arm]:
 #include <panic.h>
 
 #include "io.h"
-#include "pagetable.h"
+#include "paging.h"
 #include "kmem_space.h"
 #include "kmem_alloc.h"
 #include "mem_unit.h"
@@ -343,7 +329,8 @@ void Cpu::early_init()
                  :
                  : "r" (Config::Cache_enabled
                         ? Cp15_c1_cache_enabled : Cp15_c1_cache_disabled),
-                   "I" (0x0d3)
+                   "I" (Proc::Status_mode_supervisor
+                        | Proc::Status_interrupts_disabled)
                  : "r2", "r3");
 
   early_init_platform();
@@ -397,18 +384,18 @@ void Cpu::init_mmu()
 {
   extern char ivt_start;
   // map the interrupt vector table to 0xffff0000
-  Pte pte = Kmem_space::kdir()->walk((void*)Kmem_space::Ivt_base, 4096, true,
-                                     Kmem_alloc::q_allocator(Ram_quota::root),
-                                     Kmem_space::kdir());
+  auto pte = Kmem_space::kdir()->walk(Virt_addr(Kmem_space::Ivt_base),
+      Pdir::Depth, true,
+      Kmem_alloc::q_allocator(Ram_quota::root));
 
-  pte.set((unsigned long)&ivt_start, 4096,
-          Mem_page_attr(Page::KERN_RW | Page::CACHEABLE), true);
-
+  pte.create_page(Phys_mem_addr((unsigned long)&ivt_start), Page::Attr(Page::Rights::RWX(),
+        Page::Type::Normal(), Page::Kern::Global()));
+  pte.write_back_if(true);
   Mem_unit::tlb_flush();
 }
 
 PUBLIC inline
-unsigned
+Cpu_phys_id
 Cpu::phys_id() const
 { return _phys_id; }
 
@@ -451,6 +438,16 @@ Cpu::disable_dcache()
                "mcr     p15, 0, %0, c1, c0, 0 \n"
                : : "r" (0), "i" (Cp15_c1_cache));
 }
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [arm && !arm_lpae]:
+
+PUBLIC static inline unsigned Cpu::phys_bits() { return 32; }
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [arm && arm_lpae]:
+
+PUBLIC static inline unsigned Cpu::phys_bits() { return 40; }
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && !armv6plus]:
@@ -574,7 +571,7 @@ Cpu::init_errata_workarounds()
 }
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION [arm && !tz]:
+IMPLEMENTATION [arm && !arm_em_tz]:
 
 PRIVATE static inline
 void
@@ -582,17 +579,16 @@ Cpu::init_tz()
 {}
 
 //---------------------------------------------------------------------------
-INTERFACE [arm && tz]:
+INTERFACE [arm && arm_em_tz]:
 
 EXTENSION class Cpu
 {
 public:
-
   static char monitor_vector_base asm ("monitor_vector_base");
 };
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION [arm && tz]:
+IMPLEMENTATION [arm && arm_em_tz]:
 
 #include <cassert>
 
@@ -602,26 +598,61 @@ Cpu::init_tz()
 {
   // set monitor vector base address
   assert(!((Mword)&monitor_vector_base & 31));
-  tz_mvbar((Mword)&monitor_vector_base);
+  asm volatile ("mcr p15, 0, %0, c12, c0, 1" : : "r" (&monitor_vector_base));
+
+  Mword dummy;
+  asm volatile (
+      "mov  %[dummy], sp \n"
+      "cps  #0x16        \n"
+      "mov  sp, %[dummy] \n"
+      : [dummy] "=r" (dummy) : : "lr" );
+  // running in monitor mode
+
+  asm ("mcr  p15, 0, %[scr], c1, c1, 0" : : [scr] "r" (0x1));
+  Mem::isb();
+
+  asm ("mcr  p15, 0, %0, c12, c0, 0" : : "r" (0)); // reset VBAR
+  asm ("mcr  p15, 0, %0, c13, c0, 0" : : "r" (0)); // reset FCSEIDR
+  asm ("mcr  p15, 0, %0, c1, c0, 0"  : : "r" (0x4500a0));  // SCTLR = U | (18) | (16) | (7)
+
+  asm ("mcr  p15, 0, %[scr], c1, c1, 0 \n" : : [scr] "r" (0x100));
+  Mem::isb();
+  asm volatile (
+      "mov  %[dummy], sp \n"
+      "cps  #0x13        \n"
+      "mov  sp, %[dummy] \n"
+      : [dummy] "=r" (dummy) : : "lr" );
+  // running in svc mode
+
 
   // enable nonsecure access to vfp coprocessor
-  asm volatile("mov r0, #0xc00;"
-               "mcr p15, 0, r0, c1, c1, 2;"
-               : : : "r0"
-              );
+  asm volatile("mcr p15, 0, %0, c1, c1, 2" : : "r" (0xc00));
 
-  enable_irq_ovrr();
+  enum
+  {
+    SCR_NS  = 1 << 0,
+    SCR_IRQ = 1 << 1,
+    SCR_FIQ = 1 << 2,
+    SCR_EA  = 1 << 3,
+    SCR_FW  = 1 << 4,
+    SCR_AW  = 1 << 5,
+    SCR_nET = 1 << 6,
+    SCR_SCD = 1 << 7,
+    SCR_HCE = 1 << 8,
+    SCR_SIF = 1 << 9,
+  };
 }
 
 PUBLIC inline
 void
 Cpu::tz_switch_to_ns(Mword *nonsecure_state)
 {
-  volatile register Mword r0 asm("r0") = (Mword)nonsecure_state;
-  extern char go_nonsecure;
+  extern char go_nonsecure[];
 
-  asm volatile("stmdb sp!, {fp}   \n"
-               "stmdb sp!, {r0}   \n"
+  register Mword r0 asm("r0") = (Mword)nonsecure_state;
+  register Mword r1 asm("r1") = (Mword)go_nonsecure;
+
+  asm volatile("stmdb sp!, {r0}   \n"
                "mov    r2, sp     \n" // copy sp_svc to sp_mon
                "cps    #0x16      \n" // switch to monitor mode
                "mov    sp, r2     \n"
@@ -633,10 +664,9 @@ Cpu::tz_switch_to_ns(Mword *nonsecure_state)
                "cps    #0x13      \n" // switch to svc mode
                "mov    sp, r0     \n"
                "ldmia  sp!, {r0}  \n"
-               "ldmia  sp!, {fp}  \n"
-               : : "r" (r0), "r" (&go_nonsecure)
+               : : "r" (r0), "r" (r1)
                : "r2", "r3", "r4", "r5", "r6", "r7",
-                 "r8", "r9", "r10", "r12", "r14", "memory");
+                 "r8", "r9", "r10", "r11", "r12", "r14", "memory");
 }
 
 PUBLIC static inline
@@ -654,42 +684,6 @@ Cpu::tz_scr(Mword val)
 {
   asm volatile ("mcr p15, 0, %0, c1, c1, 0" : : "r" (val));
 }
-
-PUBLIC static inline
-Mword
-Cpu::tz_mvbar()
-{
-  Mword r;
-  asm volatile ("mrc p15, 0, %0, c12, c0, 1" : "=r" (r));
-  return r;
-}
-
-PUBLIC static inline
-void
-Cpu::tz_mvbar(Mword val)
-{
-  asm volatile ("mcr p15, 0, %0, c12, c0, 1" : : "r" (val));
-}
-
-// ------------------------------------------------------------------------
-IMPLEMENTATION [arm && tz && armca9]:
-
-PUBLIC static inline
-void
-Cpu::enable_irq_ovrr()
-{
-  // set IRQ/FIQ/Abort override bits
-  asm volatile("mov r0, #0x1c0            \n"
-               "mcr p15, 0, r0, c1, c1, 3 \n"
-               : : : "r0");
-}
-
-IMPLEMENTATION [!tz || !armca9]:
-
-PUBLIC static inline
-void
-Cpu::enable_irq_ovrr()
-{}
 
 // ------------------------------------------------------------------------
 IMPLEMENTATION [!debug]:

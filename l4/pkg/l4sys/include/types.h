@@ -5,7 +5,7 @@
  * \ingroup l4_api
  */
 /*
- * (c) 2008-2009 Adam Lackorzynski <adam@os.inf.tu-dresden.de>,
+ * (c) 2008-2013 Adam Lackorzynski <adam@os.inf.tu-dresden.de>,
  *               Alexander Warg <warg@os.inf.tu-dresden.de>,
  *               Björn Döbel <doebel@os.inf.tu-dresden.de>,
  *               Torsten Frenzel <frenzel@os.inf.tu-dresden.de>
@@ -413,3 +413,6 @@ L4_INLINE unsigned l4_msgtag_is_sigma0(l4_msgtag_t t) L4_NOTHROW
 
 L4_INLINE unsigned l4_msgtag_is_io_page_fault(l4_msgtag_t t) L4_NOTHROW
 { return l4_msgtag_label(t) == L4_PROTO_IO_PAGE_FAULT; }
+
+#include <l4/sys/__l4_fpage.h>
+#include <l4/sys/__timeout.h>

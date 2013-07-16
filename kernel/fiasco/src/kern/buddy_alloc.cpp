@@ -1,7 +1,7 @@
 INTERFACE:
 
 #include <cassert>
-#include <hlist>
+#include <cxx/hlist>
 #include "bitmap.h"
 #include "config.h"
 
@@ -145,16 +145,16 @@ Buddy_t_base<A,B,M>::add_mem(void *b, unsigned long size)
 {
   unsigned long start = (unsigned long)b;
   unsigned long al_start;
-  al_start = (start + Min_size - 1) & ~(Min_size -1);
+  al_start = (start + Min_size - 1) & ~(Min_size - 1);
 
   //printf("Buddy::add_mem(%p, %lx): al_start=%lx; _base=%lx\n", b, size, al_start, _base);
 
   // _debug = 0;
-  if (size <= al_start-start)
+  if (size <= al_start - start)
     return;
 
-  size -= (al_start-start);
-  size &= ~(Min_size -1);
+  size -= al_start - start;
+  size &= ~(Min_size - 1);
 
   while (size)
     {

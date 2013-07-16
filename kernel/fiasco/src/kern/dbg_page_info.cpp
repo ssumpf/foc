@@ -4,7 +4,7 @@ INTERFACE [debug]:
 #include "lock_guard.h"
 #include "spin_lock.h"
 #include "slab_cache.h"
-#include <slist>
+#include <cxx/slist>
 
 class Dbg_page_info_table;
 
@@ -56,7 +56,8 @@ public:
 
 private:
   Entry _tab[Hash_tab_size];
-  static unsigned hash(Page_number p) { return p.value() % Hash_tab_size; }
+  static unsigned hash(Page_number p)
+  { return cxx::int_value<Page_number>(p) % Hash_tab_size; }
 };
 
 

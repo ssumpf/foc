@@ -105,7 +105,7 @@ enum {
   SHIFT = 0xff,
 };
 
-static const unsigned char keymap[][2] = {
+static unsigned char keymap[][2] = {
   {0       },		/* 0 */
   {27,	27 },		/* 1 - ESC */
   {'1',	'!'},		/* 2 */
@@ -133,8 +133,7 @@ static const unsigned char keymap[][2] = {
   {'o',	'O'},
   {'p',	'P'},
   {'[',	'{'},
-// {']','}'},		/* 27 */
-  {'+',	'*'},		/* 27 */
+  {']', '}'},		/* 27 */
   {'\r','\r'},		/* 28 - Enter */
   {0,	0  },		/* 29 - Ctrl */
   {'a',	'A'},		/* 30 */
@@ -160,8 +159,7 @@ static const unsigned char keymap[][2] = {
   {'m',	'M'},
   {',',	'<'},
   {'.',	'>'},
-// {'/', '?'},		/* 53 */
-  {'-',	'_'},		/* 53 */
+  {'/', '?'},		/* 53 */
   {SHIFT, SHIFT},	/* 54 - Right Shift */
   {0,	 0},		/* 55 - Print Screen */
   {0,	 0},		/* 56 - Alt */
@@ -194,6 +192,37 @@ static const unsigned char keymap[][2] = {
   {0xae,0xae},		/* 83 - Numeric keypad '.' */
 };
 
+IMPLEMENT
+void
+Keyb::set_keymap(Keyb::Keymap km)
+{
+  // This is a one-time switch over only.
+  if (km == Keymap_de)
+    {
+      // Simple patch to german layout
+      keymap[ 3][1] = '"';
+      keymap[ 7][1] = '&';
+      keymap[ 8][1] = '/';
+      keymap[ 9][1] = '(';
+      keymap[10][1] = ')';
+      keymap[11][1] = '=';
+      keymap[12][1] = '?';
+      keymap[13][1] = '`';
+      keymap[21][0] = 'z';
+      keymap[21][1] = 'Z';
+      keymap[27][0] = '+';
+      keymap[27][1] = '*';
+      keymap[41][0] = '^';
+      keymap[43][0] = '#';
+      keymap[43][1] = '\'';
+      keymap[44][0] = 'y';
+      keymap[44][1] = 'Y';
+      keymap[51][1] = ';';
+      keymap[52][1] = ':';
+      keymap[53][0] = '-';
+      keymap[53][1] = '_';
+    }
+}
 
 IMPLEMENT
 int Keyb::getchar(bool wait)

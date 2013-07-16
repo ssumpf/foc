@@ -8,14 +8,14 @@ protected:
   struct Log_pf_invalid : public Tb_entry
   {
     Mword pfa;
-    Mword cap_idx;
+    Cap_index cap_idx;
     Mword err;
     unsigned print(int max, char *buf) const;
   };
 
   struct Log_exc_invalid : public Tb_entry
   {
-    Mword cap_idx;
+    Cap_index cap_idx;
     unsigned print(int max, char *buf) const;
   };
 };
@@ -39,7 +39,7 @@ protected:
   };
 
   Syscall_frame *_snd_regs;
-  unsigned char _ipc_send_rights;
+  L4_fpage::Rights _ipc_send_rights;
 };
 
 class Buf_utcb_saver
@@ -71,7 +71,7 @@ struct Ipc_remote_request
   L4_msg_tag tag;
   Thread *partner;
   Syscall_frame *regs;
-  unsigned char rights;
+  L4_fpage::Rights rights;
   bool timeout;
   bool have_rcv;
 
@@ -242,15 +242,15 @@ Thread::handle_page_fault_pager(Thread_ptr const &_pager,
 
   auto guard = lock_guard(cpu_lock);
 
-  unsigned char rights;
+  L4_fpage::Rights rights;
   Kobject_iface *pager = _pager.ptr(space(), &rights);
 
   if (!pager)
     {
       WARN("CPU%d: Pager of %lx is invalid (pfa=" L4_PTR_FMT
 	   ", errorcode=" L4_PTR_FMT ") to %lx (pc=%lx)\n",
-	   current_cpu(), dbg_id(), pfa, error_code,
-           _pager.raw(), regs()->ip());
+	   cxx::int_value<Cpu_number>(current_cpu()), dbg_id(), pfa,
+           error_code, cxx::int_value<Cap_index>(_pager.raw()), regs()->ip());
 
 
       LOG_TRACE("Page fault invalid pager", "pf", this, Log_pf_invalid,
@@ -286,7 +286,7 @@ Thread::handle_page_fault_pager(Thread_ptr const &_pager,
   r.timeout(timeout);
   r.tag(tag);
   r.from(0);
-  r.ref(L4_obj_ref(_pager.raw() << L4_obj_ref::Cap_shift, L4_obj_ref::Ipc_call_ipc));
+  r.ref(L4_obj_ref(_pager.raw(), L4_obj_ref::Ipc_call_ipc));
   pager->invoke(r.ref(), rights, &r, utcb);
 
 
@@ -457,7 +457,7 @@ void
 Thread::do_ipc(L4_msg_tag const &tag, bool have_send, Thread *partner,
                bool have_receive, Sender *sender,
                L4_timeout_pair t, Syscall_frame *regs,
-               unsigned char rights)
+               L4_fpage::Rights rights)
 {
   assert_kdb (cpu_lock.test());
   assert_kdb (this == current());
@@ -619,7 +619,7 @@ Thread::do_ipc(L4_msg_tag const &tag, bool have_send, Thread *partner,
 PRIVATE inline NEEDS [Thread::copy_utcb_to]
 bool
 Thread::transfer_msg(L4_msg_tag tag, Thread *receiver,
-                     Syscall_frame *sender_regs, unsigned char rights)
+                     Syscall_frame *sender_regs, L4_fpage::Rights rights)
 {
   Syscall_frame* dst_regs = receiver->rcv_regs();
 
@@ -677,7 +677,7 @@ Pf_msg_utcb_saver::restore(Utcb *u)
  */
 PRIVATE
 bool
-Thread::exception(Kobject_iface *handler, Trap_state *ts, Mword rights)
+Thread::exception(Kobject_iface *handler, Trap_state *ts, L4_fpage::Rights rights)
 {
   Syscall_frame r;
   L4_timeout_pair timeout(L4_timeout::Never, L4_timeout::Never);
@@ -705,7 +705,7 @@ Thread::exception(Kobject_iface *handler, Trap_state *ts, Mword rights)
   r.tag(tag);
   r.timeout(timeout);
   r.from(0);
-  r.ref(L4_obj_ref(_exc_handler.raw() << L4_obj_ref::Cap_shift, L4_obj_ref::Ipc_call_ipc));
+  r.ref(L4_obj_ref(_exc_handler.raw(), L4_obj_ref::Ipc_call_ipc));
   spill_user_state();
   handler->invoke(r.ref(), rights, &r, utcb);
   fill_user_state();
@@ -784,7 +784,7 @@ Thread::send_exception(Trap_state *ts)
   if (!send_exception_arch(ts))
     return 0; // do not send exception
 
-  unsigned char rights = 0;
+  L4_fpage::Rights rights = L4_fpage::Rights(0);
   Kobject_iface *pager = _exc_handler.ptr(space(), &rights);
 
   if (EXPECT_FALSE(!pager))
@@ -841,7 +841,7 @@ Thread::try_transfer_local_id(L4_buf_iter::Item const *const buf,
 PRIVATE static inline
 bool FIASCO_WARN_RESULT
 Thread::copy_utcb_to_utcb(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
-                          unsigned char rights)
+                          L4_fpage::Rights rights)
 {
   assert (cpu_lock.test());
 
@@ -856,7 +856,7 @@ Thread::copy_utcb_to_utcb(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
   if (tag.items())
     success = transfer_msg_items(tag, snd, snd_utcb, rcv, rcv_utcb, rights);
 
-  if (tag.transfer_fpu() && rcv_utcb->inherit_fpu() && (rights & L4_fpage::W))
+  if (tag.transfer_fpu() && rcv_utcb->inherit_fpu() && (rights & L4_fpage::Rights::W()))
     snd->transfer_fpu(rcv);
 
   return success;
@@ -867,7 +867,7 @@ PUBLIC inline NEEDS[Thread::copy_utcb_to_ts, Thread::copy_utcb_to_utcb,
                     Thread::copy_ts_to_utcb]
 bool FIASCO_WARN_RESULT
 Thread::copy_utcb_to(L4_msg_tag const &tag, Thread* receiver,
-                     unsigned char rights)
+                     L4_fpage::Rights rights)
 {
   // we cannot copy trap state to trap state!
   assert_kdb (!this->_utcb_handler || !receiver->_utcb_handler);
@@ -883,7 +883,7 @@ PRIVATE static
 bool
 Thread::transfer_msg_items(L4_msg_tag const &tag, Thread* snd, Utcb *snd_utcb,
                            Thread *rcv, Utcb *rcv_utcb,
-                           unsigned char rights)
+                           L4_fpage::Rights rights)
 {
   // LOG_MSG_3VAL(current(), "map bd=", rcv_utcb->buf_desc.raw(), 0, 0);
   Task *const rcv_t = nonull_static_cast<Task*>(rcv->space());
@@ -961,7 +961,7 @@ Thread::transfer_msg_items(L4_msg_tag const &tag, Thread* snd, Utcb *snd_utcb,
 
 	      // diminish when sending via restricted ipc gates
 	      if (sfp.type() == L4_fpage::Obj)
-		sfp.mask_rights(L4_fpage::Rights(rights | L4_fpage::RX));
+		sfp.mask_rights(rights | L4_fpage::Rights::CRW() | L4_fpage::Rights::CD());
 
 	      L4_error err;
 
@@ -1097,7 +1097,7 @@ Thread::do_send_wait(Thread *partner, L4_timeout snd_t)
 
 PRIVATE inline
 void
-Thread::set_ipc_send_rights(unsigned char c)
+Thread::set_ipc_send_rights(L4_fpage::Rights c)
 {
   _ipc_send_rights = c;
 }
@@ -1169,7 +1169,7 @@ unsigned
 Thread::remote_handshake_receiver(L4_msg_tag const &tag, Thread *partner,
                                   bool have_receive,
                                   L4_timeout snd_t, Syscall_frame *regs,
-                                  unsigned char rights)
+                                  L4_fpage::Rights rights)
 {
   // Flag that there must be no switch in the receive path.
   // This flag also prevents the receive path from accessing
@@ -1221,12 +1221,13 @@ IMPLEMENT
 unsigned
 Thread::Log_pf_invalid::print(int max, char *buf) const
 {
-  return snprintf(buf, max, "InvCap C:%lx pfa=%lx err=%lx", cap_idx, pfa, err);
+  return snprintf(buf, max, "InvCap C:%lx pfa=%lx err=%lx",
+                  cxx::int_value<Cap_index>(cap_idx), pfa, err);
 }
 
 IMPLEMENT
 unsigned
 Thread::Log_exc_invalid::print(int max, char *buf) const
 {
-  return snprintf(buf, max, "InvCap C:%lx", cap_idx);
+  return snprintf(buf, max, "InvCap C:%lx", cxx::int_value<Cap_index>(cap_idx));
 }

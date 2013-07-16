@@ -2,6 +2,7 @@ INTERFACE:
 
 #include "bitmap.h"
 #include "config.h"
+#include "types.h"
 
 template<unsigned MAX_NUM_CPUS>
 class Cpu_mask_t
@@ -16,13 +17,23 @@ public:
   Cpu_mask_t &operator = (Cpu_mask_t const &) = default;
 
   bool empty() const { return _b.is_empty(); }
-  bool get(unsigned cpu) const { return _b[cpu]; }
-  void clear(unsigned cpu) { return _b.clear_bit(cpu); }
-  void set(unsigned cpu) { _b.set_bit(cpu); };
-  void atomic_set(unsigned cpu) {_b.atomic_set_bit(cpu); }
-  void atomic_clear(unsigned cpu) {_b.atomic_clear_bit(cpu); }
-  bool atomic_get_and_clear(unsigned cpu)
-  { return _b.atomic_get_and_clear(cpu); }
+  bool get(Cpu_number cpu) const
+  { return _b[cxx::int_value<Cpu_number>(cpu)]; }
+
+  void clear(Cpu_number cpu)
+  { return _b.clear_bit(cxx::int_value<Cpu_number>(cpu)); }
+
+  void set(Cpu_number cpu)
+  { _b.set_bit(cxx::int_value<Cpu_number>(cpu)); };
+
+  void atomic_set(Cpu_number cpu)
+  { _b.atomic_set_bit(cxx::int_value<Cpu_number>(cpu)); }
+
+  void atomic_clear(Cpu_number cpu)
+  { _b.atomic_clear_bit(cxx::int_value<Cpu_number>(cpu)); }
+
+  bool atomic_get_and_clear(Cpu_number cpu)
+  { return _b.atomic_get_and_clear(cxx::int_value<Cpu_number>(cpu)); }
 
 private:
   Bitmap<Max_num_cpus> _b;

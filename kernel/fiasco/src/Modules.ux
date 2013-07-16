@@ -96,9 +96,10 @@ INTERFACES_KERNEL	:= mem_region simpleio kernel_console panic warn \
 			   sched_context switch_lock timer timeout	  \
 			   obj_space kobject_dbg kobject kobject_iface    \
 			   l4_buf_iter lock  \
+                           obj_space_types obj_space_phys_util \
 			   mem_space space vcpu context \
 			   helping_lock \
-			   mp_lock ipc_gate irq_controller                \
+			   mp_lock             \
 			   mapping mapping_tree mappable                  \
 			   mapdb kobject_mapdb map_util \
 			   hostproc task sigma0_task kernel_task prio_list \
@@ -106,7 +107,7 @@ INTERFACES_KERNEL	:= mem_region simpleio kernel_console panic warn \
 			   ipc_timeout thread_state	  \
 			   sender receiver ipc_sender thread thread_object \
 			   kobject_helper timer_tick platform_control     \
-			   syscalls            		 		  \
+			   syscalls ipc_gate irq_controller \
 			   kernel_thread dirq irq_chip irq_mgr \
 			   irq_chip_ia32 irq_chip_pic  \
 			   banner fpu_alloc irq icu_helper main 	  \
@@ -335,7 +336,7 @@ endif
 # UNITTEST subsystem
 #
 # disabled until unittests fixed
-ifeq (1,2)
+ifeq (0,1)
 SUBSYSTEMS		+= UNITTEST
 VPATH			+= test/unit
 

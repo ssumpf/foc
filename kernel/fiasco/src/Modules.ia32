@@ -14,12 +14,6 @@ PREPROCESS_PARTS 	+= arch $(CONFIG_ABI) 32bit iofp         \
 			   i8259 pc i8254 fpu                    \
 			   abs_syscalls auto_map_kip io
 
-OBJ_SPACE-y = phys
-OBJ_SPACE-  = virt
-OBJ_SPACE   = $(OBJ_SPACE-$(CONFIG_DISABLE_VIRT_OBJ_SPACE))
-
-PREPROCESS_PARTS += obj_space_$(OBJ_SPACE)
-
 PREPROCESS_PARTS-$(CONFIG_MP)                += mp
 PREPROCESS_PARTS-$(CONFIG_LIST_ALLOC_SANITY) += list_alloc_debug
 PREPROCESS_PARTS-$(CONFIG_JDB)               += debug log
@@ -30,7 +24,7 @@ PREPROCESS_PARTS-$(CONFIG_SCHED_HPET)        += hpet_timer
 PREPROCESS_PARTS-$(CONFIG_SERIAL)            += serial 16550
 PREPROCESS_PARTS-$(CONFIG_WATCHDOG)          += watchdog
 PREPROCESS_PARTS-$(CONFIG_PERF_CNT)          += perf_cnt
-PREPROCESS_PARTS-$(CONFIG_CPU_VIRT)          += svm vmx
+PREPROCESS_PARTS-$(CONFIG_CPU_VIRT)          += svm vmx virtual_space_iface
 PREPROCESS_PARTS-$(CONFIG_SCHED_FIXED_PRIO)  += sched_fixed_prio
 PREPROCESS_PARTS-$(CONFIG_SCHED_WFQ)         += sched_wfq
 PREPROCESS_PARTS-$(CONFIG_SCHED_FP_WFQ)      += sched_fp_wfq
@@ -94,7 +88,7 @@ INTERFACES_KERNEL	+= __main acpi irq_chip_ia32 irq_chip_pic io_apic \
 			   io_space apic pit checksum x86desc gdt idt tss \
 			   timer_irq dirq
 
-INTERFACES_KERNEL-$(CONFIG_CPU_VIRT) += svm vmx vm vm_svm vm_vmx
+INTERFACES_KERNEL-$(CONFIG_CPU_VIRT) += svm vmx vm vm_svm vm_vmx vm_vmx_ept
 
 apic_IMPL		:= apic-ia32 apic-ia32-mp
 boot_console_IMPL	:= boot_console-ia32-amd64
@@ -121,7 +115,6 @@ map_util_IMPL		:= map_util map_util-mem map_util-io map_util-objs
 mem_layout_IMPL		:= mem_layout mem_layout-ia32 mem_layout-ia32-32
 mem_space_IMPL		:= mem_space mem_space-user mem_space-ia32
 mem_unit_IMPL		:= mem_unit-ia32
-obj_space_IMPL          := obj_space obj_space-$(OBJ_SPACE)
 paging_IMPL		:= paging-ia32-32 paging-ia32 paging
 perf_cnt_IMPL		:= perf_cnt perf_cnt-ia32
 pic_IMPL		:= pic pic-i8259
@@ -267,7 +260,7 @@ ASSRC_CRT0		:= crt0.S
 #
 # BOOT subsystem
 #
-BOOT			:= main
+BOOT			:= fiasco
 VPATH			+= boot/$(CONFIG_XARCH) boot
 PRIVATE_INCDIR 		+= boot boot/ia32
 CXXSRC_BOOT		:= boot_libc_glue.cc bootstrap.cc boot_cpu.cc \

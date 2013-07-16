@@ -1,0 +1,346 @@
+// vi:ft=cpp
+
+#pragma once
+#include "type_traits"
+
+namespace cxx {
+
+/**
+ * \brief Get native interger value of \a v.
+ *
+ * Currently do this for native integers direcly.
+ */
+template< typename TYPE, typename = typename cxx::enable_if<cxx::is_integral<TYPE>::value>::type > inline
+TYPE
+int_value(typename cxx::idendity<TYPE>::type const &v)
+{ return v; }
+
+/**
+ * \brief Get native interger value of \a v.
+ *
+ * Get the native value of the embedded integer of TYPE.
+ */
+template< typename TYPE > inline
+typename TYPE::Value
+int_value(TYPE const &v)
+{ return TYPE::val(v); }
+
+
+/** \brief Base class for type-safe integers.
+ *
+ * This class actually handles comparison and the storage for the integer value.
+ */
+template< typename VALUE_T, typename TYPE_T >
+class int_base
+{
+public:
+  typedef VALUE_T Value;
+  typedef TYPE_T  Target;
+  typedef int_base<VALUE_T, TYPE_T> Type;
+
+  int_base() = default;
+  explicit int_base(Value v) : _v(v) {}
+
+  TYPE_T operator = (TYPE_T const &o)
+  { _v = o._v; return *static_cast<TYPE_T*>(this); }
+
+  friend inline bool operator < (Type const &l, Type const &r) { return l._v < r._v; }
+  friend inline bool operator > (Type const &l, Type const &r) { return l._v > r._v; }
+  friend inline bool operator <= (Type const &l, Type const &r) { return l._v <= r._v; }
+  friend inline bool operator >= (Type const &l, Type const &r) { return l._v >= r._v; }
+  friend inline bool operator == (Type const &l, Type const &r) { return l._v == r._v; }
+  friend inline bool operator != (Type const &l, Type const &r) { return l._v != r._v; }
+
+  static Value val(Type const &t) { return t._v; }
+  static Value val(TYPE_T const &t) { return t._v; }
+  static Value &val(Type &t) { return t._v; }
+  static Value &val(TYPE_T &t) { return t._v; }
+
+protected:
+  Value _v;
+};
+
+
+/**
+ * Increment and decrement mixin for int_base.
+ */
+template< typename TYPE_T >
+struct int_inc_ops
+{
+  friend inline TYPE_T &operator ++ (TYPE_T &l)
+  { ++TYPE_T::val(l); return l; }
+
+  friend inline TYPE_T operator ++ (TYPE_T &l, int)
+  { TYPE_T old = l; TYPE_T::val(l)++; return old; }
+
+  friend inline TYPE_T &operator -- (TYPE_T &l)
+  { --TYPE_T::val(l); return l; }
+
+  friend inline TYPE_T operator -- (TYPE_T &l, int)
+  { TYPE_T old = l; TYPE_T::val(l)--; return old; }
+};
+
+
+/**
+ * Addition and substraction mixin for int_base.
+ *
+ * This version is actually used if there is a specific difference type
+ * for the integer type.
+ */
+template< typename TYPE_T, typename DIFF_T = TYPE_T >
+struct int_diff_ops : int_inc_ops<TYPE_T>
+{
+  typedef DIFF_T Diff_type;
+
+  friend inline DIFF_T operator - (TYPE_T const &l, TYPE_T const &r)
+  { return DIFF_T(cxx::int_value<TYPE_T>(l) - cxx::int_value<TYPE_T>(r)); }
+
+  friend inline TYPE_T operator + (TYPE_T const &l, DIFF_T const &r)
+  { return TYPE_T(cxx::int_value<TYPE_T>(l) + cxx::int_value<DIFF_T>(r)); }
+
+  friend inline TYPE_T operator + (DIFF_T const &l, TYPE_T const &r)
+  { return TYPE_T(cxx::int_value<DIFF_T>(l) + cxx::int_value<TYPE_T>(r)); }
+
+  friend inline TYPE_T &operator += (TYPE_T &l, DIFF_T const &r)
+  { TYPE_T::val(l) += cxx::int_value<DIFF_T>(r); return l; }
+
+  friend inline TYPE_T operator - (TYPE_T const &l, DIFF_T const &r)
+  { return TYPE_T(cxx::int_value<TYPE_T>(l) - cxx::int_value<DIFF_T>(r)); }
+
+  friend inline TYPE_T &operator -= (TYPE_T &l, DIFF_T const &r)
+  { TYPE_T::val(l) -= cxx::int_value<DIFF_T>(r); return l; }
+};
+
+
+/**
+ * Addition and substraction mixin for int_base.
+ *
+ * This version is actually used if there is no specific difference type
+ * for the integer type.
+ */
+template<typename TYPE_T>
+struct int_diff_ops<TYPE_T, TYPE_T> : int_inc_ops<TYPE_T>
+{
+  typedef TYPE_T Diff_type;
+
+  friend inline TYPE_T operator - (TYPE_T const &l, TYPE_T const &r)
+  { return TYPE_T(cxx::int_value<TYPE_T>(l) - cxx::int_value<TYPE_T>(r)); }
+
+  friend inline TYPE_T &operator -= (TYPE_T &l, TYPE_T const &r)
+  { TYPE_T::val(l) -= cxx::int_value<TYPE_T>(r); return l; }
+
+  friend inline TYPE_T operator + (TYPE_T const &l, TYPE_T const &r)
+  { return TYPE_T(cxx::int_value<TYPE_T>(l) + cxx::int_value<TYPE_T>(r)); }
+
+  friend inline TYPE_T &operator += (TYPE_T &l, TYPE_T const &r)
+  { TYPE_T::val(l) += cxx::int_value<TYPE_T>(r); return l; }
+};
+
+/**
+ * Basic bitwise operations for int_base types.
+ */
+template<typename TYPE_T>
+struct int_bit_ops_base
+{
+  friend inline TYPE_T operator | (TYPE_T const &l, TYPE_T const &r)
+  { return TYPE_T(cxx::int_value<TYPE_T>(l) | cxx::int_value<TYPE_T>(r)); }
+
+  friend inline TYPE_T &operator |= (TYPE_T &l, TYPE_T const &r)
+  { TYPE_T::val(l) |= cxx::int_value<TYPE_T>(r); return l; }
+
+  friend inline TYPE_T operator & (TYPE_T const &l, TYPE_T const &r)
+  { return TYPE_T(cxx::int_value<TYPE_T>(l) & cxx::int_value<TYPE_T>(r)); }
+
+  friend inline TYPE_T &operator &= (TYPE_T &l, TYPE_T const &r)
+  { TYPE_T::val(l) &= cxx::int_value<TYPE_T>(r); return l; }
+
+  friend inline TYPE_T operator ^ (TYPE_T const &l, TYPE_T const &r)
+  { return TYPE_T(cxx::int_value<TYPE_T>(l) ^ cxx::int_value<TYPE_T>(r)); }
+
+  friend inline TYPE_T &operator ^= (TYPE_T &l, TYPE_T const &r)
+  { TYPE_T::val(l) ^= cxx::int_value<TYPE_T>(r); return l; }
+
+  friend inline TYPE_T operator ~ (TYPE_T const &l)
+  { return TYPE_T(~cxx::int_value<TYPE_T>(l)); }
+};
+
+/**
+ * Bitwise mixin for int_base.
+ *
+ * This version is actually used if there is a specific difference type
+ * for the integer type.
+ */
+template<typename TYPE_T, typename DIFF_T = TYPE_T>
+struct int_bit_ops : int_bit_ops_base<TYPE_T>
+{
+  friend inline TYPE_T operator | (TYPE_T const &l, DIFF_T const &r)
+  { return TYPE_T(cxx::int_value<TYPE_T>(l) | cxx::int_value<DIFF_T>(r)); }
+
+  friend inline TYPE_T operator | (DIFF_T const &l, TYPE_T const &r)
+  { return TYPE_T(cxx::int_value<DIFF_T>(l) | cxx::int_value<TYPE_T>(r)); }
+
+  friend inline TYPE_T &operator |= (TYPE_T &l, DIFF_T const &r)
+  { TYPE_T::val(l) |= cxx::int_value<DIFF_T>(r); return l; }
+
+  friend inline DIFF_T operator & (DIFF_T const &l, TYPE_T const &r)
+  { return DIFF_T(cxx::int_value<DIFF_T>(l) & cxx::int_value<TYPE_T>(r)); }
+
+  friend inline DIFF_T operator & (TYPE_T const &l, DIFF_T const &r)
+  { return DIFF_T(cxx::int_value<TYPE_T>(l) & cxx::int_value<DIFF_T>(r)); }
+
+  friend inline TYPE_T &operator &= (TYPE_T &l, DIFF_T const &r)
+  { TYPE_T::val(l) &= cxx::int_value<DIFF_T>(r); return l; }
+
+  friend inline TYPE_T operator ^ (DIFF_T const &l, TYPE_T const &r)
+  { return TYPE_T(cxx::int_value<DIFF_T>(l) ^ cxx::int_value<TYPE_T>(r)); }
+
+  friend inline TYPE_T operator ^ (TYPE_T const &l, DIFF_T const &r)
+  { return TYPE_T(cxx::int_value<TYPE_T>(l) ^ cxx::int_value<DIFF_T>(r)); }
+
+  friend inline TYPE_T &operator ^= (TYPE_T &l, DIFF_T const &r)
+  { TYPE_T::val(l) ^= cxx::int_value<DIFF_T>(r); return l; }
+};
+
+/**
+ * Bitwise mixin for int_base.
+ *
+ * This version is actually used if there is no specific difference type
+ * for the integer type.
+ */
+template<typename TYPE_T>
+struct int_bit_ops<TYPE_T, TYPE_T> : int_bit_ops_base<TYPE_T> {};
+
+/**
+ * Shift mixin for int_base.
+ */
+template<typename TYPE_T, typename ORDER_T>
+struct int_shift_ops
+{
+  typedef ORDER_T Order_type;
+
+  friend inline TYPE_T operator << (TYPE_T const &l, ORDER_T const &r)
+  { return TYPE_T(cxx::int_value<TYPE_T>(l) << cxx::int_value<ORDER_T>(r)); }
+
+  friend inline TYPE_T &operator <<= (TYPE_T &l, ORDER_T const &r)
+  { TYPE_T::val(l) <<= cxx::int_value<ORDER_T>(r); return l; }
+
+  friend inline TYPE_T operator >> (TYPE_T const &l, ORDER_T const &r)
+  { return TYPE_T(cxx::int_value<TYPE_T>(l) >> cxx::int_value<ORDER_T>(r)); }
+
+  friend inline TYPE_T &operator >>= (TYPE_T &l, ORDER_T const &r)
+  { TYPE_T::val(l) >>= cxx::int_value<ORDER_T>(r); return l; }
+};
+
+template<typename TYPE_T>
+struct int_null_chk
+{
+  friend inline bool operator ! (TYPE_T const &v)
+  { return cxx::int_value<TYPE_T>(v) == 0; }
+
+private:
+  struct Type_conversion_error;
+
+public:
+  operator Type_conversion_error const * () const
+  { return (Type_conversion_error const *)(cxx::int_value<TYPE_T>(*static_cast<TYPE_T const *>(this)) != 0 ? 1L : 0L); }
+};
+
+template<typename VALUE_T, typename T>
+struct int_type : int_base<VALUE_T, int_type<VALUE_T, T> >, int_diff_ops<int_type<VALUE_T, T> >
+{
+  typedef VALUE_T Value;
+  int_type() = default;
+  explicit int_type(VALUE_T v) : int_base<VALUE_T, int_type<VALUE_T, T> >(v) {}
+};
+
+template<typename VALUE_T, typename T, typename ORDER_T>
+struct int_type_order
+: int_base<VALUE_T, int_type_order<VALUE_T, T, ORDER_T> >,
+  int_diff_ops<int_type_order<VALUE_T, T, ORDER_T> >,
+  int_shift_ops<int_type_order<VALUE_T, T, ORDER_T>, ORDER_T>,
+  int_bit_ops<int_type_order<VALUE_T, T, ORDER_T> >
+{
+  typedef VALUE_T Value;
+  int_type_order() = default;
+  explicit int_type_order(VALUE_T v) : int_base<VALUE_T, int_type_order<VALUE_T, T, ORDER_T> >(v) {}
+};
+
+template<typename VALUE_T, typename T, typename DIFF_T, typename ORDER_T>
+struct int_type_full
+: int_base<VALUE_T, int_type_full<VALUE_T, T, DIFF_T, ORDER_T> >,
+  int_diff_ops<int_type_full<VALUE_T, T, DIFF_T, ORDER_T>, DIFF_T>,
+  int_shift_ops<int_type_full<VALUE_T, T, DIFF_T, ORDER_T>, ORDER_T>,
+  int_bit_ops<int_type_full<VALUE_T, T, DIFF_T, ORDER_T>, DIFF_T>
+{
+  typedef VALUE_T Value;
+  int_type_full() = default;
+  explicit int_type_full(VALUE_T v) : int_base<VALUE_T, int_type_full<VALUE_T, T, DIFF_T, ORDER_T> >(v) {}
+};
+
+template<typename VALUE_T, typename TYPE_T, typename DIFF_T = TYPE_T>
+struct int_type_base : int_base<VALUE_T, TYPE_T>, int_diff_ops<TYPE_T, DIFF_T>
+{
+  int_type_base() = default;
+  explicit int_type_base(VALUE_T v) : int_base<VALUE_T, TYPE_T>(v) {}
+};
+
+template<typename VALUE_T, typename TYPE_T, typename ORDER_T, typename DIFF_T = TYPE_T>
+struct int_type_order_base : int_base<VALUE_T, TYPE_T>, int_diff_ops<TYPE_T, DIFF_T>,
+  int_shift_ops<TYPE_T, ORDER_T>, int_bit_ops<TYPE_T, DIFF_T>
+{
+  int_type_order_base() = default;
+  explicit int_type_order_base(VALUE_T v) : int_base<VALUE_T, TYPE_T>(v) {}
+};
+
+template< typename TYPE, typename ORDER > inline
+TYPE
+mask_lsb(TYPE const &v, ORDER const &o)
+{ return v & (TYPE(~0) << o); }
+
+template< typename TYPE, typename ORDER > inline
+typename TYPE::Diff_type
+get_lsb(TYPE const &v, ORDER const &o)
+{ return v & ~(typename TYPE::Diff_type(~0) << o); }
+
+template< typename TYPE, typename ORDER,
+  typename = typename cxx::enable_if<cxx::is_integral<TYPE>::value>::type > inline
+TYPE
+get_lsb(TYPE const &v, ORDER const &o)
+{ return v & ~(TYPE(~0) << o); }
+
+/**
+ * \brief Array indexed by type-safe integers.
+ */
+template< typename VALUE, typename INDEX, unsigned long SIZE >
+class array
+{
+public:
+  typedef VALUE *iterator;
+  typedef VALUE const *const_iterator;
+
+  VALUE &operator [] (INDEX const &cpu)
+  { return _d[cxx::int_value<INDEX>(cpu)]; }
+
+  VALUE const &operator [] (INDEX const &cpu) const
+  { return _d[cxx::int_value<INDEX>(cpu)]; }
+
+  iterator begin() { return &_d[0]; }
+  iterator end() { return &_d[SIZE]; }
+
+  const_iterator begin() const { return &_d[0]; }
+  const_iterator end() const { return &_d[SIZE]; }
+
+  static INDEX size() { return INDEX(SIZE); }
+
+private:
+  VALUE _d[SIZE];
+};
+
+template< typename T >
+struct underlying_type<T, typename cxx::enable_if<!cxx::is_same<typename T::Value, void>::value>::type>
+{
+  typedef typename T::Value type;
+};
+
+} // namespace cxx
+

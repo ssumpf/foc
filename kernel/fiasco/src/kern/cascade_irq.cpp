@@ -16,7 +16,7 @@ public:
   }
 
   Irq_chip_icu *child() const { return _child; }
-  void switch_mode(unsigned) {}
+  void switch_mode(bool) {}
 
 private:
   Irq_chip_icu *_child;

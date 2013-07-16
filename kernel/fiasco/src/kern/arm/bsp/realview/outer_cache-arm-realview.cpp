@@ -5,8 +5,8 @@ IMPLEMENT
 Mword
 Outer_cache::platform_init(Mword aux_control)
 {
-  Io::write<Mword>(0 , TAG_RAM_CONTROL);
-  Io::write<Mword>(0 , DATA_RAM_CONTROL);
+  l2cxx0->write<Mword>(0, L2cxx0::TAG_RAM_CONTROL);
+  l2cxx0->write<Mword>(0, L2cxx0::DATA_RAM_CONTROL);
   aux_control &= 0xc0000fff;
   aux_control |= 1 << 17; // 16kb way size
   aux_control |= 1 << 20; // event monitor bus enable

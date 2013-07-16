@@ -1,7 +1,7 @@
 # vim:set ft=make:
 
 PREPROCESS_PARTS        += sa1100 vcache armv5 kern_start_0xd generic_tickless_idle
-CONFIG_KERNEL_LOAD_ADDR := 0xc0000000
+RAM_PHYS_BASE           := 0xc0000000
 VPATH                   += kern/arm/bsp/pxa-sa
     
 uart_IMPL             += uart-sa1100

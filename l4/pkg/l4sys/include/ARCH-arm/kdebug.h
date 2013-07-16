@@ -78,12 +78,6 @@ kd_display(char *text) L4_NOTHROW;
 L4_INLINE int
 l4kd_inchar(void) L4_NOTHROW;
 
-L4_INLINE void
-l4_sys_cli(void) L4_NOTHROW;
-
-L4_INLINE void
-l4_sys_sti(void) L4_NOTHROW;
-
 /*
  * -------------------------------------------------------------------
  * Implementations
@@ -271,18 +265,6 @@ L4_INLINE int
 l4kd_inchar(void) L4_NOTHROW
 {
   return __KDEBUG_ARM_PARAM_0(0xd);
-}
-
-L4_INLINE void
-l4_sys_cli(void) L4_NOTHROW
-{
-  __KDEBUG_ARM_PARAM_0(0x32);
-}
-
-L4_INLINE void
-l4_sys_sti(void) L4_NOTHROW
-{
-  __KDEBUG_ARM_PARAM_0(0x33);
 }
 
 #endif //__GNUC__

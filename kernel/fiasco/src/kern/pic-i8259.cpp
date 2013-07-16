@@ -348,8 +348,8 @@ Pic::restore_all( Status s )
 
 IMPLEMENT inline NEEDS[<cassert>]
 void
-Pic::set_cpu(unsigned, unsigned cpu)
+Pic::set_cpu(unsigned, Cpu_number cpu)
 {
   (void)cpu;
-  assert(cpu == 0);
+  assert(cpu == Cpu_number::boot_cpu());
 }

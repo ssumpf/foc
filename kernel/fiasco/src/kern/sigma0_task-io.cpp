@@ -2,14 +2,13 @@ IMPLEMENTATION [io]:
 
 PUBLIC
 bool
-Sigma0_task::v_fabricate(Io_space::Addr address, Io_space::Phys_addr* phys,
-                         Io_space::Size* size, unsigned* attribs = 0)
+Sigma0_task::v_fabricate(Io_space::V_pfn address, Io_space::Phys_addr *phys,
+                         Io_space::Page_order *size, Io_space::Attr *attribs = 0)
 {
   // special-cased because we don't do lookup for sigma0
-  *phys = address.trunc(Io_space::Size(Io_space::Map_superpage_size));
-  *size = Io_space::Size(Io_space::Map_superpage_size);
+  *size = Io_space::Page_order(Io_space::Map_superpage_shift);
+  *phys = cxx::mask_lsb(address, *size);
   if (attribs)
-    *attribs = Io_space::Page_writable
-             | Io_space::Page_user_accessible;
+    *attribs = L4_fpage::Rights::FULL();
   return true;
 }

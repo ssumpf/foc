@@ -52,12 +52,12 @@ IMPLEMENT
 int
 Thread::call_nested_trap_handler(Trap_state * /*ts*/)
 {
-  unsigned phys_cpu = Proc::cpu_id();
-  unsigned log_cpu = Cpu::cpus.find_cpu(Cpu::By_phys_id(phys_cpu));
-  if (log_cpu == ~0U)
+  Cpu_phys_id phys_cpu = Proc::cpu_id();
+  Cpu_number log_cpu = Cpu::cpus.find_cpu(Cpu::By_phys_id(phys_cpu));
+  if (log_cpu == Cpu_number::nil())
     {
-      printf("Trap on unknown CPU phys_id=%x\n", phys_cpu);
-      log_cpu = 0;
+      printf("Trap on unknown CPU phys_id=%x\n", cxx::int_value<Cpu_phys_id>(phys_cpu));
+      log_cpu = Cpu_number::boot_cpu();
     }
 
   unsigned long &ntr = nested_trap_recover.cpu(log_cpu);

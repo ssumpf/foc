@@ -193,7 +193,7 @@ Jdb_list_timeouts::get_type(Timeout *t)
 {
   Address addr = (Address)t;
 
-  if (t == timeslice_timeout.cpu(0))
+  if (t == timeslice_timeout.cpu(Cpu_number::first()))
     // there is only one global timeslice timeout
     return Timeout_timeslice;
 
@@ -216,7 +216,7 @@ Jdb_list_timeouts::get_owner(Timeout *t)
       case Timeout_deadline:
         return static_cast<Thread*>(context_of(t));
       case Timeout_timeslice:
-        return static_cast<Thread*>(Context::kernel_context(0));
+        return static_cast<Thread*>(Context::kernel_context(Cpu_number::first()));
 #if 0
         // XXX: current_sched does not work from the debugger
         if (Context::current_sched())
@@ -308,7 +308,8 @@ Jdb_list_timeouts::list()
   typedef Rnd_container<Timeout_iter> Cont;
   typedef Cont::Iterator Iter;
 
-  Cont to_cont(Timeout_iter(&Timeout_q::timeout_queue.cpu(0)), Timeout_iter(&Timeout_q::timeout_queue.cpu(0), true));
+  Cont to_cont(Timeout_iter(&Timeout_q::timeout_queue.cpu(Cpu_number::first())),
+               Timeout_iter(&Timeout_q::timeout_queue.cpu(Cpu_number::first()), true));
   Iter first = to_cont.begin();
   Iter current = first;
   Iter end = to_cont.end();

@@ -1,9 +1,12 @@
 INTERFACE [arm]:
 
+#include "irq_chip.h"
+
 EXTENSION class Timer
 {
 public:
-  static unsigned irq_mode() { return 0; }
+  static Irq_chip::Mode irq_mode()
+  { return Irq_chip::Mode::F_raising_edge; }
 
 private:
   static inline void update_one_shot(Unsigned64 wakeup);
@@ -46,9 +49,9 @@ Timer::init_system_clock()
 
 IMPLEMENT inline NEEDS["config.h", "globals.h", "kip.h", "watchdog.h", Timer::kipclock_cache]
 void
-Timer::update_system_clock(unsigned cpu)
+Timer::update_system_clock(Cpu_number cpu)
 {
-  if (cpu == 0)
+  if (cpu == Cpu_number::boot_cpu())
     {
       Kip::k()->clock += Config::Scheduler_granularity;
       kipclock_cache();

@@ -26,7 +26,7 @@ public:
 private:
   static char subcmd;
   static char long_output;
-  static unsigned cpu;
+  static Cpu_number cpu;
 
 private:
   static int _mode;
@@ -43,7 +43,7 @@ private:
 
 char Jdb_thread_list::subcmd;
 char Jdb_thread_list::long_output;
-unsigned Jdb_thread_list::cpu;
+Cpu_number Jdb_thread_list::cpu;
 
 
 // available from the jdb_tcb module
@@ -577,14 +577,14 @@ Jdb_thread_list::action(int cmd, void *&argbuf, char const *&fmt, int &)
       Thread *t = Jdb::get_current_active();
       switch (subcmd)
 	{
-	case 'r': cpu = 0; list_threads(t, 'r'); break;
+        case 'r': cpu = Cpu_number::first(); list_threads(t, 'r'); break;
 	case 'p': list_threads(t, 'p'); break;
 	case 'c':
 		  if (Cpu::online(cpu))
 		    list_threads(Jdb::get_thread(cpu), 'r');
 		  else
-		    printf("\nCPU %u is not online!\n", cpu);
-		  cpu = 0;
+		    printf("\nCPU %u is not online!\n", Cpu_number::val(cpu));
+		  cpu = Cpu_number::first();
 		  break;
 	case 't': Jdb::execute_command("lt"); break; // other module
 	case 's': Jdb::execute_command("ls"); break; // other module
@@ -640,7 +640,7 @@ Jdb_thread_list::list_threads_show_thread(Thread *t)
 
   Jdb_kobject::print_uid(t, 5);
 
-  printf(" %-3u ", t->cpu());
+  printf(" %-3u ", cxx::int_value<Cpu_number>(t->cpu()));
 
   print_thread_name(t);
 

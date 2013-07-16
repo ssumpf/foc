@@ -72,14 +72,15 @@ private:
 class Irq_muxer : public Kobject_h<Irq_muxer, Irq>, private Irq_chip
 {
 public:
-  unsigned set_mode(Mword, unsigned mode) { return mode; }
-  void switch_mode(unsigned)
+  int set_mode(Mword, Irq_chip::Mode) { return 0; }
+  bool is_edge_triggered(Mword) const { return false; }
+  void switch_mode(bool)
   {
     // the irq object is assumed to be always handled as
     // level triggered
   }
 
-  void set_cpu(Mword, unsigned)
+  void set_cpu(Mword, Cpu_number)
   {
     // don't know what to do here, may be multiple targets on different
     // CPUs!
@@ -238,7 +239,6 @@ Irq_muxer::sys_attach(L4_msg_tag const &tag, Utcb const *utcb, Syscall_frame * /
   L4_snd_item_iter snd_items(utcb, tag.words());
 
   Irq *irq = 0;
-  unsigned mode = utcb->values[0] >> 16;
 
   if (tag.items() == 0)
     return commit_result(-L4_err::EInval);
@@ -254,10 +254,6 @@ Irq_muxer::sys_attach(L4_msg_tag const &tag, Utcb const *utcb, Syscall_frame * /
 
   if (!irq)
     return commit_result(-L4_err::EInval);
-
-  if (mode & Set_irq_mode)
-    printf("DEPRECATED SET IRQ MODE\n");
-    //pin()->set_mode(mode);
 
   irq->unbind();
 
@@ -279,7 +275,7 @@ Irq_muxer::sys_attach(L4_msg_tag const &tag, Utcb const *utcb, Syscall_frame * /
 
 PUBLIC
 L4_msg_tag
-Irq_muxer::kinvoke(L4_obj_ref, Mword /*rights*/, Syscall_frame *f,
+Irq_muxer::kinvoke(L4_obj_ref, L4_fpage::Rights /*rights*/, Syscall_frame *f,
                    Utcb const *utcb, Utcb *)
 {
   register Context *const c_thread = ::current();
@@ -378,12 +374,9 @@ Irq_sender::Irq_sender(Ram_quota *q = 0)
 
 PUBLIC
 void
-Irq_sender::switch_mode(unsigned mode)
+Irq_sender::switch_mode(bool is_edge_triggered)
 {
-  if ((mode & Trigger_mask) == Trigger_edge)
-    hit_func = &hit_edge_irq;
-  else
-    hit_func = &hit_level_irq;
+  hit_func = is_edge_triggered ? &hit_edge_irq : &hit_level_irq;
 }
 
 PUBLIC
@@ -587,14 +580,8 @@ Irq_sender::sys_attach(L4_msg_tag const &tag, Utcb const *utcb, Syscall_frame * 
   if (tag.items() == 0)
     {
       // detach
-      if (mode & Set_irq_mode)
-	printf("DEPRECATED SET IRQ MODE\n");
-	//pin()->set_mode(mode);
-      else
-	{
-	  free(_irq_thread);
-	  _irq_id = ~0UL;
-	}
+      free(_irq_thread);
+      _irq_id = ~0UL;
       return commit_result(0);
     }
 
@@ -612,8 +599,6 @@ Irq_sender::sys_attach(L4_msg_tag const &tag, Utcb const *utcb, Syscall_frame * 
 
   if (alloc(thread))
     {
-      if (mode & Set_irq_mode)
-	printf("DEPRECATED SET IRQ MODE\n");
       _irq_id = utcb->values[1];
       return commit_result(0);
     }
@@ -624,7 +609,7 @@ Irq_sender::sys_attach(L4_msg_tag const &tag, Utcb const *utcb, Syscall_frame * 
 
 PUBLIC
 L4_msg_tag
-Irq_sender::kinvoke(L4_obj_ref, Mword /*rights*/, Syscall_frame *f,
+Irq_sender::kinvoke(L4_obj_ref, L4_fpage::Rights /*rights*/, Syscall_frame *f,
                     Utcb const *utcb, Utcb *)
 {
   register Context *const c_thread = ::current();

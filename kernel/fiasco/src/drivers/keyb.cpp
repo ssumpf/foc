@@ -15,6 +15,9 @@ public:
 
   // implemented empty
   int write(char const *str, size_t len);
+
+  enum Keymap { Keymap_en, Keymap_de };
+  void set_keymap(Keymap);
 };
 
 
@@ -22,7 +25,7 @@ IMPLEMENTATION:
 
 IMPLEMENT
 int
-Keyb::write( char const *, size_t len)
+Keyb::write(char const *, size_t len)
 {
   return len;
 }
@@ -33,4 +36,3 @@ Keyb::get_attributes() const
 {
   return DIRECT | IN;
 }
-

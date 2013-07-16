@@ -18,11 +18,11 @@ static Jdb_ipi_module jdb_ipi_module INIT_PRIORITY(JDB_MODULE_INIT_PRIO);
 
 PRIVATE static
 void
-Jdb_ipi_module::print_info(unsigned cpu)
+Jdb_ipi_module::print_info(Cpu_number cpu)
 {
   Ipi &ipi = Ipi::_ipi.cpu(cpu);
   printf("CPU%02u sent/rcvd: %ld/%ld\n",
-         cpu, ipi._stat_sent, ipi._stat_received);
+         cxx::int_value<Cpu_number>(cpu), ipi._stat_sent, ipi._stat_received);
 }
 
 PUBLIC

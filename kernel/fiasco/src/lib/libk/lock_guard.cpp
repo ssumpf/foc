@@ -1,5 +1,5 @@
 INTERFACE:
-#include <type_traits>
+#include <cxx/type_traits>
 
 //
 // Regular lock-guard policy, lock on ctor, unlock/reset in dtor

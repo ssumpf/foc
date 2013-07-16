@@ -57,18 +57,14 @@ IMPLEMENTATION [arm && realview]:
 #include "io.h"
 #include "static_init.h"
 #include "processor.h"
+#include "platform.h"
 
 #include <cstdio>
-
-enum
-{
-  SYS_ID = Kmem::System_regs_map_base + 0x0,
-};
 
 IMPLEMENT static FIASCO_INIT
 Mword
 Board_check::read_board_id()
-{ return Io::read<Mword>(SYS_ID); }
+{ return Platform::sys->read<Mword>(Platform::Sys::Id); }
 
 IMPLEMENT static FIASCO_INIT
 void

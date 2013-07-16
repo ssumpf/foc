@@ -4,7 +4,9 @@ L4DIR      ?= $(PKGDIR)/../..
 TARGET      = libpthread.a libpthread.so
 
 PC_FILENAME = libpthread
-PC_LIBS_libpthread := -lpthread
+# this will proper work with pkg-config >= 0.28, for older versions
+# pkg-config's reordering will not harm but std::thread will not work
+PC_LIBS_libpthread := --whole-archive -lpthread --no-whole-archive
 
 CONTRIBDIR = $(PKGDIR)/../uclibc/lib/contrib/uclibc
 LDSODIR    = $(CONTRIBDIR)/ldso/ldso

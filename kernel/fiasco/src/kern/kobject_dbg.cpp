@@ -9,8 +9,8 @@ INTERFACE[debug]:
 
 #include "spin_lock.h"
 #include "lock_guard.h"
-#include <dlist>
-#include <hlist>
+#include <cxx/dlist>
+#include <cxx/hlist>
 
 class Kobject;
 

@@ -7,7 +7,7 @@ INTERFACE:
 #include "spin_lock.h"
 
 #include "slab_cache.h"		// Slab_cache
-#include <slist>
+#include <cxx/slist>
 
 class Kmem_slab : public Slab_cache, public cxx::S_list_item
 {

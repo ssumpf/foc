@@ -1,12 +1,13 @@
 INTERFACE:
 
 #include <cstddef>
-#include <slist>
-#include <type_traits>
+#include <cxx/slist>
+#include <cxx/type_traits>
 
 class Boot_alloced
 {
 private:
+  enum { Debug_boot_alloc };
   struct Block : cxx::S_list_item
   { size_t size; };
 
@@ -39,7 +40,8 @@ PUBLIC static
 void *
 Boot_alloced::alloc(size_t size)
 {
-  printf("Boot_alloc: size=0x%lx\n", (unsigned long)size);
+  if (Debug_boot_alloc)
+    printf("Boot_alloc: size=0x%lx\n", (unsigned long)size);
 
   // this is best fit list-based allocation
 
@@ -61,8 +63,9 @@ Boot_alloced::alloc(size_t size)
 	alloc_size <<= 1;
 
       Block *b = (Block*)Kmem_alloc::allocator()->unaligned_alloc(alloc_size);
-      printf("Boot_alloc: allocated extra memory block @%p (size=%lx)\n",
-             b, alloc_size);
+      if (Debug_boot_alloc)
+        printf("Boot_alloc: allocated extra memory block @%p (size=%lx)\n",
+               b, alloc_size);
 
       if (!b)
 	return 0;
@@ -76,12 +79,14 @@ Boot_alloced::alloc(size_t size)
   void *b = *best;
   Block *rem = (Block *)(((Address)b + size + sizeof(Block) - 1) & ~(sizeof(Block) - 1));
   long rem_sz = (Address)b + (*best)->size - (Address)rem;
-  printf("Boot_alloc: @ %p\n", b);
+  if (Debug_boot_alloc)
+    printf("Boot_alloc: @ %p\n", b);
   if (rem_sz > (long)sizeof(Block))
     {
       rem->size = rem_sz;
       _free.replace(best, rem);
-      printf("Boot_alloc: remaining free block @ %p (size=%lx)\n", rem, rem_sz);
+      if (Debug_boot_alloc)
+        printf("Boot_alloc: remaining free block @ %p (size=%lx)\n", rem, rem_sz);
     }
   else
     _free.erase(best);

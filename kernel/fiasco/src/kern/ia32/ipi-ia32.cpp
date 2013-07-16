@@ -36,7 +36,7 @@ Ipi::Ipi() : _apic_id(~0)
  */
 IMPLEMENT static inline NEEDS["apic.h"]
 void
-Ipi::init(unsigned cpu)
+Ipi::init(Cpu_number cpu)
 {
   _ipi.cpu(cpu)._apic_id = Apic::get_id();
 }
@@ -51,7 +51,7 @@ Ipi::ipi_call_debug_arch()
 
 PUBLIC static inline NEEDS["apic.h"]
 void
-Ipi::eoi(Message, unsigned cpu)
+Ipi::eoi(Message, Cpu_number cpu)
 {
   Apic::mp_ipi_ack();
   stat_received(cpu);
@@ -59,7 +59,7 @@ Ipi::eoi(Message, unsigned cpu)
 
 PUBLIC static inline NEEDS["apic.h"]
 void
-Ipi::send(Message m, unsigned from_cpu, unsigned to_cpu)
+Ipi::send(Message m, Cpu_number from_cpu, Cpu_number to_cpu)
 {
   Apic::mp_send_ipi(_ipi.cpu(to_cpu)._apic_id, (Unsigned8)m);
   stat_sent(from_cpu);
@@ -67,7 +67,7 @@ Ipi::send(Message m, unsigned from_cpu, unsigned to_cpu)
 
 PUBLIC static inline NEEDS["apic.h"]
 void
-Ipi::bcast(Message m, unsigned from_cpu)
+Ipi::bcast(Message m, Cpu_number from_cpu)
 {
   (void)from_cpu;
   Apic::mp_send_ipi(Apic::APIC_IPI_OTHERS, (Unsigned8)m);
@@ -79,9 +79,9 @@ Ipi::bcast(Message m, unsigned from_cpu)
 PRIVATE static
 void Ipi::ipi_call_spin()
 {
-  unsigned cpu;
+  Cpu_number cpu;
   Ipi *ipi = 0;
-  for (cpu = 0; cpu < Config::Max_num_cpus; ++cpu)
+  for (cpu = Cpu_number::first(); cpu < Config::max_num_cpus(); ++cpu)
     {
       if (!Per_cpu_data::valid(cpu))
 	continue;
@@ -96,7 +96,7 @@ void Ipi::ipi_call_spin()
   if (!ipi)
     return;
 
-  *(unsigned char*)(Mem_layout::Adap_vram_cga_beg + 22*160 + cpu*+2)
+  *(unsigned char*)(Mem_layout::Adap_vram_cga_beg + 22*160 + cxx::int_value<Cpu_number>(cpu)*2)
     = '0' + (ipi->_count++ % 10);
 }
 #endif

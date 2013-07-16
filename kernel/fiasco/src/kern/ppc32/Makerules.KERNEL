@@ -17,6 +17,7 @@ phys_mem.o: $(TCBOFFSET)
 $(KERNEL).image: $(srcdir)/kernel.ppc32.ld $(CRT0) $(OBJ_KERNEL) $(LIBK) $(LIBDISASM) libdrivers.a $(ABI) $(LIBUART) $(CXXLIB) $(MINILIBC) libgluedriverslibc.a 
 	$(LINK_MESSAGE)
 	$(VERBOSE)$(LD) $(LDFLAGS) -N -T $< -o $@ $(filter-out $<,$+) $(LIBGCC)
+	$(call ADD_CONFIGFILE,$@)
 
 $(KERNEL): $(KERNEL).image
 	$(LINK_MESSAGE)

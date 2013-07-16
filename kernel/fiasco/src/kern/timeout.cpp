@@ -1,6 +1,6 @@
 INTERFACE:
 
-#include <hlist>
+#include <cxx/hlist>
 #include "l4_types.h"
 #include "per_cpu_data.h"
 
@@ -187,7 +187,7 @@ Timeout::has_hit()
 PUBLIC inline NEEDS [<cassert>, "cpu_lock.h", "lock_guard.h",
                      Timeout_q::enqueue, Timeout::is_set]
 void
-Timeout::set(Unsigned64 clock, unsigned cpu)
+Timeout::set(Unsigned64 clock, Cpu_number cpu)
 {
   // XXX uses global kernel lock
   auto guard = lock_guard(cpu_lock);
@@ -211,7 +211,7 @@ Timeout::get_timeout(Unsigned64 clock)
 PUBLIC inline NEEDS [<cassert>, "cpu_lock.h", "lock_guard.h",
                      Timeout::is_set, Timeout_q::enqueue, Timeout::has_hit]
 void
-Timeout::set_again(unsigned cpu)
+Timeout::set_again(Cpu_number cpu)
 {
   // XXX uses global kernel lock
   auto guard = lock_guard(cpu_lock);

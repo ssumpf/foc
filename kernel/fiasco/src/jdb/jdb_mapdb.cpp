@@ -46,11 +46,21 @@ size_str (Mword size)
 }
 
 static
+unsigned long long
+Jdb_mapdb::val(Mdb_types::Pfn p, Mdb_types::Order base_size)
+{
+  return cxx::int_value<Mdb_types::Pfn>(p << base_size);
+}
+
+
+static
 bool
-Jdb_mapdb::show_tree(Treemap* pages, Page_number address,
+Jdb_mapdb::show_tree(Treemap* pages, Mapping::Pcnt offset, Mdb_types::Order base_size,
 		     unsigned &screenline, unsigned indent = 1)
 {
-  Page_number   page = address >> pages->_page_shift;
+  typedef Treemap::Page Page;
+
+  Page       page = pages->trunc_to_page(offset);
   Physframe*    f = pages->frame(page);
   Mapping_tree* t = f->tree.get();
   unsigned      i;
@@ -58,16 +68,18 @@ Jdb_mapdb::show_tree(Treemap* pages, Page_number address,
 
   if (! t)
     {
-      printf(" no mapping tree registered for frame number 0x%x\033[K\n",
-	     (unsigned) page.value());
+      printf(" no mapping tree registered for frame number 0x%lx\033[K\n",
+	     cxx::int_value<Mapping::Page>(page));
       screenline++;
       return true;
     }
 
-  printf(" mapping tree for %s-page " L4_PTR_FMT " of task %p - header at "
-	 L4_PTR_FMT "\033[K\n",
-	 size_str (1UL << pages->_page_shift),
-	 pages->vaddr(t->mappings()).value(), t->mappings()[0].space(), (Address)t);
+  printf(" mapping tree for %s-page %012llx of task %lx - header at "
+         L4_PTR_FMT "\033[K\n",
+         size_str(1ULL << cxx::int_value<Mdb_types::Order>(pages->_page_shift + base_size)),
+         val(pages->vaddr(t->mappings()), base_size),
+         Kobject_dbg::pointer_to_id(t->mappings()[0].space()),
+         (Address)t);
 #ifdef NDEBUG
   // If NDEBUG is active, t->_empty_count is undefined
   printf(" header info: "
@@ -118,10 +130,10 @@ Jdb_mapdb::show_tree(Treemap* pages, Page_number address,
 	       i+1, (Address) m->data(), (Mword) m->submap());
       else
 	{
-	  printf("%*u: %lx  va=" L4_PTR_FMT "  task=%lx  depth=",
+	  printf("%*u: %lx  va=%012llx  task=%lx  depth=",
 		 indent + m->depth() > 10 ? 0 : indent + m->depth(),
 		 i+1, (Address) m->data(),
-		 pages->vaddr(m).value(),
+		 val(pages->vaddr(m), base_size),
                  Kobject_dbg::pointer_to_id(m->space()));
 
 	  if (m->depth() == Mapping::Depth_root)
@@ -154,7 +166,8 @@ Jdb_mapdb::show_tree(Treemap* pages, Page_number address,
       if (m->depth() == Mapping::Depth_submap)
 	{
 	  if (! Jdb_mapdb::show_tree(m->submap(),
-				     address.offset(Page_count::create(1UL << pages->_page_shift)),
+				     cxx::get_lsb(offset, pages->_page_shift),
+                                     base_size,
 				     screenline, indent + m->parent()->depth()))
 	    return false;
 	}
@@ -167,58 +180,58 @@ static
 Address
 Jdb_mapdb::end_address (Mapdb* mapdb)
 {
-  return mapdb->_treemap->end_addr().value();
+  return cxx::int_value<Mdb_types::Pfn>(mapdb->_treemap->end_addr());
 }
 
 static
 void
-Jdb_mapdb::show (Page_number page, char which_mapdb)
+Jdb_mapdb::show(Mapping::Pfn page, char which_mapdb)
 {
   unsigned     j;
   int          c;
 
   Jdb::clear_screen();
+  typedef Mdb_types::Order Order;
 
   for (;;)
     {
       Mapdb* mapdb;
       const char* type;
-      Mword page_shift;
-      Page_count super_inc;
+      Mapping::Pcnt super_inc;
+      Mdb_types::Order super_shift;
+      Order base_size = Order(0);
 
       switch (which_mapdb)
 	{
 	case 'm':
 	  type = "Phys frame";
 	  mapdb = mapdb_mem.get();
-	  page_shift = 0; //Config::PAGE_SHIFT;
-	  super_inc = Page_count::create(Config::SUPERPAGE_SIZE / Config::PAGE_SIZE);
+          base_size = Order(Config::PAGE_SHIFT);
+          super_shift = Mdb_types::Order(Config::SUPERPAGE_SHIFT - Config::PAGE_SHIFT);
 	  break;
 #ifdef CONFIG_PF_PC
 	case 'i':
 	  type = "I/O port";
 	  mapdb = mapdb_io.get();
-	  page_shift = 0;
-	  super_inc = Page_count::create(0x100);
+          base_size = Order(0);
+          super_shift = Mdb_types::Order(8);
 	  break;
 #endif
 	default:
 	  return;
 	}
 
-      if (! mapdb->valid_address (page << page_shift))
-	page = Page_number::create(0);
+      super_inc = Mapping::Pcnt(1) << super_shift;
+
+      if (! mapdb->valid_address(page))
+	page = Mapping::Pfn(0);
 
       Jdb::cursor();
-      printf ("%s " L4_PTR_FMT "\033[K\n\033[K\n",
-	      type, page.value() << page_shift);
+      printf("%s %012llx\033[K\n\033[K\n", type, val(page, base_size));
 
       j = 3;
 
-      if (! Jdb_mapdb::show_tree (mapdb->_treemap,
-				  (page << page_shift)
-				    - mapdb->_treemap->_page_offset,
-				  j))
+      if (! Jdb_mapdb::show_tree(mapdb->_treemap, page - Mapping::Pfn(0), base_size, j))
 	return;
 
       for (; j<Jdb_screen::height(); j++)
@@ -237,28 +250,28 @@ Jdb_mapdb::show (Page_number page, char which_mapdb)
 	    {
 	    case 'n':
 	    case KEY_CURSOR_DOWN:
-	      if (! mapdb->valid_address(++page << page_shift))
-                page = Page_number::create(0);
+	      if (! mapdb->valid_address(++page))
+                page = Mapping::Pfn(0);
 	      redraw = true;
 	      break;
 	    case 'p':
 	    case KEY_CURSOR_UP:
-	      if (! mapdb->valid_address(--page << page_shift))
-                page = Page_number::create(end_address (mapdb) - 1) >> page_shift;
+	      if (! mapdb->valid_address(--page))
+                page = Mapping::Pfn(end_address(mapdb) - 1);
 	      redraw = true;
 	      break;
 	    case 'N':
 	    case KEY_PAGE_DOWN:
-	      page = (page + super_inc).trunc(super_inc);
-	      if (! mapdb->valid_address(page << page_shift))
-                page = Page_number::create(0);
+	      page = cxx::mask_lsb(page + super_inc, super_shift);
+	      if (! mapdb->valid_address(page))
+                page = Mapping::Pfn(0);
 	      redraw = true;
 	      break;
 	    case 'P':
 	    case KEY_PAGE_UP:
-	      page = (page - super_inc).trunc(super_inc);
-	      if (! mapdb->valid_address(page << page_shift))
-                page = Page_number::create(end_address (mapdb) - 1) >> page_shift;
+	      page = cxx::mask_lsb(page - super_inc, super_shift);
+	      if (! mapdb->valid_address(page))
+                page = Mapping::Pfn(end_address(mapdb) - 1);
 	      redraw = true;
 	      break;
 	    case ' ':
@@ -325,11 +338,7 @@ Jdb_mapdb::action(int cmd, void *&args, char const *&fmt, int &next_char)
 	  fmt = " port: " L4_FRAME_INPUT_FMT;
 	  break;
 #endif
-
-	case 'o':
-	  fmt = " object: %x";
-	  break;
-	}
+        }
 
       which_mapdb = subcmd;
       args = &pagenum;
@@ -340,10 +349,7 @@ Jdb_mapdb::action(int cmd, void *&args, char const *&fmt, int &next_char)
     return NOTHING;
 
  doit:
-  if (which_mapdb == 'o')
-    Jdb_mapdb::show_simple_tree((Kobject_common*)pagenum);
-  else
-    show(Page_number::create(pagenum), which_mapdb);
+  show(Mapping::Pfn(pagenum), which_mapdb);
   return NOTHING;
 }
 
@@ -354,7 +360,7 @@ Jdb_mapdb::cmds() const
   static Cmd cs[] =
     {
 	{ 0, "m", "mapdb", "%c",
-	  "m[it]<addr>\tshow [I/O,task] mapping database starting at address",
+	  "m[i]<addr>\tshow [I/O] mapping database starting at address",
 	  &subcmd },
         { 1, "", "dumpmapdbobjs", "",
           "dumpmapdbobjs\tDump complete object mapping database", 0 },
@@ -502,12 +508,13 @@ Jdb_mapdb::show_simple_tree(Kobject_common *f, unsigned indent = 1)
 
       if (pi)
 	{
-	  space_id = static_cast<Task*>(pi->info<Obj_space::Dbg_info>()->s)->dbg_info()->dbg_id();
-	  cap_idx += pi->info<Obj_space::Dbg_info>()->offset;
+	  space_id = static_cast<Task*>(pi->info<Obj::Cap_page_dbg_info>()->s)->dbg_info()->dbg_id();
+	  cap_idx += pi->info<Obj::Cap_page_dbg_info>()->offset;
 	}
 
       printf("  " L4_PTR_FMT "[C:%lx]: space=D:%lx rights=%x flags=%lx obj=%p",
-	     (Address)*m, cap_idx, space_id, (unsigned)e->rights(), e->_flags,
+	     (Address)*m, cap_idx, space_id,
+             (unsigned)cxx::int_value<Obj::Attr>(e->rights()), e->_flags,
 	     e->obj());
 
       puts("\033[K");

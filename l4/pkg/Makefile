@@ -131,7 +131,7 @@ depcheck:
 	  echo ==========================================================;     \
 	  echo "Deleting all pkgs in build-dir";                               \
 	  $(RM) -r $(OBJ_BASE)/lib $(OBJ_BASE)/bin $(OBJ_BASE)/include         \
-	           $(OBJ_BASE)/pc;                                             \
+	           $(OBJ_BASE)/pc $(OBJ_BASE)/pkg/.Package.deps;               \
 	  $(if $(CHECK_FULL),$(RM) -r $(OBJ_BASE)/pkg;,)                       \
 	  echo "Done";                                                         \
 	  echo ----------------------------------------------------------;     \

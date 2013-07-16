@@ -39,11 +39,9 @@ LDS_stat_bin      = $(call findfile,main_stat.ld,$(L4LIBDIR))
 
 
 LIBC_INCLUDE   = -nostdinc                                  \
-                 -I$(OBJ_BASE)/include/$(ARCH)/uclibc       \
                  -I$(OBJ_BASE)/include/uclibc               \
                  -I$(OBJ_BASE)/include/contrib/libstdc++-v3        \
                  $(if $(CONFIG_USE_DROPS_STDDIR),           \
-		  -I$(DROPS_STDDIR)/include/$(ARCH)/uclibc  \
                   -I$(DROPS_STDDIR)/include/uclibc          \
                   -I$(DROPS_STDDIR)/include/contrib/libstdc++-v3,)      \
                  $(I_GCCINCDIR)

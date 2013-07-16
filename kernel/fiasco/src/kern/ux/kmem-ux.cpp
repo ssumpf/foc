@@ -70,11 +70,9 @@ Kmem::init_mmu(Cpu const &boot_cpu)
   kdir = (Pdir*)alloc->alloc(Config::PAGE_SHIFT);
   memset (kdir, 0, Config::PAGE_SIZE);
 
-  Pdir::have_superpages(boot_cpu.superpages());
+  Pt_entry::have_superpages(boot_cpu.superpages());
   if (boot_cpu.features() & FEAT_PGE)
-    {
-      Pt_entry::enable_global();
-    }
+    Pt_entry::enable_global();
 
   // set up the kernel mapping for physical memory.  mark all pages as
   // referenced and modified (so when touching the respective pages
@@ -87,8 +85,8 @@ Kmem::init_mmu(Cpu const &boot_cpu)
   // descriptors later.)  (2) a one-to-one phys-to-virt mapping in the
   // kernel's page directory sometimes comes in handy
   kdir->map(0, Virt_addr(Mem_layout::Physmem), Virt_size(Mem_layout::pmem_size),
-      Pt_entry::Writable | Pt_entry::Referenced | Pt_entry::global(),
-      Pdir::super_level(), pdir_alloc(alloc));
+            Pt_entry::Writable | Pt_entry::Referenced | Pt_entry::global(),
+            Pt_entry::super_level(), false, pdir_alloc(alloc));
 
   // now switch to our new page table
   Emulation::set_pdir_addr (Mem_layout::pmem_to_phys (kdir));
@@ -101,29 +99,31 @@ Kmem::init_mmu(Cpu const &boot_cpu)
     {
       // can map as 4MB page because the cpu_page will land within a
       // 16-bit range from io_bitmap
-      *(kdir->walk(Virt_addr(Mem_layout::Io_bitmap - Config::SUPERPAGE_SIZE),
-                   Pdir::Super_level, pdir_alloc(alloc)).e)
-	= (pmem_cpu_page & Config::SUPERPAGE_MASK)
-	| Pt_entry::Pse_bit
-	| Pt_entry::Writable | Pt_entry::Referenced
-	| Pt_entry::Dirty | Pt_entry::global();
+      kdir->walk(Virt_addr(Mem_layout::Io_bitmap - Config::SUPERPAGE_SIZE),
+                 Pdir::Super_level, false, pdir_alloc(alloc)).
+        set_page(pmem_cpu_page & Config::SUPERPAGE_MASK,
+                 Pt_entry::Pse_bit
+                 | Pt_entry::Writable | Pt_entry::Referenced
+                 | Pt_entry::Dirty | Pt_entry::global());
 
       cpu_page_vm = (pmem_cpu_page & ~Config::SUPERPAGE_MASK)
-		  + (Mem_layout::Io_bitmap - Config::SUPERPAGE_SIZE);
+                    + (Mem_layout::Io_bitmap - Config::SUPERPAGE_SIZE);
     }
   else
     {
-      Pdir::Iter pt = kdir->walk(Virt_addr(Mem_layout::Io_bitmap - Config::PAGE_SIZE), 100, pdir_alloc(alloc));
+      auto pt = kdir->walk(Virt_addr(Mem_layout::Io_bitmap - Config::PAGE_SIZE),
+                           Pdir::Depth, false, pdir_alloc(alloc));
 
-      *pt.e = pmem_cpu_page | Pt_entry::Valid | Pt_entry::Writable
-		   | Pt_entry::Referenced | Pt_entry::Dirty
-		   | Pt_entry::global();
+      pt.set_page(pmem_cpu_page,
+                  Pt_entry::Writable
+                  | Pt_entry::Referenced | Pt_entry::Dirty
+                  | Pt_entry::global());
 
       cpu_page_vm = Mem_layout::Io_bitmap - Config::PAGE_SIZE;
     }
 
   if (mmap ((void *) cpu_page_vm, Config::PAGE_SIZE, PROT_READ 
-	    | PROT_WRITE, MAP_SHARED | MAP_FIXED, Boot_info::fd(), pmem_cpu_page) 
+            | PROT_WRITE, MAP_SHARED | MAP_FIXED, Boot_info::fd(), pmem_cpu_page)
       == MAP_FAILED)
     printf ("CPU page mapping failed: %s\n", strerror (errno));
 

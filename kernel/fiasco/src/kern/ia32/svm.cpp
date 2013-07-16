@@ -70,7 +70,7 @@ IMPLEMENTATION[svm]:
 DEFINE_PER_CPU Per_cpu<Svm> Svm::cpus(true);
 
 PUBLIC
-Svm::Svm(unsigned cpu)
+Svm::Svm(Cpu_number cpu)
 {
   Cpu &c = Cpu::cpus.cpu(cpu);
   _svm_enabled = false;

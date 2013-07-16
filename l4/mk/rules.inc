@@ -9,6 +9,9 @@ BID_CXX_COMPILER_INT_NAME = INT_CXX_NAME
 # for C compile (C) use $(CC), $(INT_CPP_NAME), and $(CFLAGS)
 BID_C_COMPILER = CC
 BID_C_COMPILER_INT_NAME = INT_CPP_NAME
+# for F compile (Fortran) use $(FC)
+BID_F_COMPILER = FC
+BID_F_COMPILER_INT_NAME = FC
 # for AS compile (AS) use $(CC), $(INT_CPP_NAME), and $(ASFLAGS)
 BID_AS_COMPILER = CC
 BID_AS_COMPILER_INT_NAME = INT_CPP_NAME
@@ -62,13 +65,21 @@ define BID_GENERATE_CXX_MAKE_RULES
 endef
 
 #
-#
 # Generate the C set of make rules.
 # prerequisites: %.<arg1> (usually %.c)
 # targets: %.o, %.s.o, %.pr.o, and %.pr.s.o
 #
 define BID_GENERATE_C_MAKE_RULES
   $(call BID_GENERATE_DEFAULT_MAKE_RULES,%,%.$(1),C)
+endef
+
+#
+# Generate the F set of make rules.
+# prerequisites: %.<arg1> (usually %.f90)
+# targets: %.o, %.s.o, %.pr.o, and %.pr.s.o
+#
+define BID_GENERATE_F_MAKE_RULES
+  $(call BID_GENERATE_DEFAULT_MAKE_RULES,%,%.$(1),F)
 endef
 
 #

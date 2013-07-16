@@ -4,6 +4,7 @@ INTERFACE[sparc]:
 #include "config.h"
 
 class PF {};
+class Page {};
 
 //------------------------------------------------------------------------------
 INTERFACE[sparc]:
@@ -16,10 +17,44 @@ INTERFACE[sparc]:
 
 class Paging {};
 
-class Pte_base
+class Pte_ptr
 {
-  public:
-    typedef Mword Raw;
+public:
+  typedef Mword Entry;
+
+  Pte_ptr() = default;
+  Pte_ptr(void *p, unsigned char level) : pte((Mword*)p), level(level) {}
+
+  bool is_valid() const { return *pte & Valid; }
+
+  void clear() { *pte = 0; }
+
+  bool is_leaf() const
+  {
+    return false; // FIX
+  }
+
+  Mword next_level() const
+  {
+    return cxx::mask_lsb(*pte, 10); // copy'n'paste, check and fix!
+  };
+
+  void set_next_level(Mword phys)
+  {
+    write_now(pte, phys | 1); // copy'n'paste, check and fix!
+  }
+
+  unsigned char page_order() const
+  {
+    // Check and fix!
+    if (level == 0)
+      return 20;
+    return 12;
+  }
+
+  Mword page_addr() const
+  { return cxx::mask_lsb(*pte, page_order()); } // copy'n'paste, check and fix!
+
   enum
   {
     ET_ptd         = 1,           ///< PT Descriptor is PTD
@@ -48,12 +83,14 @@ class Pte_base
     Valid          = 0x3,
   };
 
-    Mword addr() const { return _raw & Ppn_mask;}
+  Mword *pte;
+  unsigned char level;
+
+  //  Mword addr() const { return _raw & Ppn_mask;}
     //bool is_super_page() const { return _raw & Pse_bit; }
-  protected:
-    Raw _raw;
 };
 
+#if 0
 class Pt_entry : public Pte_base
 {
 public:
@@ -73,25 +110,25 @@ public:
     _raw = ((p >> Ppn_addr_shift) & Ptp_mask) | ET_ptd;
   }
 };
+#endif
 
+#if 0
 namespace Page
 {
   typedef Unsigned32 Attribs;
   enum Attribs_enum
   {
-    KERN_RW      = 0x00000000,
-    USER_RO      = 0x00000001,
-    USER_RW      = 0x00000002,
     Cache_mask   = 0x00000078,
     CACHEABLE    = 0x00000000,
     NONCACHEABLE = 0x00000040,
     BUFFERED     = 0x00000080, //XXX not sure
   };
 };
+#endif
 
 
-typedef Ptab::List< Ptab::Traits<Pd_entry, 22, 10, true>,
-                    Ptab::Traits<Pt_entry, 12, 10, true> > Ptab_traits;
+typedef Ptab::List< Ptab::Traits<Unsigned32, 22, 10, true>,
+                    Ptab::Traits<Unsigned32, 12, 10, true> > Ptab_traits;
 
 typedef Ptab::Shift<Ptab_traits, Virt_addr::Shift>::List Ptab_traits_vpn;
 typedef Ptab::Page_addr_wrap<Page_number, Virt_addr::Shift> Ptab_va_vpn;
@@ -120,7 +157,6 @@ Paging::decanonize(Address addr)
   return addr;
 }
 
-//---------------------------------------------------------------------------
 IMPLEMENT inline
 Mword PF::is_translation_error(Mword error)
 {
@@ -150,119 +186,29 @@ Mword PF::addr_to_msgword0(Address pfa, Mword error)
   return a;
 }
 
+PUBLIC static inline
+bool
+Pte_ptr::need_cache_write_back(bool current_pt)
+{ return true; /*current_pt;*/ (void)current_pt; }
+
+PUBLIC inline NEEDS["mem_unit.h"]
+void
+Pte_ptr::write_back_if(bool current_pt, Mword /*asid*/ = 0)
+{
+  (void)current_pt;
+  //if (current_pt)
+  //  Mem_unit::clean_dcache(pte);
+}
+
+PUBLIC static inline NEEDS["mem_unit.h"]
+void
+Pte_ptr::write_back(void *start, void *end)
+{ (void)start; (void)end; }
+
+
 //---------------------------------------------------------------------------
 
-PUBLIC
-Pte_base::Pte_base(Mword raw) : _raw(raw) {}
-
-PUBLIC
-Pte_base::Pte_base() {}
-
-PUBLIC inline
-Pte_base &
-Pte_base::operator = (Pte_base const &other)
-{
-  _raw = other.raw();
-  return *this;
-}
-
-PUBLIC inline
-Pte_base &
-Pte_base::operator = (Mword raw)
-{
-  _raw = raw;
-  return *this;
-}
-
-PUBLIC inline
-Mword
-Pte_base::raw() const
-{
-  return _raw;
-}
-
-PUBLIC inline
-void
-Pte_base::add_attr(Mword attr)
-{
-  _raw |= attr;
-}
-
-PUBLIC inline
-void
-Pte_base::del_attr(Mword attr)
-{
-  _raw &= ~attr;
-}
-
-PUBLIC inline
-void
-Pte_base::clear()
-{ _raw = 0; }
-
-PUBLIC inline
-int
-Pte_base::valid() const
-{
-  return _raw & Valid;
-}
-
-PUBLIC inline
-int
-Pte_base::writable() const
-{
-  Mword acc = ((_raw >> Accperm_shift) & Accperm_mask);
-  return (acc=1); // XXX (3 and 5 can also be valid, depending on access mode)
-}
-
-PUBLIC inline
-Address
-Pt_entry::pfn() const
-{
-  return _raw & Ppn_mask;
-}
-
-PUBLIC static inline
-Mword
-Pte_base::pdir(Address a)
-{
-  return (a & (Pdir_mask << Pdir_shift)) >> Pdir_shift;
-}
-
-
-PUBLIC static inline
-Mword
-Pte_base::ptab1(Address a)
-{
-  return (a & (Ptab_mask << Ptab_shift1)) >> Ptab_shift1;
-}
-
-
-PUBLIC static inline
-Mword
-Pte_base::ptab2(Address a)
-{
-  return (a & (Ptab_mask << Ptab_shift2)) >> Ptab_shift2;
-}
-
-
-PUBLIC static inline
-Mword
-Pte_base::offset(Address a)
-{
-  return a & Page_offset_mask;
-}
-
-PUBLIC static inline
-void
-Paging::split_address(Address a)
-{
-  printf("%lx -> %lx : %lx : %lx : %lx\n", a,
-         Pte_base::pdir(a),  Pte_base::ptab1(a),
-         Pte_base::ptab2(a), Pte_base::offset(a));
-}
-
-Pte_base context_table[16];
+Pte_ptr context_table[16];
 Mword kernel_srmmu_l1[256] __attribute__((aligned(0x400)));
 
 PUBLIC static
@@ -296,9 +242,11 @@ Paging::init()
   Mem_unit::context(0);
 
   /* PD entry for root pdir */
+#ifdef THIS_NEED_ADAPTION
   Pd_entry root;
   root.set(Address(kernel_srmmu_l1), false, false);
   context_table[0] = root;
+#endif
 
   /*
    * Map as many 16 MB chunks (1st level page table entries)
@@ -307,6 +255,7 @@ Paging::init()
   unsigned superpage = 0xF0;
   while (memend - memstart + 1 >= (1 << 24))
     {
+#ifdef THIS_NEEDS_ADAPTION
       Pt_entry pte;
       pte.set(memstart, false, false, Pte_base::Cacheable | (0x3 << 2));
       printf("pte %08x\n", pte.raw());
@@ -315,6 +264,7 @@ Paging::init()
       kernel_srmmu_l1[superpage] = pte.raw();
       /* 1:1 mapping */
       kernel_srmmu_l1[Pte_base::pdir(memstart)] = pte.raw();
+#endif
 
       memstart += (1 << 24);
       ++superpage;

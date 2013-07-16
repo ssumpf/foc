@@ -71,7 +71,7 @@ Jdb_dbinfo::init()
   Address addr;
 
   for (addr = area_start; addr < area_end; addr += Config::SUPERPAGE_SIZE)
-    Kmem::kdir->walk(Virt_addr(addr), 100, pdir_alloc(Kmem_alloc::allocator()));
+    Kmem::kdir->walk(Virt_addr(addr), Pdir::Depth, false, pdir_alloc(Kmem_alloc::allocator()));
 
   init_symbols_lines();
 }
@@ -169,7 +169,7 @@ Jdb_dbinfo::map(Address phys, size_t &size, Address &virt)
 
   Kmem::kdir->map(phys, Virt_addr(virt), Virt_size(size),
       Pt_entry::Valid | Pt_entry::Writable | Pt_entry::Referenced
-      | Pt_entry::Dirty, 100, Ptab::Null_alloc());
+      | Pt_entry::Dirty, Pdir::Depth, false, Ptab::Null_alloc());
 
   virt += offs;
   return true;
@@ -183,8 +183,8 @@ Jdb_dbinfo::unmap(Address virt, size_t size)
     {
       virt &= Config::PAGE_MASK;
 
-      Kmem::kdir->unmap(Virt_addr(virt), Virt_size(size), 100);
-      Mem_unit::tlb_flush ();
+      Kmem::kdir->unmap(Virt_addr(virt), Virt_size(size), Pdir::Depth, false);
+      Mem_unit::tlb_flush();
 
       return_pages(virt, size/Config::PAGE_SIZE);
     }

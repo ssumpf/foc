@@ -2,7 +2,6 @@ IMPLEMENTATION [arm]:
 
 #include "mem_unit.h"
 #include "kmem_space.h"
-#include "pagetable.h"
 #include "ram_quota.h"
 
 
@@ -17,19 +16,22 @@ Kmem_alloc::map_pmem(unsigned long phy, unsigned long size)
   if (next_map + size > Mem_layout::Map_end)
     return false;
 
-  for (unsigned long i = 0; i <size; i+=Config::SUPERPAGE_SIZE)
+  for (unsigned long i = 0; i <size; i += Config::SUPERPAGE_SIZE)
     {
-      Pte pte = Kmem_space::kdir()->walk((char*)next_map+i,
-	  Config::SUPERPAGE_SIZE, false, Ptab::Null_alloc(),
-          Kmem_space::kdir());
-      pte.set(phy+i, Config::SUPERPAGE_SIZE, 
-	  Mem_page_attr(Page::KERN_RW | Page::CACHEABLE),
-	  true);
-
+      auto pte = Kmem_space::kdir()->walk(Virt_addr(next_map + i), Pdir::Super_level);
+      pte.create_page(Phys_mem_addr(phy + i), Page::Attr(Page::Rights::RW()));
+      pte.write_back_if(true, Mem_unit::Asid_kernel);
     }
   Mem_layout::add_pmem(phy, next_map, size);
   next_map += size;
   return true;
+}
+
+PUBLIC inline NEEDS["kmem_space.h"]
+Address
+Kmem_alloc::to_phys(void *v) const
+{
+  return Kmem_space::kdir()->virt_to_phys((Address)v);
 }
 
 IMPLEMENT
@@ -53,13 +55,12 @@ Kmem_alloc::Kmem_alloc()
       if (f.size() > alloc_size)
 	f.start += (f.size() - alloc_size);
 
-      Kip::k()->add_mem_region(Mem_desc(f.start, f.end,
-	    Mem_desc::Reserved));
+      Kip::k()->add_mem_region(Mem_desc(f.start, f.end, Mem_desc::Reserved));
       //printf("ALLOC1: [%08lx; %08lx] sz=%ld\n", f.start, f.end, f.size());
       if (Mem_layout::phys_to_pmem(f.start) == ~0UL)
 	if (!map_pmem(f.start, f.size()))
 	  panic("Kmem_alloc: cannot map physical memory %p\n", (void*)f.start);
-      a->add_mem((void*)Mem_layout::phys_to_pmem(f.start), f.size());
+      a->add_mem((void *)Mem_layout::phys_to_pmem(f.start), f.size());
       alloc_size -= f.size();
     }
 

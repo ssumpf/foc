@@ -4,7 +4,8 @@ tooldir		:= $(srcdir)/../tool
 CONFIG_BANNER_STRING ?= "Fiasco - prepare for world domination"
 
 .PHONY: all do-all test-all config textconfig menuconfig xconfig \
-        oldconfig regenconfig mrproper doc help update nconfig
+        oldconfig regenconfig mrproper doc help update nconfig \
+        savedefconfig listnewconfig oldnoconfig oldaskconfig
 
 all:
 
@@ -212,6 +213,12 @@ textconfig: $(KCONFIG_FILE)
 
 menuconfig oldconfig xconfig gconfig nconfig randconfig allyesconfig allnoconfig: $(KCONFIG_FILE)
 	+$(kconfig_call) $@ silentoldconfig
+
+listnewconfig oldnoconfig savedefconfig: $(KCONFIG_FILE)
+	+$(kconfig_call) $@
+
+oldaskconfig: $(KCONFIG_FILE)
+	+$(kconfig_call) config
 
 ifneq ($(filter clean cleanall mrproper,$(MAKECMDGOALS)),)
 

@@ -144,7 +144,7 @@ IMPLEMENT
 int
 Jdb_bp::test_log_only()
 {
-  Space *t = Jdb::get_thread(0)->space();
+  Space *t = Jdb::get_thread(Cpu_number::boot_cpu())->space();
   Mword dr6  = read_debug_register(6, t);
 
   if (dr6 & 0x0000000f)
@@ -164,7 +164,7 @@ IMPLEMENT
 int
 Jdb_bp::test_break(char *errbuf, size_t bufsize)
 {
-  Space *t = Jdb::get_thread(0)->space();
+  Space *t = Jdb::get_thread(Cpu_number::boot_cpu())->space();
   Mword dr6  = read_debug_register(6, t);
 
   if (!(dr6 & 0x000000f))

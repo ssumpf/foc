@@ -1,4 +1,15 @@
 /* ARM specific */
+INTERFACE [arm && armv5]:
+
+EXTENSION class Config
+{ public: enum { Access_user_mem = Must_access_user_mem_direct }; };
+
+/* ARM specific */
+INTERFACE [arm && armv6plus]:
+
+EXTENSION class Config
+{ public: enum { Access_user_mem = No_access_user_mem }; };
+
 INTERFACE [arm]:
 
 EXTENSION class Config
@@ -7,15 +18,9 @@ public:
 
   enum
   {
-    Access_user_mem = Must_access_user_mem_direct,
-
     PAGE_SHIFT = ARCH_PAGE_SHIFT,
     PAGE_SIZE  = 1 << PAGE_SHIFT,
     PAGE_MASK  = ~(PAGE_SIZE - 1),
-
-    SUPERPAGE_SHIFT = 20,
-    SUPERPAGE_SIZE  = 1 << SUPERPAGE_SHIFT,
-    SUPERPAGE_MASK  = ~(SUPERPAGE_SIZE -1),
 
     hlt_works_ok = 1,
     Irq_shortcut = 1,
@@ -52,10 +57,10 @@ public:
 
   enum
   {
-#ifdef CONFIG_ARM_CA9_ENABLE_SWP
-    Cp15_c1_use_a9_swp_enable = 1,
+#ifdef CONFIG_ARM_ENABLE_SWP
+    Cp15_c1_use_swp_enable = 1,
 #else
-    Cp15_c1_use_a9_swp_enable = 0,
+    Cp15_c1_use_swp_enable = 0,
 #endif
 #ifdef CONFIG_ARM_ALIGNMENT_CHECK
     Cp15_c1_use_alignment_check = 1,
@@ -66,6 +71,36 @@ public:
     Support_arm_linux_cache_API = 1,
   };
 
+};
+
+// -----------------------------------------------------------------------
+INTERFACE [arm && arm_lpae]:
+
+EXTENSION class Config
+{
+public:
+
+  enum
+  {
+    SUPERPAGE_SHIFT = 21,
+    SUPERPAGE_SIZE  = 1 << SUPERPAGE_SHIFT,
+    SUPERPAGE_MASK  = ~(SUPERPAGE_SIZE -1)
+  };
+};
+
+// -----------------------------------------------------------------------
+INTERFACE [arm && !arm_lpae]:
+
+EXTENSION class Config
+{
+public:
+
+  enum
+  {
+    SUPERPAGE_SHIFT = 20,
+    SUPERPAGE_SIZE  = 1 << SUPERPAGE_SHIFT,
+    SUPERPAGE_MASK  = ~(SUPERPAGE_SIZE -1)
+  };
 };
 
 //---------------------------------------------------------------------------

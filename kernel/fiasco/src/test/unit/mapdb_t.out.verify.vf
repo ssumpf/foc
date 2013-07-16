@@ -1,0 +1,123 @@
+[UTEST] Basic test
+[UTEST] Looking up 4M node at physaddr=0K
+[UTEST] space=s0 vaddr=0x0 size=0x400
+[UTEST] 
+[UTEST] Inserting submapping
+[UTEST] space=s0 vaddr=0x0 size=0x1
+[UTEST]  space=other vaddr=0x800 size=0x400 parent=s0 p.vaddr=0x400
+[UTEST] 
+[UTEST] Looking up 4M node at physaddr=8M
+[UTEST] space=s0 vaddr=0x800 size=0x400
+[UTEST] 
+[UTEST] Inserting submapping
+[UTEST] space=s0 vaddr=0x800 size=0x400
+[UTEST]  space=other vaddr=0x1000 size=0x400 parent=s0 p.vaddr=0x800
+[UTEST] 
+[UTEST] Get that mapping again
+[UTEST]  space=other vaddr=0x1000 size=0x400 parent=s0 p.vaddr=0x800
+[UTEST] 
+[UTEST] Inserting 4K submapping
+[UTEST] space=s0 vaddr=0x800 size=0x400
+[UTEST]  space=other vaddr=0x4 size=0x1 parent=s0 p.vaddr=0x2
+[UTEST]  space=client vaddr=0x3c00 size=0x400 parent=other p.vaddr=0x400000
+[UTEST] 
+[UTEST] ########################################
+[UTEST] Hole test
+[UTEST] Looking up 4K node at physaddr=0
+[UTEST] space=s0 vaddr=0x0 size=0x400
+[UTEST] 
+[UTEST] Inserting father mapping
+[UTEST] space=s0 vaddr=0x0 size=0x1
+[UTEST]  space=father vaddr=0x0 size=0x400 parent=s0 p.vaddr=0x0
+[UTEST] 
+[UTEST] Looking up father at physaddr=0
+[UTEST] space=s0 vaddr=0x0 size=0x1
+[UTEST]  space=father vaddr=0x0 size=0x1 parent=s0 p.vaddr=0x0
+[UTEST] 
+[UTEST] Inserting son mapping
+[UTEST] space=s0 vaddr=0x0 size=0x1
+[UTEST]  space=father vaddr=0x0 size=0x1 parent=s0 p.vaddr=0x0
+[UTEST]   space=son vaddr=0x0 size=0x1 parent=father p.vaddr=0x0
+[UTEST] 
+[UTEST] Looking up father at physaddr=0
+[UTEST] space=s0 vaddr=0x0 size=0x1
+[UTEST]  space=father vaddr=0x0 size=0x1 parent=s0 p.vaddr=0x0
+[UTEST]   space=son vaddr=0x0 size=0x1 parent=father p.vaddr=0x0
+[UTEST] 
+[UTEST] Inserting daughter mapping
+[UTEST] space=s0 vaddr=0x0 size=0x1
+[UTEST]  space=father vaddr=0x0 size=0x1 parent=s0 p.vaddr=0x0
+[UTEST]   space=son vaddr=0x0 size=0x1 parent=father p.vaddr=0x0
+[UTEST]   space=daughter vaddr=0x0 size=0x1 parent=father p.vaddr=0x0
+[UTEST] 
+[UTEST] Looking up son at physaddr=0
+[UTEST] space=s0 vaddr=0x0 size=0x1
+[UTEST]  space=father vaddr=0x0 size=0x1 parent=s0 p.vaddr=0x0
+[UTEST]   space=son vaddr=0x0 size=0x1 parent=father p.vaddr=0x0
+[UTEST]   space=daughter vaddr=0x0 size=0x1 parent=father p.vaddr=0x0
+[UTEST] 
+[UTEST] Son has accident on return from disco
+[UTEST] Lost aunt returns from holidays
+[UTEST] space=s0 vaddr=0x0 size=0x1
+[UTEST]  space=father vaddr=0x0 size=0x1 parent=s0 p.vaddr=0x0
+[UTEST]   space=daughter vaddr=0x0 size=0x400 parent=father p.vaddr=0x0
+[UTEST] 
+[UTEST] Inserting aunt mapping
+[UTEST] space=s0 vaddr=0x0 size=0x1
+[UTEST]  space=father vaddr=0x0 size=0x1 parent=s0 p.vaddr=0x0
+[UTEST]   space=daughter vaddr=0x0 size=0x1 parent=father p.vaddr=0x0
+[UTEST]  space=aunt vaddr=0x0 size=0x400 parent=s0 p.vaddr=0x0
+[UTEST] 
+[UTEST] Looking up daughter at physaddr=0
+[UTEST] space=s0 vaddr=0x0 size=0x1
+[UTEST]  space=father vaddr=0x0 size=0x1 parent=s0 p.vaddr=0x0
+[UTEST]   space=daughter vaddr=0x0 size=0x1 parent=father p.vaddr=0x0
+[UTEST]  space=aunt vaddr=0x0 size=0x1 parent=s0 p.vaddr=0x0
+[UTEST] 
+[UTEST] Father of daugther is father
+[UTEST] ########################################
+[UTEST] Flush test
+[UTEST] Looking up 4K node at physaddr=0
+[UTEST] space=s0 vaddr=0x0 size=0x400
+[UTEST] 
+[UTEST] Inserting father mapping
+[UTEST] space=s0 vaddr=0x0 size=0x1
+[UTEST]  space=father vaddr=0x0 size=0x400 parent=s0 p.vaddr=0x0
+[UTEST] 
+[UTEST] Looking up father at physaddr=0
+[UTEST] space=s0 vaddr=0x0 size=0x1
+[UTEST]  space=father vaddr=0x0 size=0x1 parent=s0 p.vaddr=0x0
+[UTEST] 
+[UTEST] Inserting son mapping
+[UTEST] space=s0 vaddr=0x0 size=0x1
+[UTEST]  space=father vaddr=0x0 size=0x1 parent=s0 p.vaddr=0x0
+[UTEST]   space=son vaddr=0x0 size=0x1 parent=father p.vaddr=0x0
+[UTEST] 
+[UTEST] Lost aunt returns from holidays
+[UTEST] space=s0 vaddr=0x0 size=0x1
+[UTEST]  space=father vaddr=0x0 size=0x1 parent=s0 p.vaddr=0x0
+[UTEST]   space=son vaddr=0x0 size=0x400 parent=father p.vaddr=0x0
+[UTEST] 
+[UTEST] Inserting aunt mapping
+[UTEST] space=s0 vaddr=0x0 size=0x1
+[UTEST]  space=father vaddr=0x0 size=0x1 parent=s0 p.vaddr=0x0
+[UTEST]   space=son vaddr=0x0 size=0x1 parent=father p.vaddr=0x0
+[UTEST]  space=aunt vaddr=0x0 size=0x400 parent=s0 p.vaddr=0x0
+[UTEST] 
+[UTEST] Looking up father at physaddr=0
+[UTEST] space=s0 vaddr=0x0 size=0x1
+[UTEST]  space=father vaddr=0x0 size=0x1 parent=s0 p.vaddr=0x0
+[UTEST]   space=son vaddr=0x0 size=0x1 parent=father p.vaddr=0x0
+[UTEST]  space=aunt vaddr=0x0 size=0x1 parent=s0 p.vaddr=0x0
+[UTEST] 
+[UTEST] father is killed by his new love
+[UTEST] space=s0 vaddr=0x0 size=0x1
+[UTEST]  space=aunt vaddr=0x0 size=0x1 parent=s0 p.vaddr=0x0
+[UTEST] 
+[UTEST] Try resurrecting the killed father again
+[UTEST] Resurrection is impossible, as it ought to be.
+[UTEST] ########################################
+[UTEST] Looking up 0xd2000000
+[UTEST] space=s0 vaddr=0xc0000 size=0x40000
+[UTEST] 
+[UTEST] ########################################

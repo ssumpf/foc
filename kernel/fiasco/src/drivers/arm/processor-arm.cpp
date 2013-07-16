@@ -2,44 +2,54 @@ INTERFACE[arm]:
 
 EXTENSION class Proc
 {
+private:
+  enum : unsigned
+  {
+    Status_FIQ_disabled        = 0x40,
+    Status_IRQ_disabled        = 0x80,
+  };
+
 public:
-  enum
+  enum : unsigned
   {
     Status_mode_user           = 0x10,
     Status_mode_supervisor     = 0x13,
     Status_mode_mask           = 0x1f,
 
-    Status_FIQ_disabled        = 0x40,
-    Status_IRQ_disabled        = 0x80,
     Status_interrupts_disabled = Status_FIQ_disabled | Status_IRQ_disabled,
-    Status_interrupts_mask     = 0xc0,
     Status_thumb               = 0x20,
   };
 
-  static unsigned cpu_id();
+  static Cpu_phys_id cpu_id();
 };
 
-INTERFACE[arm && !tz]:
+INTERFACE[arm && !arm_em_tz]:
 
 EXTENSION class Proc
 {
 public:
-  enum
+  enum : unsigned
     {
-      Cli_mask = Status_IRQ_disabled,
-      Sti_mask = Status_IRQ_disabled,
+      Cli_mask                = Status_interrupts_disabled,
+      Sti_mask                = Status_interrupts_disabled,
+      Status_preempt_disabled = Status_IRQ_disabled,
+      Status_interrupts_mask  = Status_interrupts_disabled,
+      Status_always_mask      = 0,
     };
 };
 
-INTERFACE[arm && tz]:
+INTERFACE[arm && arm_em_tz]:
 
 EXTENSION class Proc
 {
 public:
-  enum
+  enum : unsigned
     {
-      Cli_mask = Status_IRQ_disabled | Status_FIQ_disabled,
-      Sti_mask = Status_IRQ_disabled | Status_FIQ_disabled,
+      Cli_mask                = Status_FIQ_disabled,
+      Sti_mask                = Status_FIQ_disabled,
+      Status_preempt_disabled = Status_FIQ_disabled,
+      Status_interrupts_mask  = Status_FIQ_disabled,
+      Status_always_mask      = Status_IRQ_disabled,
     };
 };
 
@@ -72,33 +82,38 @@ Mword Proc::program_counter()
 IMPLEMENT static inline
 void Proc::cli()
 {
-  asm volatile ( "    mrs    r6, cpsr    \n"
-		 "    orr    r6,r6,%0    \n"
-		 "    msr    cpsr_c, r6  \n"
-		 : : "i" (Cli_mask) : "r6", "memory"
-		 );
+  Mword v;
+  asm volatile("mrs %0, cpsr    \n"
+               "orr %0, %0, %1  \n"
+               "msr cpsr_c, %0  \n"
+               : "=r" (v)
+               : "I" (Cli_mask)
+               : "memory");
 }
 
 IMPLEMENT static inline
 void Proc::sti()
 {
-  asm volatile ( "    mrs    r6, cpsr    \n"
-                 "    bic    r6,r6,%0   \n"
-		 "    msr    cpsr_c, r6  \n"
-		 : : "i" (Sti_mask) : "r6", "memory"
-		 );
+  Mword v;
+  asm volatile("mrs %0, cpsr    \n"
+               "bic %0, %0, %1  \n"
+               "msr cpsr_c, %0  \n"
+               : "=r" (v)
+               : "I" (Sti_mask)
+               : "memory");
 }
 
 IMPLEMENT static inline
 Proc::Status Proc::cli_save()
 {
   Status ret;
-  asm volatile ( "    mrs    r6, cpsr    \n"
-		 "    mov    %0, r6      \n"
-		 "    orr    r6,r6,%1    \n"
-		 "    msr    cpsr_c, r6  \n"
-		 : "=r"(ret) : "i" (Cli_mask) : "r6" 
-		 );
+  Mword v;
+  asm volatile("mrs    %0, cpsr    \n"
+               "orr    %1, %0, %2  \n"
+               "msr    cpsr_c, %1  \n"
+               : "=r" (ret), "=r" (v)
+               : "I" (Cli_mask)
+               : "memory");
   return ret;
 }
 
@@ -106,23 +121,15 @@ IMPLEMENT static inline
 Proc::Status Proc::interrupts()
 {
   Status ret;
-  asm volatile ("   mrs  %0, cpsr  \n"
-		: "=r"(ret)
-		);
+  asm volatile("mrs %0, cpsr" : "=r" (ret));
   return !(ret & Sti_mask);
 }
 
 IMPLEMENT static inline
 void Proc::sti_restore(Status st)
 {
-  asm volatile ( "    tst    %0, %1      \n"
-		 "    bne    1f          \n"
-		 "    mrs    r6, cpsr    \n"
-		 "    bic    r6,r6,%1    \n"
-		 "    msr    cpsr_c, r6  \n"
-		 "1:                     \n"
-		 : : "r"(st), "i" (Sti_mask) : "r6"
-		 );
+  if (!(st & Sti_mask))
+    sti();
 }
 
 IMPLEMENT static inline
@@ -136,18 +143,18 @@ void Proc::irq_chance()
 IMPLEMENTATION[arm && !mp]:
 
 IMPLEMENT static inline
-unsigned Proc::cpu_id()
-{ return 0; }
+Cpu_phys_id Proc::cpu_id()
+{ return Cpu_phys_id(0); }
 
 //----------------------------------------------------------------
 IMPLEMENTATION[arm && mp]:
 
 IMPLEMENT static inline
-unsigned Proc::cpu_id()
+Cpu_phys_id Proc::cpu_id()
 {
   unsigned mpidr;
   __asm__("mrc p15, 0, %0, c0, c0, 5": "=r" (mpidr));
-  return mpidr & 0x7; // mind gic softirq
+  return Cpu_phys_id(mpidr & 0x7); // mind gic softirq
 }
 
 //----------------------------------------------------------------
@@ -226,7 +233,9 @@ IMPLEMENTATION[arm && (armca8 || armca9)]:
 
 IMPLEMENT static inline
 void Proc::pause()
-{}
+{
+  asm("yield");
+}
 
 IMPLEMENT static inline
 void Proc::halt()

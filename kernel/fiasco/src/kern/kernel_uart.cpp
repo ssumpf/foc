@@ -103,7 +103,7 @@ class Kuart_irq : public Irq_base
 {
 public:
   Kuart_irq() { hit_func = &handler_wrapper<Kuart_irq>; }
-  void switch_mode(unsigned) {}
+  void switch_mode(bool) {}
   void handle(Upstream_irq const *ui)
   {
     mask_and_ack();

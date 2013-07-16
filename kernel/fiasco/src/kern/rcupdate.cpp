@@ -3,7 +3,7 @@ INTERFACE:
 #include "cpu_mask.h"
 #include "per_cpu_data.h"
 #include "spin_lock.h"
-#include <slist>
+#include <cxx/slist>
 
 class Rcu_glbl;
 class Rcu_data;
@@ -100,7 +100,7 @@ public:
   long _len;
   Rcu_list _c;
   Rcu_list _d;
-  unsigned _cpu;
+  Cpu_number _cpu;
 };
 
 
@@ -155,12 +155,12 @@ EXTENSION class Rcu
 public:
   struct Log_rcu : public Tb_entry
   {
-    unsigned cpu;
+    Cpu_number cpu;
     Rcu_item *item;
     void *cb;
     unsigned char event;
     unsigned print(int max, char *buf) const;
-  } __attribute__((packed));
+  };
 
   enum Rcu_events
   {
@@ -180,7 +180,8 @@ unsigned
 Rcu::Log_rcu::print(int max, char *buf) const
 {
   char const *events[] = { "call", "process"};
-  return snprintf(buf, max, "rcu-%s (cpu=%u) item=%p", events[event], cpu, item);
+  return snprintf(buf, max, "rcu-%s (cpu=%u) item=%p", events[event],
+                  cxx::int_value<Cpu_number>(cpu), item);
 }
 
 
@@ -226,7 +227,7 @@ Rcu_glbl::Rcu_glbl()
 {}
 
 PUBLIC
-Rcu_data::Rcu_data(unsigned cpu)
+Rcu_data::Rcu_data(Cpu_number cpu)
 : _idle(true),
   _cpu(cpu)
 {}
@@ -299,22 +300,38 @@ Rcu_glbl::start_batch()
     }
 }
 
-PUBLIC static inline
+PUBLIC
 void
-Rcu::enter_idle(unsigned cpu)
+Rcu_data::enter_idle(Rcu_glbl *rgp)
 {
-  Rcu_data *rdp = &_rcu_data.cpu(cpu);
-  if (EXPECT_TRUE(!rdp->_idle))
+  if (EXPECT_TRUE(!_idle))
     {
-      rdp->_idle = true;
-      auto guard = lock_guard(rcu()->_lock);
-      rcu()->_active_cpus.clear(cpu);
+      _idle = true;
+
+      auto guard = lock_guard(rgp->_lock);
+      rgp->_active_cpus.clear(_cpu);
+
+      if (_q_batch != rgp->_current || _pending)
+        {
+          _q_batch = rgp->_current;
+          _pending = 0;
+          rgp->cpu_quiet(_cpu);
+          assert (!pending(rgp));
+        }
     }
 }
 
 PUBLIC static inline
 void
-Rcu::leave_idle(unsigned cpu)
+Rcu::enter_idle(Cpu_number cpu)
+{
+  Rcu_data *rdp = &_rcu_data.cpu(cpu);
+  rdp->enter_idle(rcu());
+}
+
+PUBLIC static inline
+void
+Rcu::leave_idle(Cpu_number cpu)
 {
   Rcu_data *rdp = &_rcu_data.cpu(cpu);
   if (EXPECT_FALSE(rdp->_idle))
@@ -329,7 +346,7 @@ Rcu::leave_idle(unsigned cpu)
 
 PRIVATE inline NOEXPORT
 void
-Rcu_glbl::cpu_quiet(unsigned cpu)
+Rcu_glbl::cpu_quiet(Cpu_number cpu)
 {
   _cpus.clear(cpu);
   if (_cpus.empty())
@@ -489,19 +506,19 @@ Rcu::process_callbacks()
 
 PUBLIC static inline NEEDS["globals.h"]
 bool FIASCO_WARN_RESULT
-Rcu::process_callbacks(unsigned cpu)
+Rcu::process_callbacks(Cpu_number cpu)
 { return _rcu_data.cpu(cpu).process_callbacks(&_rcu); }
 
 PUBLIC static inline
 bool
-Rcu::pending(unsigned cpu)
+Rcu::pending(Cpu_number cpu)
 {
   return _rcu_data.cpu(cpu).pending(&_rcu);
 }
 
 PUBLIC static inline
 bool
-Rcu::idle(unsigned cpu)
+Rcu::idle(Cpu_number cpu)
 {
   Rcu_data const *d = &_rcu_data.cpu(cpu);
   return d->_c.empty() && !d->pending(&_rcu);
@@ -509,12 +526,12 @@ Rcu::idle(unsigned cpu)
 
 PUBLIC static inline
 void
-Rcu::inc_q_cnt(unsigned cpu)
+Rcu::inc_q_cnt(Cpu_number cpu)
 { _rcu_data.cpu(cpu)._q_passed = 1; }
 
 PUBLIC static
 void
-Rcu::schedule_callbacks(unsigned cpu, Unsigned64 clock)
+Rcu::schedule_callbacks(Cpu_number cpu, Unsigned64 clock)
 {
   Timeout *t = &_rcu_timeout.cpu(cpu);
   if (!t->is_set())
@@ -529,7 +546,7 @@ Rcu::lock()
 
 PUBLIC static inline
 bool
-Rcu::do_pending_work(unsigned cpu)
+Rcu::do_pending_work(Cpu_number cpu)
 {
   if (pending(cpu))
     {

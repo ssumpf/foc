@@ -3,6 +3,7 @@ INTERFACE[ppc32]:
 #include "types.h"
 
 class PF {};
+class Page {};
 
 //------------------------------------------------------------------------------
 INTERFACE[ppc32]:
@@ -14,10 +15,9 @@ INTERFACE[ppc32]:
 
 class Paging {};
 
-class Pte_base
+class Pte_ptr
 {
-  public:
-    typedef Mword Raw;
+public:
   enum
   {
     Super_level   = 0,
@@ -37,84 +37,106 @@ class Pte_base
 //    L4_global     = 0x00000200, ///< pinned in the TLB
   };
 
-    Mword addr() const { return _raw & Pfn;}
-    bool is_super_page() const { return _raw & Pse_bit; }
-  protected:
-    Raw _raw;
+  Pte_ptr() = default;
+  Pte_ptr(void *p, unsigned char level) : pte((Mword*)p), level(level) {}
+
+  bool is_valid() const { return *pte & Valid; }
+  void clear() { *pte = 0; }
+  bool is_leaf() const
+  {
+    return !is_super_page(); // CHECK!
+  }
+
+  Mword next_level() const
+  {
+    return 0; // FIX
+  }
+
+  void set_next_level(Mword phys)
+  {
+    (void)phys; // FIX
+  }
+
+  Mword addr() const { return *pte & Pfn;}
+  bool is_super_page() const { return *pte & Pse_bit; }
+  Mword raw() const { return *pte; }
+
+protected:
+  Mword *pte;
+  unsigned char level;
 };
 
-class Pt_entry : public Pte_base
+class Pt_entry : public Pte_ptr
 {
 public:
   Mword leaf() const { return true; }
   void set(Address p, bool intermed, bool /*present*/, unsigned long attrs = 0)
   {
-    _raw = (p & Pfn)
+    *pte = (p & Pfn)
       | (intermed ? (Writable | User) : 0) | attrs;
-    _raw &= intermed ? (Mword)Cacheable_mask : ~0;
+    *pte &= intermed ? (Mword)Cacheable_mask : ~0;
   }
 };
 
-class Pd_entry : public Pte_base
+class Pd_entry : public Pte_ptr
 {
 public:
   Mword leaf() const { return false; }
   void set(Address p, bool intermed, bool present, unsigned long attrs = 0)
   {
-    _raw = (p & Pfn) | (present ? (Mword)Valid : 0)
+    *pte = (p & Pfn) | (present ? (Mword)Valid : 0)
       | (intermed ? (Writable | User) : Pse_bit) | attrs;
-    _raw &= intermed ? (Mword)Cacheable_mask : ~0;
+    *pte &= intermed ? (Mword)Cacheable_mask : ~0;
   }
 };
 
-class Pte_htab {
-  public:
-    Pte_htab(Mword, Mword, Mword);
+class Pte_htab
+{
+public:
+  Pte_htab(Mword, Mword, Mword);
 
-    union {
-      struct {
-	Mword valid : 1; // valid bit
-	Mword vsid  :24; // address-space id
-	Mword h     : 1; // hash-function bit
-	Mword api   : 6; // abbreviated-page index
-	Mword rpn   :20; // physical-page numer
-	Mword zero  : 3; // reserved
-	Mword r     : 1; // referenced bit
-	Mword c     : 1; // changed bit
-	Mword wimg  : 4; // cache controls
-	Mword zero1 : 1; // reserved
-	Mword pp    : 2; // protection bits
-      } pte;
-      struct {
-	Unsigned32 raw0;
-	Unsigned32 raw1;
-      } raw;
-    };
+  union {
+    struct {
+      Mword valid : 1; // valid bit
+      Mword vsid  :24; // address-space id
+      Mword h     : 1; // hash-function bit
+      Mword api   : 6; // abbreviated-page index
+      Mword rpn   :20; // physical-page numer
+      Mword zero  : 3; // reserved
+      Mword r     : 1; // referenced bit
+      Mword c     : 1; // changed bit
+      Mword wimg  : 4; // cache controls
+      Mword zero1 : 1; // reserved
+      Mword pp    : 2; // protection bits
+    } pte;
+    struct {
+      Unsigned32 raw0;
+      Unsigned32 raw1;
+    } raw;
+  };
 
-    bool inline valid()
-    { return this->pte.valid; }
+  bool inline valid()
+  { return this->pte.valid; }
 
-    bool inline v_equal(Pte_htab *entry) 
-    { return this->raw.raw0 == entry->raw.raw0; }
+  bool inline v_equal(Pte_htab *entry)
+  { return this->raw.raw0 == entry->raw.raw0; }
 
-    bool inline p_equal(Pte_htab *entry)
-    { return this->raw.raw1 == entry->raw.raw1; }
+  bool inline p_equal(Pte_htab *entry)
+  { return this->raw.raw1 == entry->raw.raw1; }
 
-    Address inline virt()
-    { return this->raw.raw0; }
+  Address inline virt()
+  { return this->raw.raw0; }
 
-    Address inline phys()
-    { return this->raw.raw1; }
+  Address inline phys()
+  { return this->raw.raw1; }
 };
 
-namespace Page
+EXTENSION class Page
 {
+public:
   typedef Unsigned32 Attribs;
-  enum Attribs_enum 
+  enum Attribs_enum
   {
-    KERN_RW      = 0x00000000,
-    USER_RO      = 0x00000001,
-    USER_RW      = 0x00000002,
     Cache_mask   = 0x00000078,
     CACHEABLE    = 0x00000000,
     NONCACHEABLE = 0x00000040,
@@ -123,8 +145,8 @@ namespace Page
 };
 
 
-typedef Ptab::List< Ptab::Traits<Pd_entry, 22, 10, true>,
-                    Ptab::Traits<Pt_entry, 12, 10, true> > Ptab_traits;
+typedef Ptab::List< Ptab::Traits<Unsigned32, 22, 10, true>,
+                    Ptab::Traits<Unsigned32, 12, 10, true> > Ptab_traits;
 
 typedef Ptab::Shift<Ptab_traits, Virt_addr::Shift>::List Ptab_traits_vpn;
 typedef Ptab::Page_addr_wrap<Page_number, Virt_addr::Shift> Ptab_va_vpn;
@@ -185,17 +207,12 @@ Mword PF::addr_to_msgword0(Address pfa, Mword error)
 
 //---------------------------------------------------------------------------
 
-PUBLIC
-Pte_base::Pte_base(Mword raw) : _raw(raw) {}
-
-PUBLIC
-Pte_base::Pte_base() {}
-
+#if 0
 PUBLIC inline
 Pte_base &
 Pte_base::operator = (Pte_base const &other)
 {
-  _raw = other.raw();
+  *pte = other.raw();
   return *this;
 }
 
@@ -203,7 +220,7 @@ PUBLIC inline
 Pte_base &
 Pte_base::operator = (Mword raw)
 {
-  _raw = raw;
+  *pte = raw;
   return *this;
 }
 
@@ -211,79 +228,71 @@ PUBLIC inline
 Mword
 Pte_base::raw() const
 {
-  return _raw;
+  return *pte;
 }
+#endif
 
 PUBLIC inline
 void
-Pte_base::add_attr(Mword attr)
+Pte_ptr::add_attr(Page::Attr attr)
 {
-  _raw |= attr;
+  (void)attr;
+  // FIX
+  //*pte |= attr;
 }
 
-PUBLIC inline
-void
-Pte_base::del_attr(Mword attr)
-{
-  _raw &= ~attr;
-}
+//PUBLIC inline
+//void
+//Pte_base::del_attr(Mword attr)
+//{
+//*pte &= ~attr;
+//}
 
-PUBLIC inline
-void
-Pte_base::clear()
-{ _raw = 0; }
-
-PUBLIC inline
-int
-Pte_base::valid() const
-{
-  return 
-    _raw & Valid || is_htab_entry();
-}
-
+#if 0
 PUBLIC inline
 int
 Pte_base::writable() const
 {
-  return _raw & Writable;
+  return *pte & Writable;
 }
+#endif
 
 PUBLIC inline
 bool
-Pte_base::is_htab_entry() const
+Pte_ptr::is_htab_entry() const
 {
-  return ((_raw & Htab_entry) && !(_raw & Valid));
+  return ((*pte & Htab_entry) && !(*pte & Valid));
 }
 
 PUBLIC inline
 unsigned
-Pte_base::to_htab_entry(unsigned page_attribs = 0)
+Pte_ptr::to_htab_entry(unsigned page_attribs = 0)
 {
-  _raw |= Htab_entry;
-  _raw &= ~Valid;
+  *pte |= Htab_entry;
+  *pte &= ~Valid;
   return page_attribs & ~Valid;
 }
 
 PUBLIC inline
 bool
-Pte_base::is_htab_ptr() const
+Pte_ptr::is_htab_ptr() const
 {
-  return (_raw & Valid);
+  return (*pte & Valid);
 }
 
 PUBLIC inline
 void
-Pte_base::to_htab_ptr()
+Pte_ptr::to_htab_ptr()
 {
-  _raw |= Valid;
+  *pte |= Valid;
 }
 
-PUBLIC inline
-Address
-Pt_entry::pfn() const
-{
-  return _raw & Pfn;
-}
+//PUBLIC inline
+//Address
+//Pt_entry::pfn() const
+//{
+  //return *pte & Pfn;
+//}
 
 //------------------------------------------------------------------------------
 /*
@@ -332,19 +341,19 @@ Pte_htab::pte_to_ea()
 
 
 PUBLIC static inline
-Pte_htab * 
+Pte_htab *
 Pte_htab::addr_to_pte(Address pte_addr)
 {
-  return reinterpret_cast<Pte_htab*>(pte_addr & ~Pte_base::Valid);
+  return reinterpret_cast<Pte_htab*>(pte_addr & ~Pte_ptr::Valid);
 }
 
 PUBLIC static inline
 Address
-Pte_htab::pte_to_addr(Pte_base *e)
+Pte_htab::pte_to_addr(Pte_ptr *e)
 {
   Address raw;
 
-  if(e->is_htab_entry())
+  if (e->is_htab_entry())
     raw = e->raw();
   else
     {
@@ -357,7 +366,7 @@ Pte_htab::pte_to_addr(Pte_base *e)
 
 PUBLIC static
 bool
-Pte_htab::pte_lookup(Pte_base *e, Address *phys = 0, 
+Pte_htab::pte_lookup(Pte_ptr *e, Address *phys = 0,
                      unsigned *page_attribs = 0)
 {
   auto guard = lock_guard(cpu_lock);
@@ -384,3 +393,23 @@ Pte_htab::pte_lookup(Pte_base *e, Address *phys = 0,
 
   return true;
 }
+
+PUBLIC static inline
+bool
+Pte_ptr::need_cache_write_back(bool current_pt)
+{ return current_pt; }
+
+PUBLIC inline// NEEDS["mem_unit.h"]
+void
+Pte_ptr::write_back_if(bool current_pt, Mword /*asid*/ = 0)
+{
+  (void)current_pt;
+  //  if (current_pt)
+  //        Mem_unit::clean_dcache(pte);
+}
+
+PUBLIC static inline// NEEDS["mem_unit.h"]
+void
+Pte_ptr::write_back(void *start, void *end)
+{ (void)start; (void)end; }
+

@@ -18,7 +18,7 @@ extern "C"
 void
 thread_timer_interrupt_slow(void)
 {
-  if (!current_cpu())
+  if (current_cpu() == Cpu_number::boot_cpu())
     {
       if (Config::esc_hack)
 	{

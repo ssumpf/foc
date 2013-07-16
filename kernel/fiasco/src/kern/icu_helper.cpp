@@ -63,7 +63,7 @@ Icu_h_base::deref_irq(L4_msg_tag *tag, Utcb const *utcb)
 
   register Context *const c_thread = ::current();
   register Space *const c_space = c_thread->space();
-  unsigned char irq_rights = 0;
+  L4_fpage::Rights irq_rights = L4_fpage::Rights(0);
   irq = Kobject::dcast<Irq*>(c_space->lookup_local(bind_irq.obj_index(), &irq_rights));
 
   if (!irq)
@@ -72,7 +72,7 @@ Icu_h_base::deref_irq(L4_msg_tag *tag, Utcb const *utcb)
       return 0;
     }
 
-  if (EXPECT_FALSE(!(irq_rights & L4_fpage::X)))
+  if (EXPECT_FALSE(!(irq_rights & L4_fpage::Rights::X())))
     {
       *tag = Kobject_iface::commit_result(-L4_err::EPerm);
       return 0;
@@ -124,7 +124,7 @@ Icu_h<REAL_ICU>::icu_get_msi_info(Mword msi, Utcb *out)
 PUBLIC template< typename REAL_ICU >
 inline
 L4_msg_tag
-Icu_h<REAL_ICU>::icu_invoke(L4_obj_ref, Mword /*rights*/,
+Icu_h<REAL_ICU>::icu_invoke(L4_obj_ref, L4_fpage::Rights /*rights*/,
                             Syscall_frame *f,
                             Utcb const *utcb, Utcb *out)
 {
@@ -169,16 +169,8 @@ Icu_h<REAL_ICU>::icu_invoke(L4_obj_ref, Mword /*rights*/,
 
     case Op_set_mode:
       if (tag.words() >= 3)
-	{
-	  Irq_base *irq = this_icu()->icu_get_irq(utcb->values[1]);
-
-	  if (irq)
-	    {
-	      irq->set_mode(utcb->values[2]);
-	      return Kobject_iface::commit_result(0);
-	    }
-	}
-
+        return this_icu()->icu_set_mode(utcb->values[1],
+                                        Irq_chip::Mode(utcb->values[2]));
       return Kobject_iface::commit_result(-L4_err::EInval);
 
     default:
@@ -189,7 +181,7 @@ Icu_h<REAL_ICU>::icu_invoke(L4_obj_ref, Mword /*rights*/,
 PUBLIC
 template< typename REAL_ICU >
 L4_msg_tag
-Icu_h<REAL_ICU>::kinvoke(L4_obj_ref ref, Mword rights,
+Icu_h<REAL_ICU>::kinvoke(L4_obj_ref ref, L4_fpage::Rights rights,
                          Syscall_frame *f,
                          Utcb const *in, Utcb *out)
 {

@@ -31,7 +31,7 @@ IMPLEMENTATION [arm && pic_gic && realview && (realview_pb11mp || (realview_eb &
 #include "cascade_irq.h"
 
 PUBLIC static
-void Pic::init_ap(unsigned)
+void Pic::init_ap(Cpu_number)
 {
   gic->init_ap();
   static_cast<Gic*>(Irq_mgr::mgr->chip(256).chip)->init_ap();
@@ -44,13 +44,15 @@ void Pic::init()
   configure_core();
   typedef Irq_mgr_multi_chip<8> Mgr;
 
-  Gic *g = gic.construct(Kmem::Gic_cpu_map_base, Kmem::Gic_dist_map_base);
+  Gic *g = gic.construct(Kmem::mmio_remap(Mem_layout::Gic_cpu_phys_base),
+                         Kmem::mmio_remap(Mem_layout::Gic_dist_phys_base));
   Mgr *m = new Boot_object<Mgr>(2);
   Irq_mgr::mgr = m;
 
   m->add_chip(0, g, g->nr_irqs());
 
-  g = new Boot_object<Gic>(Kmem::Gic1_cpu_map_base, Kmem::Gic1_dist_map_base);
+  g = new Boot_object<Gic>(Kmem::mmio_remap(Mem_layout::Gic1_cpu_phys_base),
+                           Kmem::mmio_remap(Mem_layout::Gic1_dist_phys_base));
   m->add_chip(256, g, g->nr_irqs());
 
   // FIXME: Replace static local variable, use placement new
@@ -71,7 +73,9 @@ void Pic::init()
   configure_core();
 
   typedef Irq_mgr_multi_chip<8> Mgr;
-  Gic *g = gic.construct(Kmem::Gic_cpu_map_base, Kmem::Gic_dist_map_base);
+
+  Gic *g = gic.construct(Kmem::mmio_remap(Mem_layout::Gic_cpu_phys_base),
+                         Kmem::mmio_remap(Mem_layout::Gic_dist_phys_base));
 
   Mgr *m = new Boot_object<Mgr>(1);
   m->add_chip(0, g, g->nr_irqs());
@@ -79,7 +83,7 @@ void Pic::init()
 }
 
 PUBLIC static
-void Pic::init_ap(unsigned)
+void Pic::init_ap(Cpu_number)
 {
   gic->init_ap();
 }
@@ -112,18 +116,17 @@ IMPLEMENTATION [arm && pic_gic && (mpcore || armca9)]:
 
 PRIVATE static
 void Pic::unlock_config()
-{ Io::write<Mword>(0xa05f, Platform::Sys::Lock); }
+{ Platform::sys->write<Mword>(0xa05f, Platform::Sys::Lock); }
 
 PRIVATE static
 void Pic::lock_config()
-{ Io::write<Mword>(0x0, Platform::Sys::Lock); }
+{ Platform::sys->write<Mword>(0x0, Platform::Sys::Lock); }
 
 PRIVATE static
 void Pic::configure_core()
 {
   // Enable 'new' interrupt-mode, no DCC
   unlock_config();
-  Io::write<Mword>(Io::read<Mword>(Platform::Sys::Pld_ctrl1) | INTMODE_NEW_NO_DDC,
-                   Platform::Sys::Pld_ctrl1);
+  Platform::sys->modify<Mword>(INTMODE_NEW_NO_DDC, 0, Platform::Sys::Pld_ctrl1);
   lock_config();
 }

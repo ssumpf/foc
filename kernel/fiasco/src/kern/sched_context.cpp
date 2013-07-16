@@ -147,3 +147,42 @@ Sched_context::Ready_queue::deblock(Sched_context *sc, Sched_context *crs, bool 
   return res;
 }
 
+INTERFACE [debug]:
+
+#include "tb_entry.h"
+
+/** logged scheduling event. */
+class Tb_entry_sched : public Tb_entry
+{
+public:
+  unsigned short mode;
+  Context const *owner;
+  unsigned short id;
+  unsigned short prio;
+  signed long left;
+  unsigned long quantum;
+
+  unsigned print(int max, char *buf) const;
+} __attribute__((packed));
+
+
+IMPLEMENTATION [debug]:
+
+#include "kobject_dbg.h"
+
+// sched
+IMPLEMENT unsigned
+Tb_entry_sched::print(int maxlen, char *buf) const
+{
+  Mword t = Kobject_dbg::pointer_to_id(owner);
+
+  return snprintf(buf, maxlen,
+              "(ts %s) owner:%lx id:%2x, prio:%2x, left:%6ld/%-6lu",
+              mode == 0 ? "save" :
+              mode == 1 ? "load" :
+              mode == 2 ? "invl" : "????",
+              t,
+              id, prio, left, quantum);
+}
+
+

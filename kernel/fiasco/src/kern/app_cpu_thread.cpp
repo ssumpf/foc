@@ -30,10 +30,13 @@ IMPLEMENTATION [mp]:
 
 PUBLIC static
 Kernel_thread *
-App_cpu_thread::may_be_create(unsigned cpu, bool cpu_never_seen_before)
+App_cpu_thread::may_be_create(Cpu_number cpu, bool cpu_never_seen_before)
 {
   if (!cpu_never_seen_before)
-    return static_cast<Kernel_thread *>(kernel_context(cpu));
+    {
+      kernel_context(cpu)->reset_kernel_sp();
+      return static_cast<Kernel_thread *>(kernel_context(cpu));
+    }
 
   Kernel_thread *t = new (Ram_quota::root) App_cpu_thread;
   assert (t);
@@ -81,7 +84,7 @@ App_cpu_thread::bootstrap()
 
   cpu_lock.clear();
 
-  printf("CPU[%u]: goes to idle loop\n", cpu(true));
+  printf("CPU[%u]: goes to idle loop\n", cxx::int_value<Cpu_number>(cpu(true)));
 
   for (;;)
     idle_op();

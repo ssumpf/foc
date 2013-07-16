@@ -5,11 +5,12 @@ INTERFACE [debug]:
 
 extern Static_object<Mapdb> mapdb_mem;
 
-
 IMPLEMENTATION:
 
 #include "config.h"
 #include "mapdb.h"
+#include "mem_space.h"
+#include <minmax.h>
 
 Static_object<Mapdb> mapdb_mem;
 
@@ -29,36 +30,37 @@ L4_error __attribute__((nonnull(1, 3)))
 mem_map(Space *from, L4_fpage const &fp_from,
         Space *to, L4_fpage const &fp_to, L4_msg_item control)
 {
-  typedef Map_traits<Mem_space> Mt;
+  assert_opt (from);
+  assert_opt (to);
+
+  typedef Mem_space::V_pfn Pfn;
+  typedef Mem_space::V_pfc Pfc;
+  typedef Mem_space::V_order Order;
 
   if (EXPECT_FALSE(fp_from.order() < L4_fpage::Mem_addr::Shift
                    || fp_to.order() < L4_fpage::Mem_addr::Shift))
     return L4_error::None;
 
   // loop variables
-  Mt::Addr rcv_addr = fp_to.mem_address();
-  Mt::Addr snd_addr = fp_from.mem_address();
-  Mt::Addr offs = Virt_addr(control.address());
+  Pfn rcv_addr = fp_to.mem_address();
+  Pfn snd_addr = fp_from.mem_address();
+  Pfn offs = Virt_addr(control.address());
 
-  Mt::Size snd_size = Mt::Size::from_shift(fp_from.order() - L4_fpage::Mem_addr::Shift);
-  Mt::Size rcv_size = Mt::Size::from_shift(fp_to.order() - L4_fpage::Mem_addr::Shift);
+  // calc size in bytes from power of twos
+  Order so = Mu::get_order_from_fp<Pfc>(fp_from, L4_fpage::Mem_addr::Shift);
+  Order ro = Mu::get_order_from_fp<Pfc>(fp_to, L4_fpage::Mem_addr::Shift);
 
-  // calc size in bytes from power of tows
-  snd_addr = snd_addr.trunc(snd_size);
-  rcv_addr = rcv_addr.trunc(rcv_size);
-  Mt::constraint(snd_addr, snd_size, rcv_addr, rcv_size, offs);
+  snd_addr = cxx::mask_lsb(snd_addr, so);
+  rcv_addr = cxx::mask_lsb(rcv_addr, ro);
+  Mu::free_constraint(snd_addr, so, rcv_addr, ro, offs);
 
-  if (snd_size == 0)
-    return L4_error::None;
-
-  unsigned long del_attribs, add_attribs;
-  Mt::attribs(control, fp_from, &del_attribs, &add_attribs);
+  Mem_space::Attr attribs(fp_from.rights() | L4_fpage::Rights::U(), control.mem_type());
 
   return map<Mem_space>(mapdb_mem.get(),
-	     from, from, snd_addr,
-	     snd_size, to, to,
-	     rcv_addr, control.is_grant(), add_attribs, del_attribs,
-	     (Mem_space::Reap_list**)0);
+                        from, from, snd_addr,
+                        Pfc(1) << so, to, to,
+                        rcv_addr, control.is_grant(), attribs,
+                        (Mem_space::Reap_list**)0);
 }
 
 /** Unmap the mappings in the region described by "fp" from the address
@@ -73,73 +75,25 @@ mem_map(Space *from, L4_fpage const &fp_from,
     @param flush_mode determines which access privileges to remove.
     @return combined (bit-ORed) access status of unmapped physical pages
 */
-unsigned __attribute__((nonnull(1)))
+L4_fpage::Rights __attribute__((nonnull(1)))
 mem_fpage_unmap(Space *space, L4_fpage fp, L4_map_mask mask)
 {
-  typedef Map_traits<Mem_space> Mt;
-  Mt::Size size = Mt::Size::from_shift(fp.order() - L4_fpage::Mem_addr::Shift);
-  Mt::Addr start = Mt::get_addr(fp);
+  if (fp.order() < L4_fpage::Mem_addr::Shift)
+    return L4_fpage::Rights(0);
 
-  start = start.trunc(size);
+  Mem_space::V_order o = Mu::get_order_from_fp<Mem_space::V_pfc>(fp, L4_fpage::Mem_addr::Shift);
+  Mem_space::V_pfc size = Mem_space::V_pfc(1) << o;
+  Mem_space::V_pfn start = fp.mem_address();
+
+  start = cxx::mask_lsb(start, o);
 
   return unmap<Mem_space>(mapdb_mem.get(), space, space,
                start, size,
                fp.rights(), mask, (Mem_space::Reap_list**)0);
 }
 
-static inline
-void
-save_access_attribs(Mapdb* mapdb, const Mapdb::Frame& mapdb_frame,
-                    Mapping* mapping, Mem_space* space, unsigned page_rights, 
-                    Mem_space::Addr virt, Mem_space::Phys_addr phys,
-                    Mem_space::Size size,
-                    bool me_too)
-{
-  typedef Mem_space::Size Size;
-  typedef Mem_space::Addr Addr;
-  typedef Mem_space::Phys_addr Phys_addr;
 
-  if (unsigned page_accessed
-      = page_rights & (Mem_space::Page_referenced | Mem_space::Page_dirty))
-    {
-      Mem_space::Status status;
 
-      // When flushing access attributes from our space as well,
-      // cache them in parent space, otherwise in our space.
-      if (! me_too || !mapping->parent())
-	{
-	  status = space->v_insert(phys, virt, size,
-				   page_accessed);
-	}
-      else
-	{
-	  Mapping *parent = mapping->parent();
-
-          assert (parent->space());
-	  Mem_space *parent_space = parent->space();
-
-	  Address parent_shift = mapdb->shift(mapdb_frame, parent) + Mem_space::Page_shift;
-	  Address parent_address = parent->page().value() << parent_shift;
-
-	  status =
-	    parent_space->v_insert(phys.trunc(Phys_addr::create(1UL << parent_shift)),
-				   Addr::create(parent_address),
-				   Size::create(1UL << parent_shift),
-				   page_accessed, true);
-	}
-
-      assert (status == Mem_space::Insert_ok
-	      || status == Mem_space::Insert_warn_exists
-	      || status == Mem_space::Insert_warn_attrib_upgrade
-	      /*|| s->is_sigma0()*/);
-      // Be forgiving to sigma0 because it's address
-      // space is not kept in sync with its mapping-db
-      // entries.
-    }
-}
-
-//---------------------------------------------------------------------------
-IMPLEMENTATION[!64bit]:
 
 /** The mapping database.
     This is the system's instance of the mapping database.
@@ -147,40 +101,38 @@ IMPLEMENTATION[!64bit]:
 void
 init_mapdb_mem(Space *sigma0)
 {
-  static size_t const page_sizes[]
+  enum { Max_num_page_sizes = 7 };
+  static size_t page_sizes[Max_num_page_sizes]
     = { Config::SUPERPAGE_SHIFT - Config::PAGE_SHIFT, 0 };
 
+  typedef Mem_space::Page_order Page_order;
+  Page_order const *ps = Mem_space::get_global_page_sizes();
+  unsigned idx = 0;
+  unsigned phys_bits(Cpu::boot_cpu()->phys_bits());
+  phys_bits = min(phys_bits, (unsigned)MWORD_BITS);
+
+  Page_order last_bits(phys_bits);
+
+  for (Page_order c = last_bits; c >= Page_order(Config::PAGE_SHIFT); --c)
+    {
+      c = *ps;
+      // not more than 2K entries per MDB split array
+      if (c < last_bits && (last_bits - c) > Page_order(12))
+        c = last_bits - Page_order(12);
+      else
+        ++ps;
+
+      assert_kdb (idx < Max_num_page_sizes);
+      page_sizes[idx++] = Page_order::val(c) - Config::PAGE_SHIFT;
+      last_bits = c;
+    }
+
+  if (0)
+    printf("MDB: phys_bits=%d levels = %d\n", Cpu::boot_cpu()->phys_bits(), idx);
+
   mapdb_mem.construct(sigma0,
-      Page_number::create(1U << (32 - Config::SUPERPAGE_SHIFT)),
-      page_sizes, 2);
+      Mapping::Page(1U << (phys_bits - Config::PAGE_SHIFT - page_sizes[0])),
+      page_sizes, idx);
 }
 
-//---------------------------------------------------------------------------
-IMPLEMENTATION[amd64]:
-
-#include "cpu.h"
-
-/** The mapping database.
-    This is the system's instance of the mapping database.
- */
-void
-init_mapdb_mem(Space *sigma0)
-{
-  static size_t const amd64_page_sizes[] =
-  { Config::PML4E_SHIFT - Config::PAGE_SHIFT,
-    Config::PDPE_SHIFT - Config::PAGE_SHIFT,
-    Config::SUPERPAGE_SHIFT - Config::PAGE_SHIFT,
-    0};
-
-  unsigned const num_page_sizes = Cpu::boot_cpu()->phys_bits() >= 42 ?  4 : 3;
-
-  Address const largest_page_max_index = num_page_sizes == 4 ?
-    Config::PML4E_MASK + 1ULL
-    : 1ULL << (Cpu::boot_cpu()->phys_bits() - Config::PDPE_SHIFT);
-
-  size_t const *const page_sizes = num_page_sizes == 4 ? amd64_page_sizes : amd64_page_sizes + 1;
-
-  mapdb_mem.construct(sigma0, Page_number::create(largest_page_max_index),
-      page_sizes, num_page_sizes);
-}
 

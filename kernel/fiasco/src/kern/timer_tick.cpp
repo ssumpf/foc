@@ -1,6 +1,7 @@
 INTERFACE:
 
 #include "irq_chip.h"
+#include "thread.h"
 
 class Timer_tick : public Irq_base
 {
@@ -22,16 +23,16 @@ public:
       }
   }
 
-  static void setup(unsigned cpu);
-  static void enable(unsigned cpu);
-  static void disable(unsigned cpu);
+  static void setup(Cpu_number cpu);
+  static void enable(Cpu_number cpu);
+  static void disable(Cpu_number cpu);
 
 protected:
   static bool allocate_irq(Irq_base *irq, unsigned irqnum);
 
 private:
   // we do not support triggering modes
-  void switch_mode(unsigned) {}
+  void switch_mode(bool) {}
 };
 
 // ------------------------------------------------------------------------
@@ -53,33 +54,43 @@ public:
 // ------------------------------------------------------------------------
 IMPLEMENTATION:
 
-#include "thread.h"
 #include "timer.h"
 
-PUBLIC static inline NEEDS["thread.h", "timer.h"]
+#include "kernel_console.h"
+#include "vkey.h"
+
+PRIVATE static inline NEEDS["thread.h", "timer.h", "kernel_console.h", "vkey.h"]
 void
-Timer_tick::handler_all(Irq_base *_s, Upstream_irq const *ui)
+Timer_tick::handle_timer(Irq_base *_s, Upstream_irq const *ui,
+                         Thread *t, Cpu_number cpu)
 {
   Timer_tick *self = nonull_static_cast<Timer_tick *>(_s);
   self->ack();
   ui->ack();
-  Thread *t = current_thread();
-  Timer::update_system_clock(t->cpu(true));
+  Timer::update_system_clock(cpu);
+  if (Config::esc_hack && cpu == Cpu_number::boot_cpu())
+    {
+      if (Kconsole::console()->char_avail() && !Vkey::check_())
+        kdb_ke("SERIAL_ESC");
+    }
   self->log_timer();
   t->handle_timer_interrupt();
 }
 
-PUBLIC static inline NEEDS["thread.h", "timer.h"]
+PUBLIC static inline NEEDS[Timer_tick::handle_timer]
+void
+Timer_tick::handler_all(Irq_base *_s, Upstream_irq const *ui)
+{
+  Thread *t = current_thread();
+  handle_timer(_s, ui, t, t->cpu(true));
+}
+
+PUBLIC static inline NEEDS[Timer_tick::handle_timer]
 void
 Timer_tick::handler_sys_time(Irq_base *_s, Upstream_irq const *ui)
 {
-  Timer_tick *self = nonull_static_cast<Timer_tick *>(_s);
-  self->ack();
-  ui->ack();
-  Timer::update_system_clock(0); // assume 0 to be the CPU that
-                                 // manages the system time
-  self->log_timer();
-  current_thread()->handle_timer_interrupt();
+  // assume the boot CPU to be the CPU that manages the system time
+  handle_timer(_s, ui, current_thread(), Cpu_number::boot_cpu());
 }
 
 PUBLIC static inline NEEDS["thread.h", "timer.h"]

@@ -1,8 +1,8 @@
 INTERFACE:
 
 #include <cstdarg>
-#include <hlist>
-#include <slist>
+#include <cxx/hlist>
+#include <cxx/slist>
 
 #include "initcalls.h"
 

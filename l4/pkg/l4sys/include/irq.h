@@ -31,7 +31,7 @@
  * \defgroup l4_irq_api IRQs
  * \ingroup  l4_kernel_object_api
  *
- * \brief The IRQ and IRQ class.
+ * \brief The IRQ and ICU class.
  *
  * <c>\#include <l4/sys/irq.h></c>
  *

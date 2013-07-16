@@ -42,15 +42,15 @@ PRIVATE static
 void
 Idt::set_writable(bool writable)
 {
-  Pdir::Iter e = Kmem::dir()->walk(Virt_addr(_idt));
+  auto e = Kmem::dir()->walk(Virt_addr(_idt));
 
   // Make sure page directory entry is valid and not a 4MB page
-  assert (e.e->valid() && e.shift() < Config::SUPERPAGE_SHIFT);
+  assert (e.is_valid() && e.level == Pdir::Depth);
 
   if (writable)
-    e.e->add_attr(Pt_entry::Writable); // Make read-write
+    e.add_attribs(Pt_entry::Writable); // Make read-write
   else
-    e.e->del_attr(Pt_entry::Writable); // Make read-only
+    e.del_attribs(Pt_entry::Writable); // Make read-only
 
   Mem_unit::tlb_flush (_idt);
 }

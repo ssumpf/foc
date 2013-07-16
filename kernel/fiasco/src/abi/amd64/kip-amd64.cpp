@@ -9,6 +9,11 @@ INTERFACE [amd64]:
 EXTENSION class Kip
 {
 public:
+  struct Platform_info
+  {
+    char name[16];
+    Unsigned32 is_mp;
+  };
 
   /* 0x00 */
   Mword      magic;
@@ -66,6 +71,7 @@ public:
   Mword      _res8[2];
 
   /* 0x1E0 */
-  Unsigned32 __reserved[20];
+  Platform_info platform_info;
+  Unsigned32 __reserved[3];
 };
 

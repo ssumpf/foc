@@ -85,16 +85,16 @@ Receiver::caller() const
 { return reinterpret_cast<Receiver*>(_caller & ~0x03UL); }
 
 PUBLIC inline
-unsigned char
+L4_fpage::Rights
 Receiver::caller_rights() const
-{ return _caller & 0x3; }
+{ return L4_fpage::Rights(_caller & 0x3); }
 
 
 PUBLIC inline
 void
-Receiver::set_caller(Receiver *caller, unsigned char rights)
+Receiver::set_caller(Receiver *caller, L4_fpage::Rights rights)
 {
-  register Mword nv = Mword(caller) | (rights & 0x3);
+  register Mword nv = Mword(caller) | (cxx::int_value<L4_fpage::Rights>(rights) & 0x3);
   reinterpret_cast<Mword volatile &>(_caller) = nv;
 }
 /** IPC partner (sender).

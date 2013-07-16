@@ -88,7 +88,7 @@ namespace L4
   bool Uart_sa1000::startup(Io_register_block const *regs)
   {
     _regs = regs;
-    _regs->write<unsigned int>(UTSR0, ~0UL); // clear pending status bits
+    _regs->write<unsigned int>(UTSR0, ~0U); // clear pending status bits
     _regs->write<unsigned int>(UTCR3, UTCR3_RXE | UTCR3_TXE); //enable transmitter and receiver
     return true;
   }

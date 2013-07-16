@@ -1,39 +1,68 @@
 INTERFACE[arm && realview]:
 
 #include "mem_layout.h"
+#include "mmio_register_block.h"
 
 class Platform
 {
 public:
-  class Sys
+  class Sys : public Mmio_register_block
   {
   public:
     enum Registers
     {
-      Id        = Mem_layout::System_regs_map_base + 0x0,
-      Sw        = Mem_layout::System_regs_map_base + 0x4,
-      Led       = Mem_layout::System_regs_map_base + 0x8,
-      Lock      = Mem_layout::System_regs_map_base + 0x20,
-      Flags     = Mem_layout::System_regs_map_base + 0x30,
-      Flags_clr = Mem_layout::System_regs_map_base + 0x34,
-      Cnt_24mhz = Mem_layout::System_regs_map_base + 0x5c,
-      Pld_ctrl1 = Mem_layout::System_regs_map_base + 0x74,
-      Pld_ctrl2 = Mem_layout::System_regs_map_base + 0x78,
+      Id        = 0x0,
+      Sw        = 0x4,
+      Led       = 0x8,
+      Lock      = 0x20,
+      Flags     = 0x30,
+      Flags_clr = 0x34,
+      Reset     = 0x40,
+      Cnt_24mhz = 0x5c,
+      Pld_ctrl1 = 0x74,
+      Pld_ctrl2 = 0x78,
     };
+    explicit Sys(Address virt) : Mmio_register_block(virt) {}
   };
 
+  class System_control : public Mmio_register_block
+  {
+  public:
+    enum
+    {
+      Timer0_enable = 1UL << 15,
+      Timer1_enable = 1UL << 17,
+      Timer2_enable = 1UL << 19,
+      Timer3_enable = 1UL << 21,
+    };
+    explicit System_control(Address virt) : Mmio_register_block(virt) {}
+  };
+
+  static Static_object<Sys> sys;
+  static Static_object<System_control> system_control;
 };
+
+class __Platform_init
+{
+};
+
+static __Platform_init __platform_init __attribute__((init_priority(101)));
 
 IMPLEMENTATION[arm && realview]:
 
-#include "io.h"
+#include "kmem.h"
 
-PUBLIC static inline NEEDS["io.h"]
-void
-Platform::write(enum Sys::Registers reg, Mword val)
-{ Io::write<Mword>(val, reg); }
 
-PUBLIC static inline NEEDS["io.h"]
-Mword
-Platform::read(enum Sys::Registers reg)
-{ return Io::read<Mword>(reg); }
+Static_object<Platform::Sys> Platform::sys;
+// hmmm
+Static_object<Platform::System_control> Platform::system_control;
+
+PUBLIC
+__Platform_init::__Platform_init()
+{
+  if (Platform::sys->get_mmio_base())
+    return;
+
+  Platform::sys.construct(Kmem::mmio_remap(Mem_layout::System_regs_phys_base));
+  Platform::system_control.construct(Kmem::mmio_remap(Mem_layout::System_ctrl_phys_base));
+}

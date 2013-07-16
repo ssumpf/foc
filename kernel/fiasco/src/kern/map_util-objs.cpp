@@ -12,16 +12,6 @@ IMPLEMENTATION:
 #include "l4_types.h"
 #include "mappable.h"
 
-inline NEEDS["assert_opt.h"]
-void
-save_access_attribs (Kobject_mapdb* /*mapdb*/,
-    const Kobject_mapdb::Frame& /*mapdb_frame*/,
-    Kobject_mapdb::Mapping* /*mapping*/, Obj_space* /*space*/,
-    unsigned /*page_rights*/,
-    Obj_space::Addr /*virt*/, Obj_space::Phys_addr /*phys*/, Obj_space::Size /*size*/,
-    bool /*me_too*/)
-{}
-
 L4_error
 obj_map(Space *from, L4_fpage const &fp_from,
         Space *to, L4_fpage const &fp_to, L4_msg_item control,
@@ -30,80 +20,75 @@ obj_map(Space *from, L4_fpage const &fp_from,
   assert_opt (from);
   assert_opt (to);
 
-  typedef Map_traits<Obj_space> Mt;
-  Mt::Addr rcv_addr = Mt::get_addr(fp_to);
-  Mt::Addr snd_addr = Mt::get_addr(fp_from);
-  Mt::Size snd_size = Mt::Size::from_shift(fp_from.order());
-  Mt::Size rcv_size = Mt::Size::from_shift(fp_to.order());
-  Mt::Addr offs(control.index());
+  Cap_index rcv_addr = fp_to.obj_index();
+  Cap_index snd_addr = fp_from.obj_index();
+  Order so = Mu::get_order_from_fp<Cap_diff>(fp_from);
+  Order ro = Mu::get_order_from_fp<Cap_diff>(fp_to);
+  Cap_index offs = Cap_index((Mword)control.index());
 
-  snd_addr = snd_addr.trunc(snd_size);
-  rcv_addr = rcv_addr.trunc(rcv_size);
+  snd_addr = cxx::mask_lsb(snd_addr, so);
+  rcv_addr = cxx::mask_lsb(rcv_addr, ro);
 
-  Mt::constraint(snd_addr, snd_size, rcv_addr, rcv_size, offs);
+  Mu::free_constraint(snd_addr, so, rcv_addr, ro, offs);
+  Cap_diff snd_size = Cap_diff(1) << so;
 
-  if (snd_size == 0)
+  if (snd_size == Cap_diff(0))
     return L4_error::None;
 
-  unsigned long del_attribs, add_attribs;
-  Mt::attribs(control, fp_from, &del_attribs, &add_attribs);
+  Obj_space::Attr attribs(fp_from.rights(), L4_msg_item::C_weak_ref ^ control.attr());
 
   return map<Obj_space>((Kobject_mapdb*)0,
-	      from, from, snd_addr,
-	      snd_size,
-	      to, to, rcv_addr,
-	      control.is_grant(), add_attribs, del_attribs,
-	      reap_list);
+                        from, from, Obj_space::V_pfn(snd_addr),
+                        snd_size,
+                        to, to, Obj_space::V_pfn(rcv_addr),
+                        control.is_grant(), attribs,
+                        reap_list);
 }
 
-unsigned __attribute__((nonnull(1)))
+L4_fpage::Rights __attribute__((nonnull(1)))
 obj_fpage_unmap(Space * space, L4_fpage fp, L4_map_mask mask,
                 Kobject ***reap_list)
 {
   assert_opt (space);
-  typedef Map_traits<Obj_space> Mt;
-  Mt::Size size = Mt::Size::from_shift(fp.order());
-  Mt::Addr addr = Mt::get_addr(fp);
-  addr = addr.trunc(size);
+  Order size = Mu::get_order_from_fp<Cap_diff>(fp);
+  Cap_index addr = fp.obj_index();
+  addr = cxx::mask_lsb(addr, size);
 
   // XXX prevent unmaps when a task has no caps enabled
 
   return unmap<Obj_space>((Kobject_mapdb*)0, space, space,
-               addr, size,
+               Obj_space::V_pfn(addr), Obj_space::V_pfc(1) << size,
                fp.rights(), mask, reap_list);
 }
 
 
 L4_error
-obj_map(Space *from, unsigned long snd_addr, unsigned long snd_size,
-        Space *to, unsigned long rcv_addr,
+obj_map(Space *from, Cap_index snd_addr, unsigned long snd_size,
+        Space *to, Cap_index rcv_addr,
         Kobject ***reap_list, bool grant = false,
-        unsigned attrib_add = 0, unsigned attrib_del = 0)
+        Obj_space::Attr attribs = Obj_space::Attr::Full())
 {
   assert_opt (from);
   assert_opt (to);
-  typedef Map_traits<Obj_space> Mt;
 
   return map<Obj_space>((Kobject_mapdb*)0,
-	     from, from, Mt::Addr(snd_addr),
-	     Mt::Size(snd_size),
-	     to, to, Mt::Addr(rcv_addr),
-	     grant, attrib_add, attrib_del, reap_list);
+	     from, from, Obj_space::V_pfn(snd_addr),
+	     Cap_diff(snd_size),
+	     to, to, Obj_space::V_pfn(rcv_addr),
+	     grant, attribs, reap_list);
 }
 
 bool
-map(Kobject_iface *o, Obj_space* to, Space *to_id, Address _rcv_addr,
-    Kobject ***reap_list, unsigned attribs = L4_fpage::CRWSD)
+map(Kobject_iface *o, Obj_space* to, Space *to_id, Cap_index rcv_addr,
+    Kobject ***reap_list)
 {
   assert_opt (o);
   assert_opt (to);
   assert_opt (to_id);
 
   typedef Obj_space SPACE;
-  typedef Obj_space::Addr Addr;
-  typedef Obj_space::Size Size;
-
-  Page_number const rcv_addr = Page_number::create(_rcv_addr);
+  typedef Obj_space::V_pfn Addr;
+  typedef Obj_space::Page_order Size;
 
   if (EXPECT_FALSE(rcv_addr >= to->map_max_address()))
     return 0;
@@ -111,17 +96,15 @@ map(Kobject_iface *o, Obj_space* to, Space *to_id, Address _rcv_addr,
   // Receiver lookup.
   Obj_space::Phys_addr r_phys;
   Size r_size;
-  unsigned r_attribs;
+  Obj_space::Attr r_attribs;
 
   Addr ra(rcv_addr);
   if (to->v_lookup(ra, &r_phys, &r_size, &r_attribs))
-    unmap((Kobject_mapdb*)0, to, to_id, ra, r_size,
-          L4_fpage::RWX, L4_map_mask::full(), reap_list);
+    unmap((Kobject_mapdb*)0, to, to_id, ra, Obj_space::V_pfc(1) << r_size,
+          L4_fpage::Rights::FULL(), L4_map_mask::full(), reap_list);
 
-  attribs &= L4_fpage::WX;
   // Do the actual insertion.
-  Obj_space::Status status
-    = to->v_insert(o, ra, Size::create(1), attribs);
+  Obj_space::Status status = to->v_insert(o, ra, Size(0), Obj_space::Attr::Full());
 
   switch (status)
     {
@@ -133,7 +116,7 @@ map(Kobject_iface *o, Obj_space* to, Space *to_id, Address _rcv_addr,
 	{
 	  if (! o->map_root()->insert(0, to_id, ra))
 	    {
-	      to->v_delete(rcv_addr, Obj_space::Size::create(1));
+	      to->v_delete(Obj_space::V_pfn(rcv_addr), Size(0), L4_fpage::Rights::FULL());
 	      return 0;
 	    }
 	}

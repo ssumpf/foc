@@ -26,14 +26,15 @@ static Jdb_trap_state_module jdb_trap_state_module INIT_PRIORITY(JDB_MODULE_INIT
 
 PRIVATE static
 void
-Jdb_trap_state_module::print_trap_state(unsigned cpu)
+Jdb_trap_state_module::print_trap_state(Cpu_number cpu)
 {
   Jdb_entry_frame *ef = Jdb::entry_frame.cpu(cpu);
   if (!Jdb::cpu_in_jdb(cpu) || !ef)
-    printf("CPU %u has not entered JDB\n", cpu);
+    printf("CPU %u has not entered JDB\n", cxx::int_value<Cpu_number>(cpu));
   else
     {
-      printf("Registers of CPU %u (before entering JDB)\n", cpu);
+      printf("Registers of CPU %u (before entering JDB)\n",
+             cxx::int_value<Cpu_number>(cpu));
       ef->dump();
     }
 }
@@ -43,7 +44,7 @@ Jdb_module::Action_code
 Jdb_trap_state_module::action (int cmd, void *&argbuf, char const *&fmt, int &next)
 {
   char const *c = (char const *)argbuf;
-  static unsigned cpu;
+  static Cpu_number cpu;
 
   if (cmd != 0)
     return NOTHING;

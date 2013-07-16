@@ -15,7 +15,7 @@ IMPLEMENTATION: // --------------------------------------------------------
 #include "mem_layout.h"
 #include "uart_pl011.h"
 
-IMPLEMENT Address Uart::base() const { return Mem_layout::Uart_base; }
+IMPLEMENT Address Uart::base() const { return Mem_layout::Uart_phys_base; }
 
 IMPLEMENT L4::Uart *Uart::uart()
 {

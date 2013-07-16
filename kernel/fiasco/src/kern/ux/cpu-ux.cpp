@@ -20,7 +20,7 @@ private:
   static Mword _kern_ds asm ("KERN_DS");
   static Mword _kern_es asm ("KERN_ES");
 
-  int _tid;
+  Cpu_phys_id _tid;
 };
 
 // -----------------------------------------------------------------------
@@ -96,13 +96,14 @@ void
 Cpu::print() const
 {
   printf ("CPU[%u:%u]: %s (%X:%X:%X:%X) Model: %s at %llu MHz\n\n",
-          id(), phys_id(),
+          cxx::int_value<Cpu_number>(id()),
+          cxx::int_value<Cpu_phys_id>(phys_id()),
           vendor_str(), family(), model(), stepping(), brand(), model_str(),
           div32(frequency(), 1000000));
 }
 
 PUBLIC inline
-unsigned
+Cpu_phys_id
 Cpu::phys_id() const
 { return _tid; }
 
@@ -206,15 +207,15 @@ Cpu::get_gs()
 IMPLEMENTATION[ux && !mp]:
 
 PUBLIC static inline
-unsigned
+Cpu_phys_id
 Cpu::phys_id_direct()
-{ return 0; }
+{ return Cpu_phys_id(0); }
 
 // ------------------------------------------------------------------------
 IMPLEMENTATION[ux && mp]:
 
 PUBLIC static inline NEEDS["emulation.h"]
-unsigned
+Cpu_phys_id
 Cpu::phys_id_direct()
-{ return Emulation::gettid(); }
+{ return Cpu_phys_id(Emulation::gettid()); }
 

@@ -57,12 +57,16 @@ Irq_chip_msi::msg(Mword pin)
   return 0;
 }
 
-PUBLIC unsigned
-Irq_chip_msi::set_mode(Mword, unsigned)
-{ return Irq_base::Trigger_edge | Irq_base::Polarity_low; }
+PUBLIC int
+Irq_chip_msi::set_mode(Mword, Mode)
+{ return 0; }
+
+PUBLIC bool
+Irq_chip_msi::is_edge_triggered(Mword) const
+{ return true; }
 
 PUBLIC void
-Irq_chip_msi::set_cpu(Mword, unsigned)
+Irq_chip_msi::set_cpu(Mword, Cpu_number)
 {}
 
 PUBLIC void

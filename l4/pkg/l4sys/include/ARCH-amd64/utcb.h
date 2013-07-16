@@ -93,7 +93,7 @@ typedef struct l4_exc_regs_t
 L4_INLINE l4_utcb_t *l4_utcb_direct(void) L4_NOTHROW
 {
   l4_utcb_t *res;
-  __asm__ __volatile__ ( "mov %%gs:0, %0 \n" : "=r"(res));
+  __asm__ ( "mov %%gs:0, %0 \n" : "=r"(res));
   return res;
 }
 

@@ -1,5 +1,7 @@
 INTERFACE [arm && fpu]:
 
+#include <cxx/bitfield>
+
 EXTENSION class Fpu
 {
 public:
@@ -9,8 +11,6 @@ public:
     Mword fpinst;
     Mword fpinst2;
   };
-
-  Mword fpsid() const { return _fpsid; }
 
   enum
   {
@@ -24,17 +24,27 @@ public:
     Mword state[32 * 4]; // 4*32 bytes for each FP-reg
   };
 
-  static Mword fpsid_rev(Mword v)          { return v & 0xf; }
-  static Mword fpsid_variant(Mword v)      { return (v >> 4) & 0xf; }
-  static Mword fpsid_part_number(Mword v)  { return (v >> 8) & 0xff; }
-  static Mword fpsid_arch_version(Mword v) { return (v >> 16) & 0xf; }
-  static Mword fpsid_precision(Mword v)    { return (v >> 20) & 1; }
-  static Mword fpsid_format(Mword v)       { return (v >> 21) & 3; }
-  static Mword fpsid_hw_sw(Mword v)        { return (v >> 23) & 1; }
-  static Mword fpsid_implementer(Mword v)  { return v >> 24; }
+  struct Fpsid
+  {
+    Mword v;
+
+    Fpsid() = default;
+    explicit Fpsid(Mword v) : v(v) {}
+
+    CXX_BITFIELD_MEMBER(0, 3, rev, v);
+    CXX_BITFIELD_MEMBER(4, 7, variant, v);
+    CXX_BITFIELD_MEMBER(8, 15, part_number, v);
+    CXX_BITFIELD_MEMBER(16, 19, arch_version, v);
+    CXX_BITFIELD_MEMBER(20, 20, precision, v);
+    CXX_BITFIELD_MEMBER(21, 22, format, v);
+    CXX_BITFIELD_MEMBER(23, 23, hw_sw, v);
+    CXX_BITFIELD_MEMBER(24, 31, implementer, v);
+  };
+
+  Fpsid fpsid() const { return _fpsid; }
 
 private:
-  Mword _fpsid;
+  Fpsid _fpsid;
 };
 
 // ------------------------------------------------------------------------
@@ -189,19 +199,19 @@ Fpu::emulate_insns(Mword opcode, Trap_state *ts)
 {
   unsigned reg = (opcode >> 16) & 0xf;
   unsigned rt  = (opcode >> 12) & 0xf;
-  Mword fpsid = Fpu::fpu.current().fpsid();
+  Fpsid fpsid = Fpu::fpu.current().fpsid();
   switch (reg)
     {
     case 0: // FPSID
-      ts->r[rt] = fpsid;
+      ts->r[rt] = fpsid.v;
       break;
     case 6: // MVFR1
-      if (Fpu::fpsid_arch_version(fpsid) < 2)
+      if (fpsid.arch_version() < 2)
         return false;
       ts->r[rt] = Fpu::mvfr1();
       break;
     case 7: // MVFR0
-      if (Fpu::fpsid_arch_version(fpsid) < 2)
+      if (fpsid.arch_version() < 2)
         return false;
       ts->r[rt] = Fpu::mvfr0();
       break;
@@ -219,26 +229,29 @@ Fpu::emulate_insns(Mword opcode, Trap_state *ts)
 
 IMPLEMENT
 void
-Fpu::init(unsigned cpu)
+Fpu::init(Cpu_number cpu)
 {
   copro_enable();
 
-  Mword s = fpsid_read();
+  const Fpsid s(fpsid_read());
 
   fpu.cpu(cpu)._fpsid = s;
 
-  printf("FPU%d: Arch: %s(%lx), Part: %s(%lx), r: %lx, v: %lx, i: %lx, t: %s, p: %s\n",
-         cpu, fpsid_arch_version(s) == 1
-           ? "VFPv2"
-           : (fpsid_arch_version(s) == 3 ? "VFPv3" : "Unkn"),
-         fpsid_arch_version(s),
-         fpsid_part_number(s) == 0x20
+  unsigned arch = s.arch_version();
+  printf("FPU%d: Arch: %s(%x), Part: %s(%x), r: %x, v: %x, i: %x, t: %s, p: %s\n",
+         cxx::int_value<Cpu_number>(cpu),
+         arch == 1 ? "VFPv2"
+                   : (arch == 3 ? "VFPv3"
+                                : (arch == 4 ? "VFPv4"
+                                             : "Unkn")),
+         arch,
+         (int)s.part_number() == 0x20
            ? "VFP11"
-           : (fpsid_part_number(s) == 0x30 ?  "VFPv3" : "Unkn"),
-         fpsid_part_number(s),
-         fpsid_rev(s), fpsid_variant(s), fpsid_implementer(s),
-         fpsid_hw_sw(s) ? "soft" : "hard",
-         fpsid_precision(s) ? "sngl" : "dbl/sngl");
+           : (s.part_number() == 0x30 ?  "VFPv3" : "Unkn"),
+         (int)s.part_number(),
+         (int)s.rev(), (int)s.variant(), (int)s.implementer(),
+         (int)s.hw_sw() ? "soft" : "hard",
+         (int)s.precision() ? "sngl" : "dbl/sngl");
 
   disable();
 

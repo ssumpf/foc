@@ -221,7 +221,7 @@ extern inline Unsigned16 get_ss()
 
 
 extern inline void enable_longmode()
-{ Proc::efer(Proc::efer() | Proc::Efer_lme_flag); }
+{ Proc::efer(Proc::efer() | Proc::Efer_lme_flag | Proc::Efer_nxe_flag); }
 
 static inline void
 fill_descriptor(struct x86_desc *desc, Unsigned32 base, Unsigned32 limit,

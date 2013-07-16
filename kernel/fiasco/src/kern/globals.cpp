@@ -40,6 +40,9 @@ public:
     End_cap = First_cap + Max,
   };
 
+  static Cap_index first() { return Cap_index(First_cap); }
+  static Cap_index end() { return Cap_index(End_cap); }
+
   void register_obj(Kobject_iface *o, unsigned cap)
   {
     assert (cap >= First_cap);
@@ -52,14 +55,12 @@ public:
     _v[cap] = o;
   }
 
-  Kobject_iface *obj(unsigned cap) const
+  Kobject_iface *obj(Cap_index cap) const
   {
-    assert (cap >= First_cap);
-    assert (cap < End_cap);
+    assert (cap >= first());
+    assert (cap < end());
 
-    cap -= First_cap;
-
-    return _v[cap];
+    return _v[cxx::int_value<Cap_diff>(cap - first())];
   }
 
 private:

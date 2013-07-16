@@ -92,7 +92,8 @@ l4vcpu_irq_disable_save(l4_vcpu_state_t *vcpu) L4_NOTHROW;
  * \param do_event_work_cb Call-back function that is called in case an
  *                         event (such as an interrupt) is pending.
  * \param setup_ipc        Function call-back that is called right before
- *                         any IPC operation.
+ *                         any IPC operation, and before event delivery is
+ *                         enabled.
  */
 L4_CV L4_INLINE
 void
@@ -111,7 +112,8 @@ l4vcpu_irq_enable(l4_vcpu_state_t *vcpu, l4_utcb_t *utcb,
  *                         event (such as an interrupt) is pending after
  *                         enabling.
  * \param setup_ipc        Function call-back that is called right before
- *                         any IPC operation.
+ *                         any IPC operation, and before event delivery is
+ *                         enabled.
  */
 L4_CV L4_INLINE
 void
@@ -266,6 +268,12 @@ l4vcpu_irq_enable(l4_vcpu_state_t *vcpu, l4_utcb_t *utcb,
                   l4vcpu_event_hndl_t do_event_work_cb,
                   l4vcpu_setup_ipc_t setup_ipc) L4_NOTHROW
 {
+  if (!(vcpu->state & L4_VCPU_F_IRQ))
+    {
+      setup_ipc(utcb);
+      l4_barrier();
+    }
+
   while (1)
     {
       vcpu->state |= L4_VCPU_F_IRQ;

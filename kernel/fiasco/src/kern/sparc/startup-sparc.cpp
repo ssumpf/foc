@@ -42,15 +42,15 @@ Startup::stage2()
   Per_cpu_data::init_ctors();
 
   // not really necessary for uni processor
-  Per_cpu_data_alloc::alloc(0);
-  Per_cpu_data::run_ctors(0);
-  Cpu::cpus.cpu(0).init(true);
+  Per_cpu_data_alloc::alloc(Cpu_number::boot_cpu());
+  Per_cpu_data::run_ctors(Cpu_number::boot_cpu());
+  Cpu::cpus.cpu(Cpu_number::boot_cpu()).init(true);
 
   //idle task
   Kernel_task::init();
 #if 0
   Pic::init();
-  Timer::init(0);
+  Timer::init(Cpu_number::boot_cpu());
 #endif
   Utcb_init::init();
   puts("Startup::stage2 finished");

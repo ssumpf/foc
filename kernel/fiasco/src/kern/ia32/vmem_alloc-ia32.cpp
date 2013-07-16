@@ -27,15 +27,15 @@ Vmem_alloc::page_alloc(void *address, Zero_fill zf, unsigned mode)
     return 0;
 
   // insert page into master page table
-  Pdir::Iter e = Kmem::kdir->walk(Virt_addr(address), 100,
-                                  pdir_alloc(Kmem_alloc::allocator()));
-  if (EXPECT_FALSE(e.e->valid()))
+  auto e = Kmem::kdir->walk(Virt_addr(address), Pdir::Depth,
+                            false, pdir_alloc(Kmem_alloc::allocator()));
+  if (EXPECT_FALSE(e.is_valid()))
     {
       kdb_ke("page_alloc: address already mapped");
       goto error;
     }
 
-  if (e.shift() != Config::PAGE_SHIFT)
+  if (e.level != Pdir::Depth)
     goto error;
 
   if (zf == ZERO_FILL)
@@ -43,13 +43,10 @@ Vmem_alloc::page_alloc(void *address, Zero_fill zf, unsigned mode)
 
   page = Mem_layout::pmem_to_phys((Address)vpage);
 
-  *e.e = page | Pt_entry::Writable | Pt_entry::Dirty
-    | Pt_entry::Valid | Pt_entry::Referenced | Pt_entry::global();
+  e.set_page(page, Pt_entry::Writable | Pt_entry::Dirty
+                   | Pt_entry::Referenced
+                   | Pt_entry::global() | (mode & User ? (unsigned)Pt_entry::User : 0));
   page_map (address, 0, zf, page);
-
-  if (mode & User)
-    e.e->add_attr(Pt_entry::User);
-
   return address;
 
 error:

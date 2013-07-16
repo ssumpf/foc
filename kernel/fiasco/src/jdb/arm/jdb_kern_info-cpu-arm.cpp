@@ -36,6 +36,7 @@ Jdb_kern_info_cpu::mrc(Mword insn)
   char *m = reinterpret_cast<char *>(jdb_mrc_insn);
   *reinterpret_cast<Mword *>(m) = insn;
   Mem_unit::flush_cache(m, m);
+  Mem::isb();
   return jdb_mrc_insn(0);
 }
 
@@ -111,7 +112,6 @@ Jdb_kern_info_cpu::show()
       if (cp_vals[i].show)
 	cp_vals[i].show(val);
     }
-
 
   printf("Main ID:                                       %08lx\n", mrc(15, 0,  0,  0, 0));
   printf("Cache type:                                    %08lx\n", mrc(15, 0,  0,  0, 1));

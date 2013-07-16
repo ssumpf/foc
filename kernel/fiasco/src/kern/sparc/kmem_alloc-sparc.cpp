@@ -29,3 +29,13 @@ Kmem_alloc::Kmem_alloc()
       alloc_size -= f.size();
     }
 }
+
+PUBLIC inline
+Address
+Kmem_alloc::to_phys(void *v) const
+{
+  // FIX
+  (void)v;
+  return ~0UL;
+}
+

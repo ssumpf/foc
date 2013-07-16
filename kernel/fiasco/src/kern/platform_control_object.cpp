@@ -16,7 +16,7 @@ class Pfc : public Kobject_h<Pfc>
 
   Pfc() { initial_kobjects.register_obj(this, 8); }
 
-  L4_msg_tag sys_suspend_cpu(unsigned char /*rights*/, Syscall_frame *f,
+  L4_msg_tag sys_suspend_cpu(L4_fpage::Rights, Syscall_frame *f,
                              Utcb const *utcb)
   {
     if (!Platform_control::cpu_offline_available())
@@ -25,9 +25,9 @@ class Pfc : public Kobject_h<Pfc>
     if (f->tag().words() < 2)
       return commit_result(-L4_err::EInval);
 
-    unsigned cpu = utcb->values[1];
+    Cpu_number cpu = Cpu_number(utcb->values[1]);
 
-    if (cpu >= Config::Max_num_cpus || !Per_cpu_data::valid(cpu))
+    if (cpu >= Cpu::invalid() || !Per_cpu_data::valid(cpu))
       return commit_result(-L4_err::EInval);
 
     if (!Cpu::online(cpu))
@@ -38,7 +38,7 @@ class Pfc : public Kobject_h<Pfc>
   }
 
   L4_msg_tag
-  sys_resume_cpu(unsigned char /*rights*/, Syscall_frame *f,
+  sys_resume_cpu(L4_fpage::Rights, Syscall_frame *f,
                  Utcb const *utcb)
   {
     if (!Platform_control::cpu_offline_available())
@@ -47,9 +47,9 @@ class Pfc : public Kobject_h<Pfc>
     if (f->tag().words() < 2)
       return commit_result(-L4_err::EInval);
 
-    unsigned cpu = utcb->values[1];
+    Cpu_number cpu = Cpu_number(utcb->values[1]);
 
-    if (cpu >= Config::Max_num_cpus || !Per_cpu_data::valid(cpu))
+    if (cpu >= Cpu::invalid() || !Per_cpu_data::valid(cpu))
       return commit_result(-L4_err::EInval);
 
     if (Cpu::online(cpu))
@@ -60,10 +60,10 @@ class Pfc : public Kobject_h<Pfc>
   }
 
   L4_msg_tag
-  sys_suspend_system(unsigned char, Syscall_frame *, Utcb const *)
+  sys_suspend_system(L4_fpage::Rights, Syscall_frame *, Utcb const *)
   {
     unsigned c = 0;
-    for (unsigned cpu = 0; cpu < Config::Max_num_cpus; ++cpu)
+    for (Cpu_number cpu = Cpu_number::first(); cpu < Cpu::invalid(); ++cpu)
       c += Cpu::online(cpu) ? 1 : 0;
     if (c > 1)
       return commit_result(-L4_err::EBusy);
@@ -74,7 +74,7 @@ class Pfc : public Kobject_h<Pfc>
   static Pfc pfc;
 
 public:
-  L4_msg_tag kinvoke(L4_obj_ref, Mword rights, Syscall_frame *f,
+  L4_msg_tag kinvoke(L4_obj_ref, L4_fpage::Rights rights, Syscall_frame *f,
                      Utcb const *iutcb, Utcb *)
   {
 #if 0

@@ -1,7 +1,7 @@
 INTERFACE:
 
 #include "types.h"
-#include <bitfield>
+#include <cxx/bitfield>
 
 /**
  * Description of the mapping buffer registers contained in the UTCB 

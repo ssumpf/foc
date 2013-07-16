@@ -18,7 +18,6 @@
 
 #ifdef __GNUC__
 
-#include <l4/sys/kdebug.h>
 #include <l4/sys/compiler.h>
 
 EXTERN_C_BEGIN
@@ -28,53 +27,40 @@ L4_INLINE void l4util_sti (void);
 L4_INLINE void l4util_flags_save(l4_umword_t *flags);
 L4_INLINE void l4util_flags_restore(l4_umword_t *flags);
 
-/** \brief Disable all interrupts
- * \internal
- */
 L4_INLINE
 void
-l4util_cli (void)
+l4util_cli(void)
 {
-  l4_sys_cli();
+  extern void __do_not_use_l4util_cli(void);
+  __do_not_use_l4util_cli();
 }
 
-/** \brief Enable all interrupts
- * \internal
- */
+
 L4_INLINE
 void
-l4util_sti (void)
+l4util_sti(void)
 {
-  l4_sys_sti();
+  extern void __do_not_use_l4util_sti(void);
+  __do_not_use_l4util_sti();
 }
 
-/**
- * \brief Do not use
- * \internal
- *
- * !!!!!!!
- *  We probably need some primitive like in linux here which
- *    enable/disable interrupts on l4util_flags_restore
- *
- */
 
 L4_INLINE
 void
 l4util_flags_save(l4_umword_t *flags)
 {
   (void)flags;
-  enter_kdebug("l4util_flags_save");
+  extern void __do_not_use_l4util_flags_save(void);
+  __do_not_use_l4util_flags_save();
 }
 
-/** \brief Restore processor flags. Can be used to restore the interrupt flag
- * \internal
- */
 L4_INLINE
 void
 l4util_flags_restore(l4_umword_t *flags)
 {
   (void)flags;
-  enter_kdebug("l4util_flags_restore");
+  extern void __do_not_use_l4util_flags_restore(void);
+  __do_not_use_l4util_flags_restore();
 }
 
 EXTERN_C_END

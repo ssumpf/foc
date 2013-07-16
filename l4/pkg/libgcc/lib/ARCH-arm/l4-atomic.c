@@ -42,14 +42,13 @@ static inline  void __kernel_dmb(void)
   extern char const __L4_KIP_ADDR__[];
   l4_kernel_info_t *k = (l4_kernel_info_t *)__L4_KIP_ADDR__;
 
-  static_assert(   (offsetof(l4_kernel_info_t, platform_info.cpuid) & 0xf) == 0
-                && (offsetof(l4_kernel_info_t, platform_info.mp) & 0xf)
-                    == sizeof(k->platform_info.cpuid),
-                "No proper alignment");
+  static_assert(   (offsetof(l4_kernel_info_t, platform_info.is_mp) == 0x100)
+                && (offsetof(l4_kernel_info_t, platform_info.arch.cpuinfo.MIDR) == 0x104),
+                "Changed KIP layout, adapt");
 
-  if (k->platform_info.mp)
+  if (k->platform_info.is_mp)
     {
-      unsigned arch = (k->platform_info.cpuid >> 16) & 0xf;
+      unsigned arch = (k->platform_info.arch.cpuinfo.MIDR >> 16) & 0xf;
       if (arch == 0xf)
         asm volatile(".inst 0xf57ff05f" : : : "memory");
       else if (arch == 0x7)

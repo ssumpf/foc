@@ -54,7 +54,7 @@ _tramp_mp_entry32:
 	mov %edx, %edi
 	mov $0xc0000080, %ecx
 	rdmsr
-	bts $8,%eax
+	or  $0x900,%eax // LME+NXE
 	wrmsr
 	mov %edi, %edx
 	

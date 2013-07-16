@@ -157,7 +157,7 @@ Device_map::map(Address phys, bool /*cache*/)
                         Virt_size(Config::SUPERPAGE_SIZE),
                         Pt_entry::Dirty | Pt_entry::Writable
                         | Pt_entry::Referenced,
-                        Pdir::super_level(), pdir_alloc(alloc));
+                        Pt_entry::super_level(), false, pdir_alloc(alloc));
 	_map[i] = p;
 
 	return (Virt_base + (i * Config::SUPERPAGE_SIZE))
@@ -183,7 +183,8 @@ Device_map::unmap(void const *phys)
 
   Address v = Virt_base + (idx * Config::SUPERPAGE_SIZE);
 
-  Kmem::kdir->unmap(Virt_addr(v), Virt_size(Config::SUPERPAGE_SIZE), -1);
+  Kmem::kdir->unmap(Virt_addr(v), Virt_size(Config::SUPERPAGE_SIZE),
+                    Pdir::Depth, false);
 }
 
 
@@ -227,7 +228,7 @@ PUBLIC static
 Address
 Kmem::map_phys_page_tmp(Address phys, Mword idx)
 {
-  unsigned long pte = phys & Pt_entry::Pfn;
+  unsigned long pte = cxx::mask_lsb(phys, Pdir::page_order_for_level(Pdir::Depth));
   Address virt;
 
   switch (idx)
@@ -294,18 +295,17 @@ Kmem::is_kmem_page_fault(Address addr, Mword /*error*/)
 PUBLIC static
 void
 Kmem::map_phys_page(Address phys, Address virt,
-                    bool cached, bool global, Address *offs=0)
+                    bool cached, bool global, Address *offs = 0)
 {
-  Pdir::Iter i = kdir->walk(Virt_addr(virt), 100, pdir_alloc(Kmem_alloc::allocator()));
-  Pte_base *e = i.e;
+  auto i = kdir->walk(Virt_addr(virt), Pdir::Depth, false,
+                      pdir_alloc(Kmem_alloc::allocator()));
   Mword pte = phys & Config::PAGE_MASK;
 
-  assert(i.shift() == Config::PAGE_SHIFT);
+  assert(i.level == Pdir::Depth);
 
-  *e = pte | Pt_entry::Valid | Pt_entry::Writable
-	   | Pt_entry::Referenced | Pt_entry::Dirty
-	   | (cached ? 0 : (Pt_entry::Write_through | Pt_entry::Noncacheable))
-	   | (global ? Pt_entry::global() : 0);
+  i.set_page(pte, Pt_entry::Writable | Pt_entry::Referenced | Pt_entry::Dirty
+                  | (cached ? 0 : (Pt_entry::Write_through | Pt_entry::Noncacheable))
+                  | (global ? Pt_entry::global() : 0));
   Mem_unit::tlb_flush(virt);
 
   if (offs)
@@ -328,7 +328,7 @@ Kmem::init_mmu()
 
   printf("Superpages: %s\n", superpages?"yes":"no");
 
-  Pdir::have_superpages(superpages);
+  Pt_entry::have_superpages(superpages);
   if (superpages)
     Cpu::set_cr4(Cpu::get_cr4() | CR4_PSE);
 
@@ -351,36 +351,39 @@ Kmem::init_mmu()
   //     sometimes comes in handy (mostly useful for debugging)
 
   // first 4MB page
-  kdir->map(0, Virt_addr(0), Virt_size(4 << 20),
+  kdir->map(0, Virt_addr(0UL), Virt_size(4 << 20),
       Pt_entry::Dirty | Pt_entry::Writable | Pt_entry::Referenced,
-      Pdir::super_level(), pdir_alloc(alloc));
+      Pt_entry::super_level(), false, pdir_alloc(alloc));
 
 
   kdir->map(Mem_layout::Kernel_image_phys,
             Virt_addr(Mem_layout::Kernel_image),
             Virt_size(Config::SUPERPAGE_SIZE),
             Pt_entry::Dirty | Pt_entry::Writable | Pt_entry::Referenced
-            | Pt_entry::global(), Pdir::super_level(), pdir_alloc(alloc));
+            | Pt_entry::global(), Pt_entry::super_level(), false,
+            pdir_alloc(alloc));
 
    if (!Mem_layout::Adap_in_kernel_image)
      kdir->map(Mem_layout::Adap_image_phys,
                Virt_addr(Mem_layout::Adap_image),
                Virt_size(Config::SUPERPAGE_SIZE),
                Pt_entry::Dirty | Pt_entry::Writable | Pt_entry::Referenced
-               | Pt_entry::global(), Pdir::super_level(), pdir_alloc(alloc));
+               | Pt_entry::global(), Pt_entry::super_level(),
+               false, pdir_alloc(alloc));
 
   // map the last 64MB of physical memory as kernel memory
   kdir->map(Mem_layout::pmem_to_phys(Mem_layout::Physmem),
             Virt_addr(Mem_layout::Physmem), Virt_size(Mem_layout::pmem_size),
             Pt_entry::Writable | Pt_entry::Referenced | Pt_entry::global(),
-            Pdir::super_level(), pdir_alloc(alloc));
+            Pt_entry::super_level(), false, pdir_alloc(alloc));
 
   // The service page directory entry points to an universal usable
   // page table which is currently used for the Local APIC and the
   // jdb adapter page.
   assert((Mem_layout::Service_page & ~Config::SUPERPAGE_MASK) == 0);
 
-  Pdir::Iter pt = kdir->walk(Virt_addr(Mem_layout::Service_page), 100, pdir_alloc(alloc));
+  auto pt = kdir->walk(Virt_addr(Mem_layout::Service_page), Pdir::Depth,
+                       false, pdir_alloc(alloc));
 
   // kernel mode should acknowledge write-protected page table entries
   Cpu::set_cr0(Cpu::get_cr0() | CR0_WP);
@@ -404,12 +407,12 @@ Kmem::init_mmu()
     {
       // can map as 4MB page because the cpu_page will land within a
       // 16-bit range from io_bitmap
-      *(kdir->walk(Virt_addr(Mem_layout::Io_bitmap - Config::SUPERPAGE_SIZE),
-                   Pdir::Super_level, pdir_alloc(alloc)).e)
-	= (pmem_cpu_page & Config::SUPERPAGE_MASK)
-          | Pt_entry::Pse_bit
-          | Pt_entry::Writable | Pt_entry::Referenced
-          | Pt_entry::Dirty | Pt_entry::global() | Pt_entry::Valid;
+      auto e = kdir->walk(Virt_addr(Mem_layout::Io_bitmap - Config::SUPERPAGE_SIZE),
+                          Pdir::Super_level, false, pdir_alloc(alloc));
+
+      e.set_page(pmem_cpu_page & Config::SUPERPAGE_MASK,
+                 Pt_entry::Writable | Pt_entry::Referenced
+                 | Pt_entry::Dirty | Pt_entry::global());
 
       cpu_page_vm = (pmem_cpu_page & ~Config::SUPERPAGE_MASK)
                     + (Mem_layout::Io_bitmap - Config::SUPERPAGE_SIZE);
@@ -418,15 +421,14 @@ Kmem::init_mmu()
     {
       unsigned i;
       for (i = 0; cpu_page_size > 0; ++i, cpu_page_size -= Config::PAGE_SIZE)
-	{
-	  pt = kdir->walk(Virt_addr(Mem_layout::Io_bitmap - Config::PAGE_SIZE * (i+1)),
-	                  100, pdir_alloc(alloc));
+        {
+          pt = kdir->walk(Virt_addr(Mem_layout::Io_bitmap - Config::PAGE_SIZE * (i+1)),
+                          Pdir::Depth, false, pdir_alloc(alloc));
 
-	  *pt.e = (pmem_cpu_page + i*Config::PAGE_SIZE)
-	          | Pt_entry::Valid | Pt_entry::Writable
-	          | Pt_entry::Referenced | Pt_entry::Dirty
-	          | Pt_entry::global();
-	}
+          pt.set_page(pmem_cpu_page + i*Config::PAGE_SIZE,
+                      Pt_entry::Writable | Pt_entry::Referenced | Pt_entry::Dirty
+                      | Pt_entry::global());
+        }
 
       cpu_page_vm = Mem_layout::Io_bitmap - Config::PAGE_SIZE * i;
     }

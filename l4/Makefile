@@ -254,6 +254,7 @@ Makeconf.bid.local-helper:
 	                GCCVERSION GCCMAJORVERSION GCCMINORVERSION      \
 			GCCSUBVERSION GCC_HAS_ATOMICS                   \
 			GCCNOSTACKPROTOPT LDVERSION GCCSYSLIBDIRS       \
+			GCCFORTRANAVAIL                                 \
 			$(if $(GCCNOFPU_$(ARCH)_f),GCCNOFPU_$(ARCH))    \
 			$(if $(GCCIS_$(ARCH)_leon_f),GCCIS_$(ARCH)_leon),   \
 			echo $(v)=$(call $(v)_f,$(ARCH))                \

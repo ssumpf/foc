@@ -118,7 +118,7 @@ private:
 
 public:
 
-  void disable(unsigned cpu, char const *reason);
+  void disable(Cpu_number cpu, char const *reason);
 
   char const *model_str() const { return _model_str; }
   Vendor vendor() const { return _vendor; }
@@ -662,10 +662,10 @@ char const * const Cpu::exception_strings[] =
 };
 
 PUBLIC explicit FIASCO_INIT_CPU
-Cpu::Cpu(unsigned cpu)
+Cpu::Cpu(Cpu_number cpu)
 {
   set_id(cpu);
-  if (cpu == 0)
+  if (cpu == Cpu_number::boot_cpu())
     {
       _boot_cpu = this;
       set_online(1);
@@ -1094,7 +1094,7 @@ PUBLIC
 bool
 Cpu::if_show_infos() const
 {
-  return    id() == 0
+  return    id() == Cpu_number::boot_cpu()
          || !boot_cpu()
          || family()    != boot_cpu()->family()
          || model()     != boot_cpu()->model()
@@ -1166,9 +1166,9 @@ Cpu::show_cache_tlb_info(const char *indent) const
 
 IMPLEMENT
 void
-Cpu::disable(unsigned cpu, char const *reason)
+Cpu::disable(Cpu_number cpu, char const *reason)
 {
-  printf("CPU%u: is disabled: %s\n", cpu, reason);
+  printf("CPU%u: is disabled: %s\n", cxx::int_value<Cpu_number>(cpu), reason);
 }
 
 // Function used for calculating apic scaler
@@ -1556,7 +1556,7 @@ Cpu::print() const
 {
   if (if_show_infos())
     printf("CPU[%u]: %s (%X:%X:%X:%X)[%08x] Model: %s at %lluMHz\n\n",
-           id(),
+           cxx::int_value<Cpu_number>(id()),
            vendor_str(), family(), model(), stepping(), brand(),
            _version, model_str(),
            div32(frequency(), 1000000));

@@ -83,7 +83,7 @@ L4_INLINE l4_utcb_t *l4_utcb_direct(void) L4_NOTHROW
 {
   l4_utcb_t *utcb;
 
-  __asm__ __volatile__
+  __asm__
   ("mr %[utcb], %%r2\n"
    : [utcb] "=r" (utcb)
    : );

@@ -14,7 +14,7 @@ public:
   // TYPES
 
   typedef Obj_space::Phys_addr Phys_addr;
-  typedef Obj_space::Addr Vaddr;
+  typedef Obj_space::V_pfn Vaddr;
   typedef Obj::Mapping Mapping;
 
   class Iterator;
@@ -40,7 +40,7 @@ public:
     inline operator Mapping*() const   { return 0; }
     Iterator() {}
 
-    Iterator(Frame const &, Mapping *, Page_number, Page_number) {}
+    Iterator(Frame const &, Mapping *, Obj_space::V_pfn, Obj_space::V_pfn) {}
 
     Iterator &operator ++ () { return *this; }
   };
@@ -89,8 +89,8 @@ Kobject_mapdb::vaddr(const Frame&, Mapping*)
 PUBLIC inline
 Kobject_mapdb::Mapping *
 Kobject_mapdb::check_for_upgrade(Obj_space::Phys_addr,
-                                 Space *, Page_number,
-                                 Space *, Page_number,
+                                 Space *, Obj_space::V_pfn,
+                                 Space *, Obj_space::V_pfn,
                                  Frame *)
 {
   // Hm we never or seldomly do upgrades on cap anyway
@@ -100,11 +100,11 @@ Kobject_mapdb::check_for_upgrade(Obj_space::Phys_addr,
 PUBLIC inline static
 Kobject_mapdb::Mapping *
 Kobject_mapdb::insert(const Frame&, Mapping*, Space *,
-                      Vaddr va, Obj_space::Phys_addr o, Page_count size)
+                      Vaddr va, Obj_space::Phys_addr o, Obj_space::V_pfc size)
 {
   (void)size;
   (void)o;
-  assert (size.value() == 1);
+  assert (size == Obj_space::V_pfc(1));
 
   Mapping *m = va._c;
   Kobject_mappable *rn = o->map_root();
@@ -143,10 +143,10 @@ Kobject_mapdb::free (const Frame& f)
   f.frame->_lock.clear();
 } // free()
 
-PUBLIC static
+PUBLIC static inline
 void
 Kobject_mapdb::flush(const Frame& f, Mapping *m, L4_map_mask mask,
-                     Page_number, Page_number)
+                     Obj_space::V_pfn, Obj_space::V_pfn)
 {
   //LOG_MSG_3VAL(current(), "unm", f.frame->dbg_id(), (Mword)m, 0);
   if (!mask.self_unmap())

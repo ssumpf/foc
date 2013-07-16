@@ -21,7 +21,7 @@ IMPLEMENTATION[!(arm || ppc32 || sparc)]:
 
 PRIVATE inline NEEDS["globals.h"]
 Kernel_task::Kernel_task()
-: Task(Ram_quota::root, Kmem::kdir)
+: Task(Ram_quota::root, Kmem::kdir, Caps::none())
 {}
 
 

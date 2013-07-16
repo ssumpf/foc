@@ -395,28 +395,21 @@ IMPLEMENT inline
 bool
 Thread::handle_sigma0_page_fault(Address pfa)
 {
-  size_t size;
+  Mem_space::Page_order size = mem_space()->largest_page_size(); // take a page size less than 16MB (1<<24)
+  auto f = mem_space()->fitting_sizes();
+  Virt_addr va = Virt_addr(pfa);
 
   // Check if mapping a superpage doesn't exceed the size of physical memory
-  if (Cpu::have_superpages()
-     // Some distributions do not allow to mmap below a certain threshold
-     // (like 64k on Ubuntu 8.04) so we cannot map a superpage at 0 if
-     // we're Fiasco-UX
-      && (!Config::Is_ux || !(pfa < Config::SUPERPAGE_SIZE)))
-    {
-      pfa &= Config::SUPERPAGE_MASK;
-      size = Config::SUPERPAGE_SIZE;
-    }
-  else
-    {
-      pfa &= Config::PAGE_MASK;
-      size = Config::PAGE_SIZE;
-    }
+  // Some distributions do not allow to mmap below a certain threshold
+  // (like 64k on Ubuntu 8.04) so we cannot map a superpage at 0 if
+  // we're Fiasco-UX
+  while (Config::Is_ux && (va < (Virt_addr(1) << size)))
+    size = f(--size);
 
-  return mem_space()->v_insert(Mem_space::Phys_addr(pfa), Mem_space::Addr(pfa),
-                               Mem_space::Size(size),
-                               Mem_space::Page_writable
-                               | Mem_space::Page_user_accessible)
+  va = cxx::mask_lsb(va, size);
+
+  return mem_space()->v_insert(Mem_space::Phys_addr(va), va, size,
+                               Page::Attr(L4_fpage::Rights::URWX()))
     != Mem_space::Insert_err_nomem;
 }
 
@@ -453,6 +446,25 @@ Thread::send_exception_arch(Trap_state *ts)
   return 1; // make it an exception
 }
 
+
+//----------------------------------------------------------------------------
+IMPLEMENTATION [(vmx || svm) && (ia32 || amd64)]:
+
+#include "vmx.h"
+#include "svm.h"
+
+IMPLEMENT inline NEEDS["vmx.h", "svm.h"]
+void
+Thread::arch_init_vcpu_state(Vcpu_state *vcpu_state, bool ext)
+{
+  if (!ext)
+    return;
+
+  if (Vmx::cpus.current().vmx_enabled())
+    Vmx::cpus.current().init_vmcs_infos(vcpu_state);
+
+  // currently we do nothing for SVM here
+}
 
 //----------------------------------------------------------------------------
 IMPLEMENTATION [ia32 || amd64]:
@@ -727,9 +739,9 @@ Thread::check_io_bitmap_delimiter_fault(Trap_state *ts)
       Mem_space::Status result =
 	mem_space()->v_insert(
 	    Mem_space::Phys_addr(mem_space()->virt_to_phys_s0((void*)Kmem::io_bitmap_delimiter_page())),
-	    Mem_space::Addr::create(Mem_layout::Io_bitmap + Mem_layout::Io_port_max / 8),
-	    Mem_space::Size::create(Config::PAGE_SIZE),
-	    Pt_entry::global());
+	    Virt_addr(Mem_layout::Io_bitmap + Mem_layout::Io_port_max / 8),
+	    Mem_space::Page_order(Config::PAGE_SHIFT),
+	    Page::Attr(Page::Rights::R(), Page::Type::Normal(), Page::Kern::Global()));
 
       switch (result)
 	{
@@ -808,7 +820,7 @@ Thread::sys_control_arch(Utcb *)
 //---------------------------------------------------------------------------
 IMPLEMENTATION [(ia32 | amd64) & (debug | kdb) & !mp]:
 
-PRIVATE static inline unsigned Thread::dbg_find_cpu() { return 0; }
+PRIVATE static inline Cpu_number Thread::dbg_find_cpu() { return Cpu_number::boot_cpu(); }
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [(ia32 | amd64) & (debug | kdb) & mp]:
@@ -816,15 +828,15 @@ IMPLEMENTATION [(ia32 | amd64) & (debug | kdb) & mp]:
 #include "apic.h"
 
 PRIVATE static inline NEEDS["apic.h"]
-unsigned
+Cpu_number
 Thread::dbg_find_cpu()
 {
   unsigned long phys_cpu = Apic::get_id();
-  unsigned log_cpu = Apic::find_cpu(phys_cpu);
-  if (log_cpu == ~0U)
+  Cpu_number log_cpu = Apic::find_cpu(phys_cpu);
+  if (log_cpu == Cpu_number::nil())
     {
       printf("Trap on unknown CPU phys_id=%lx\n", phys_cpu);
-      log_cpu = 0;
+      log_cpu = Cpu_number::boot_cpu();
     }
   return log_cpu;
 }

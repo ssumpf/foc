@@ -214,7 +214,7 @@ Jdb::set_monitored_address(T *dest, T val)
 PROTECTED static inline
 template< typename T >
 T
-Jdb::monitor_address(unsigned current_cpu, T *addr)
+Jdb::monitor_address(Cpu_number current_cpu, T *addr)
 {
   if (!*addr && Cpu::cpus.cpu(current_cpu).has_monitor_mwait())
     {
@@ -226,23 +226,6 @@ Jdb::monitor_address(unsigned current_cpu, T *addr)
   return *addr;
 }
 
-
-#if 0
-PUBLIC static
-template <typename T> T
-Jdb::peek(T const *addr)
-{
-  return *addr;
-}
-
-PUBLIC static
-template <typename T> T
-Jdb::peek(T const *addr, Address_type)
-{
-  // on IA32 we can touch directly into the user-space
-  return *(T*)addr;
-}
-#endif
 
 static inline
 void
@@ -257,19 +240,19 @@ DEFINE_PER_CPU static Per_cpu<Proc::Status> jdb_saved_flags;
 // disable interrupts before entering the kernel debugger
 IMPLEMENT
 void
-Jdb::save_disable_irqs(unsigned cpu)
+Jdb::save_disable_irqs(Cpu_number cpu)
 {
   if (!jdb_irqs_disabled.cpu(cpu)++)
     {
       // save interrupt flags
       jdb_saved_flags.cpu(cpu) = Proc::cli_save();
 
-      if (cpu == 0)
+      if (cpu == Cpu_number::boot_cpu())
 	{
 	  Watchdog::disable();
 	  pic_status = Pic::disable_all_save();
           if (Config::getchar_does_hlt_works_ok)
-            Timer_tick::disable(0);
+            Timer_tick::disable(Cpu_number::boot_cpu());
 	}
       if (Io_apic::active() && Apic::is_present())
 	{
@@ -277,16 +260,16 @@ Jdb::save_disable_irqs(unsigned cpu)
 	  Apic::tpr(APIC_IRQ_BASE - 0x10);
 	}
 
-      if (cpu == 0 && Config::getchar_does_hlt_works_ok)
+      if (cpu == Cpu_number::boot_cpu() && Config::getchar_does_hlt_works_ok)
 	{
 	  // set timer interrupt does nothing than wakeup from hlt
 	  Timer_tick::set_vectors_stop();
-	  Timer_tick::enable(0);
+	  Timer_tick::enable(Cpu_number::boot_cpu());
 	}
 
     }
 
-  if (cpu == 0 && Config::getchar_does_hlt_works_ok)
+  if (cpu == Cpu_number::boot_cpu() && Config::getchar_does_hlt_works_ok)
     // explicit enable interrupts because the timer interrupt is
     // needed to wakeup from "hlt" state in getchar(). All other
     // interrupts are disabled at the pic.
@@ -296,7 +279,7 @@ Jdb::save_disable_irqs(unsigned cpu)
 // restore interrupts after leaving the kernel debugger
 IMPLEMENT
 void
-Jdb::restore_irqs(unsigned cpu)
+Jdb::restore_irqs(Cpu_number cpu)
 {
   if (!--jdb_irqs_disabled.cpu(cpu))
     {
@@ -305,14 +288,14 @@ Jdb::restore_irqs(unsigned cpu)
       if (Io_apic::active() && Apic::is_present())
 	Apic::tpr(apic_tpr.cpu(cpu));
 
-      if (cpu == 0)
+      if (cpu == Cpu_number::boot_cpu())
 	{
 	  Pic::restore_all(Jdb::pic_status);
 	  Watchdog::enable();
 	}
 
       // reset timer interrupt vector
-      if (cpu == 0 && Config::getchar_does_hlt_works_ok)
+      if (cpu == Cpu_number::boot_cpu() && Config::getchar_does_hlt_works_ok)
       	Idt::set_vectors_run();
 
       // reset interrupt flags
@@ -325,7 +308,7 @@ struct On_dbg_stack
 {
   Mword sp;
   On_dbg_stack(Mword sp) : sp(sp) {}
-  bool operator () (unsigned cpu) const
+  bool operator () (Cpu_number cpu) const
   {
     Thread::Dbg_stack const &st = Thread::dbg_stack.cpu(cpu);
     return sp <= Mword(st.stack_top) 
@@ -338,7 +321,7 @@ struct On_dbg_stack
 // context. We _never_ return 0!
 IMPLEMENT
 Thread*
-Jdb::get_thread(unsigned cpu)
+Jdb::get_thread(Cpu_number cpu)
 {
   Jdb_entry_frame *entry_frame = Jdb::entry_frame.cpu(cpu);
   Address sp = (Address) entry_frame;
@@ -398,8 +381,8 @@ Jdb::peek_task(Address addr, Space *task, void *value, int width)
       Address pdbr;
       asm volatile ("mov %%cr3, %0" : "=r" (pdbr));
       Pdir *kdir = (Pdir*)Mem_layout::phys_to_pmem(pdbr);
-      Pdir::Iter i = kdir->walk(Virt_addr(addr));
-      if (i.e->valid())
+      auto i = kdir->walk(Virt_addr(addr));
+      if (i.is_valid())
 	{
           memcpy(value, (void*)addr, width);
           return 0;
@@ -435,8 +418,8 @@ Jdb::poke_task(Address addr, Space *task, void const *value, int width)
       Address pdbr;
       asm volatile ("mov %%cr3, %0" : "=r" (pdbr));
       Pdir *kdir = (Pdir*)Mem_layout::phys_to_pmem(pdbr);
-      Pdir::Iter i = kdir->walk(Virt_addr(addr));
-      if (i.e->valid())
+      auto i = kdir->walk(Virt_addr(addr));
+      if (i.is_valid())
 	{
           memcpy((void*)addr, value, width);
           return 0;
@@ -557,7 +540,7 @@ Jdb::guess_thread_state(Thread *t)
 
 PUBLIC static
 void
-Jdb::set_single_step(unsigned cpu, int on)
+Jdb::set_single_step(Cpu_number cpu, int on)
 {
   if (on)
     entry_frame.cpu(cpu)->flags(entry_frame.cpu(cpu)->flags() | EFLAGS_TF);
@@ -618,7 +601,7 @@ IMPLEMENTATION[ia32]:
 // set global indicators code_call, code_ret, code_bra, code_int
 // This can fail if the current page is still not mapped
 static void
-Jdb::analyze_code(unsigned cpu)
+Jdb::analyze_code(Cpu_number cpu)
 {
   Jdb_entry_frame *entry_frame = Jdb::entry_frame.cpu(cpu);
   Space *task = get_task(cpu);
@@ -665,14 +648,14 @@ Jdb::analyze_code(unsigned cpu)
 IMPLEMENTATION[amd64]:
 
 static void
-Jdb::analyze_code(unsigned)
+Jdb::analyze_code(Cpu_number)
 {}
 
 IMPLEMENTATION[ia32,amd64]:
 
 // entered debugger because of single step trap
 static inline NOEXPORT int
-Jdb::handle_single_step(unsigned cpu)
+Jdb::handle_single_step(Cpu_number cpu)
 {
   int really_break = 1;
 
@@ -718,33 +701,33 @@ Jdb::handle_single_step(unsigned cpu)
 	{
 	  // condition met
 	  ss_state.cpu(cpu) = SS_NONE;
-	  snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(0)), "%s", "Branch/Call");
+	  snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::boot_cpu())), "%s", "Branch/Call");
 	}
     }
   else // (ss_state == SS_NONE)
     // regular single_step
-    snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(0)), "%s", "Singlestep");
+    snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::boot_cpu())), "%s", "Singlestep");
 
   return really_break;
 }
 
 // entered debugger due to debug exception
 static inline NOEXPORT int
-Jdb::handle_trap1(unsigned cpu)
+Jdb::handle_trap1(Cpu_number cpu)
 {
   // FIXME: currently only on bot cpu
-  if (cpu != 0)
+  if (cpu != Cpu_number::boot_cpu())
     return 0;
 
   if (bp_test_sstep && bp_test_sstep())
     return handle_single_step(cpu);
 
   if (bp_test_break
-      && bp_test_break(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(0))))
+      && bp_test_break(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::boot_cpu()))))
     return 1;
 
   if (bp_test_other
-      && bp_test_other(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(0))))
+      && bp_test_other(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::boot_cpu()))))
     return 1;
 
   return 0;
@@ -752,14 +735,14 @@ Jdb::handle_trap1(unsigned cpu)
 
 // entered debugger due to software breakpoint
 static inline NOEXPORT int
-Jdb::handle_trap3(unsigned cpu)
+Jdb::handle_trap3(Cpu_number cpu)
 {
   Jdb_entry_frame *entry_frame = Jdb::entry_frame.cpu(cpu);
   Space *task = get_task(cpu);
   Unsigned8 op;
   Unsigned8 len;
 
-  snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(0)), "%s", "INT 3");
+  snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::boot_cpu())), "%s", "INT 3");
   if (   !peek((Unsigned8*)entry_frame->ip(), task, op)
       || !peek((Unsigned8*)(entry_frame->ip()+1), task, len)
       || op != 0xeb)
@@ -798,7 +781,7 @@ Jdb::handle_trap3(unsigned cpu)
 		ctrl[i] = tmp;
 	    }
 	  ctrl[i] = '\0';
-	  snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(0)),
+	  snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::boot_cpu())),
 	      "invalid ctrl sequence \"%s\"", ctrl);
 	}
     }
@@ -807,9 +790,9 @@ Jdb::handle_trap3(unsigned cpu)
     {
       unsigned i;
       len = len < 47 ? len : 47;
-      len =   len < sizeof(error_buffer.cpu(0))-1
+      len =   len < sizeof(error_buffer.cpu(Cpu_number::boot_cpu()))-1
             ? len
-            : sizeof(error_buffer.cpu(0))-1;
+            : sizeof(error_buffer.cpu(Cpu_number::boot_cpu()))-1;
 
       for(i=0; i<len && peek(msg+i, task, buffer[0]); i++)
 	error_buffer.cpu(cpu)[i] = buffer[0];
@@ -821,14 +804,14 @@ Jdb::handle_trap3(unsigned cpu)
 
 // entered debugger due to other exception
 static inline NOEXPORT int
-Jdb::handle_trapX(unsigned cpu)
+Jdb::handle_trapX(Cpu_number cpu)
 {
-  unsigned pos = snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(0)), "%s",
+  unsigned pos = snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::boot_cpu())), "%s",
 			  Cpu::exception_string(entry_frame.cpu(cpu)->_trapno)) + 1;
-  if (   pos < sizeof(error_buffer.cpu(0))
+  if (   pos < sizeof(error_buffer.cpu(Cpu_number::boot_cpu()))
       && entry_frame.cpu(cpu)->_trapno >= 10
       && entry_frame.cpu(cpu)->_trapno <= 14)
-    snprintf(error_buffer.cpu(cpu)+pos, sizeof(error_buffer.cpu(0))-pos,
+    snprintf(error_buffer.cpu(cpu)+pos, sizeof(error_buffer.cpu(Cpu_number::boot_cpu()))-pos,
              "(ERR=" L4_PTR_FMT ")", entry_frame.cpu(cpu)->_err);
 
   return 1;
@@ -840,9 +823,12 @@ Jdb::handle_trapX(unsigned cpu)
  */
 IMPLEMENT
 bool
-Jdb::handle_user_request(unsigned cpu)
+Jdb::handle_user_request(Cpu_number cpu)
 {
   Jdb_entry_frame *entry_frame = Jdb::entry_frame.cpu(cpu);
+
+  if (entry_frame->debug_ipi())
+    return cpu != Cpu_number::boot_cpu();
 
   if (entry_frame->_trapno == 3)
     {
@@ -905,17 +891,17 @@ Jdb::handle_user_request(unsigned cpu)
 
 IMPLEMENT
 void
-Jdb::enter_trap_handler(unsigned cpu)
+Jdb::enter_trap_handler(Cpu_number cpu)
 { Cpu::cpus.cpu(cpu).debugctl_disable(); }
 
 IMPLEMENT
 void
-Jdb::leave_trap_handler(unsigned cpu)
+Jdb::leave_trap_handler(Cpu_number cpu)
 { Cpu::cpus.cpu(cpu).debugctl_enable(); }
 
 IMPLEMENT
 bool
-Jdb::handle_conditional_breakpoint(unsigned cpu)
+Jdb::handle_conditional_breakpoint(Cpu_number cpu)
 { return entry_frame.cpu(cpu)->_trapno == 1 && bp_test_log_only && bp_test_log_only(); }
 
 IMPLEMENT
@@ -969,7 +955,7 @@ Jdb::handle_nested_trap(Jdb_entry_frame *e)
 
 IMPLEMENT
 bool
-Jdb::handle_debug_traps(unsigned cpu)
+Jdb::handle_debug_traps(Cpu_number cpu)
 {
   bool really_break = true;
 
@@ -982,7 +968,7 @@ Jdb::handle_debug_traps(unsigned cpu)
 
   if (really_break)
     {
-      for (unsigned i = 0; i < Config::Max_num_cpus; ++i)
+      for (Cpu_number i = Cpu_number::first(); i < Config::max_num_cpus(); ++i)
 	{
 	  if (!Cpu::online(i) || !running.cpu(i))
 	    continue;
@@ -1015,7 +1001,7 @@ IMPLEMENTATION [(ia32 || amd64) && mp]:
 
 static
 void
-Jdb::send_nmi(unsigned cpu)
+Jdb::send_nmi(Cpu_number cpu)
 {
   Apic::mp_send_ipi(Apic::apic.cpu(cpu)->apic_id(), 0, Apic::APIC_IPI_NMI);
 }

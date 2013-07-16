@@ -12,11 +12,11 @@ public:
   static Per_cpu<Cpu> cpus;
   static Cpu *boot_cpu() { return _boot_cpu; }
 
-  Cpu(unsigned cpu) { set_id(cpu); }
+  Cpu(Cpu_number cpu) { set_id(cpu); }
 
 private:
   static Cpu *_boot_cpu;
-  unsigned _phys_id;
+  Cpu_phys_id _phys_id;
   static unsigned long _ns_per_cycle;
 
 };
@@ -44,6 +44,8 @@ DEFINE_PER_CPU Per_cpu<Cpu> Cpu::cpus(true);
 Cpu *Cpu::_boot_cpu;
 unsigned long Cpu::_ns_per_cycle;
 
+PUBLIC static inline unsigned Cpu::phys_bits() { return 32; }
+
 IMPLEMENT
 void
 Cpu::init(bool is_boot_cpu)
@@ -53,13 +55,13 @@ Cpu::init(bool is_boot_cpu)
       _boot_cpu = this;
       set_online(1);
     }
-  _phys_id = 0; //Proc::cpu_id();
+  _phys_id = Cpu_phys_id(0); //Proc::cpu_id();
   _ns_per_cycle = 0; //1000000000 / Boot_info::get_time_base();
   //printf("Timebase: %lu\n", Boot_info::get_time_base());
 }
 
 PUBLIC inline
-unsigned
+Cpu_phys_id
 Cpu::phys_id() const
 { return _phys_id; }
 

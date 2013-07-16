@@ -37,7 +37,7 @@ Obj_cap::Obj_cap(L4_obj_ref const &o) : L4_obj_ref(o) {}
 
 PUBLIC inline NEEDS["kobject.h"]
 Kobject_iface *
-Obj_cap::deref(unsigned char *rights = 0, bool dbg = false)
+Obj_cap::deref(L4_fpage::Rights *rights = 0, bool dbg = false)
 {
   Thread *current = current_thread();
   if (op() & L4_obj_ref::Ipc_reply)
@@ -45,7 +45,7 @@ Obj_cap::deref(unsigned char *rights = 0, bool dbg = false)
       if (rights) *rights = current->caller_rights();
       Thread *ca = static_cast<Thread*>(current->caller());
       if (!dbg)
-	current->set_caller(0,0);
+	current->set_caller(0, L4_fpage::Rights(0));
       return ca;
     }
 
@@ -54,7 +54,7 @@ Obj_cap::deref(unsigned char *rights = 0, bool dbg = false)
       if (!self())
 	return 0;
 
-      if (rights) *rights = L4_fpage::RWX;
+      if (rights) *rights = L4_fpage::Rights::RWX();
       return current_thread();
     }
 
@@ -108,7 +108,7 @@ Thread_object::destroy(Kobject ***rl)
 
 PUBLIC
 void
-Thread_object::invoke(L4_obj_ref /*self*/, Mword rights, Syscall_frame *f, Utcb *utcb)
+Thread_object::invoke(L4_obj_ref /*self*/, L4_fpage::Rights rights, Syscall_frame *f, Utcb *utcb)
 {
   register L4_obj_ref::Operation op = f->ref().op();
   if (((op != 0) && !(op & L4_obj_ref::Ipc_send))
@@ -176,19 +176,19 @@ Thread_object::sys_vcpu_resume(L4_msg_tag const &tag, Utcb *utcb)
   Vcpu_state *vcpu = vcpu_state().access(true);
 
   L4_obj_ref user_task = vcpu->user_task;
-  if (user_task.valid())
+  if (user_task.valid() && user_task.op() == 0)
     {
-      unsigned char task_rights = 0;
+      L4_fpage::Rights task_rights = L4_fpage::Rights(0);
       Task *task = Kobject::dcast<Task*>(s->lookup_local(user_task.cap(),
                                                          &task_rights));
 
-      if (EXPECT_FALSE(task && !(task_rights & L4_fpage::W)))
+      if (EXPECT_FALSE(task && !(task_rights & L4_fpage::Rights::W())))
         return commit_result(-L4_err::EPerm);
 
       if (task != vcpu_user_space())
         vcpu_set_user_space(task);
 
-      vcpu->user_task = L4_obj_ref();
+      reinterpret_cast<Mword &>(vcpu->user_task) |= L4_obj_ref::Ipc_send;
     }
   else if (user_task.op() == L4_obj_ref::Ipc_reply)
     vcpu_set_user_space(0);
@@ -228,7 +228,7 @@ Thread_object::sys_vcpu_resume(L4_msg_tag const &tag, Utcb *utcb)
       assert_kdb(cpu_lock.test());
       do_ipc(L4_msg_tag(), 0, 0, true, 0,
 	     L4_timeout_pair(L4_timeout::Zero, L4_timeout::Zero),
-	     &vcpu->_ipc_regs, 3);
+	     &vcpu->_ipc_regs, L4_fpage::Rights::FULL());
 
       vcpu = vcpu_state().access(true);
 
@@ -352,14 +352,14 @@ Thread_object::sys_register_delete_irq(L4_msg_tag tag, Utcb const *in, Utcb * /*
 
   register Context *const c_thread = ::current();
   register Space *const c_space = c_thread->space();
-  unsigned char irq_rights = 0;
+  L4_fpage::Rights irq_rights = L4_fpage::Rights(0);
   Irq_base *irq
     = Irq_base::dcast(c_space->lookup_local(bind_irq.obj_index(), &irq_rights));
 
   if (!irq)
     return Kobject_iface::commit_result(-L4_err::EInval);
 
-  if (EXPECT_FALSE(!(irq_rights & L4_fpage::X)))
+  if (EXPECT_FALSE(!(irq_rights & L4_fpage::Rights::X())))
     return Kobject_iface::commit_result(-L4_err::EPerm);
 
   register_delete_irq(irq);
@@ -369,9 +369,9 @@ Thread_object::sys_register_delete_irq(L4_msg_tag tag, Utcb const *in, Utcb * /*
 
 PRIVATE inline NOEXPORT
 L4_msg_tag
-Thread_object::sys_control(unsigned char rights, L4_msg_tag const &tag, Utcb *utcb)
+Thread_object::sys_control(L4_fpage::Rights rights, L4_msg_tag const &tag, Utcb *utcb)
 {
-  if (EXPECT_FALSE(!(rights & L4_fpage::W)))
+  if (EXPECT_FALSE(!(rights & L4_fpage::Rights::W())))
     return commit_result(-L4_err::EPerm);
 
   if (EXPECT_FALSE(tag.words() < 6))
@@ -385,17 +385,17 @@ Thread_object::sys_control(unsigned char rights, L4_msg_tag const &tag, Utcb *ut
 
   Mword flags = utcb->values[0];
 
-  Mword _old_pager = _pager.raw() << L4_obj_ref::Cap_shift;
-  Mword _old_exc_handler = _exc_handler.raw() << L4_obj_ref::Cap_shift;
+  Mword _old_pager = cxx::int_value<Cap_index>(_pager.raw()) << L4_obj_ref::Cap_shift;
+  Mword _old_exc_handler = cxx::int_value<Cap_index>(_exc_handler.raw()) << L4_obj_ref::Cap_shift;
 
-  Thread_ptr _new_pager(~0UL);
-  Thread_ptr _new_exc_handler(~0UL);
+  Thread_ptr _new_pager(Thread_ptr::Invalid);
+  Thread_ptr _new_exc_handler(Thread_ptr::Invalid);
 
   if (flags & Ctl_set_pager)
-    _new_pager = Thread_ptr(utcb->values[1] >> L4_obj_ref::Cap_shift);
+    _new_pager = Thread_ptr(Cap_index(utcb->values[1] >> L4_obj_ref::Cap_shift));
 
   if (flags & Ctl_set_exc_handler)
-    _new_exc_handler = Thread_ptr(utcb->values[2] >> L4_obj_ref::Cap_shift);
+    _new_exc_handler = Thread_ptr(Cap_index(utcb->values[2] >> L4_obj_ref::Cap_shift));
 
   if (flags & Ctl_bind_task)
     {
@@ -407,10 +407,10 @@ Thread_object::sys_control(unsigned char rights, L4_msg_tag const &tag, Utcb *ut
       if (EXPECT_FALSE(!bind_task.is_objpage()))
 	return commit_result(-L4_err::EInval);
 
-      unsigned char task_rights = 0;
+      L4_fpage::Rights task_rights = L4_fpage::Rights(0);
       task = Kobject::dcast<Task*>(s->lookup_local(bind_task.obj_index(), &task_rights));
 
-      if (EXPECT_FALSE(!(task_rights & L4_fpage::W)))
+      if (EXPECT_FALSE(!(task_rights & L4_fpage::Rights::W())))
 	return commit_result(-L4_err::EPerm);
 
       if (!task)
@@ -457,7 +457,7 @@ Thread_object::sys_control(unsigned char rights, L4_msg_tag const &tag, Utcb *ut
 
 PRIVATE inline NOEXPORT
 L4_msg_tag
-Thread_object::sys_vcpu_control(unsigned char, L4_msg_tag const &tag,
+Thread_object::sys_vcpu_control(L4_fpage::Rights, L4_msg_tag const &tag,
                                 Utcb *utcb)
 {
   if (!space())
@@ -489,7 +489,9 @@ Thread_object::sys_vcpu_control(unsigned char, L4_msg_tag const &tag,
       add_state |= Thread_vcpu_enabled;
       _vcpu_state.set(vcpu, vcpu_m->kern_addr(vcpu));
 
-      arch_update_vcpu_state(_vcpu_state.access());
+      Vcpu_state *s = _vcpu_state.access();
+      arch_init_vcpu_state(s, add_state & Thread_ext_vcpu_enabled);
+      arch_update_vcpu_state(s);
     }
   else
     return commit_result(-L4_err::EInval);

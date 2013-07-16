@@ -2,14 +2,11 @@ INTERFACE [arm && realview]:
 
 #include "kmem.h"
 #include "l4_types.h"
+#include "platform.h"
 
 EXTENSION class Clock_base
 {
 protected:
-  enum {
-    SYS_24MHZ = Kmem::System_regs_map_base + 0x5c,
-  };
-
   typedef Mword Counter;
 };
 
@@ -23,7 +20,7 @@ IMPLEMENT inline NEEDS["io.h", <cstdio>]
 Clock::Counter
 Clock::read_counter() const
 {
-  return Io::read<Mword>(SYS_24MHZ);
+  return Platform::sys->read<Mword>(Platform::Sys::Cnt_24mhz);
 }
 
 IMPLEMENT inline

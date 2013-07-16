@@ -36,196 +36,6 @@
 #define L4_SYSCALL_INVOKE		(-0x00000004-L4_SYSCALL_MAGIC_OFFSET)
 
 L4_INLINE l4_msgtag_t
-l4_ipc_call(l4_cap_idx_t dest, l4_utcb_t *utcb,
-            l4_msgtag_t tag,
-            l4_timeout_t timeout) L4_NOTHROW
-{
-  register l4_umword_t _dest     __asm__("r4") = dest | L4_SYSF_CALL;
-  register l4_umword_t _timeout  __asm__("r5") = timeout.raw;
-  register l4_umword_t _flags    __asm__("r6") = 0;
-  register l4_msgtag_t _tag      __asm__("r3") = tag;
-  (void)utcb;
-
-  __asm__ __volatile__
-    (" bla %[addr] \n"
-     :
-     "=r" (_dest),
-     "=r" (_timeout),
-     "=r" (_flags),
-     "=r" (_tag)
-     :
-     [addr]"i" (L4_SYSCALL_INVOKE),
-     "0" (_dest),
-     "1" (_timeout),
-     "2" (_flags),
-     "3" (_tag)
-     :
-     "lr", "memory");
-
-  tag.raw = _tag.raw; // because gcc doesn't return out of registers variables
-  return tag;
-}
-
-L4_INLINE l4_msgtag_t
-l4_ipc_reply_and_wait(l4_utcb_t *utcb, l4_msgtag_t tag,
-                      l4_umword_t *label,
-                      l4_timeout_t timeout) L4_NOTHROW
-{
-  register l4_umword_t _dest     __asm__("r4") = L4_INVALID_CAP | L4_SYSF_REPLY_AND_WAIT;
-  register l4_umword_t _timeout  __asm__("r5") = timeout.raw;
-  register l4_msgtag_t _tag      __asm__("r3") = tag;
-  register l4_umword_t _flags    __asm__("r6") = 0;
-  (void)utcb;
-
-  __asm__ __volatile__
-    (" bla %[addr] \n"
-     :
-     "=r" (_dest),
-     "=r" (_timeout),
-     "=r" (_flags),
-     "=r" (_tag)
-     :
-     [addr]"i" (L4_SYSCALL_INVOKE),
-     "0" (_dest),
-     "1" (_timeout),
-     "2" (_flags),
-     "3" (_tag)
-     :
-     "lr", "memory");
-  *label = _flags;
-  tag.raw = _tag.raw; // because gcc doesn't return out of registers variables
-  return tag;
-}
-
-L4_INLINE l4_msgtag_t
-l4_ipc_send_and_wait(l4_cap_idx_t dest, l4_utcb_t *utcb,
-                     l4_msgtag_t tag,
-                     l4_umword_t *src,
-                     l4_timeout_t timeout) L4_NOTHROW
-{
-  register l4_umword_t _dest     __asm__("r4") = dest | L4_SYSF_SEND_AND_WAIT;
-  register l4_umword_t _timeout  __asm__("r5") = timeout.raw;
-  register l4_msgtag_t _tag      __asm__("r3") = tag;
-  register l4_umword_t _flags    __asm__("r6") = 0;
-  (void)utcb;
-
-  __asm__ __volatile__
-    (" bla %[addr] \n"
-     :
-     "=r" (_dest),
-     "=r" (_timeout),
-     "=r" (_flags),
-     "=r" (_tag)
-     :
-     [addr] "i" (L4_SYSCALL_INVOKE),
-     "0" (_dest),
-     "1" (_timeout),
-     "2" (_flags),
-     "3" (_tag)
-     :
-     "memory", "lr");
-  *src = _flags;
-  tag.raw = _tag.raw; // because gcc doesn't return out of registers variables
-  return tag;
-}
-
-L4_INLINE l4_msgtag_t
-l4_ipc_send(l4_cap_idx_t dest, l4_utcb_t *utcb,
-            l4_msgtag_t tag,
-            l4_timeout_t timeout) L4_NOTHROW
-{
-  register l4_umword_t _dest     __asm__("r4") = dest | L4_SYSF_SEND;
-  register l4_umword_t _timeout  __asm__("r5") = timeout.raw;
-  register l4_umword_t _flags    __asm__("r6") = 0;
-  register l4_msgtag_t _tag      __asm__("r3") = tag;
-  (void)utcb;
-
-  __asm__ __volatile__
-    ("bla %[addr] \n"
-     :
-     "=r" (_dest),
-     "=r" (_timeout),
-     "=r" (_flags),
-     "=r" (_tag)
-     :
-     [addr] "i" (L4_SYSCALL_INVOKE),
-     "0" (_dest),
-     "1" (_timeout),
-     "2" (_flags),
-     "3" (_tag)
-     :
-     "memory", "lr");
-  tag.raw = _tag.raw; // because gcc doesn't return out of registers variables
-  return tag;
-}
-
-L4_INLINE l4_msgtag_t
-l4_ipc_wait(l4_utcb_t *utcb, l4_umword_t *src,
-            l4_timeout_t timeout) L4_NOTHROW
-{
-  l4_msgtag_t rtag;
-  register l4_umword_t _r        __asm__("r4") = L4_INVALID_CAP | L4_SYSF_WAIT;
-  register l4_umword_t _timeout  __asm__("r5") = timeout.raw;
-  register l4_msgtag_t _tag      __asm__("r3");
-  register l4_umword_t _flags    __asm__("r6") = 0;
-  (void)utcb;
-  _tag.raw = 0;
-
-  __asm__ __volatile__
-    ("bla %[addr] \n"
-     :
-     "=r"(_r),
-     "=r"(_timeout),
-     "=r"(_flags),
-     "=r"(_tag)
-     :
-     [addr] "i"(L4_SYSCALL_INVOKE),
-     "0"(_r),
-     "1"(_timeout),
-     "2"(_flags),
-     "3"(_tag)
-
-     :
-     "memory", "lr");
-  *src     = _flags;
-  rtag.raw = _tag.raw; // because gcc doesn't return out of registers variables
-  return rtag;
-}
-
-L4_INLINE l4_msgtag_t
-l4_ipc_receive(l4_cap_idx_t src, l4_utcb_t *utcb,
-               l4_timeout_t timeout) L4_NOTHROW
-{
-  l4_msgtag_t rtag;
-  register l4_umword_t _r        __asm__("r4") = src | L4_SYSF_RECV;
-  register l4_umword_t _timeout  __asm__("r5") = timeout.raw;
-  register l4_msgtag_t _tag      __asm__("r3");
-  register l4_umword_t _flags    __asm__("r6") = 0;
-  (void)utcb;
-
-  _tag.raw = 0;
-
-  __asm__ __volatile__
-    ("bla %[addr] \n"
-     :
-     "=r"(_r),
-     "=r"(_timeout),
-     "=r"(_flags),
-     "=r"(_tag)
-     :
-     [addr] "i"(L4_SYSCALL_INVOKE),
-     "0"(_r),
-     "1"(_timeout),
-     "2"(_flags),
-     "3"(_tag)
-     :
-     "memory", "lr");
-  rtag.raw = _tag.raw; // because gcc doesn't return out of registers variables
-  return rtag;
-}
-
-// todo: let all calls above use this single call
-L4_INLINE l4_msgtag_t
 l4_ipc(l4_cap_idx_t dest, l4_utcb_t *utcb,
        l4_umword_t flags,
        l4_umword_t slabel,
@@ -235,28 +45,78 @@ l4_ipc(l4_cap_idx_t dest, l4_utcb_t *utcb,
 {
   register l4_umword_t _dest     __asm__("r4") = dest | flags;
   register l4_umword_t _timeout  __asm__("r5") = timeout.raw;
-  register l4_msgtag_t _tag      __asm__("r3") = tag;
+  register l4_umword_t _tag      __asm__("r3") = tag.raw;
   register l4_umword_t _lab      __asm__("r6") = slabel;
   (void)utcb;
 
   __asm__ __volatile__
-    ("bla %[addr] \n"
+    ("bla %[addr]"
      :
-     "=r" (_dest),
-     "=r" (_timeout),
-     "=r" (_lab),
-     "=r" (_tag)
+     "+r" (_dest),
+     "+r" (_timeout),
+     "+r" (_lab),
+     "+r" (_tag)
      :
-     [addr] "i" (L4_SYSCALL_INVOKE),
-     "0" (_dest),
-     "1" (_timeout),
-     "2" (_lab),
-     "3" (_tag)
+     [addr] "i" (L4_SYSCALL_INVOKE)
      :
      "memory", "lr");
-  *rlabel = _lab;
-  tag.raw = _tag.raw; // because gcc doesn't return out of registers variables
+
+  if (rlabel)
+    *rlabel = _lab;
+  tag.raw = _tag;
   return tag;
+}
+
+
+L4_INLINE l4_msgtag_t
+l4_ipc_call(l4_cap_idx_t dest, l4_utcb_t *utcb,
+            l4_msgtag_t tag,
+            l4_timeout_t timeout) L4_NOTHROW
+{
+  return l4_ipc(dest, utcb, L4_SYSF_CALL, 0, tag, 0, timeout);
+}
+
+L4_INLINE l4_msgtag_t
+l4_ipc_reply_and_wait(l4_utcb_t *utcb, l4_msgtag_t tag,
+                      l4_umword_t *label,
+                      l4_timeout_t timeout) L4_NOTHROW
+{
+  return l4_ipc(L4_INVALID_CAP, utcb, L4_SYSF_REPLY_AND_WAIT, 0, tag, label, timeout);
+}
+
+L4_INLINE l4_msgtag_t
+l4_ipc_send_and_wait(l4_cap_idx_t dest, l4_utcb_t *utcb,
+                     l4_msgtag_t tag,
+                     l4_umword_t *src,
+                     l4_timeout_t timeout) L4_NOTHROW
+{
+  return l4_ipc(dest, utcb, L4_SYSF_SEND_AND_WAIT, 0, tag, src, timeout);
+}
+
+L4_INLINE l4_msgtag_t
+l4_ipc_send(l4_cap_idx_t dest, l4_utcb_t *utcb,
+            l4_msgtag_t tag,
+            l4_timeout_t timeout) L4_NOTHROW
+{
+  return l4_ipc(dest, utcb, L4_SYSF_SEND, 0, tag, 0, timeout);
+}
+
+L4_INLINE l4_msgtag_t
+l4_ipc_wait(l4_utcb_t *utcb, l4_umword_t *src,
+            l4_timeout_t timeout) L4_NOTHROW
+{
+  l4_msgtag_t t;
+  t.raw = 0;
+  return l4_ipc(L4_INVALID_CAP, utcb, L4_SYSF_WAIT, 0, t, src, timeout);
+}
+
+L4_INLINE l4_msgtag_t
+l4_ipc_receive(l4_cap_idx_t src, l4_utcb_t *utcb,
+               l4_timeout_t timeout) L4_NOTHROW
+{
+  l4_msgtag_t t;
+  t.raw = 0;
+  return l4_ipc(src, utcb, L4_SYSF_RECV, 0, t, 0, timeout);
 }
 
 #include <l4/sys/ipc-impl.h>

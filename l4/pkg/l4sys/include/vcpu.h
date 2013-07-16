@@ -78,4 +78,5 @@ enum L4_vcpu_sticky_flags
 enum L4_vcpu_state_offset
 {
   L4_VCPU_OFFSET_EXT_STATE = 0x400, ///< Offset where extended state begins
+  L4_VCPU_OFFSET_EXT_INFOS = 0x200, ///< Offset where extended infos begin
 };

@@ -251,11 +251,11 @@ l4_vcon_read_u(l4_cap_idx_t vcon, char *buf, int size, l4_utcb_t *utcb) L4_NOTHR
   int ret, r;
   l4_msg_regs_t *mr;
 
-  if (size <= 0)
+  if (size < 0)
     return -L4_EINVAL;
 
   mr = l4_utcb_mr_u(utcb);
-  mr->mr[0] = size << 16;
+  mr->mr[0] = (size << 16) | 1;
 
   ret = l4_error_u(l4_ipc_call(vcon, utcb,
                                l4_msgtag(L4_PROTO_LOG, 1, 0, 0),

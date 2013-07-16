@@ -80,9 +80,9 @@ typedef struct l4_exc_regs_t
 L4_INLINE l4_utcb_t *l4_utcb_direct(void) L4_NOTHROW
 {
   register l4_utcb_t *utcb __asm__ ("r0");
-  __asm__ volatile ("mov lr, pc          \n"
-                    "mov pc, #0xffffff00 \n"
-                    : "=r"(utcb) : : "lr");
+  __asm__ ("mov lr, pc          \n"
+           "mov pc, #0xffffff00 \n"
+           : "=r"(utcb) : : "lr");
   return utcb;
 }
 #endif

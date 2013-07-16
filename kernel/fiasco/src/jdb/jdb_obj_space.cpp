@@ -96,18 +96,18 @@ Jdb_obj_space::print_statline(unsigned long row, unsigned long col)
   if (!o)
     {
       Jdb::printf_statline("objs", "<Space>=mode", "%lx: -- INVALID --",
-                           index(row,col));
+                           cxx::int_value<Cap_index>(index(row,col)));
       return;
     }
 
   unsigned len = Jdb_kobject::obj_description(buf, sizeof(buf), true, o->dbg_info());
   Jdb::printf_statline("objs", "<Space>=mode",
-		       "%lx: %-*s", index(row,col), len, buf);
+		       "%lx: %-*s", cxx::int_value<Cap_index>(index(row,col)), len, buf);
 }
 
 PUBLIC
 void
-Jdb_obj_space::print_entry(Address entry)
+Jdb_obj_space::print_entry(Cap_index entry)
 {
   unsigned rights;
   Kobject_iface *o = item(entry, &rights);
@@ -122,9 +122,9 @@ Jdb_obj_space::print_entry(Address entry)
 	case Name:
 	  switch (rights)
 	    {
-	    case L4_fpage::WX: r = '*'; break;
-	    case L4_fpage::W:  r = 'w'; break;
-	    case L4_fpage::X:  r = 'x'; break;
+	    case 0x3: r = '*'; break;
+	    case 0x2:  r = 'w'; break;
+	    case 0x1:  r = 'x'; break;
 	    }
 	  printf("%05lx%c %-*s", o->dbg_info()->dbg_id(), r, 9, Jdb_kobject::kobject_type(o));
 	  break;
@@ -141,17 +141,17 @@ void
 Jdb_obj_space::draw_entry(unsigned long row, unsigned long col)
 {
   if (col==0)
-    printf("%06lx ", index(row, 1));
+    printf("%06lx ", cxx::int_value<Cap_index>(index(row, 1)));
   else
     print_entry(index(row, col));
 }
 
 PRIVATE
-Address
+Cap_index
 Jdb_obj_space::index(unsigned long row, unsigned long col)
 {
   Mword e = (col-1) + (row * (cols()-1));
-  return _base + e;
+  return Cap_index(_base + e);
 }
 
 PRIVATE
@@ -221,36 +221,11 @@ Jdb_obj_space::handle_key(Kobject_common *o, int code)
 
 static Jdb_obj_space jdb_obj_space INIT_PRIORITY(JDB_MODULE_INIT_PRIO);
 
-// ------------------------------------------------------------------------
-IMPLEMENTATION [obj_space_virt]:
-
 PUBLIC
 Kobject_iface *
-Jdb_obj_space::item(Address entry, unsigned *rights)
+Jdb_obj_space::item(Cap_index entry, unsigned *rights)
 {
-  Mword dummy;
-  Obj_space::Capability *c = _task->cap_virt(entry);
-  if (!c)
-    return 0;
-
-  Mword mapped = Jdb::peek((Mword*)c, _task, dummy);
-
-  if (!mapped)
-    return 0;
-
-  Kobject_iface *o = (Kobject_iface*)(dummy & ~3UL);
-  *rights = dummy & 3;
-
-  return o;
-}
-
-// ------------------------------------------------------------------------
-IMPLEMENTATION [obj_space_phys]:
-PUBLIC
-Kobject_iface *
-Jdb_obj_space::item(Address entry, unsigned *rights)
-{
-  Obj_space::Capability *c = _task->get_cap(entry);
+  Obj_space::Capability *c = _task->jdb_lookup_cap(entry);
 
   if (!c)
     return 0;

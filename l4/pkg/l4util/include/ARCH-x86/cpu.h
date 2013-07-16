@@ -76,7 +76,7 @@ l4util_cpu_has_cpuid(void)
                "popfl			\t\n" /* set again */
                "pushfl			\t\n"
                "popl %%eax		\t\n" /* get it again */
-               "xorl %%eax, %%ebx	\t\n"
+               "xorl %%ebx, %%eax	\t\n"
                "pushl %%ebx		\t\n"
                "popfl			\t\n" /* restore saved flags */
                "popl %%ebx              \t\n"
@@ -94,14 +94,13 @@ l4util_cpu_cpuid(unsigned long mode,
 {
   asm volatile("pushl %%ebx      \t\n"
                "cpuid            \t\n"
-               "mov %%ebx, %[b]  \t\n"
+               "mov %%ebx, %%esi \t\n"
                "popl %%ebx       \t\n"
-               :     "=a" (*eax),
-                 [b] "=m" (*ebx),
-                     "=c" (*ecx),
-                     "=d" (*edx)
-               : "a"  (mode)
-               );
+               : "=a" (*eax),
+                 "=S" (*ebx),
+                 "=c" (*ecx),
+                 "=d" (*edx)
+               : "a"  (mode));
 }
 
 L4_INLINE unsigned int

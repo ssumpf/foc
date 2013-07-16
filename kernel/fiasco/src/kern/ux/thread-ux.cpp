@@ -93,13 +93,14 @@ Thread::call_nested_trap_handler(Trap_state *ts)
   // equiv of: return nested_trap_handler(ts) == 0 ? true : false;
 
   //static char nested_handler_stack [Config::PAGE_SIZE];
-  unsigned phys_cpu = Cpu::phys_id_direct();
-  unsigned log_cpu = Cpu::cpus.find_cpu(Cpu::By_phys_id(phys_cpu));
+  Cpu_phys_id phys_cpu = Cpu::phys_id_direct();
+  Cpu_number log_cpu = Cpu::cpus.find_cpu(Cpu::By_phys_id(phys_cpu));
 
-  if (log_cpu == ~0U)
+  if (log_cpu == Cpu_number::nil())
     {
-      printf("Trap on unknown CPU host-thread=%x\n", phys_cpu);
-      log_cpu = 0;
+      printf("Trap on unknown CPU host-thread=%x\n",
+             cxx::int_value<Cpu_phys_id>(phys_cpu));
+      log_cpu = Cpu_number::boot_cpu();
     }
 
   unsigned long &ntr = nested_trap_recover.cpu(log_cpu);

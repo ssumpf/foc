@@ -85,7 +85,7 @@ config ABI_VF
 
 config PF_ARM_MP_CAPABLE
 	bool
-	default y if ARM_MPCORE || ARM_CORTEX_A9
+	default y if ARM_MPCORE || ARM_CORTEX_A7 || ARM_CORTEX_A9 || ARM_CORTEX_A15
 
 config CAN_ARM_CPU_SA1100
 	bool
@@ -108,10 +108,19 @@ config CAN_ARM_CPU_1176
 config CAN_ARM_CPU_MPCORE
 	bool
 
+config CAN_ARM_CPU_CORTEX_A5
+	bool
+
+config CAN_ARM_CPU_CORTEX_A7
+	bool
+
 config CAN_ARM_CPU_CORTEX_A8
 	bool
 
 config CAN_ARM_CPU_CORTEX_A9
+	bool
+
+config CAN_ARM_CPU_CORTEX_A15
 	bool
 
 config CAN_ARM_CACHE_L2CXX0
@@ -153,6 +162,14 @@ config ARM_MPCORE
 	bool "ARM MPCore CPU"
 	depends on CAN_ARM_CPU_MPCORE
 
+config ARM_CORTEX_A5
+	bool "ARM Cortex-A5 CPU"
+	depends on CAN_ARM_CPU_CORTEX_A5
+
+config ARM_CORTEX_A7
+	bool "ARM Cortex-A7 CPU"
+	depends on CAN_ARM_CPU_CORTEX_A7
+
 config ARM_CORTEX_A8
 	bool "ARM Cortex-A8 CPU"
 	depends on CAN_ARM_CPU_CORTEX_A8
@@ -160,6 +177,10 @@ config ARM_CORTEX_A8
 config ARM_CORTEX_A9
 	bool "ARM Cortex-A9 CPU"
 	depends on CAN_ARM_CPU_CORTEX_A9
+
+config ARM_CORTEX_A15
+	bool "ARM Cortex-A15 CPU"
+	depends on CAN_ARM_CPU_CORTEX_A15
 
 config IA32_486
 	bool "Intel 80486"
@@ -278,8 +299,6 @@ config LEON3
 	  Choose this if you have a LEON3 CPU.
 endchoice
 
-
-
 config CPU_VIRT
 	bool "Enable CPU virtualization (SVM and VT)"
 	depends on PF_PC
@@ -294,18 +313,49 @@ config ARM_ALIGNMENT_CHECK
 	help
 	  Enable if you want to have alignment check enabled.
 
-config ARM_TZ
-	bool "Enable ARM TrustZone support"
-	depends on (ARM_1176 || ARM_CORTEX_A8 || ARM_CORTEX_A9) && EXPERIMENTAL
-	help
-	  Support ARM TrustZone security extension.
+choice
+	prompt "Execution Model"
+	default ARM_EM_STD
+	depends on ARM
 
-config ARM_CA9_ENABLE_SWP
+config ARM_EM_STD
+	bool "Standard mode"
+	help
+	  Systems without ARM TrustZone support, or no specific TrustZone
+	  support.
+
+config ARM_EM_NS
+	bool "TrustZone normal side"
+	depends on ARM_1176 || ARM_CORTEX_A7 || ARM_CORTEX_A8 || ARM_CORTEX_A9 || ARM_CORTEX_A15
+	help
+	  In a system with ARM TrustZone extension, run on the normal side.
+
+config ARM_EM_TZ
+	bool "TrustZone secure side"
+	depends on ARM_1176 || ARM_CORTEX_A7 || ARM_CORTEX_A8 || ARM_CORTEX_A9 || ARM_CORTEX_A15
+	help
+	  In a system with ARM TrustZone extension, run on the secure side,
+	  and allow monitor services.
+
+endchoice
+
+config ARM_SECMONIF_MC
+	bool
+	depends on ARM_EM_NS
+	default y
+
+config ARM_ENABLE_SWP
 	bool "Enable the deprecated 'swp' instruction"
-	depends on ARM_CORTEX_A9
+	depends on ARM_CORTEX_A9 || ARM_CORTEX_A15 || ARM_CORTEX_A7 || ARM_CORTEX_A5
 	help
 	  Enabling this option enables the deprecated 'swp' instruction.
 	  Avoid to enable it.
+
+config ARM_LPAE
+        bool "Use LPAE page table format"
+        depends on ARM_CORTEX_A15 || ARM_CORTEX_A7
+        help
+          Use the extended page table format (LPAE).
 
 config ARM_CACHE_L2CXX0
 	bool "Enable L2 Cache"
@@ -402,7 +452,7 @@ config ARM_1176_CACHE_ALIAS_FIX
 
 config ARM_CPU_ERRATA
         bool "Enable CPU errata workarounds"
-        depends on ARM && !ARM_TZ
+        depends on ARM
 
 endmenu # target
 
@@ -410,7 +460,7 @@ menu "Kernel options"
 
 config MP
 	bool "Enable multi processor support"
-	depends on (PF_PC || PF_ARM_MP_CAPABLE || (PF_UX && EXPERIMENTAL))
+	depends on (PF_PC || PF_ARM_MP_CAPABLE) && !PF_UX
 	help
 	  Enable support for machines with multiple processors.
 
@@ -510,8 +560,14 @@ endchoice
 
 config DISABLE_VIRT_OBJ_SPACE
 	bool "No virtually mapped array for cap tables"
-	depends on (PF_PC || ARM) &&  EXPERIMENTAL
-	default n
+	depends on (PF_PC || (ARM && !CPU_VIRT)) &&  EXPERIMENTAL
+
+config VIRT_OBJ_SPACE
+	def_bool y
+	depends on !DISABLE_VIRT_OBJ_SPACE
+	depends on !(CPU_VIRT && ARM)
+        depends on !ARM || (ARM_V6PLUS && (!ARM_1176 || ARM_1176_CACHE_ALIAS_FIX))
+
 
 endmenu # kernel options
 
@@ -624,16 +680,14 @@ config JDB_LOGGING
 
 config JDB_DISASM
 	bool "JDB disassembler"
-	default n if ARM
-	default y
+	default y if !ARM
 	help
 	  Add support for disassembly. Increases memory foot-print, only
 	  enable when needed.
 
 config JDB_GZIP
 	bool "GZIP compressed dumps"
-	default n if ARM
-	default y
+	default y if !ARM
 	help
 	  Add supprt for gzip compressed dumps of the trace buffer.
 	  Increases memory foot-print, only enabled when needed.
@@ -755,7 +809,8 @@ config ARM_V6
 	def_bool y if ARM_1136 || ARM_1176 || ARM_MPCORE
 
 config ARM_V7
-	def_bool y if ARM_CORTEX_A8 || ARM_CORTEX_A9
+	def_bool y if ARM_CORTEX_A8 || ARM_CORTEX_A9 \
+	              || ARM_CORTEX_A5 || ARM_CORTEX_A7 || ARM_CORTEX_A15
 
 config ARM_V6PLUS
 	def_bool y if ARM_V6 || ARM_V7

@@ -28,10 +28,11 @@ static Jdb_io_apic_module jdb_io_apic_module INIT_PRIORITY(JDB_MODULE_INIT_PRIO)
 
 PRIVATE static
 void
-Jdb_io_apic_module::print_lapic(unsigned cpu, void *)
+Jdb_io_apic_module::print_lapic(Cpu_number cpu, void *)
 {
-  printf("\nLocal APIC [%u, %08x]: tpr=%2x ppr=%2x\n", cpu, Apic::get_id(), Apic::tpr(),
-         Apic::reg_read(0xa0));
+  printf("\nLocal APIC [%u, %08x]: tpr=%2x ppr=%2x\n",
+         cxx::int_value<Cpu_number>(cpu),
+         Apic::get_id(), Apic::tpr(), Apic::reg_read(0xa0));
   printf("  Running: tpr=%02x\n", Jdb::apic_tpr.cpu(cpu));
 
   unsigned const regs[] = { 0x200, 0x100, 0x180 };
@@ -50,7 +51,7 @@ Jdb_io_apic_module::print_lapic(unsigned cpu, void *)
 
 PRIVATE static
 void
-Jdb_io_apic_module::remote_print_lapic(unsigned cpu)
+Jdb_io_apic_module::remote_print_lapic(Cpu_number cpu)
 {
   Jdb::remote_work(cpu, print_lapic, 0);
 }

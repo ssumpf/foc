@@ -110,11 +110,9 @@ Task::map_utcb_ptr_page()
 {
   //Mem_space::Status res =
 	static_cast<Mem_space*>(this)->v_insert(
-	    Mem_space::Phys_addr::create(Mem_layout::Utcb_ptr_frame),
-	    Mem_space::Addr::create(Mem_layout::Utcb_ptr_page_user),
-	    Mem_space::Size::create(Config::PAGE_SIZE),
-	    Mem_space::Page_writable
-	    | Mem_space::Page_user_accessible
-	    | Mem_space::Page_cacheable);
+	    Mem_space::Phys_addr(Mem_layout::Utcb_ptr_frame),
+	    Virt_addr(Mem_layout::Utcb_ptr_page_user),
+	    Mem_space::Page_order(Config::PAGE_SHIFT),
+	    Mem_space::Attr(Page::Rights::URW()));
 }
 

@@ -9,7 +9,7 @@ SUBSYSTEMS := 	ABI KERNEL LIBK DRIVERS MINILIBC \
 
 
 PREPROCESS_PARTS 	+= arch $(CONFIG_ABI) 32bit $(CONFIG_XARCH) \
-                           h3800 noncont_mem abs_syscalls
+                           h3800 abs_syscalls
 
 PREPROCESS_PARTS-$(CONFIG_SERIAL)             += serial
 PREPROCESS_PARTS-$(CONFIG_MP)                 += mp
@@ -27,28 +27,25 @@ PREPROCESS_PARTS-$(CONFIG_ARM_V7)                   += armv7
 PREPROCESS_PARTS-$(CONFIG_ARM_1136)                 += arm1136
 PREPROCESS_PARTS-$(CONFIG_ARM_1176)                 += arm1176
 PREPROCESS_PARTS-$(CONFIG_ARM_MPCORE)               += mpcore
+PREPROCESS_PARTS-$(CONFIG_ARM_CORTEX_A7)            += armca9
 PREPROCESS_PARTS-$(CONFIG_ARM_CORTEX_A8)            += armca8
 PREPROCESS_PARTS-$(CONFIG_ARM_CORTEX_A9)            += armca9
-PREPROCESS_PARTS-$(CONFIG_ARM_TZ)                   += tz
+PREPROCESS_PARTS-$(CONFIG_ARM_CORTEX_A15)           += armca9
+PREPROCESS_PARTS-$(CONFIG_ARM_EM_TZ)                += arm_em_tz
+PREPROCESS_PARTS-$(CONFIG_ARM_EM_STD)               += arm_em_std
+PREPROCESS_PARTS-$(CONFIG_ARM_EM_NS)                += arm_em_ns
+PREPROCESS_PARTS-$(CONFIG_ARM_SECMONIF_MC)          += arm_smif_mc
+PREPROCESS_PARTS-$(CONFIG_ARM_SECMONIF_LP)          += arm_smif_lp
+PREPROCESS_PARTS-$(CONFIG_ARM_SECMONIF_TL)          += arm_smif_tl
 PREPROCESS_PARTS-$(CONFIG_ARM_1176_CACHE_ALIAS_FIX) += arm1176_cache_alias_fix
 PREPROCESS_PARTS-$(CONFIG_ARM_CPU_ERRATA)           += arm_cpu_errata
 PREPROCESS_PARTS-$(CONFIG_SCHED_FIXED_PRIO)  += sched_fixed_prio
 PREPROCESS_PARTS-$(CONFIG_SCHED_WFQ)         += sched_wfq
 PREPROCESS_PARTS-$(CONFIG_SCHED_FP_WFQ)      += sched_fp_wfq
+PREPROCESS_PARTS-$(CONFIG_ARM_LPAE)          += arm_lpae
+PREPROCESS_PARTS-$(CONFIG_CPU_VIRT)                 += hyp
+PREPROCESS_PARTS-y$(CONFIG_CPU_VIRT)                += noncont_mem
 
-
-OBJ_SPACE-y = phys
-OBJ_SPACE-  = virt
-OBJ_SPACE   = $(OBJ_SPACE-$(CONFIG_DISABLE_VIRT_OBJ_SPACE))
-
-
-ifeq ("$(CONFIG_ARM_1176)@$(CONFIG_ARM_1176_CACHE_ALIAS_FIX)","y@")
-OBJ_SPACE_TYPE = phys
-else
-OBJ_SPACE_TYPE = $(if $(CONFIG_ARM_V6PLUS),$(OBJ_SPACE),phys)
-endif
-
-PREPROCESS_PARTS	+= obj_space_$(OBJ_SPACE_TYPE)
 
 #
 # TYPES subsystem
@@ -137,24 +134,24 @@ kip_IMPL	:= kip kip-debug kip-arm
 # KERNEL subsystem
 #
 KERNEL 		:= fiasco
-KERNEL_EXTRA 	:= Symbols
+KERNEL_EXTRA 	:= Symbols kernel.arm.lds
 VPATH 		+= kern/$(CONFIG_XARCH) kern
 VPATH		+= jdb/arm jdb
 PRIVATE_INCDIR 	+= kern/$(CONFIG_XARCH) kern
 
-INTERFACES_KERNEL += 	__main mem_op pagetable kmem_space boot_uart_init     \
+INTERFACES_KERNEL += 	__main mem_op kmem_space boot_uart_init     \
 			irq_chip_generic bootstrap kern_lib_page              \
 			jdb_extensions outer_cache utcb_support cascade_irq   \
-			irq_mgr_multi_chip
+			irq_mgr_multi_chip scu
 
 INTERFACES_KERNEL-$(CONFIG_SERIAL) += uart_console
-INTERFACES_KERNEL-$(CONFIG_ARM_TZ) += vm
+INTERFACES_KERNEL-$(CONFIG_ARM_EM_TZ) += vm
 
-INTERFACES_KERNEL += $(INTERFACES_KERNEL-y)
 
 
 boot_info_IMPL	  	:= boot_info boot_info-arch
 bootstrap_IMPL		:= bootstrap
+CXXFLAGS_bootstrap      := -O3
 clock_IMPL              := clock
 config_IMPL	  	:= config config-arm
 context_IMPL	  	:= context context-arm context-vcpu
@@ -174,14 +171,13 @@ mapping_IMPL		:= mapping-arm mapping
 mem_layout_IMPL		:= mem_layout mem_layout-arm mem_layout-noncont
 mem_space_IMPL		:= mem_space mem_space-arm mem_space-user
 kmem_alloc_IMPL		:= kmem_alloc kmem_alloc-arm
-obj_space_IMPL          := obj_space obj_space-$(OBJ_SPACE_TYPE)
 outer_cache_IMPL	:= outer_cache outer_cache-l2cxx0
-pagetable_IMPL	  	:= pagetable pagetable-arch
 paging_IMPL	  	:= paging-arm paging
 perf_cnt_IMPL		:= perf_cnt perf_cnt-arm
 pic_IMPL		:= pic
 sched_context_IMPL	:= sched_context-wfq sched_context-fixed_prio \
 			   sched_context-fp_wfq sched_context
+scu_IMPL                := scu
 space_IMPL		:= space space-arm
 spin_lock_IMPL		:= spin_lock spin_lock-arm
 startup_IMPL		:= startup startup-arm
@@ -196,6 +192,7 @@ timer_tick_IMPL		:= timer_tick timer_tick-arm
 utcb_init_IMPL		:= utcb_init utcb_init-arm
 utcb_support_IMPL       := utcb_support utcb_support-arm
 vmem_alloc_IMPL	  	:= vmem_alloc vmem_alloc-arch
+vm_factory_IMPL         := vm_factory vm_factory-arm
 tb_entry_IMPL		:= tb_entry tb_entry-arm
 vcpu_IMPL               := vcpu vcpu-arm
 
@@ -245,12 +242,12 @@ ifneq ($(CONFIG_JDB_GZIP),)
  endif
 endif
 
-INTERFACES_JDB		+= $(INTERFACES_JDB-y)
 endif
 
 CXXSRC_KERNEL		:= kernel_panic.cc libc_backend_lock.cc
 ASSRC_KERNEL	  	:= ivt.S $(if $(CONFIG_MP),tramp-mp.S)
 CPPFLAGS                += $(if $(CONFIG_MP),-DMPCORE_PHYS_BASE=$(MPCORE_PHYS_BASE))
+CPPFLAGS                += -DRAM_PHYS_BASE=$(RAM_PHYS_BASE)
 
 NOOPT			+= $(filter jdb%,\
 			     $(foreach in,$(INTERFACES_KERNEL), \
@@ -323,10 +320,14 @@ endif
 include $(MODULES_FILE_BSP)
 VPATH += kern/arm/bsp/$(BSP_NAME)
 PREPROCESS_PARTS	+= $(PREPROCESS_PARTS-y)
+INTERFACES_KERNEL       += $(INTERFACES_KERNEL-y)
+INTERFACES_JDB		+= $(INTERFACES_JDB-y)
 
 ifeq ("$(filter LIBUART, $(SUBSYSTEMS))","LIBUART")
   LIBUART			:= uart/libuart.a
 endif
+
+CONFIG_KERNEL_LOAD_ADDR := $(RAM_PHYS_BASE)
 
 ifneq ($(CONFIG_MP),)
 ifeq ($(MPCORE_PHYS_BASE),)

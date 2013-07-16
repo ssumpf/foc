@@ -2,20 +2,13 @@ INTERFACE:
 
 #include "mem.h"
 #include "std_macros.h"
+#include "processor.h"
 
 EXTENSION class Mmu
 {
 public:
   static void btc_flush();
   static void btc_inv();
-
-  enum
-  {
-    Cache_line_size = 32,
-    Cache_line_mask = Cache_line_size - 1,
-    Icache_line_size = 32,
-    Icache_line_mask = Icache_line_size - 1,
-  };
 };
 
 //---------------------------------------------------------------------------
@@ -43,6 +36,24 @@ IMPLEMENT static inline
 template < unsigned long Flush_area, bool Ram >
 void Mmu<Flush_area, Ram>::btc_inv()
 { asm volatile ("mcr p15, 0, %0, c7, c5, 0" : : "r" (0) : "memory"); }
+
+//-----------------------------------------------------------------------------
+IMPLEMENTATION [arm && (mpcore || arm1136 || arm1176 || pxa || sa1100 || 926 || arm920t)]:
+
+PUBLIC static inline
+template< unsigned long Flush_area, bool Ram >
+Mword Mmu<Flush_area, Ram>::dcache_line_size()
+{
+  return 32;
+}
+
+PUBLIC static inline
+template< unsigned long Flush_area, bool Ram >
+Mword
+Mmu<Flush_area, Ram>::icache_line_size()
+{
+  return 32;
+}
 
 // ---------------------------------------------------------------------------
 IMPLEMENTATION [arm && arm920t]:
@@ -84,6 +95,7 @@ IMPLEMENT
 template< unsigned long Flush_area, bool Ram >
 FIASCO_NOINLINE void Mmu<Flush_area, Ram>::inv_dcache(void const *start, void const *end)
 {
+  (void)start; (void)end;
   // clean && invalidate dcache  ||| XXX: all
 #if 1
   for (unsigned long index = 0; index < (1 << (32 - 26)); ++index)
@@ -94,7 +106,6 @@ FIASCO_NOINLINE void Mmu<Flush_area, Ram>::inv_dcache(void const *start, void co
   asm volatile("mcr p15,0,%0,c7,c6,0" : : "r" (0) : "memory");
 #endif
 }
-
 
 // ---------------------------------------------------------------------------
 IMPLEMENTATION [arm && (pxa || sa1100 || 926)]:
@@ -122,7 +133,7 @@ FIASCO_NOINLINE void Mmu<Flush_area, Ram>::clean_dcache(void const *start, void 
 	  "    cmp  %0, %1                 \n"
 	  "    blo  1b                     \n"
 	  "    mcr  p15, 0, %0, c7, c10, 4 \n" // drain WB
-	  : : "r" (start), "r" (end), "i" (Cache_line_size)
+	  : : "r" (start), "r" (end), "i" (dcache_line_size())
 	  );
     }
 }
@@ -150,7 +161,7 @@ FIASCO_NOINLINE void Mmu<Flush_area, Ram>::flush_dcache(void const *start, void 
 	  "    cmp  %0, %1                 \n"
 	  "    blo  1b                     \n"
 	  "    mcr  p15, 0, %0, c7, c10, 4 \n" // drain WB
-	  : : "r" (start), "r" (end), "i" (Cache_line_size)
+	  : : "r" (start), "r" (end), "i" (dcache_line_size())
 	  );
     }
 }
@@ -166,8 +177,29 @@ FIASCO_NOINLINE void Mmu<Flush_area, Ram>::inv_dcache(void const *start, void co
 	  "    add  %0, %0, %2             \n"
 	  "    cmp  %0, %1                 \n"
 	  "    blo  1b                     \n"
-	  : : "r" (start), "r" (end), "i" (Cache_line_size)
+	  : : "r" (start), "r" (end), "i" (dcache_line_size())
 	  );
+}
+
+//-----------------------------------------------------------------------------
+IMPLEMENTATION [arm && (armca8 || armca9)]:
+
+PUBLIC static inline
+template< unsigned long Flush_area, bool Ram >
+Mword Mmu<Flush_area, Ram>::dcache_line_size()
+{
+  Mword v;
+  __asm__ __volatile__("mrc p15, 0, %0, c0, c0, 1" : "=r" (v));
+  return 4 << ((v >> 16) & 0xf);
+}
+
+PUBLIC static inline
+template< unsigned long Flush_area, bool Ram >
+Mword Mmu<Flush_area, Ram>::icache_line_size()
+{
+  Mword v;
+  __asm__ __volatile__("mrc p15, 0, %0, c0, c0, 1" : "=r" (v));
+  return 4 << (v & 0xf);
 }
 
 //-----------------------------------------------------------------------------
@@ -179,15 +211,15 @@ void Mmu<Flush_area, Ram>::flush_cache(void const *start,
 				       void const *end)
 {
   __asm__ __volatile__ (
-      "1:  mcr p15, 0, %[i], c7, c14, 1  \n"
-      "    mcr p15, 0, %[i], c7, c5, 1   \n"
+      "1:  mcr p15, 0, %[i], c7, c14, 1  \n" // DCCIMVAC
+      "    mcr p15, 0, %[i], c7, c5, 1   \n" // ICIMVAU
       "    add %[i], %[i], %[clsz]       \n"
       "    cmp %[i], %[end]              \n"
       "    blo 1b                        \n"
       : [i]     "=&r" (start)
-      :         "0"   ((unsigned long)start & ~(Cache_line_size - 1)),
+      :         "0"   ((unsigned long)start & ~(dcache_line_size() - 1)),
         [end]   "r"   (end),
-	[clsz]  "i"   (Cache_line_size)
+	[clsz]  "ir"  (dcache_line_size())
       : "r0", "memory");
   btc_inv();
   Mem::dsb();
@@ -199,10 +231,10 @@ void Mmu<Flush_area, Ram>::clean_dcache(void const *va)
 {
   Mem::dsb();
   __asm__ __volatile__ (
-      "mcr p15, 0, %1, c7, c10, 1       \n" // Clean Data Cache Line (using MVA) Register
+      "mcr p15, 0, %1, c7, c10, 1       \n" // DCCMVAC
       :
       : "r" (0),
-        "r"((unsigned long)va & ~(Cache_line_size - 1))
+        "r" ((unsigned long)va & ~(dcache_line_size() - 1))
       : "memory");
 }
 
@@ -213,14 +245,14 @@ void Mmu<Flush_area, Ram>::clean_dcache(void const *start, void const *end)
   Mem::dsb();
   __asm__ __volatile__ (
       // arm1176 only: "    mcrr p15, 0, %2, %1, c12         \n"
-      "1:  mcr p15, 0, %[i], c7, c10, 1   \n" // Clean Data Cache Line (using MVA) Register
+      "1:  mcr p15, 0, %[i], c7, c10, 1   \n" // DCCMVAC
       "    add %[i], %[i], %[clsz]        \n"
       "    cmp %[i], %[end]               \n"
       "    blo 1b                         \n"
       : [i]     "=&r" (start)
-      :         "0"   ((unsigned long)start & ~(Cache_line_size - 1)),
+      :         "0"   ((unsigned long)start & ~(dcache_line_size() - 1)),
         [end]   "r"   (end),
-	[clsz]  "i"   (Cache_line_size)
+	[clsz]  "ir"  (dcache_line_size())
       : "memory");
   btc_inv();
   Mem::dsb();
@@ -237,9 +269,9 @@ void Mmu<Flush_area, Ram>::flush_dcache(void const *start, void const *end)
       "    cmp %[i], %[end]             \n"
       "    blo 1b                       \n"
       : [i]    "=&r" (start)
-      :        "0"   ((unsigned long)start & ~(Cache_line_size - 1)),
+      :        "0"   ((unsigned long)start & ~(dcache_line_size() - 1)),
         [end]  "r"   (end),
-	[clsz] "i"   (Cache_line_size)
+	[clsz] "ir"  (dcache_line_size())
       : "memory");
   btc_inv();
   Mem::dsb();
@@ -256,9 +288,9 @@ void Mmu<Flush_area, Ram>::inv_dcache(void const *start, void const *end)
       "    cmp %[i], %[end]             \n"
       "    blo 1b                       \n"
       : [i]    "=&r" (start)
-      :        "0"   ((unsigned long)start & ~(Cache_line_size - 1)),
+      :        "0"   ((unsigned long)start & ~(dcache_line_size() - 1)),
         [end]  "r"   (end),
-	[clsz] "i"   (Cache_line_size)
+	[clsz] "ir"  (dcache_line_size())
       : "memory");
   btc_inv();
   Mem::dsb();
@@ -311,104 +343,96 @@ private:
   struct set_way_dcache_flush_op
   {
     void operator()(Mword v) const
-    { // clean+inv data cache by set/way
-      __asm__ __volatile__
-        ( "mcr p15, 0, %0, c7, c14, 2" : : "r"(v) : "memory");
+    { // DCCISW
+      asm volatile("mcr p15, 0, %0, c7, c14, 2" : : "r" (v) : "memory");
     }
   };
 
   struct set_way_dcache_clean_op
   {
     void operator()(Mword v) const
-    { // clean data cache by set/way
-      __asm__ __volatile__
-        ( "mcr p15, 0, %0, c7, c10, 2" : : "r"(v) : "memory");
+    { // DCCSW
+      asm volatile("mcr p15, 0, %0, c7, c10, 2" : : "r" (v) : "memory");
     }
   };
+
+  template< typename T >
+  static void
+  __attribute__((optimize("no-unroll-loops")))
+  set_way_full_loop(T const &f)
+  {
+    Mem::dmb();
+    Mword clidr;
+    asm volatile("mrc p15, 1, %0, c0, c0, 1" : "=r" (clidr));
+    unsigned lvl = (clidr >> 23) & 14;
+
+    for (unsigned cl = 0; cl < lvl; cl += 2)
+      {
+        // data cache only
+        if (((clidr >> (cl + (cl / 2))) & 6) == 0)
+          continue;
+
+        Mword ccsidr;
+          {
+            Proc::Status s = Proc::cli_save();
+            asm volatile("mcr p15, 2, %0, c0, c0, 0" : : "r" (cl));
+            Mem::isb();
+            asm volatile("mrc p15, 1, %0, c0, c0, 0" : "=r" (ccsidr));
+            Proc::sti_restore(s);
+          }
+
+        unsigned assoc       = ((ccsidr >> 3) & 0x3ff);
+        unsigned w_shift     = __builtin_clz(assoc);
+        unsigned set         = ((ccsidr >> 13) & 0x7fff);
+        unsigned log2linelen = (ccsidr & 7) + 4;
+        do
+          {
+            unsigned w = assoc;
+            do
+              f((w << w_shift) | (set << log2linelen) | cl);
+            while (w--);
+          }
+        while (set--);
+      }
+
+    asm volatile("mcr p15, 2, %0, c0, c0, 0" : : "r" (0));
+
+    btc_inv();
+    Mem::dsb();
+    Mem::isb();
+  }
 };
 
 //-----------------------------------------------------------------------------
-INTERFACE [arm && armca8]:
-
-EXTENSION class Mmu
-{
-  enum
-  {
-    SET_SIZE_16KB = 1 << 12,
-    SET_SIZE_32KB = 1 << 13,
-    SET_SIZE      = SET_SIZE_32KB,
-    SET_INCR      = 1 << 6,
-    WAY_INCR      = 1 << 30,
-    WAY_SIZE      = 4,
-  };
-};
-
-//-----------------------------------------------------------------------------
-INTERFACE [arm && armca9]:
-
-EXTENSION class Mmu
-{
-  enum
-  {
-    SET_SIZE_16KB = 1 << 12,
-    SET_SIZE_32KB = 1 << 13,
-    SET_SIZE_64KB = 1 << 14,
-    SET_SIZE      = SET_SIZE_32KB,
-    SET_INCR      = 1 << 5,
-    WAY_INCR      = 1 << 30,
-    WAY_SIZE      = 4,
-  };
-
-};
-
-//-----------------------------------------
 IMPLEMENTATION [arm && (armca8 || armca9)]:
-
-PRIVATE
-template< unsigned long Flush_area, bool Ram >
-template< typename T >
-static inline
-void Mmu<Flush_area, Ram>::set_way_full_op(T const &f)
-{
-  unsigned wv, w;
-  for (w = 0, wv = 0; w < WAY_SIZE; ++w, wv += WAY_INCR)
-    for (unsigned s = 0; s < SET_SIZE; s += SET_INCR)
-      f(wv | s);
-  btc_inv();
-  __asm__ __volatile__ ("dsb; isb");
-}
 
 IMPLEMENT
 template< unsigned long Flush_area, bool Ram >
 void Mmu<Flush_area, Ram>::flush_dcache()
 {
-  __asm__ __volatile__("dsb");
-  set_way_full_op(set_way_dcache_flush_op());
+  Mem::dsb();
+  set_way_full_loop(set_way_dcache_flush_op());
 }
-
 
 IMPLEMENT
 template< unsigned long Flush_area, bool Ram >
 void Mmu<Flush_area, Ram>::flush_cache()
 {
-  __asm__ __volatile__ (
-      "    dsb       \n"
-      // Invalidate Entire Instruction Cache Register + BTC
-      "    mcr p15, 0, r0, c7, c5, 0 \n"
-      : : : "memory");
+  Mem::dsb();
+  asm volatile("mcr p15, 0, r0, c7, c5, 0 \n" // ICIALLU
+               "mcr p15, 0, r0, c7, c5, 6 \n" // BPIALL
+               "mcr p15, 0, r0, c8, c7, 0 \n" // TLBIALL
+               : : : "memory");
 
-  set_way_full_op(set_way_dcache_flush_op());
+  set_way_full_loop(set_way_dcache_flush_op());
 }
 
 IMPLEMENT
 template< unsigned long Flush_area, bool Ram >
 void Mmu<Flush_area, Ram>::clean_dcache()
 {
-  __asm__ __volatile__ (
-      "    dsb       \n" // Drain Synchronization Barrier Register
-      : : : "memory");
-
-  set_way_full_op(set_way_dcache_clean_op());
+  Mem::dsb();
+  set_way_full_loop(set_way_dcache_clean_op());
 }
 
 //-----------------------------------------------------------------------------
@@ -428,7 +452,7 @@ FIASCO_NOINLINE void Mmu<Flush_area, Ram>::flush_cache()
       "     mcr  p15, 0, r0, c7, c7, 0  \n"
       "     mcr  p15, 0, r0, c7, c10, 4 \n" // drain WB
       : "=r" (dummy)
-      : "r" (Flush_area), "i" (Cache_line_size)
+      : "r" (Flush_area), "i" (dcache_line_size())
       : "r0"
       );
 }
@@ -440,12 +464,12 @@ FIASCO_NOINLINE void Mmu<Flush_area, Ram>::clean_dcache()
   register Mword dummy;
   asm volatile (
       "     add %0, %1, #8192 \n" // 8k flush area
-      " 1:  ldr r0, [%1], %2  \n" // 32 bytes cache line size
+      " 1:  ldr r0, [%1], %2  \n"
       "     teq %1, %0        \n"
       "     bne 1b            \n"
       "     mcr  p15, 0, r0, c7, c10, 4 \n" // drain WB
       : "=r" (dummy)
-      : "r" (Flush_area), "i" (Cache_line_size)
+      : "r" (Flush_area), "i" (dcache_line_size())
       : "r0"
       );
 }
@@ -457,19 +481,17 @@ FIASCO_NOINLINE void Mmu<Flush_area, Ram>::flush_dcache()
   register Mword dummy;
   asm volatile (
       "     add %0, %1, #8192           \n" // 8k flush area
-      " 1:  ldr r0, [%1], %2            \n" // 32 bytes cache line size
+      " 1:  ldr r0, [%1], %2            \n"
       "     teq %1, %0                  \n"
       "     bne 1b                      \n"
       "     mov  r0, #0                 \n"
       "     mcr  p15, 0, r0, c7, c6, 0  \n" // inv D cache
       "     mcr  p15, 0, r0, c7, c10, 4 \n" // drain WB
       : "=r" (dummy)
-      : "r" (Flush_area), "i" (Cache_line_size)
+      : "r" (Flush_area), "i" (dcache_line_size())
       : "r0"
       );
-
 }
-
 
 //-----------------------------------------------------------------------------
 IMPLEMENTATION [arm && pxa]:
@@ -482,19 +504,19 @@ FIASCO_NOINLINE void Mmu<Flush_area, Ram>::flush_cache()
   asm volatile
     (
      // write back data cache
-     " 1: mcr p15,0,%0,c7,c2,5                           \n\t"
+     " 1: mcr p15, 0, %0, c7, c2, 5                      \n\t"
      "    add %0, %0, #32                                \n\t"
      "    subs %1, %1, #1                                \n\t"
      "    bne 1b                                         \n\t"
      // drain write buffer
-     "    mcr  p15, 0, %0, c7, c7, 0  \n"
+     "    mcr  p15, 0, %0, c7, c7, 0                     \n\t"
      "    mcr p15, 0, r0, c7, c10, 4                     \n\t"
      :
      "=r" (dummy1),
      "=r" (dummy2)
      :
      "0" (Flush_area),
-     "1" (Ram?2048:1024)
+     "1" (Ram ? 2048 : 1024)
     );
 }
 
@@ -506,7 +528,7 @@ FIASCO_NOINLINE void Mmu<Flush_area, Ram>::clean_dcache()
   asm volatile
     (
      // write back data cache
-     " 1: mcr p15,0,%0,c7,c2,5                           \n\t"
+     " 1: mcr p15, 0, %0, c7, c2, 5                      \n\t"
      "    add %0, %0, #32                                \n\t"
      "    subs %1, %1, #1                                \n\t"
      "    bne 1b                                         \n\t"
@@ -517,7 +539,7 @@ FIASCO_NOINLINE void Mmu<Flush_area, Ram>::clean_dcache()
      "=r" (dummy2)
      :
      "0" (Flush_area),
-     "1" (Ram?2048:1024)
+     "1" (Ram ? 2048 : 1024)
     );
 }
 
@@ -529,11 +551,11 @@ FIASCO_NOINLINE void Mmu<Flush_area, Ram>::flush_dcache()
   asm volatile
     (
      // write back data cache
-     " 1: mcr p15,0,%0,c7,c2,5                           \n\t"
+     " 1: mcr p15, 0, %0, c7, c2, 5                      \n\t"
      "    add %0, %0, #32                                \n\t"
      "    subs %1, %1, #1                                \n\t"
      "    bne 1b                                         \n\t"
-     "    mcr  p15, 0, %0, c7, c6, 0  \n" // inv D cache
+     "    mcr  p15, 0, %0, c7, c6, 0                     \n\t" // inv D cache
      // drain write buffer
      "    mcr p15, 0, r0, c7, c10, 4                     \n\t"
      :
@@ -541,7 +563,7 @@ FIASCO_NOINLINE void Mmu<Flush_area, Ram>::flush_dcache()
      "=r" (dummy2)
      :
      "0" (Flush_area),
-     "1" (Ram?2048:1024)
+     "1" (Ram ? 2048 : 1024)
     );
 }
 
@@ -562,7 +584,6 @@ FIASCO_NOINLINE void Mmu<Flush_area, Ram>::flush_cache()
   // invalidate icache
   asm volatile("mcr p15,0,%0,c7,c5,0" : : "r" (0) : "memory");
 }
-
 
 IMPLEMENT
 template< unsigned long Flush_area, bool Ram >
@@ -623,12 +644,10 @@ FIASCO_NOINLINE void Mmu<Flush_area, Ram>::flush_dcache()
      // write back data cache
      "1:  mrc p15, 0, r15, c7, c14, 3                    \n\t"
      "    bne 1b                                         \n\t"
-     "    mcr  p15, 0, %0, c7, c6, 0  \n" // inv D cache
+     "    mcr  p15, 0, %0, c7, c6, 0                     \n\t" // inv D cache
      // drain write buffer
      "    mcr p15, 0, %0, c7, c10, 4                     \n\t"
      : :
      "r" (0)
     );
 }
-
-

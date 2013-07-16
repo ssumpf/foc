@@ -41,16 +41,18 @@ IMPLEMENTATION [arm]:
 PRIVATE static void
 Mem_op::l1_inv_dcache(Address start, Address end)
 {
-  if (start & Mem_unit::Cache_line_mask)
+  Mword s = Mem_unit::dcache_line_size();
+  Mword m = s - 1;
+  if (start & m)
     {
       Mem_unit::flush_dcache((void *)start, (void *)start);
-      start += Mem_unit::Cache_line_size;
-      start &= ~Mem_unit::Cache_line_mask;
+      start += s;
+      start &= ~m;
     }
-  if (end & Mem_unit::Cache_line_mask)
+  if (end & m)
     {
       Mem_unit::flush_dcache((void *)end, (void *)end);
-      end &= ~Mem_unit::Cache_line_mask;
+      end &= ~m;
     }
 
   if (start < end)
@@ -64,8 +66,9 @@ Mem_op::inv_icache(Address start, Address end)
     asm volatile("mcr p15, 0, r0, c7, c5, 0");
   else
     {
-      for (start &= ~Mem_unit::Icache_line_mask;
-           start < end; start += Mem_unit::Icache_line_size)
+      Mword s = Mem_unit::icache_line_size();
+      for (start &= ~(s - 1);
+           start < end; start += s)
 	asm volatile("mcr p15, 0, %0, c7, c5, 1" : : "r" (start));
     }
 }
@@ -227,14 +230,14 @@ Mem_op::outer_cache_op(int op, Address start, Address end)
 
   while (v < e)
     {
-      Mem_space::Size phys_size;
+      Mem_space::Page_order phys_size;
       Mem_space::Phys_addr phys_addr;
-      unsigned attrs;
-      bool mapped =    c->mem_space()->v_lookup(Mem_space::Vaddr(v), &phys_addr, &phys_size, &attrs)
-                    && (attrs & Mem_space::Page_user_accessible);
+      Page::Attr attrs;
+      bool mapped = (   c->mem_space()->v_lookup(Mem_space::Vaddr(v), &phys_addr, &phys_size, &attrs)
+                     && (attrs.rights & Page::Rights::U()));
 
-      Virt_size sz = Virt_size(phys_size);
-      Virt_size offs = Virt_size(Virt_addr(v).value() & (Mem_space::Size(phys_size).value() - 1));
+      Virt_size sz = Virt_size(1) << phys_size;
+      Virt_size offs = cxx::get_lsb(v, phys_size);
       sz -= offs;
       if (e - v < sz)
         sz = e - v;
@@ -246,16 +249,13 @@ Mem_op::outer_cache_op(int op, Address start, Address end)
           switch (op)
             {
             case Op_cache_l2_clean:
-              Outer_cache::clean(Virt_addr(vstart).value(),
-                                 Virt_addr(vend).value(), false);
+              Outer_cache::clean(Virt_addr::val(vstart), Virt_addr::val(vend), false);
               break;
             case Op_cache_l2_flush:
-              Outer_cache::flush(Virt_addr(vstart).value(),
-                                 Virt_addr(vend).value(), false);
+              Outer_cache::flush(Virt_addr::val(vstart), Virt_addr::val(vend), false);
               break;
             case Op_cache_l2_inv:
-              Outer_cache::invalidate(Virt_addr(vstart).value(),
-                                      Virt_addr(vend).value(), false);
+              Outer_cache::invalidate(Virt_addr::val(vstart), Virt_addr::val(vend), false);
               break;
             }
         }

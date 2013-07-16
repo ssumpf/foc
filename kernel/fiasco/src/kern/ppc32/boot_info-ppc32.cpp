@@ -29,6 +29,7 @@ PUBLIC static
 Of_device *
 Boot_info::get_device(const char *name, const char *type)
 {
+  (void)name; (void)type;
 #if 0
   Of_device *dev = reinterpret_cast<Of_device *>(_mbi.drives_addr);
 

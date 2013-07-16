@@ -9,12 +9,18 @@ sys_ipc_wrapper()
 {
   assert_kdb (!(current()->state() & Thread_drq_ready));
 
+#ifndef NDEBUG
+  if ((current()->state() & Thread_vcpu_enabled)
+      && (current()->vcpu_state().access()->state & Vcpu_state::F_irqs))
+    WARN("VCPU makes syscall with IRQs enabled: PC=%lx\n", current()->regs()->ip());
+#endif
+
   Thread *curr = current_thread();
   Syscall_frame *f = curr->regs();
 
   Obj_cap obj = f->ref();
   Utcb *utcb = curr->utcb().access(true);
-  unsigned char rights;
+  L4_fpage::Rights rights;
   Kobject_iface *o = obj.deref(&rights);
   L4_msg_tag e;
   if (EXPECT_TRUE(o!=0))

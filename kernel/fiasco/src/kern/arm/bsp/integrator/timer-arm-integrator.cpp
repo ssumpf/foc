@@ -1,20 +1,18 @@
 // --------------------------------------------------------------------------
 INTERFACE [arm && integrator]:
 
-#include "kmem.h"
+#include "mmio_register_block.h"
 
-EXTENSION class Timer
+EXTENSION class Timer : private Mmio_register_block
 {
 public:
   static unsigned irq() { return 6; }
 
 private:
   enum {
-    Base = Kmem::Timer_map_base,
-
-    TIMER0_VA_BASE = Base + 0x000,
-    TIMER1_VA_BASE = Base + 0x100,
-    TIMER2_VA_BASE = Base + 0x200,
+    TIMER0_BASE = 0x000,
+    TIMER1_BASE = 0x100,
+    TIMER2_BASE = 0x200,
 
     TIMER_LOAD   = 0x00,
     TIMER_VALUE  = 0x04,
@@ -25,6 +23,8 @@ private:
     TIMER_CTRL_PERIODIC = 1 << 6,
     TIMER_CTRL_ENABLE   = 1 << 7,
   };
+
+  static Static_object<Timer> _timer;
 };
 
 // ----------------------------------------------------------------------
@@ -32,23 +32,30 @@ IMPLEMENTATION [arm && integrator]:
 
 #include "config.h"
 #include "kip.h"
-#include "io.h"
+#include "kmem.h"
+#include "mem_layout.h"
 
-IMPLEMENT
-void Timer::init(unsigned)
+Static_object<Timer> Timer::_timer;
+
+PUBLIC
+Timer::Timer(Address base) : Mmio_register_block(base)
 {
   /* Switch all timers off */
-  Io::write(0, TIMER0_VA_BASE + TIMER_CTRL);
-  Io::write(0, TIMER1_VA_BASE + TIMER_CTRL);
-  Io::write(0, TIMER2_VA_BASE + TIMER_CTRL);
+  write(0, TIMER0_BASE + TIMER_CTRL);
+  write(0, TIMER1_BASE + TIMER_CTRL);
+  write(0, TIMER2_BASE + TIMER_CTRL);
 
   unsigned timer_ctrl = TIMER_CTRL_ENABLE | TIMER_CTRL_PERIODIC;
   unsigned timer_reload = 1000000 / Config::Scheduler_granularity;
 
-  Io::write(timer_reload, TIMER1_VA_BASE + TIMER_LOAD);
-  Io::write(timer_reload, TIMER1_VA_BASE + TIMER_VALUE);
-  Io::write(timer_ctrl | TIMER_CTRL_IE, TIMER1_VA_BASE + TIMER_CTRL);
+  write(timer_reload, TIMER1_BASE + TIMER_LOAD);
+  write(timer_reload, TIMER1_BASE + TIMER_VALUE);
+  write(timer_ctrl | TIMER_CTRL_IE, TIMER1_BASE + TIMER_CTRL);
 }
+
+IMPLEMENT
+void Timer::init(Cpu_number)
+{ _timer.construct(Kmem::mmio_remap(Mem_layout::Timer_phys_base)); }
 
 static inline
 Unsigned64
@@ -60,11 +67,11 @@ Unsigned64
 Timer::us_to_timer(Unsigned64 us)
 { (void)us; return 0; }
 
-PUBLIC static inline NEEDS["io.h"]
+PUBLIC static inline
 void
 Timer::acknowledge()
 {
-  Io::write(1, TIMER1_VA_BASE + TIMER_INTCLR);
+  _timer->write(1, TIMER1_BASE + TIMER_INTCLR);
 }
 
 IMPLEMENT inline

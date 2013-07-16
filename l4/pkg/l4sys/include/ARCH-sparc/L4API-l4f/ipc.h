@@ -31,90 +31,6 @@
 #include <l4/sys/syscall_defs.h>
 
 L4_INLINE l4_msgtag_t
-l4_ipc_call(l4_cap_idx_t dest, l4_utcb_t *utcb,
-            l4_msgtag_t tag,
-            l4_timeout_t timeout) L4_NOTHROW
-{
-	(void)dest;
-	(void)utcb;
-	(void)tag;
-	(void)timeout;
-	l4_msgtag_t t;
-	t.raw = ~0;
-	return t;
-}
-
-L4_INLINE l4_msgtag_t
-l4_ipc_reply_and_wait(l4_utcb_t *utcb, l4_msgtag_t tag,
-                      l4_umword_t *label,
-                      l4_timeout_t timeout) L4_NOTHROW
-{
-	(void)utcb;
-	(void)tag;
-	(void)label;
-	(void)timeout;
-	l4_msgtag_t t;
-	t.raw = ~0;
-	return t;
-}
-
-
-L4_INLINE l4_msgtag_t
-l4_ipc_send_and_wait(l4_cap_idx_t dest, l4_utcb_t *utcb,
-                     l4_msgtag_t tag,
-                     l4_umword_t *src,
-                     l4_timeout_t timeout) L4_NOTHROW
-{
-	(void)dest;
-	(void)utcb;
-	(void)tag;
-	(void)src;
-	(void)timeout;
-	l4_msgtag_t t;
-	t.raw = ~0;
-	return t;
-}
-
-L4_INLINE l4_msgtag_t
-l4_ipc_send(l4_cap_idx_t dest, l4_utcb_t *utcb,
-            l4_msgtag_t tag,
-            l4_timeout_t timeout) L4_NOTHROW
-{
-	(void)dest;
-	(void)utcb;
-	(void)tag;
-	(void)timeout;
-	l4_msgtag_t t;
-	t.raw = ~0;
-	return t;
-}
-
-L4_INLINE l4_msgtag_t
-l4_ipc_wait(l4_utcb_t *utcb, l4_umword_t *src,
-            l4_timeout_t timeout) L4_NOTHROW
-{
-	(void)utcb;
-	(void)src;
-	(void)timeout;
-	l4_msgtag_t t;
-	t.raw = ~0;
-	return t;
-}
-
-L4_INLINE l4_msgtag_t
-l4_ipc_receive(l4_cap_idx_t src, l4_utcb_t *utcb,
-               l4_timeout_t timeout) L4_NOTHROW
-{
-	(void)utcb;
-	(void)src;
-	(void)timeout;
-	l4_msgtag_t t;
-	t.raw = ~0;
-	return t;
-}
-
-// todo: let all calls above use this single call
-L4_INLINE l4_msgtag_t
 l4_ipc(l4_cap_idx_t dest, l4_utcb_t *utcb,
        l4_umword_t flags,
        l4_umword_t slabel,
@@ -134,6 +50,57 @@ l4_ipc(l4_cap_idx_t dest, l4_utcb_t *utcb,
 	return t;
 }
 
+
+L4_INLINE l4_msgtag_t
+l4_ipc_call(l4_cap_idx_t dest, l4_utcb_t *utcb,
+            l4_msgtag_t tag,
+            l4_timeout_t timeout) L4_NOTHROW
+{
+  return l4_ipc(dest, utcb, L4_SYSF_CALL, 0, tag, 0, timeout);
+}
+
+L4_INLINE l4_msgtag_t
+l4_ipc_reply_and_wait(l4_utcb_t *utcb, l4_msgtag_t tag,
+                      l4_umword_t *label,
+                      l4_timeout_t timeout) L4_NOTHROW
+{
+  return l4_ipc(L4_INVALID_CAP, utcb, L4_SYSF_REPLY_AND_WAIT, 0, tag, label, timeout);
+}
+
+L4_INLINE l4_msgtag_t
+l4_ipc_send_and_wait(l4_cap_idx_t dest, l4_utcb_t *utcb,
+                     l4_msgtag_t tag,
+                     l4_umword_t *src,
+                     l4_timeout_t timeout) L4_NOTHROW
+{
+  return l4_ipc(dest, utcb, L4_SYSF_SEND_AND_WAIT, 0, tag, src, timeout);
+}
+
+L4_INLINE l4_msgtag_t
+l4_ipc_send(l4_cap_idx_t dest, l4_utcb_t *utcb,
+            l4_msgtag_t tag,
+            l4_timeout_t timeout) L4_NOTHROW
+{
+  return l4_ipc(dest, utcb, L4_SYSF_SEND, 0, tag, 0, timeout);
+}
+
+L4_INLINE l4_msgtag_t
+l4_ipc_wait(l4_utcb_t *utcb, l4_umword_t *src,
+            l4_timeout_t timeout) L4_NOTHROW
+{
+  l4_msgtag_t t;
+  t.raw = 0;
+  return l4_ipc(L4_INVALID_CAP, utcb, L4_SYSF_WAIT, 0, t, src, timeout);
+}
+
+L4_INLINE l4_msgtag_t
+l4_ipc_receive(l4_cap_idx_t src, l4_utcb_t *utcb,
+               l4_timeout_t timeout) L4_NOTHROW
+{
+  l4_msgtag_t t;
+  t.raw = 0;
+  return l4_ipc(src, utcb, L4_SYSF_RECV, 0, t, 0, timeout);
+}
 
 #include <l4/sys/ipc-impl.h>
 

@@ -27,7 +27,6 @@
 /* L4 includes */
 #include <l4/sys/l4int.h>
 #include <l4/sys/compiler.h>
-#include <l4/sys/types.h>
 
 /*****************************************************************************
  *** Prototypes

@@ -3,8 +3,7 @@ INTERFACE [arm && imx]: //----------------------------------------------
 EXTENSION class Mem_layout
 {
 public:
-  enum Phys_layout : Address {
-    Sdram_phys_base      = CONFIG_PF_IMX_RAM_PHYS_BASE,
+  enum Phys_layout_imx : Address {
     Flush_area_phys_base = 0xe0000000,
   };
 };
@@ -14,19 +13,12 @@ INTERFACE [arm && imx && imx21]: // ---------------------------------------
 EXTENSION class Mem_layout
 {
 public:
-  enum Virt_layout_imx21 : Address {
-    Uart_map_base        = Devices1_map_base + 0x0a000,
-    Timer_map_base       = Devices1_map_base + 0x03000,
-    Pll_map_base         = Devices1_map_base + 0x27000,
-    Watchdog_map_base    = Devices1_map_base + 0x02000,
-    Pic_map_base         = Devices1_map_base + 0x40000,
-    Uart_base            = Uart_map_base,
-  };
-
   enum Phys_layout_imx21 : Address {
-    Devices1_phys_base   = 0x10000000,
-    Devices2_phys_base   = Invalid_address,
-    Devices3_phys_base   = Invalid_address,
+    Uart_phys_base        = 0x1000a000,
+    Timer_phys_base       = 0x10003000,
+    Pll_phys_base         = 0x10027000,
+    Watchdog_phys_base    = 0x10002000,
+    Pic_phys_base         = 0x10040000,
   };
 };
 
@@ -35,18 +27,11 @@ INTERFACE [arm && imx && imx35]: // ---------------------------------------
 EXTENSION class Mem_layout
 {
 public:
-  enum Virt_layout_imx35 : Address {
-    Uart_map_base        = Devices1_map_base + 0x90000, // uart1
-    Timer_map_base       = Devices2_map_base + 0x94000, // epit1
-    Watchdog_map_base    = Devices2_map_base + 0xdc000, // wdog
-    Pic_map_base         = Devices3_map_base + 0x0,
-    Uart_base            = Uart_map_base,
-  };
-
   enum Phys_layout_imx35 : Address {
-    Devices1_phys_base   = 0x43f00000,
-    Devices2_phys_base   = 0x53f00000,
-    Devices3_phys_base   = 0x68000000,
+    Uart_phys_base        = 0x43f90000, // uart1
+    Timer_phys_base       = 0x53f94000, // epit1
+    Watchdog_phys_base    = 0x53fdc000, // wdog
+    Pic_phys_base         = 0x68000000,
   };
 };
 
@@ -56,19 +41,12 @@ INTERFACE [arm && imx && imx51]: // ---------------------------------------
 EXTENSION class Mem_layout
 {
 public:
-  enum Virt_layout_imx51 : Address {
-    Timer_map_base       = Devices1_map_base + 0xac000, // epit1
-    Uart_map_base        = Devices1_map_base + 0xbc000, // uart1
-    Watchdog_map_base    = Devices1_map_base + 0x98000, // wdog1
-    Gic_cpu_map_base     = Invalid_address,
-    Gic_dist_map_base    = Devices2_map_base + 0x00000,
-    Uart_base            = Uart_map_base,
-  };
-
   enum Phys_layout_imx51 : Address {
-    Devices1_phys_base   = 0x73f00000,
-    Devices2_phys_base   = 0xe0000000,
-    Devices3_phys_base   = Invalid_address,
+    Timer_phys_base       = 0x73fac000, // epit1
+    Uart_phys_base        = 0x73fbc000, // uart1
+    Watchdog_phys_base    = 0x73f98000, // wdog1
+    Gic_dist_phys_base    = 0xe0000000,
+    Gic_cpu_phys_base     = 0xe0000000, // this is a fake address and not used
   };
 };
 
@@ -77,19 +55,12 @@ INTERFACE [arm && imx && imx53]: // ---------------------------------------
 EXTENSION class Mem_layout
 {
 public:
-  enum Virt_layout_imx53 : Address {
-    Timer_map_base       = Devices1_map_base + 0xac000, // epit1
-    Uart_map_base        = Devices1_map_base + 0xbc000, // uart1
-    Watchdog_map_base    = Devices1_map_base + 0x98000, // wdog1
-    Gic_cpu_map_base     = Invalid_address,
-    Gic_dist_map_base    = Devices2_map_base + 0xfc000,
-    Uart_base            = Uart_map_base,
-  };
-
   enum Phys_layout_imx53 : Address {
-    Devices1_phys_base   = 0x53f00000,
-    Devices2_phys_base   = 0x0ff00000,
-    Devices3_phys_base   = Invalid_address,
+    Timer_phys_base       = 0x53fac000, // epit1
+    Uart_phys_base        = 0x53fbc000, // uart1
+    Watchdog_phys_base    = 0x53f98000, // wdog1
+    Gic_dist_phys_base    = 0x0fffc000,
+    Gic_cpu_phys_base     = 0x0fffc000, // this is a fake address and not used
   };
 };
 
@@ -98,23 +69,17 @@ INTERFACE [arm && imx && imx6]: // -----------------------------------------
 EXTENSION class Mem_layout
 {
 public:
-  enum Virt_layout_imx6 : Address {
-    Mp_scu_map_base      = Devices1_map_base,
-    Gic_cpu_map_base     = Mp_scu_map_base + 0x00100,
-    Gic_dist_map_base    = Mp_scu_map_base + 0x01000,
-    L2cxx0_map_base      = Mp_scu_map_base + 0x02000,
-
-    Uart1_map_base       = Devices2_map_base + 0x20000, // uart1
-    Uart2_map_base       = Devices3_map_base + 0xe8000, // uart2
-    Watchdog_map_base    = Devices2_map_base + 0xbc000, // wdog1
-    Gpt_map_base         = Devices2_map_base + 0x98000,
-    Src_map_base         = Devices2_map_base + 0xd8000,
-    Uart_base            = Uart2_map_base,
-  };
-
   enum Phys_layout_imx6 : Address {
-    Devices1_phys_base   = 0x00a00000,
-    Devices2_phys_base   = 0x02000000,
-    Devices3_phys_base   = 0x02100000,
+    Mp_scu_phys_base     = 0x00a00000,
+    Gic_cpu_phys_base    = 0x00a00100,
+    Gic_dist_phys_base   = 0x00a01000,
+    L2cxx0_phys_base     = 0x00a02000,
+
+    Uart1_phys_base      = 0x02020000, // uart1
+    Watchdog_phys_base   = 0x020bc000, // wdog1
+    Gpt_phys_base        = 0x02098000,
+    Src_phys_base        = 0x020d8000,
+    Uart2_phys_base      = 0x021e8000, // uart2
+    Uart_phys_base       = Uart2_phys_base,
   };
 };

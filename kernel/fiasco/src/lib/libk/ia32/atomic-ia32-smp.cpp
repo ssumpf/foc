@@ -40,17 +40,6 @@ cas2_unsafe (Mword *ptr, Mword *oldval, Mword *newval)
   return ret;
 }
 
-inline 
-bool
-tas (Mword *l)
-{
-  Mword tmp;
-  asm volatile
-    ("xchg %0,%1" : "=r" (tmp) : "m" (*l), "0" (1) : "memory");
-
-  return tmp;
-}
-
 template <typename T> inline
 atomic_and (Mword *l, Mword bits)
 {

@@ -79,14 +79,14 @@ IMPLEMENTATION [vmx]:
 
 PRIVATE static
 void
-Jdb_exit_module::do_vmxoff(unsigned, void *)
+Jdb_exit_module::do_vmxoff(Cpu_number, void *)
 {
   asm volatile("vmxoff");
 }
 
 PRIVATE static
 void
-Jdb_exit_module::remote_vmxoff(unsigned cpu)
+Jdb_exit_module::remote_vmxoff(Cpu_number cpu)
 {
   Jdb::remote_work(cpu, do_vmxoff, 0);
 }

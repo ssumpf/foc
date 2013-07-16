@@ -12,7 +12,7 @@ IMPLEMENTATION[arm && realview]:
 IMPLEMENT inline NEEDS["platform.h"]
 Unsigned64
 Jdb_kern_info_bench::get_time_now()
-{ return Platform::read(Platform::Sys::Cnt_24mhz); }
+{ return Platform::sys->read<Mword>(Platform::Sys::Cnt_24mhz); }
 
 IMPLEMENTATION[arm && !realview]:
 

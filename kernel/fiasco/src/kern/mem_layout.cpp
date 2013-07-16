@@ -21,14 +21,23 @@ public:
   static Mword in_kernel (Address a); // XXX: not right for UX
 };
 
-IMPLEMENTATION:
-
-#include "config.h"
+IMPLEMENTATION [obj_space_virt]:
 
 PUBLIC static inline
 bool
 Mem_layout::is_caps_area(Address a)
 { return (a >= Caps_start) && (a < Caps_end); }
+
+IMPLEMENTATION [!obj_space_virt]:
+
+PUBLIC static inline
+bool
+Mem_layout::is_caps_area(Address)
+{ return false; }
+
+IMPLEMENTATION:
+
+#include "config.h"
 
 IMPLEMENT inline
 Mword

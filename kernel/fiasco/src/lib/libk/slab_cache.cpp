@@ -1,8 +1,8 @@
 INTERFACE:
 
 #include <spin_lock.h>
-#include <hlist>
-#include <slist>
+#include <cxx/hlist>
+#include <cxx/slist>
 #include <auto_quota.h>
 
 // The anonymous slab allocator.  You can specialize this allocator by

@@ -19,7 +19,7 @@ The L4Re specific parts will be described herein.
   </li>
   <li>Return the local thread capability of a pthread thread:
 
-  Use \c pthread_getl4cap(pthread_t *t) to get the capability index of
+  Use \c pthread_getl4cap(pthread_t t) to get the capability index of
   the pthread t.
 
   For example:

@@ -99,14 +99,14 @@ Vlog::log_string(Syscall_frame *f, Utcb const *u)
 
 PRIVATE inline NOEXPORT
 L4_msg_tag
-Vlog::get_input(Mword rights, Syscall_frame *f, Utcb *u)
+Vlog::get_input(L4_fpage::Rights rights, Syscall_frame *f, Utcb *u)
 {
   (void)f;
 
   if (!have_receive(u))
     return commit_result(0);
 
-  if (!(rights & L4_fpage::X))
+  if (!(rights & L4_fpage::Rights::X()))
     return commit_result(-L4_err::EPerm);
 
   char *buffer = reinterpret_cast<char *>(&u->values[1]);
@@ -160,10 +160,21 @@ Vlog::icu_bind_irq(Irq *irq_o, unsigned irqnum)
   return commit_result(0);
 }
 
+PUBLIC
+L4_msg_tag
+Vlog::icu_set_mode(Mword pin, Irq_chip::Mode)
+{
+  if (pin != 0)
+    return commit_result(-L4_err::EInval);
+
+  if (_irq)
+    _irq->switch_mode(true);
+  return commit_result(0);
+}
 
 PRIVATE inline NOEXPORT
 L4_msg_tag
-Vlog::set_attr(Mword, Syscall_frame const *, Utcb const *u)
+Vlog::set_attr(L4_fpage::Rights, Syscall_frame const *, Utcb const *u)
 {
   _i_flags = u->values[1];
   _o_flags = u->values[2] | F_ONLCR;
@@ -179,7 +190,7 @@ Vlog::set_attr(Mword, Syscall_frame const *, Utcb const *u)
 
 PRIVATE inline NOEXPORT
 L4_msg_tag
-Vlog::get_attr(Mword, Syscall_frame *, Utcb *u)
+Vlog::get_attr(L4_fpage::Rights, Syscall_frame *, Utcb *u)
 {
   if (!have_receive(u))
     return commit_result(0);
@@ -213,7 +224,7 @@ Vlog::icu_get_info(Mword *features, Mword *num_irqs, Mword *num_msis)
 
 PUBLIC
 L4_msg_tag
-Vlog::kinvoke(L4_obj_ref ref, Mword rights, Syscall_frame *f,
+Vlog::kinvoke(L4_obj_ref ref, L4_fpage::Rights rights, Syscall_frame *f,
               Utcb const *r_msg, Utcb *s_msg)
 {
   L4_msg_tag const t = f->tag();

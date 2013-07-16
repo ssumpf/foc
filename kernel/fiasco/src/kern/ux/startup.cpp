@@ -31,7 +31,7 @@ static void FIASCO_INIT
 startup_system1()
 {
   Kconsole::init();
-  Usermode::init(0);
+  Usermode::init(Cpu_number::boot_cpu());
   Boot_info::init();
   Config::init();
 }
@@ -46,9 +46,10 @@ startup_system2()
 
   // Initialize cpu-local data management and run constructors for CPU 0
   Per_cpu_data::init_ctors();
-  Per_cpu_data_alloc::alloc(0);
-  Per_cpu_data::run_ctors(0);
+  Per_cpu_data_alloc::alloc(Cpu_number::boot_cpu());
+  Per_cpu_data::run_ctors(Cpu_number::boot_cpu());
 
+  Mem_space::init_page_sizes();
   Kmem::init_mmu(*Cpu::boot_cpu());
   Kernel_task::init();		// enables current_mem_space()
   Kip_init::init_freq(*Cpu::boot_cpu());
@@ -62,10 +63,10 @@ startup_system2()
   Utcb_init::init();
   Pic::init();
   Irq_chip_ia32_pic::init();
-  Ipi::init(0);
+  Ipi::init(Cpu_number::boot_cpu());
   Idt::init();
-  Fpu::init(0);
-  Timer::init(0);
+  Fpu::init(Cpu_number::boot_cpu());
+  Timer::init(Cpu_number::boot_cpu());
   Fb::init();
   Net::init();
   Cpu::init_global_features();

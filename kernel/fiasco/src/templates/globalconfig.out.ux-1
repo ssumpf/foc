@@ -33,6 +33,7 @@ CONFIG_CONTEXT_4K=y
 # CONFIG_UX_CON is not set
 # CONFIG_UX_NET is not set
 CONFIG_SCHED_FIXED_PRIO=y
+CONFIG_VIRT_OBJ_SPACE=y
 
 #
 # Debugging

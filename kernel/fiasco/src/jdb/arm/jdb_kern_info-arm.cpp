@@ -29,7 +29,7 @@ Jdb_kern_info_misc::show()
 	 "pdir: %08x\n",
 	 (unsigned) (Kip::k()->clock >> 32), 
 	 (unsigned) (Kip::k()->clock),
-         (unsigned) Mem_space::current_mem_space(0)->dir());
+         (unsigned) Mem_space::current_mem_space(Cpu_number::boot_cpu())->dir());
 
 
 }

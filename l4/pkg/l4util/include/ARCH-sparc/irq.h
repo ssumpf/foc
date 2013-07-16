@@ -1,7 +1,7 @@
 #ifndef __L4UTIL_SPARC_IRQ_H
 #define __L4UTIL_SPARC_IRQ_H
 
-#include <l4/sys/kdebug.h>
+#include <l4/sys/compiler.h>
 
 EXTERN_C_BEGIN
 
@@ -14,7 +14,8 @@ L4_INLINE
 void
 l4util_cli(void)
 {
-	enter_kdebug("l4util_cli");
+  extern void __do_not_use_l4util_cli(void);
+  __do_not_use_l4util_cli();
 }
 
 
@@ -22,7 +23,8 @@ L4_INLINE
 void
 l4util_sti(void)
 {
-	enter_kdebug("l4util_sti");
+  extern void __do_not_use_l4util_sti(void);
+  __do_not_use_l4util_sti();
 }
 
 
@@ -31,7 +33,8 @@ void
 l4util_flags_save(l4_umword_t *flags)
 {
   (void)flags;
-  enter_kdebug("l4util_flags_save");
+  extern void __do_not_use_l4util_flags_save(void);
+  __do_not_use_l4util_flags_save();
 }
 
 L4_INLINE
@@ -39,7 +42,8 @@ void
 l4util_flags_restore(l4_umword_t *flags)
 {
   (void)flags;
-  enter_kdebug("l4util_flags_restore");
+  extern void __do_not_use_l4util_flags_restore(void);
+  __do_not_use_l4util_flags_restore();
 }
 
 EXTERN_C_END

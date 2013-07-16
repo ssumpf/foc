@@ -430,7 +430,7 @@ PUBLIC inline NEEDS ["config.h", "timeout.h"]
 void
 Thread::handle_timer_interrupt()
 {
-  unsigned _cpu = cpu(true);
+  Cpu_number _cpu = cpu(true);
   // XXX: This assumes periodic timers (i.e. bogus in one-shot mode)
   if (!Config::Fine_grained_cputime)
     consume_time(Config::Scheduler_granularity);
@@ -741,9 +741,9 @@ Thread::handle_migration_helper(Drq *rq, Context *, void *p)
 {
   Migration *inf = reinterpret_cast<Migration *>(p);
   Thread *v = static_cast<Thread*>(context_of(rq));
-  unsigned target_cpu = access_once(&inf->cpu);
+  Cpu_number target_cpu = access_once(&inf->cpu);
   v->migrate_away(inf, false);
-  v->migrate_to(target_cpu);
+  v->migrate_to(target_cpu, false);
   return Drq::Need_resched | Drq::No_answer;
 }
 
@@ -788,9 +788,9 @@ Thread::do_migration()
     }
   else
     {
-      unsigned target_cpu = access_once(&inf->cpu);
+      Cpu_number target_cpu = access_once(&inf->cpu);
       migrate_away(inf, false);
-      migrate_to(target_cpu);
+      migrate_to(target_cpu, false);
     }
   return false; // we already are chosen by the scheduler...
 }
@@ -806,9 +806,9 @@ Thread::initiate_migration()
 
   spill_fpu_if_owner();
 
-  unsigned target_cpu = access_once(&inf->cpu);
+  Cpu_number target_cpu = access_once(&inf->cpu);
   migrate_away(inf, false);
-  migrate_to(target_cpu);
+  migrate_to(target_cpu, false);
   return false;
 }
 
@@ -957,7 +957,7 @@ Thread::migrate_away(Migration *inf, bool /*remote*/)
   assert_kdb (current() != this);
   assert_kdb (cpu_lock.test());
 
-  unsigned cpu = inf->cpu;
+  Cpu_number cpu = inf->cpu;
   //  LOG_MSG_3VAL(this, "MGi ", Mword(current()), (current_cpu() << 16) | cpu(), Context::current_sched());
   if (_timeout)
     _timeout->reset();
@@ -988,13 +988,13 @@ Thread::migrate_away(Migration *inf, bool /*remote*/)
 }
 
 PRIVATE inline
-void
-Thread::migrate_to(unsigned target_cpu)
+bool
+Thread::migrate_to(Cpu_number target_cpu, bool)
 {
   if (!Cpu::online(target_cpu))
     {
       handle_drq();
-      return;
+      return false;
     }
 
   auto &rq = Sched_context::rq.current();
@@ -1002,6 +1002,8 @@ Thread::migrate_to(unsigned target_cpu)
     rq.ready_enqueue(sched());
 
   enqueue_timeout_again();
+
+  return false;
 }
 
 PUBLIC
@@ -1034,8 +1036,8 @@ protected:
   {
     Mword    state;
     Address  user_ip;
-    unsigned src_cpu;
-    unsigned target_cpu;
+    Cpu_number src_cpu;
+    Cpu_number target_cpu;
 
     unsigned print(int, char *) const;
   };
@@ -1069,12 +1071,12 @@ Thread::migrate(Migration *info)
         old->in_progress = true;
     }
 
-  unsigned cpu = this->cpu();
+  Cpu_number cpu = this->cpu();
 
   if (current_cpu() == cpu || Config::Max_num_cpus == 1)
     current()->schedule_if(do_migration());
   else
-    migrate_xcpu(cpu);
+    current()->schedule_if(migrate_xcpu(cpu));
 
   cpu_lock.clear();
   // FIXME: use monitor & mwait or wfe & sev if available
@@ -1152,7 +1154,7 @@ Thread::migrate_away(Migration *inf, bool remote)
 	rq.set_current_sched(current()->sched());
     }
 
-  unsigned target_cpu = inf->cpu;
+  Cpu_number target_cpu = inf->cpu;
 
     {
       Queue &q = _pending_rqq.cpu(cpu());
@@ -1186,8 +1188,8 @@ Thread::migrate_away(Migration *inf, bool remote)
 }
 
 PRIVATE inline
-void
-Thread::migrate_to(unsigned target_cpu)
+bool
+Thread::migrate_to(Cpu_number target_cpu, bool remote)
 {
   bool ipi = false;
 
@@ -1199,12 +1201,15 @@ Thread::migrate_to(unsigned target_cpu)
           && EXPECT_FALSE(!Cpu::online(target_cpu)))
         {
           handle_drq();
-          return;
+          return false;
         }
 
       // migrated meanwhile
       if (access_once(&this->_cpu) != target_cpu || _pending_rq.queued())
-        return;
+        return false;
+
+      if (remote && target_cpu == current_cpu())
+        return Sched_context::rq.current().deblock(sched(), current()->sched(), false);
 
       if (!_pending_rq.queued())
         {
@@ -1222,11 +1227,13 @@ Thread::migrate_to(unsigned target_cpu)
       //LOG_MSG_3VAL(this, "sipi", current_cpu(), cpu(), (Mword)current());
       Ipi::send(Ipi::Request, current_cpu(), target_cpu);
     }
+
+  return false;
 }
 
 PRIVATE inline
-void
-Thread::migrate_xcpu(unsigned cpu)
+bool
+Thread::migrate_xcpu(Cpu_number cpu)
 {
   bool ipi = false;
 
@@ -1236,22 +1243,21 @@ Thread::migrate_xcpu(unsigned cpu)
 
       // already migrated
       if (cpu != access_once(&this->_cpu))
-        return;
+        return false;
 
-      // now we are shure that this thread stays on 'cpu' because
+      // now we are sure that this thread stays on 'cpu' because
       // we have the rqq lock of 'cpu'
       if (!Cpu::online(cpu))
         {
           Migration *inf = start_migration();
 
           if ((Mword)inf & 3)
-            return; // all done, nothing to do
+            return (Mword)inf & 1; // all done, nothing to do
 
-          unsigned target_cpu = access_once(&inf->cpu);
+          Cpu_number target_cpu = access_once(&inf->cpu);
           migrate_away(inf, true);
           g.reset();
-          migrate_to(target_cpu);
-          return;
+          return migrate_to(target_cpu, true);
           // FIXME: Wie lange dauert es ready dequeue mit WFQ zu machen?
           // wird unter spinlock gemacht !!!!
         }
@@ -1267,7 +1273,8 @@ Thread::migrate_xcpu(unsigned cpu)
 
   if (ipi)
     Ipi::send(Ipi::Request, current_cpu(), cpu);
-  return;
+
+  return false;
 }
 
 //----------------------------------------------------------------------------
@@ -1278,6 +1285,6 @@ unsigned
 Thread::Migration_log::print(int maxlen, char *buf) const
 {
   return snprintf(buf, maxlen, "migrate from %u to %u (state=%lx user ip=%lx)",
-      src_cpu, target_cpu, state, user_ip);
+      cxx::int_value<Cpu_number>(src_cpu),
+      cxx::int_value<Cpu_number>(target_cpu), state, user_ip);
 }
-

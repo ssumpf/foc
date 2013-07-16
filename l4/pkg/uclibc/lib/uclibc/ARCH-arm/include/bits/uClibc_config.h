@@ -12,10 +12,6 @@
 #define librt_hidden_proto(x)
 #endif
 
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE 1
-#endif
-
 #define __UCLIBC_MAJOR__ 0
 #define __UCLIBC_MINOR__ 9
 #define __UCLIBC_SUBLEVEL__ 29

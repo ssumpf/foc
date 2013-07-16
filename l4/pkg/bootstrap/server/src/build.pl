@@ -130,8 +130,9 @@ sub build_obj($$$)
   unlink("$modname.extra.s", "$modname.obj", "$modname.ugz");
 }
 
-sub build_mbi_modules_obj(@)
+sub build_mbi_modules_obj($@)
 {
+  my $cmdline = shift;
   my @mods = @_;
   my $asm_string;
 
@@ -159,6 +160,10 @@ sub build_mbi_modules_obj(@)
                    ".ascii \"$mods[$i]->{cmdline}\"; .byte 0; \n";
   }
 
+  $asm_string .= ".global _mbi_cmdline          \n".
+                 "_mbi_cmdline:                 \n".
+                 ".ascii \"$cmdline\"; .byte 0; \n";
+
   write_to_file("mbi_modules.s", $asm_string);
   system("$prog_cc $flags_cc -c -o mbi_modules.bin mbi_modules.s");
   unlink("mbi_modules.s");
@@ -178,7 +183,7 @@ sub build_objects(@)
     $mods[$i]->{modname} = sprintf "mod%02d", $i;
   }
 
-  build_mbi_modules_obj(@mods);
+  build_mbi_modules_obj($entry{bootstrap}{cmdline}, @mods);
 
   for (my $i = 0; $i < @mods; $i++) {
     build_obj($mods[$i]->{cmdline}, $mods[$i]->{modname},
@@ -205,7 +210,11 @@ sub list_files(@)
 sub dump_entry(@)
 {
   my %entry = @_;
-  print join(' ', map { $_->{cmdline} } @{$entry{mods}}), "\n";
+  print "modaddr=$entry{modaddr}\n";
+  print "$entry{bootstrap}{command}\n";
+  print "$entry{bootstrap}{cmdline}\n";
+  print join("\n", map { $_->{cmdline} } @{$entry{mods}}), "\n";
+  print join(' ', map { $_ } @{$entry{files}}), "\n";
 }
 
 # ------------------------------------------------------------------------

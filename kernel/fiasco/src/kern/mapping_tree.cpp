@@ -119,6 +119,10 @@ INTERFACE [!big_endian]:
 // FIXME: do we need this depending on endianess ?
 struct Mapping_tree
 {
+  typedef Mapping::Page Page;
+  typedef Mapping::Pfn Pfn;
+  typedef Mapping::Pcnt Pcnt;
+
   enum Size_id
   {
     Size_id_min = 0,
@@ -144,6 +148,10 @@ INTERFACE [big_endian]:
 // FIXME: do we need this depending on endianess ?
 struct Mapping_tree
 {
+  typedef Mapping::Page Page;
+  typedef Mapping::Pfn Pfn;
+  typedef Mapping::Pcnt Pcnt;
+
   enum Size_id
   {
     Size_id_min = 0,
@@ -169,6 +177,7 @@ INTERFACE:
 class Base_mappable
 {
 public:
+  typedef Mapping_tree::Page Page;
   // DATA
   cxx::unique_ptr<Mapping_tree> tree;
   typedef ::Lock Lock;
@@ -326,7 +335,7 @@ Mapping_tree::operator delete (void* block)
 }
 
 PUBLIC //inline NEEDS[Mapping_depth, Mapping_tree::last]
-Mapping_tree::Mapping_tree(Size_id size_id, Page_number page,
+Mapping_tree::Mapping_tree(Size_id size_id, Page page,
                            Space *owner)
 {
   _count = 1;			// 1 valid mapping
@@ -537,7 +546,7 @@ Mapping_tree::check_integrity(Space *owner = (Space*)-1)
       printf("mapdb corrupted: owner=%p\n"
              "  m=%p (end: %s depth: %d space: %p page: %lx)\n",
              owner, m, m->is_end_tag()?"yes":"no", m->depth(), m->space(),
-             m->page().value());
+             cxx::int_value<Page>(m->page()));
       kdb_ke("XXX");
     }
 
@@ -728,7 +737,7 @@ Mapping_tree::free_mapping(Ram_quota *q, Mapping *m)
 PUBLIC template< typename SUBMAP_OPS >
 void
 Mapping_tree::flush(Mapping *parent, bool me_too,
-                    Page_number offs_begin, Page_number offs_end, 
+                    Pcnt offs_begin, Pcnt offs_end, 
                     SUBMAP_OPS const &submap_ops = SUBMAP_OPS())
 {
   assert (! parent->unused());
@@ -820,7 +829,7 @@ Mapping_tree::flush(Mapping *parent, bool me_too,
 
 PUBLIC template< typename SUBMAP_OPS >
 bool
-Mapping_tree::grant(Mapping* m, Space *new_space, Page_number va,
+Mapping_tree::grant(Mapping* m, Space *new_space, Page page,
                     SUBMAP_OPS const &submap_ops = SUBMAP_OPS())
 {
   unsigned long _quota = sizeof(Mapping);
@@ -834,10 +843,10 @@ Mapping_tree::grant(Mapping* m, Space *new_space, Page_number va,
   Space *old_space = m->space();
 
   m->set_space(new_space);
-  m->set_page(va);
+  m->set_page(page);
 
   if (submap)
-    submap_ops.grant(submap, new_space, va);
+    submap_ops.grant(submap, new_space, page);
 
   quota(old_space)->free(_quota);
   return true;
@@ -845,7 +854,7 @@ Mapping_tree::grant(Mapping* m, Space *new_space, Page_number va,
 
 PUBLIC inline
 Mapping *
-Mapping_tree::lookup(Space *space, Page_number page)
+Mapping_tree::lookup(Space *space, Page page)
 {
 
   Mapping *m;
@@ -863,14 +872,14 @@ Mapping_tree::lookup(Space *space, Page_number page)
 
 PUBLIC
 Mapping *
-Base_mappable::lookup(Space *space, Page_number va)
+Base_mappable::lookup(Space *space, Page page)
 {
   // get and lock the tree.
   if (EXPECT_FALSE(lock.lock() == Lock::Invalid))
     return 0;
   Mapping_tree *t = tree.get();
   assert (t);
-  if (Mapping *m = t->lookup(space, va))
+  if (Mapping *m = t->lookup(space, page))
     return m;
 
   lock.clear();
@@ -879,7 +888,7 @@ Base_mappable::lookup(Space *space, Page_number va)
 
 PUBLIC inline
 Mapping *
-Base_mappable::insert(Mapping* parent, Space *space, Page_number page)
+Base_mappable::insert(Mapping* parent, Space *space, Page page)
 {
   Mapping_tree* t = tree.get();
   if (!t)
@@ -1002,6 +1011,7 @@ Base_mappable::pack()
   // The last entry of the tree should now be free -- exept if we're
   // out of memory.
   assert (t->last()->unused() || maybe_out_of_memory);
+  (void) maybe_out_of_memory;
 }
 
 

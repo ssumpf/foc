@@ -65,25 +65,7 @@ l4util_cpu_pause(void)
 L4_INLINE int
 l4util_cpu_has_cpuid(void)
 {
-  unsigned long eax;
-
-  asm volatile(
-               "pushf			\t\n"
-               "pop %%rax		\t\n" /* get eflags */
-               "mov %%rax, %%rbx	\t\n" /* save it */
-               "xorq $0x200000, %%rax	\t\n" /* toggle ID bit */
-               "push %%rax		\t\n"
-               "popf			\t\n" /* set again */
-               "pushf			\t\n"
-               "pop %%rax		\t\n" /* get it again */
-               "xor %%rax, %%rbx	\t\n"
-               "push %%rbx		\t\n"
-               "popf			\t\n" /* restore saved flags */
-               : "=a" (eax)
-               : /* no input */
-               : "rbx");
-
-  return eax & 0x200000;
+  return 1;
 }
 
 L4_INLINE void

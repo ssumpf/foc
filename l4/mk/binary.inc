@@ -47,6 +47,23 @@ BID_MISSING_PCS := \
              $(strip $(foreach i,$(DEPENDS_PKGS),            \
 	               $(if $(strip $(wildcard $(OBJ_BASE)/pc/$(i).pc)),,$(i))))))
 
+ifneq ($(strip $(SRC_F)$(foreach t,$(TARGET),$(SRC_F_$(t)))),)
+  ifeq ($(filter x86 amd64,$(BUILD_ARCH)),)
+    $(info $(shell echo -e "\033[32mFortran is only available on x86 and amd64 currently, skipping directory '$(SRC_DIR)'.\033[0m"))
+    SYSTEMS =
+  else
+    ifeq ($(GCCFORTRANAVAIL),)
+      $(info $(shell echo -e "\033[32mFortran compiler (gcc-4.6 or later) missing, skipping directory '$(SRC_DIR)'.\033[0m"))
+      SYSTEMS =
+    else
+      ifeq ($(filter 4.6 4.7 4.8,$(GCCVERSION)),)
+        $(info $(shell echo -e "\033[32mFortran compiler gcc version 4.6 or later required, skipping directory '$(SRC_DIR)'.\033[0m"))
+        SYSTEMS =
+      endif
+    endif
+  endif
+endif
+
 ifneq ($(BID_MISSING_PCS),)
   # clear SYSTEMS to prevent building anything
   SYSTEMS =
@@ -116,6 +133,7 @@ $(foreach sys,$(TARGET_SYSTEMS),$(OBJ_DIR)/OBJ-$(sys)/$(BID_OBJ_Makefile)):$(OBJ
 	@echo 'vpath %.c $(VPATH_SRC_BASE)'>>$@
 	@echo 'vpath %.cc $(VPATH_SRC_BASE)'>>$@
 	@echo 'vpath %.cpp $(VPATH_SRC_BASE)'>>$@
+	@for fext in $(FORTRAN_FILE_EXTENSIONS); do echo "vpath %$$fext $(VPATH_SRC_BASE)">>$@ ; done
 	@echo 'vpath %.S $(VPATH_SRC_BASE)'>>$@
 	@echo 'vpath %.y $(VPATH_SRC_BASE)'>>$@
 	@echo 'vpath %.l $(VPATH_SRC_BASE)'>>$@
@@ -210,10 +228,11 @@ endif
 # CPPFLAGS	- options for the c preprocessor, included in CFLAGS
 # CFLAGS	- options for the c compiler
 # CXXFLAGS	- options for the c++ compiler
+# FFLAGS	- options for the fortran compiler
 # ASFLAGS	- options for the assembler
 #
 # Addtitionally, the following varibales are supported:
-# SRC_C, SRC_CC, SRC_S - .c, .cc, .S source files
+# SRC_C, SRC_CC, SRC_F, SRC_S - .c, .cc, .f90, .S source files
 # CRT0, CRTN	- startup and finish code
 # LIBS		- additional libs to link (with -l), including paths (-L)
 # IDL		- interface definition files
@@ -405,7 +424,7 @@ CPPFLAGS+= $(DEFINES)
 CPPFLAGS+= $(addprefix -I, $(PRIVATE_INCDIR) $(PRIVATE_INCDIR_$(OSYSTEM)) $(PRIVATE_INCDIR_$@) $(PRIVATE_INCDIR_$@_$(OSYSTEM)))
 CPPFLAGS+= $(if $(CONTRIB_INCDIR),$(addprefix -I$(OBJ_BASE)/include/contrib/,$(CONTRIB_INCDIR)))
 CPPFLAGS+= $(BID_PKG_CONFIG_CFLAGS)
-CPPFLAGS+= $(if $(CLIENTIDL)$(SERVERIDL)$(addprefix CLIENTIDL_,$(TARGET))$(addprefix SERVERIDL_,$(TARGET)),$(addprefix -I, $(IDL_PATH)))
+#CPPFLAGS+= $(if $(CLIENTIDL)$(SERVERIDL)$(addprefix CLIENTIDL_,$(TARGET))$(addprefix SERVERIDL_,$(TARGET)),$(addprefix -I, $(IDL_PATH)))
 ifneq ($(MODE),host)
 CPPFLAGS+= $(addprefix -I, $(L4INCDIR))
 endif
@@ -425,6 +444,8 @@ CXXFLAGS+= $(OPTS) $(filter-out -Wstrict-prototypes -Wmissing-prototypes -Wno-po
 CXXFLAGS+= $(CXXFLAGS-y)
 CXXFLAGS+= -fno-common
 CXXFLAGS+= $(CXXFLAGS_L4_GENERIC)
+
+FFLAGS  += $(CFLAGS_L4_GENERIC)
 
 PICFLAGS += -fPIC -U__PIC__ -D__PIC__=1
 
@@ -489,16 +510,23 @@ convert_cc_to_o_file = $(patsubst %.cc,%$(2).o, $(filter %.cc,$(1)))     \
                        $(if $(BID_ALLOW_CPP_AS_CPLUSPLUS_FILE),          \
 		         $(patsubst %.cpp,%$(2).o,$(filter %.cpp,$(1))))
 
+# convert list of Fortran file names to .o files
+# arg: 1 - list of files
+#      2 - infix between the basename and the .o
+convert_f_to_o_file = $(foreach e,$(FORTRAN_FILE_EXTENSIONS),$(patsubst %$e,%$(2).o,$(filter %$e,$(1))))
+
 # generic targetobjs
 # arg: 1 - target
 #      2 - infix between the basename and the .o
 #      3 - additional infix before .o in case of .cc files
 targetobjs_gen = $(SRC_C:.c=$(2).o) $(SRC_S:.S=$(2).o)                  \
                  $(call convert_cc_to_o_file,$(SRC_CC),$(2)$(3))        \
+                 $(call convert_f_to_o_file,$(SRC_F),$(2)$(3))          \
                  $(foreach inter, $(OSYSTEM) $(1) $(1)_$(OSYSTEM),	\
                      $(SRC_C_$(inter):.c=$(2).o)			\
                      $(SRC_S_$(inter):.S=$(2).o)			\
-                     $(call convert_cc_to_o_file,$(SRC_CC_$(inter)),$(2)$(3))) \
+                     $(call convert_cc_to_o_file,$(SRC_CC_$(inter)),$(2)$(3)) \
+                     $(call convert_f_to_o_file,$(SRC_F_$(inter)),$(2)$(3))) \
                  $(patsubst %.c,%$(2).o,$(call IDL_SRC_Cfn,$(1)))
 
 # a helper function to generate the object-files for a given target
@@ -703,21 +731,18 @@ $(eval $(call BID_GENERATE_CXX_MAKE_RULES,cc))
 $(if $(BID_ALLOW_CPP_AS_CPLUSPLUS_FILE),$(eval $(call BID_GENERATE_CXX_MAKE_RULES,cpp)))
 # generate rules to compile %.c files to %.o, %.s.o etc
 $(eval $(call BID_GENERATE_C_MAKE_RULES,c))
+# generate rules to compile %.f90 files to %.o, %.s.o etc
+$(foreach e,$(FORTRAN_FILE_EXTENSIONS),$(eval $(call BID_GENERATE_F_MAKE_RULES,$(subst .,,$e))))
 # generate rules to compile %.S files to %.o, %.s.o etc
 $(eval $(call BID_GENERATE_DEFAULT_MAKE_RULES,%,%.S,AS))
 
 # Reset implicit rules, mind the TAB.
-%:	%.c
+define reset_implicit_rule =
+%: $(1)
 	
+endef
 
-%:	%.cc
-	
-
-%:	%.cpp
-	
-
-%:	%.S
-	
+$(foreach e,.c .cc .cpp .S $(FORTRAN_FILE_EXTENSIONS),$(eval $(call reset_implicit_rule,$e)))
 
 $(eval $(call BID_GENERATE_I_MAKE_RULE,%.i,%.c,$(CC),$(CFLAGS)))
 $(eval $(call BID_GENERATE_I_MAKE_RULE,%.s.i,%.c,$(CC),$(CFLAGS) $(PICFLAGS)))

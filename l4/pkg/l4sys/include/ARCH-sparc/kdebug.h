@@ -64,16 +64,7 @@ L4_INLINE int
 l4kd_inchar(void);
 
 L4_INLINE void
-l4_sys_cli(void);
-
-L4_INLINE void
-l4_sys_sti(void);
-
-L4_INLINE void
 l4_kdebug_imb(void);
-
-L4_INLINE int
-l4_irq_enabled(void);
 
 L4_INLINE void __touch_ro(const char *x, unsigned len);
 
@@ -189,26 +180,9 @@ l4kd_inchar(void)
 }
 
 L4_INLINE void
-l4_sys_cli(void)
-{
-  __kdebug_param(0x32, 0, 0);
-}
-
-L4_INLINE void
-l4_sys_sti(void)
-{
-  __kdebug_param(0x33, 0, 0);
-}
-
-L4_INLINE void
 l4_kdebug_imb(void)
 {
  // __KDEBUG_ARM_PARAM_0(0x3f);
-}
-L4_INLINE int
-l4_irq_enabled(void)
-{
-  return __kdebug_param(0x34, 0, 0);
 }
 #endif //__GNUC__
 

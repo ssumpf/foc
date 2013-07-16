@@ -50,10 +50,10 @@ Scheduler::Scheduler() : _irq(0)
 
 PRIVATE
 L4_msg_tag
-Scheduler::sys_run(unsigned char /*rights*/, Syscall_frame *f, Utcb const *utcb)
+Scheduler::sys_run(L4_fpage::Rights, Syscall_frame *f, Utcb const *utcb)
 {
   L4_msg_tag const tag = f->tag();
-  unsigned const curr_cpu = current_cpu();
+  Cpu_number const curr_cpu = current_cpu();
 
   Obj_space *s = current()->space();
   assert(s);
@@ -96,20 +96,23 @@ Scheduler::sys_run(unsigned char /*rights*/, Syscall_frame *f, Utcb const *utcb)
 
   Thread::Migration info;
 
-  unsigned t_cpu = thread->cpu();
+  Cpu_number const t_cpu = thread->cpu();
 
   if (Cpu::online(t_cpu) && sched_param->cpus.contains(t_cpu))
     info.cpu = t_cpu;
   else if (sched_param->cpus.contains(curr_cpu))
     info.cpu = curr_cpu;
   else
-    info.cpu = sched_param->cpus.first(Cpu::online_mask(), Config::Max_num_cpus);
+    info.cpu = sched_param->cpus.first(Cpu::online_mask(), Config::max_num_cpus());
 
   info.sp = sched_param;
   if (0)
-    printf("CPU[%lx]: current_cpu=%u run(thread=%lx, cpu=%u (%lx,%lu,%lu)\n",
-           dbg_id(), curr_cpu, thread->dbg_id(), info.cpu,
-           utcb->values[2], sched_param->cpus.offset(), sched_param->cpus.granularity());
+    printf("CPU[%u]: run(thread=%lx, cpu=%u (%lx,%u,%u)\n",
+           cxx::int_value<Cpu_number>(curr_cpu), thread->dbg_id(),
+           cxx::int_value<Cpu_number>(info.cpu),
+           utcb->values[2],
+           cxx::int_value<Cpu_number>(sched_param->cpus.offset()),
+           cxx::int_value<Order>(sched_param->cpus.granularity()));
 
   thread->migrate(&info);
 
@@ -118,15 +121,15 @@ Scheduler::sys_run(unsigned char /*rights*/, Syscall_frame *f, Utcb const *utcb)
 
 PRIVATE
 L4_msg_tag
-Scheduler::sys_idle_time(unsigned char,
+Scheduler::sys_idle_time(L4_fpage::Rights,
                          Syscall_frame *f, Utcb *utcb)
 {
   if (f->tag().words() < 3)
     return commit_result(-L4_err::EInval);
 
   L4_cpu_set cpus = access_once(reinterpret_cast<L4_cpu_set const *>(&utcb->values[1]));
-  Mword const cpu = cpus.first(Cpu::online_mask(), Config::Max_num_cpus);
-  if (EXPECT_FALSE(cpu == Config::Max_num_cpus))
+  Cpu_number const cpu = cpus.first(Cpu::online_mask(), Config::max_num_cpus());
+  if (EXPECT_FALSE(cpu == Config::max_num_cpus()))
     return commit_result(-L4_err::EInval);
 
   reinterpret_cast<Utcb::Time_val *>(utcb->values)->t
@@ -137,7 +140,7 @@ Scheduler::sys_idle_time(unsigned char,
 
 PRIVATE
 L4_msg_tag
-Scheduler::sys_info(unsigned char, Syscall_frame *f,
+Scheduler::sys_info(L4_fpage::Rights, Syscall_frame *f,
                     Utcb const *iutcb, Utcb *outcb)
 {
   if (f->tag().words() < 2)
@@ -145,17 +148,17 @@ Scheduler::sys_info(unsigned char, Syscall_frame *f,
 
   L4_cpu_set_descr const s = access_once(reinterpret_cast<L4_cpu_set_descr const*>(&iutcb->values[1]));
   Mword rm = 0;
-  Mword max = Config::Max_num_cpus;
-  Mword const offset = s.offset() << s.granularity();
+  Cpu_number max = Config::max_num_cpus();
+  Cpu_number const offset = s.offset() << s.granularity();
   if (offset >= max)
     return commit_result(-L4_err::EInval);
 
-  if (max > offset + ((Mword)MWORD_BITS << s.granularity()))
-    max = offset + ((Mword)MWORD_BITS << s.granularity());
+  if (max > offset + Cpu_number(MWORD_BITS) << s.granularity())
+    max = offset + Cpu_number(MWORD_BITS) << s.granularity();
 
-  for (Mword i = 0; i < max - offset; ++i)
+  for (Cpu_number i = Cpu_number::first(); i < max - offset; ++i)
     if (Cpu::online(i + offset))
-      rm |= (1 << (i >> s.granularity()));
+      rm |= (1 << cxx::int_value<Cpu_number>(i >> s.granularity()));
 
   outcb->values[0] = rm;
   outcb->values[1] = Config::Max_num_cpus;
@@ -196,6 +199,18 @@ Scheduler::icu_bind_irq(Irq *irq_o, unsigned irqnum)
   return commit_result(0);
 }
 
+PUBLIC
+L4_msg_tag
+Scheduler::icu_set_mode(Mword pin, Irq_chip::Mode)
+{
+  if (pin != 0)
+    return commit_result(-L4_err::EInval);
+
+  if (_irq)
+    _irq->switch_mode(true);
+  return commit_result(0);
+}
+
 PUBLIC inline
 void
 Scheduler::trigger_hotplug_event()
@@ -206,7 +221,7 @@ Scheduler::trigger_hotplug_event()
 
 PUBLIC
 L4_msg_tag
-Scheduler::kinvoke(L4_obj_ref ref, Mword rights, Syscall_frame *f,
+Scheduler::kinvoke(L4_obj_ref ref, L4_fpage::Rights rights, Syscall_frame *f,
                    Utcb const *iutcb, Utcb *outcb)
 {
   switch (f->tag().proto())

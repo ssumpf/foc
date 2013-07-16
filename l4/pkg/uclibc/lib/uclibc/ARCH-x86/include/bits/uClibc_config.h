@@ -2,6 +2,7 @@
 # error Never include <bits/uClibc_config.h> directly; use <features.h> instead
 #endif
 
+// L4 added
 #ifndef libc_hidden_proto
 #define libc_hidden_proto(x)
 #endif
@@ -11,10 +12,7 @@
 #ifndef librt_hidden_proto
 #define librt_hidden_proto(x)
 #endif
-
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE 1
-#endif
+// ...
 
 #define __UCLIBC_MAJOR__ 0
 #define __UCLIBC_MINOR__ 9

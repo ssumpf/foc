@@ -17,10 +17,14 @@ class Generic_io_space
 public:
   static char const * const name;
 
-  typedef Page_number Addr;
-  typedef Page_count Size;
-  typedef Page_number Phys_addr;
   typedef void Reap_list;
+
+  typedef Port_number V_pfn;
+  typedef Port_number V_pfc;
+  typedef Port_number Phys_addr;
+  typedef Order Page_order;
+  typedef L4_fpage::Rights Attr;
+  typedef L4_fpage::Rights Rights;
 
   enum
   {
@@ -35,6 +39,16 @@ public:
     Identity_map = 1,
   };
 
+  struct Fit_size
+  {
+    Page_order operator () (Page_order o) const
+    {
+      return o >= Order(Map_superpage_shift)
+             ? Order(Map_superpage_shift)
+             : Order(0);
+    }
+  };
+
   // We'd rather like to use a "using Mem_space::Status" declaration here,
   // but that wouldn't make the enum values accessible as
   // Generic_io_space::Insert_ok and so on.
@@ -47,28 +61,45 @@ public:
     Insert_err_exists		///< A mapping already exists at the target addr
   };
 
-  enum Page_attribs
-  {
-    Page_writable = Mem_space::Page_writable,
-    Page_user_accessible = Mem_space::Page_user_accessible,
-    Page_references = 0,
-    Page_all_attribs = Page_writable | Page_user_accessible
-  };
+  static V_pfn map_max_address()
+  { return V_pfn(Map_max_address); }
 
-  static Addr map_max_address()
-  { return Addr(Map_max_address); }
+  static Phys_addr page_address(Phys_addr o, Page_order s)
+  { return cxx::mask_lsb(o, s); }
 
-  static Address superpage_size()
-  { return Map_superpage_size; }
-
-  static bool has_superpages()
-  { return true; }
-
-  static Phys_addr page_address(Phys_addr o, Size s)
-  { return o.trunc(s); }
-
-  static Phys_addr subpage_address(Phys_addr addr, Size offset)
+  static Phys_addr subpage_address(Phys_addr addr, V_pfc offset)
   { return addr | offset; }
+
+  static V_pfn subpage_offset(V_pfn addr, Page_order size)
+  { return cxx::get_lsb(addr, size); }
+
+  static Mdb_types::Pfn to_pfn(V_pfn p)
+  { return Mdb_types::Pfn(cxx::int_value<V_pfn>(p)); }
+
+  static V_pfn to_virt(Mdb_types::Pfn p)
+  { return V_pfn(cxx::int_value<Mdb_types::Pfn>(p)); }
+
+  static Mdb_types::Pcnt to_pcnt(Page_order s)
+  { return Mdb_types::Pcnt(cxx::int_value<V_pfc>(V_pfc(1) << s)); }
+
+  static Page_order to_order(Mdb_types::Order p)
+  { return Page_order(cxx::int_value<Mdb_types::Order>(p) + Config::PAGE_SHIFT); }
+
+  static V_pfc to_size(Page_order p)
+  { return V_pfc(1) << p; }
+
+
+  FIASCO_SPACE_VIRTUAL
+  Status v_insert(Phys_addr phys, V_pfn virt, Order size, Attr page_attribs);
+
+  FIASCO_SPACE_VIRTUAL
+  bool v_lookup(V_pfn virt, Phys_addr *phys = 0, Page_order *order = 0,
+                Attr *attribs = 0);
+  virtual
+  bool v_fabricate(V_pfn address, Phys_addr *phys, Page_order *order,
+                   Attr *attribs = 0);
+  FIASCO_SPACE_VIRTUAL
+  Rights v_delete(V_pfn virt, Order size, Rights page_attribs);
 
 private:
   // DATA
@@ -99,30 +130,20 @@ IMPLEMENTATION [io]:
 #include "paging.h"
 
 
-PUBLIC template< typename SPACE >
-static inline
-Mword
-Generic_io_space<SPACE>::xlate_flush(unsigned char rights)
+PUBLIC template< typename SPACE > inline
+typename Generic_io_space<SPACE>::Fit_size
+Generic_io_space<SPACE>::fitting_sizes() const
 {
-  if (rights)
-    return Page_all_attribs;
-  else
-    return 0;
+  return Fit_size();
 }
 
 PUBLIC template< typename SPACE >
 static inline
-Mword
-Generic_io_space<SPACE>::is_full_flush(unsigned char rights)
+bool
+Generic_io_space<SPACE>::is_full_flush(L4_fpage::Rights rights)
 {
   return rights;
 }
-
-PUBLIC template< typename SPACE >
-static inline
-Mword
-Generic_io_space<SPACE>::xlate_flush_result(Mword /*attribs*/)
-{ return 0; }
 
 PUBLIC template< typename SPACE >
 inline
@@ -137,32 +158,33 @@ Generic_io_space<SPACE>::~Generic_io_space()
   if (!mem_space()->dir())
     return;
 
-  Pdir::Iter iopte = mem_space()->dir()->walk(Virt_addr(Mem_layout::Io_bitmap));
+  auto iopte = mem_space()->dir()->walk(Virt_addr(Mem_layout::Io_bitmap));
 
   // do we have an IO bitmap?
-  if (iopte.e->valid())
+  if (iopte.is_valid())
     {
       // sanity check
-      assert (iopte.shift() != Config::SUPERPAGE_SHIFT);
+      assert (iopte.level != Pdir::Super_level);
 
-      Kmem_alloc::allocator()
-	->q_free_phys(ram_quota(), Config::PAGE_SHIFT,
-	              iopte.e[0].addr());
+      Kmem_alloc::allocator()->q_free_phys(ram_quota(), Config::PAGE_SHIFT,
+                                           iopte.page_addr());
 
-      if (iopte.e[1].valid())
-	Kmem_alloc::allocator()
-	  ->q_free_phys(ram_quota(), Config::PAGE_SHIFT,
-	                iopte.e[1].addr());
+      // switch to next page-table entry
+      ++iopte;
 
-      Pdir::Iter iopde = mem_space()->dir()->walk(Virt_addr(Mem_layout::Io_bitmap), 0);
+      if (iopte.is_valid())
+        Kmem_alloc::allocator()->q_free_phys(ram_quota(), Config::PAGE_SHIFT,
+                                             iopte.page_addr());
+
+      auto iopde = mem_space()->dir()->walk(Virt_addr(Mem_layout::Io_bitmap),
+                                            Pdir::Super_level);
 
       // free the page table
-      Kmem_alloc::allocator()
-	->q_free_phys(ram_quota(), Config::PAGE_SHIFT,
-	              iopde.e->addr());
+      Kmem_alloc::allocator()->q_free_phys(ram_quota(), Config::PAGE_SHIFT,
+                                           iopde.next_level());
 
       // free reference
-      *iopde.e = 0;
+      *iopde.pte = 0;
     }
 }
 
@@ -183,90 +205,86 @@ Generic_io_space<SPACE>::is_superpage()
 // Utilities for map<Generic_io_space> and unmap<Generic_io_space>
 //
 
-PUBLIC template< typename SPACE >
-virtual
+IMPLEMENT template< typename SPACE >
 bool
-Generic_io_space<SPACE>::v_fabricate(Addr address, Phys_addr *phys,
-                                     Size *size, unsigned *attribs = 0)
+Generic_io_space<SPACE>::v_fabricate(V_pfn address, Phys_addr *phys,
+                                     Page_order *order, Attr *attribs)
 {
-  return Generic_io_space::v_lookup(address.trunc(Size(Map_page_size)),
-      phys, size, attribs);
-
+  return this->v_lookup(address, phys, order, attribs);
 }
 
-PUBLIC template< typename SPACE >
+IMPLEMENT template< typename SPACE >
 inline NEEDS[Generic_io_space::is_superpage]
-bool
-Generic_io_space<SPACE>::v_lookup(Addr virt, Phys_addr *phys = 0,
-                                  Size *size = 0, unsigned *attribs = 0)
+bool __attribute__((__flatten__))
+Generic_io_space<SPACE>::v_lookup(V_pfn virt, Phys_addr *phys,
+                                  Page_order *order, Attr *attribs)
 {
   if (is_superpage())
     {
-      if (size) *size = Size(Map_superpage_size);
+      if (order) *order = Order(Map_superpage_shift);
       if (phys) *phys = Phys_addr(0);
-      if (attribs) *attribs = Page_writable | Page_user_accessible;
+      if (attribs) *attribs = Attr::URW();
       return true;
     }
 
-  if (size) *size = Size(1);
+  if (order) *order = Order(0);
 
-  if (io_lookup(virt.value()))
+  if (io_lookup(cxx::int_value<V_pfn>(virt)))
     {
       if (phys) *phys = virt;
-      if (attribs) *attribs = Page_writable | Page_user_accessible;
+      if (attribs) *attribs = Attr::URW();
       return true;
     }
 
   if (get_io_counter() == 0)
     {
-      if (size) *size = Size(Map_superpage_size);
+      if (order) *order = Order(Map_superpage_shift);
       if (phys) *phys = Phys_addr(0);
     }
 
   return false;
 }
 
-PUBLIC template< typename SPACE >
+IMPLEMENT template< typename SPACE >
 inline NEEDS [Generic_io_space::is_superpage]
-unsigned long
-Generic_io_space<SPACE>::v_delete(Addr virt, Size size,
-                                  unsigned long page_attribs = Page_all_attribs)
+L4_fpage::Rights __attribute__((__flatten__))
+Generic_io_space<SPACE>::v_delete(V_pfn virt, Order size, Rights page_attribs)
 {
-  (void)size;
-  (void)page_attribs;
-  assert (page_attribs == Page_all_attribs);
+  if (!(page_attribs & L4_fpage::Rights::FULL()))
+    return L4_fpage::Rights(0);
 
   if (is_superpage())
     {
-      assert (size.value() == Map_superpage_size);
+      assert (size == Order(Map_superpage_shift));
 
       for (unsigned p = 0; p < Map_max_address; ++p)
 	io_delete(p);
 
       _io_counter = 0;
-      return Page_writable | Page_user_accessible;
+      return L4_fpage::Rights(0);
     }
 
-  assert (size.value() == 1);
+  (void)size;
+  assert (size == Order(0));
 
-  return io_delete(virt.value());
+  io_delete(cxx::int_value<V_pfn>(virt));
+  return L4_fpage::Rights(0);
 }
 
-PUBLIC template< typename SPACE >
+IMPLEMENT template< typename SPACE >
 inline
-typename Generic_io_space<SPACE>::Status
-Generic_io_space<SPACE>::v_insert(Phys_addr phys, Addr virt, Size size,
-                                  unsigned page_attribs)
+typename Generic_io_space<SPACE>::Status __attribute__((__flatten__))
+Generic_io_space<SPACE>::v_insert(Phys_addr phys, V_pfn virt, Order size,
+                                  Attr page_attribs)
 {
   (void)phys;
-  (void)size;
   (void)page_attribs;
 
   assert (phys == virt);
-  if (is_superpage() && size.value() == Map_superpage_size)
+  if (is_superpage() && size == Order(Map_superpage_shift))
     return Insert_warn_exists;
 
-  if (get_io_counter() == 0 && size.value() == Map_superpage_size)
+  if (get_io_counter() == 0 && size == Order(Map_superpage_shift))
     {
       for (unsigned p = 0; p < Map_max_address; ++p)
 	io_insert(p);
@@ -275,9 +293,9 @@ Generic_io_space<SPACE>::v_insert(Phys_addr phys, Addr virt, Size size,
       return Insert_ok;
     }
 
-  assert (size.value() == 1);
+  assert (size == Order(0));
 
-  return typename Generic_io_space::Status(io_insert(virt.value()));
+  return typename Generic_io_space::Status(io_insert(cxx::int_value<V_pfn>(virt)));
 }
 
 
@@ -285,6 +303,13 @@ PUBLIC template< typename SPACE >
 inline static
 void
 Generic_io_space<SPACE>::tlb_flush()
+{}
+
+PUBLIC template< typename SPACE >
+inline static
+void
+Generic_io_space<SPACE>::tlb_flush_spaces(bool, Generic_io_space<SPACE> *,
+                                          Generic_io_space<SPACE> *)
 {}
 
 PUBLIC template< typename SPACE >
@@ -327,7 +352,7 @@ Generic_io_space<SPACE>::addto_io_counter(int incr)
     @return true if mapped
      false if not
  */
-PROTECTED template< typename SPACE >
+PROTECTED template< typename SPACE > inline
 bool
 Generic_io_space<SPACE>::io_lookup(Address port_number)
 {
@@ -357,7 +382,7 @@ Generic_io_space<SPACE>::io_lookup(Address port_number)
        Insert_err_nomem if memory allocation failed
        Insert_ok if otherwise insertion succeeded
  */
-PROTECTED template< typename SPACE >
+PROTECTED template< typename SPACE > inline
 typename Generic_io_space<SPACE>::Status
 Generic_io_space<SPACE>::io_insert(Address port_number)
 {
@@ -382,8 +407,9 @@ Generic_io_space<SPACE>::io_insert(Address port_number)
       Mem_space::Status status =
 	mem_space()->v_insert(
 	    Mem_space::Phys_addr(Mem_layout::pmem_to_phys(page)),
-	    Mem_space::Addr(port_virt & Config::PAGE_MASK),
-	    Mem_space::Size(Config::PAGE_SIZE), Page_writable);
+	    Virt_addr(port_virt & Config::PAGE_MASK),
+	    Mem_space::Page_order(Config::PAGE_SHIFT),
+            Mem_space::Attr(L4_fpage::Rights::RW()));
 
       if (status == Mem_space::Insert_err_nomem)
 	{
@@ -417,8 +443,8 @@ Generic_io_space<SPACE>::io_insert(Address port_number)
 /** Disable one IO port in the IO space.
     @param port_number port to disable
  */
-PROTECTED template< typename SPACE >
-unsigned
+PROTECTED template< typename SPACE > inline
+void
 Generic_io_space<SPACE>::io_delete(Address port_number)
 {
   assert(port_number < Mem_layout::Io_port_max);
@@ -430,7 +456,7 @@ Generic_io_space<SPACE>::io_delete(Address port_number)
 
   if (port_addr == ~0UL)
     // nothing mapped -> nothing to delete
-    return 0;
+    return;
 
   // so there is memory mapped in the IO bitmap -> disable the ports
   char *port = static_cast<char *>(Kmem::phys_to_virt(port_addr));
@@ -441,11 +467,7 @@ Generic_io_space<SPACE>::io_delete(Address port_number)
     {
       *port |= get_port_bit(port_number);
       addto_io_counter(-1);
-
-      return Page_writable | Page_user_accessible;
     }
-
-  return 0;
 }
 
 template< typename SPACE >
@@ -467,6 +489,6 @@ Generic_io_space<SPACE>::get_port_bit(Address const port_number) const
 
 PUBLIC template< typename SPACE >
 inline static
-Page_number
-Generic_io_space<SPACE>::canonize(Page_number v)
+typename Generic_io_space<SPACE>::V_pfn
+Generic_io_space<SPACE>::canonize(V_pfn v)
 { return v; }

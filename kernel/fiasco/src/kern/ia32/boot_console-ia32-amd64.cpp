@@ -29,6 +29,8 @@ IMPLEMENT FIASCO_INIT
 void Boot_console::init()
 {
   keyb.construct();
+  if (Koptions::o()->opt(Koptions::F_keymap_de))
+    keyb->set_keymap(Keyb::Keymap_de);
   Kconsole::console()->register_console(keyb);
 
   if (Koptions::o()->opt(Koptions::F_noscreen))

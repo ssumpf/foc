@@ -1,8 +1,17 @@
+INTERFACE:
+
+template< typename T, unsigned EXTRA = 0 >
+class Per_cpu_array
+: public cxx::array<T, Cpu_number, Config::Max_num_cpus + EXTRA>
+{};
+
 INTERFACE [mp]:
+
+#include "types.h"
 
 struct Per_cpu_ctor_data
 {
-  void (*func)(void *, unsigned);
+  void (*func)(void *, Cpu_number);
   void *base;
 };
 
@@ -20,7 +29,7 @@ INTERFACE:
 #include "static_init.h"
 #include "config.h"
 #include "context_base.h"
-#include <type_traits>
+#include <cxx/type_traits>
 
 #define DEFINE_PER_CPU_P(p) \
   DEFINE_PER_CPU_CTOR_DATA(__COUNTER__) \
@@ -33,9 +42,9 @@ class Per_cpu_data
 {
 public:
   static void init_ctors();
-  static void run_ctors(unsigned cpu);
-  static void run_late_ctors(unsigned cpu);
-  static bool valid(unsigned cpu);
+  static void run_ctors(Cpu_number cpu);
+  static void run_late_ctors(Cpu_number cpu);
+  static bool valid(Cpu_number cpu);
 };
 
 template< typename T > class Per_cpu_ptr;
@@ -47,8 +56,8 @@ class Per_cpu : private Per_cpu_data
 public:
   typedef T Type;
 
-  T const &cpu(unsigned) const;
-  T &cpu(unsigned);
+  T const &cpu(Cpu_number) const;
+  T &cpu(Cpu_number);
 
   T const &current() const { return cpu(current_cpu()); }
   T &current() { return cpu(current_cpu()); }
@@ -57,13 +66,13 @@ public:
   explicit Per_cpu(bool);
 
   template<typename TEST>
-  unsigned find_cpu(TEST const &test) const
+  Cpu_number find_cpu(TEST const &test) const
   {
-    for (unsigned i = 0; i < Config::Max_num_cpus; ++i)
+    for (Cpu_number i = Cpu_number::first(); i < Config::max_num_cpus(); ++i)
       if (valid(i) && test(cpu(i)))
         return i;
 
-    return ~0U;
+    return Cpu_number::nil();
   }
 
 private:
@@ -87,7 +96,7 @@ public:
     return *this;
   }
 
-  T &cpu(unsigned cpu);
+  T &cpu(Cpu_number cpu);
   T &current() { return cpu(current_cpu()); }
 
 private:
@@ -102,23 +111,23 @@ IMPLEMENTATION [!mp]:
 
 IMPLEMENT inline
 bool
-Per_cpu_data::valid(unsigned cpu)
+Per_cpu_data::valid(Cpu_number cpu)
 {
 #if defined NDEBUG
   (void)cpu;
   return 1;
 #else
-  return cpu == 0;
+  return cpu == Cpu_number::boot_cpu();
 #endif
 }
 
 IMPLEMENT inline
 template< typename T >
-T const &Per_cpu<T>::cpu(unsigned) const { return _d; }
+T const &Per_cpu<T>::cpu(Cpu_number) const { return _d; }
 
 IMPLEMENT inline
 template< typename T >
-T &Per_cpu<T>::cpu(unsigned) { return _d; }
+T &Per_cpu<T>::cpu(Cpu_number) { return _d; }
 
 IMPLEMENT
 template< typename T >
@@ -127,12 +136,12 @@ Per_cpu<T>::Per_cpu()
 
 IMPLEMENT
 template< typename T >
-Per_cpu<T>::Per_cpu(bool) : _d(0)
+Per_cpu<T>::Per_cpu(bool) : _d(Cpu_number::boot_cpu())
 {}
 
 IMPLEMENT inline
 template< typename T >
-T &Per_cpu_ptr<T>::cpu(unsigned) { return *_p; }
+T &Per_cpu_ptr<T>::cpu(Cpu_number) { return *_p; }
 
 
 IMPLEMENT
@@ -143,7 +152,7 @@ Per_cpu_data::init_ctors()
 
 IMPLEMENT inline
 void
-Per_cpu_data::run_ctors(unsigned)
+Per_cpu_data::run_ctors(Cpu_number)
 {
   extern ctor_function_t __PER_CPU_INIT_ARRAY_START__[];
   extern ctor_function_t __PER_CPU_INIT_ARRAY_END__[];
@@ -156,7 +165,7 @@ Per_cpu_data::run_ctors(unsigned)
 
 IMPLEMENT inline
 void
-Per_cpu_data::run_late_ctors(unsigned)
+Per_cpu_data::run_late_ctors(Cpu_number)
 {
   extern ctor_function_t __PER_CPU_LATE_INIT_ARRAY_START__[];
   extern ctor_function_t __PER_CPU_LATE_INIT_ARRAY_END__[];
@@ -186,7 +195,7 @@ private:
   struct Ctor_vector
   {
   public:
-    void push_back(void (*func)(void*,unsigned), void *base);
+    void push_back(void (*func)(void*,Cpu_number), void *base);
     unsigned len() const { return _len; }
     Ctor const &operator [] (unsigned idx) const
     {
@@ -200,7 +209,9 @@ private:
 
 protected:
   enum { Num_cpus = Config::Max_num_cpus + 1 }; // add one for the never running CPU
-  static long _offsets[Num_cpus] asm ("PER_CPU_OFFSETS");
+  static Cpu_number num_cpus() { return Cpu_number(Num_cpus); }
+  typedef Per_cpu_array<long, 1> Offset_array;
+  static Offset_array _offsets;
   static unsigned late_ctor_start;
   static Ctor_vector ctors;
 };
@@ -213,13 +224,13 @@ IMPLEMENTATION [mp]:
 #include <construction.h>
 #include <cstring>
 
-long Per_cpu_data::_offsets[Per_cpu_data::Num_cpus];
+Per_cpu_data::Offset_array Per_cpu_data::_offsets;
 unsigned Per_cpu_data::late_ctor_start;
 Per_cpu_data::Ctor_vector Per_cpu_data::ctors;
 
 IMPLEMENT
 void
-Per_cpu_data::Ctor_vector::push_back(void (*func)(void*,unsigned), void *base)
+Per_cpu_data::Ctor_vector::push_back(void (*func)(void*,Cpu_number), void *base)
 {
   extern Ctor _per_cpu_ctor_data_start[];
   extern Ctor _per_cpu_ctor_data_end[];
@@ -235,15 +246,15 @@ Per_cpu_data::Ctor_vector::push_back(void (*func)(void*,unsigned), void *base)
 
 IMPLEMENT inline
 bool
-Per_cpu_data::valid(unsigned cpu)
-{ return cpu < Num_cpus && _offsets[cpu] != -1; }
+Per_cpu_data::valid(Cpu_number cpu)
+{ return cpu < num_cpus() && _offsets[cpu] != -1; }
 
 IMPLEMENT inline template< typename T >
-T const &Per_cpu<T>::cpu(unsigned cpu) const
+T const &Per_cpu<T>::cpu(Cpu_number cpu) const
 { return *reinterpret_cast<T const *>((char  const *)&_d + _offsets[cpu]); }
 
 IMPLEMENT inline template< typename T >
-T &Per_cpu<T>::cpu(unsigned cpu)
+T &Per_cpu<T>::cpu(Cpu_number cpu)
 { return *reinterpret_cast<T*>((char *)&_d + _offsets[cpu]); }
 
 IMPLEMENT
@@ -256,7 +267,7 @@ Per_cpu<T>::Per_cpu()
 
 IMPLEMENT
 template< typename T >
-Per_cpu<T>::Per_cpu(bool) : _d(0)
+Per_cpu<T>::Per_cpu(bool) : _d(Cpu_number::boot_cpu())
 {
   //printf("  Per_cpu<T>(bool) [this=%p])\n", this);
   ctors.push_back(&ctor_w_arg, this);
@@ -264,7 +275,7 @@ Per_cpu<T>::Per_cpu(bool) : _d(0)
 
 PRIVATE static
 template< typename T >
-void Per_cpu<T>::ctor_wo_arg(void *obj, unsigned cpu)
+void Per_cpu<T>::ctor_wo_arg(void *obj, Cpu_number cpu)
 {
   //printf("Per_cpu<T>::ctor_wo_arg(obj=%p, cpu=%u -> %p)\n", obj, cpu, &(reinterpret_cast<Per_cpu<T>*>(obj)->cpu(cpu)));
   new (&reinterpret_cast<Per_cpu<T>*>(obj)->cpu(cpu)) T;
@@ -272,7 +283,7 @@ void Per_cpu<T>::ctor_wo_arg(void *obj, unsigned cpu)
 
 PRIVATE static
 template< typename T >
-void Per_cpu<T>::ctor_w_arg(void *obj, unsigned cpu)
+void Per_cpu<T>::ctor_w_arg(void *obj, Cpu_number cpu)
 {
   //printf("Per_cpu<T>::ctor_w_arg(obj=%p, cpu=%u -> %p)\n", obj, cpu, &reinterpret_cast<Per_cpu<T>*>(obj)->cpu(cpu));
   new (&reinterpret_cast<Per_cpu<T>*>(obj)->cpu(cpu)) T(cpu);
@@ -280,26 +291,26 @@ void Per_cpu<T>::ctor_w_arg(void *obj, unsigned cpu)
 
 IMPLEMENT inline
 template< typename T >
-T &Per_cpu_ptr<T>::cpu(unsigned cpu)
+T &Per_cpu_ptr<T>::cpu(Cpu_number cpu)
 { return *reinterpret_cast<T *>(reinterpret_cast<Address>(_p) + _offsets[cpu]); }
 
 IMPLEMENT
 void
 Per_cpu_data::init_ctors()
 {
-  for (unsigned i = 0; i < Num_cpus; ++i)
-    _offsets[i] = -1;
+  for (Offset_array::iterator i = _offsets.begin(); i != _offsets.end(); ++i)
+    *i = -1;
 }
 
 IMPLEMENT inline
 void
-Per_cpu_data::run_ctors(unsigned cpu)
+Per_cpu_data::run_ctors(Cpu_number cpu)
 {
   extern ctor_function_t __PER_CPU_INIT_ARRAY_START__[];
   extern ctor_function_t __PER_CPU_INIT_ARRAY_END__[];
   extern ctor_function_t __PER_CPU_CTORS_LIST__[];
   extern ctor_function_t __PER_CPU_CTORS_END__[];
-  if (cpu == 0)
+  if (cpu == Cpu_number::boot_cpu())
     {
       run_ctor_functions(__PER_CPU_INIT_ARRAY_START__, __PER_CPU_INIT_ARRAY_END__);
       run_ctor_functions(__PER_CPU_CTORS_LIST__, __PER_CPU_CTORS_END__);
@@ -313,13 +324,13 @@ Per_cpu_data::run_ctors(unsigned cpu)
 
 IMPLEMENT inline
 void
-Per_cpu_data::run_late_ctors(unsigned cpu)
+Per_cpu_data::run_late_ctors(Cpu_number cpu)
 {
   extern ctor_function_t __PER_CPU_LATE_INIT_ARRAY_START__[];
   extern ctor_function_t __PER_CPU_LATE_INIT_ARRAY_END__[];
   extern ctor_function_t __PER_CPU_LATE_CTORS_LIST__[];
   extern ctor_function_t __PER_CPU_LATE_CTORS_END__[];
-  if (cpu == 0)
+  if (cpu == Cpu_number::boot_cpu())
     {
       run_ctor_functions(__PER_CPU_LATE_INIT_ARRAY_START__, __PER_CPU_LATE_INIT_ARRAY_END__);
       run_ctor_functions(__PER_CPU_LATE_CTORS_LIST__, __PER_CPU_LATE_CTORS_END__);

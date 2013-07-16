@@ -83,7 +83,7 @@ IMPLEMENT inline NEEDS [<asm/unistd.h>, <sys/mman.h>, "boot_info.h",
                         "cpu_lock.h", "lock_guard.h", "mem_layout.h",
                         "trampoline.h"]
 void
-Mem_space::page_map(Address phys, Address virt, Address size, unsigned attr)
+Mem_space::page_map(Address phys, Address virt, Address size, Attr attr)
 {
   auto guard = lock_guard(cpu_lock);
 
@@ -91,7 +91,7 @@ Mem_space::page_map(Address phys, Address virt, Address size, unsigned attr)
 
   *(trampoline + 1) = virt;
   *(trampoline + 2) = size;
-  *(trampoline + 3) = PROT_READ | (attr & Page_writable ? PROT_WRITE : 0);
+  *(trampoline + 3) = PROT_READ | (attr.rights & Page::Rights::W() ? PROT_WRITE : 0);
   *(trampoline + 4) = MAP_SHARED | MAP_FIXED;
   *(trampoline + 5) = Boot_info::fd();
 
@@ -141,9 +141,10 @@ T *
 Mem_space::user_to_kernel(T const *addr, bool write)
 {
   Phys_addr phys;
-  Addr virt = Addr::create((Address) addr);
-  unsigned attr, error = 0;
-  Size size;
+  Virt_addr virt = Virt_addr((Address) addr);
+  Attr attr;
+  unsigned error = 0;
+  Page_order size;
 
   for (;;)
     {
@@ -151,12 +152,12 @@ Mem_space::user_to_kernel(T const *addr, bool write)
       if (v_lookup(virt, &phys, &size, &attr))
         {
           // Add offset to frame
-          phys = phys | virt.offset(size);
+          phys = phys | cxx::get_lsb(virt, size);
 
           // See if we want to write and are not allowed to
           // Generic check because INTEL_PTE_WRITE == INTEL_PDE_WRITE
-          if (!write || (attr & Pt_entry::Writable))
-            return (T*)Mem_layout::phys_to_pmem(phys.value());
+          if (!write || (attr.rights & Page::Rights::W()))
+            return (T*)Mem_layout::phys_to_pmem(Phys_addr::val(phys));
 
           error |= PF_ERR_PRESENT;
         }
@@ -174,7 +175,7 @@ Mem_space::user_to_kernel(T const *addr, bool write)
       // Pretend open interrupts, we restore the current state afterwards.
       Cpu_lock::Status was_locked = cpu_lock.test();
 
-      thread_page_fault(virt.value(), error, 0, Proc::processor_state() | EFLAGS_IF, 0);
+      thread_page_fault(Virt_addr::val(virt), error, 0, Proc::processor_state() | EFLAGS_IF, 0);
 
       cpu_lock.set (was_locked);
     }

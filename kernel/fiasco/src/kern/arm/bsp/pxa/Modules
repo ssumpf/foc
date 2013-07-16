@@ -1,7 +1,7 @@
 # vim:set ft=make:
 
 PREPROCESS_PARTS        += pxa 16550 vcache armv5 generic_tickless_idle
-CONFIG_KERNEL_LOAD_ADDR := 0xa0000000
+RAM_PHYS_BASE           := 0xa0000000
 VPATH                   += kern/arm/bsp/pxa-sa
 
 uart_IMPL             += uart-16550 uart-16550-arm-pxa

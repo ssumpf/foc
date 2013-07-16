@@ -2,22 +2,23 @@
 INTERFACE [arm && kirkwood]:
 
 #include "kmem.h"
+#include "mmio_register_block.h"
 
-EXTENSION class Timer
+EXTENSION class Timer : private Mmio_register_block
 {
 public:
   static unsigned irq() { return 1; }
 
 private:
   enum {
-    Control_Reg  = Mem_layout::Reset_map_base + 0x20300,
-    Reload0_Reg  = Mem_layout::Reset_map_base + 0x20310,
-    Timer0_Reg   = Mem_layout::Reset_map_base + 0x20314,
-    Reload1_Reg  = Mem_layout::Reset_map_base + 0x20318,
-    Timer1_Reg   = Mem_layout::Reset_map_base + 0x2031c,
+    Control_Reg  = 0x20300,
+    Reload0_Reg  = 0x20310,
+    Timer0_Reg   = 0x20314,
+    Reload1_Reg  = 0x20318,
+    Timer1_Reg   = 0x2031c,
 
-    Bridge_cause = Mem_layout::Reset_map_base + 0x20110,
-    Bridge_mask  = Mem_layout::Reset_map_base + 0x20114,
+    Bridge_cause = 0x20110,
+    Bridge_mask  = 0x20114,
 
     Timer0_enable = 1 << 0,
     Timer0_auto   = 1 << 1,
@@ -27,6 +28,8 @@ private:
 
     Reload_value = 200000,
   };
+
+  static Static_object<Timer> _timer;
 };
 
 // ----------------------------------------------------------------------
@@ -36,19 +39,27 @@ IMPLEMENTATION [arm && kirkwood]:
 #include "kip.h"
 #include "io.h"
 
-IMPLEMENT
-void Timer::init(unsigned)
+Static_object<Timer> Timer::_timer;
+
+PUBLIC
+Timer::Timer()
+: Mmio_register_block(Kmem::mmio_remap(Mem_layout::Timer_phys_base))
 {
   // Disable timer
-  Io::write(0, Control_Reg);
+  write(0, Control_Reg);
 
   // Set current timer value and reload value
-  Io::write<Mword>(Reload_value, Timer0_Reg);
-  Io::write<Mword>(Reload_value, Reload0_Reg);
+  write<Mword>(Reload_value, Timer0_Reg);
+  write<Mword>(Reload_value, Reload0_Reg);
 
-  Io::set<Mword>(Timer0_enable | Timer0_auto, Control_Reg);
+  modify<Mword>(Timer0_enable | Timer0_auto, 0, Control_Reg);
+  modify<Unsigned32>(Timer0_bridge_num, 0, Bridge_mask);
+}
 
-  Io::set<Unsigned32>(Timer0_bridge_num, Bridge_mask);
+IMPLEMENT
+void Timer::init(Cpu_number)
+{
+  _timer.construct();
 }
 
 static inline
@@ -65,7 +76,7 @@ PUBLIC static inline NEEDS["io.h"]
 void
 Timer::acknowledge()
 {
-  Io::clear<Unsigned32>(Timer0_bridge_num, Bridge_cause);
+  _timer->modify<Unsigned32>(0, Timer0_bridge_num, Bridge_cause);
 }
 
 IMPLEMENT inline

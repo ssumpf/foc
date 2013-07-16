@@ -9,58 +9,73 @@ IMPLEMENTATION [arm]:
 
 #include "cpu.h"
 
-//---------------------------------------------------------------------------
-IMPLEMENTATION [arm && armv5]:
+extern char kernel_page_directory[];
+
+namespace Bootstrap {
+
+struct Order_t;
+struct Phys_addr_t;
+struct Virt_addr_t;
+
+typedef cxx::int_type<unsigned, Order_t> Order;
+typedef cxx::int_type_order<Unsigned32, Virt_addr_t, Order> Virt_addr;
 
 enum
 {
-  Section_cachable = 0x40e,
-  Section_no_cache = 0x402,
-  Section_local    = 0,
-  Section_global   = 0,
+  Virt_ofs = Mem_layout::Sdram_phys_base - Mem_layout::Map_base,
 };
 
-void
-set_asid()
+}
+
+//---------------------------------------------------------------------------
+INTERFACE [arm && armv5]:
+
+namespace Bootstrap {
+inline void set_asid()
 {}
+}
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION [arm && armv6plus && (mpcore || armca9)]:
+INTERFACE [arm && (armv6 || armv7)]:
 
-enum
-{
-  Section_shared = 1UL << 16,
-};
-
-//---------------------------------------------------------------------------
-IMPLEMENTATION [arm && armv6plus && !(mpcore || armca9)]:
-
-enum
-{
-  Section_shared = 0,
-};
-
-
-//---------------------------------------------------------------------------
-IMPLEMENTATION [arm && (armv6 || armv7)]:
-
-enum
-{
-  Section_cachable = 0x5406 | Section_shared,
-  Section_no_cache = 0x0402 | Section_shared,
-  Section_local    = (1 << 17),
-  Section_global   = 0,
-};
-
-void
+namespace Bootstrap {
+inline void
 set_asid()
 {
-  asm volatile ("MCR p15, 0, %0, c13, c0, 1" : : "r" (0)); // ASID 0
+  asm volatile ("mcr p15, 0, %0, c13, c0, 1" : : "r" (0)); // ASID 0
+}
+}
+
+//---------------------------------------------------------------------------
+INTERFACE [arm && !arm_lpae]:
+
+namespace Bootstrap {
+inline void
+set_ttbr(Mword pdir)
+{
+  asm volatile("mcr p15, 0, %[pdir], c2, c0" // TTBR0
+               : : [pdir] "r" (pdir));
+}
+}
+
+//---------------------------------------------------------------------------
+INTERFACE [arm && arm_lpae]:
+
+namespace Bootstrap {
+inline void
+set_ttbr(Mword pdir)
+{
+  asm volatile("mcrr p15, 0, %[pdir], %[null], c2" // TTBR0
+               : :
+               [pdir]  "r" (pdir),
+               [null]  "r" (0));
+}
 }
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && arm1176_cache_alias_fix]:
 
+namespace Bootstrap {
 static void
 do_arm_1176_cache_alias_workaround()
 {
@@ -74,38 +89,101 @@ do_arm_1176_cache_alias_workaround()
                     : : : "r0");
     }
 }
+}
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && !arm1176_cache_alias_fix]:
 
+namespace Bootstrap {
 static void do_arm_1176_cache_alias_workaround() {}
+}
+
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [arm && arm_lpae]:
+
+#include <cxx/cxx_int>
+
+extern char kernel_lpae_dir[];
+
+namespace Bootstrap {
+typedef cxx::int_type_order<Unsigned64, Phys_addr_t, Order> Phys_addr;
+inline Order map_page_order() { return Order(21); }
+
+inline Phys_addr pt_entry(Phys_addr pa, bool cache, bool local)
+{
+  Phys_addr res = cxx::mask_lsb(pa, map_page_order()) | Phys_addr(1); // this is a block
+
+  if (local)
+    res |= Phys_addr(1 << 11); // nG flag
+
+  if (cache)
+    res |= Phys_addr(8);
+
+  res |= Phys_addr(1 << 10); // AF
+  res |= Phys_addr(3 << 8);  // Inner sharable
+  return res;
+}
+
+inline Phys_addr init_paging(void *const page_dir)
+{
+  Phys_addr *const lpae = reinterpret_cast<Phys_addr*>(kernel_lpae_dir + Virt_ofs);
+
+  for (unsigned i = 0; i < 4; ++i)
+    lpae[i] = Phys_addr(((Address)page_dir + 0x1000 * i) | 3);;
+
+  asm volatile ("mcr p15, 0, %0, c10, c2, 0 \n" // MAIR0
+                : : "r"(Page::Mair0_bits));
+
+  return Phys_addr((Mword)lpae);
+}
+
+};
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [arm && !arm_lpae]:
+
+#include <cxx/cxx_int>
+
+namespace Bootstrap {
+typedef cxx::int_type_order<Unsigned32, Phys_addr_t, Order> Phys_addr;
+inline Order map_page_order() { return Order(20); }
+
+inline Phys_addr pt_entry(Phys_addr pa, bool cache, bool local)
+{
+  return cxx::mask_lsb(pa, map_page_order())
+                | Phys_addr(cache ? Page::Section_cachable : Page::Section_no_cache)
+                | Phys_addr(local ? Page::Section_local : Page::Section_global);
+}
+
+inline Phys_addr init_paging(void *const page_dir)
+{
+  return Phys_addr((Mword)page_dir);
+}
+
+};
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm]:
 
 #include "kmem_space.h"
-#include "pagetable.h"
 
-void
-map_1mb(void *pd, Address va, Address pa, bool cache, bool local)
+
+namespace Bootstrap {
+
+
+inline Phys_addr map_page_size_phys() { return Phys_addr(1) << map_page_order(); }
+inline Virt_addr map_page_size() { return Virt_addr(1) << map_page_order(); }
+
+static void
+map_memory(void volatile *pd, Virt_addr va, Phys_addr pa,
+           bool cache, bool local)
 {
-  Unsigned32 *const p = (Unsigned32*)pd;
-  p[va >> 20] = (pa & 0xfff00000)
-                | (cache ? Section_cachable : Section_no_cache)
-                | (local ? Section_local : Section_global);
+  Phys_addr *const p = (Phys_addr*)pd;
+  p[cxx::int_value<Virt_addr>(va >> map_page_order())]
+    = pt_entry(pa, cache, local);
 }
 
-// This is a template so that we can have the static_assertion, checking the
-// right value at compile time. At runtime we probably won't see anything
-// as this also affects the UART mapping.
-template< Address PA >
-static void inline
-map_dev(void *pd, unsigned va_slotnr)
-{
-  static_assert(PA == Invalid_address || (PA & ~0xfff00000) == 0, "Physical address must be 2^20 aligned");
-  if (PA != Invalid_address)
-    map_1mb(pd, Mem_layout::Registers_map_start + va_slotnr * 0x100000, PA,
-            false, false);
 }
 
 asm
@@ -135,61 +213,62 @@ extern char bootstrap_bss_end[];
 extern char __bss_start[];
 extern char __bss_end[];
 
-enum
-{
-  Virt_ofs = Mem_layout::Sdram_phys_base - Mem_layout::Map_base,
-};
+extern "C" void _start_kernel(void) __attribute__((long_call));
 
 extern "C" void bootstrap_main()
 {
-  extern char kernel_page_directory[];
-  void *const page_dir = kernel_page_directory + Virt_ofs;
+  typedef Bootstrap::Phys_addr Phys_addr;
+  typedef Bootstrap::Virt_addr Virt_addr;
+  typedef Bootstrap::Order Order;
 
-  Address va, pa;
+  void *const page_dir = kernel_page_directory + Bootstrap::Virt_ofs;
+
+  Unsigned32 tbbr = cxx::int_value<Phys_addr>(Bootstrap::init_paging(page_dir))
+                    | Page::Ttbr_bits;
+
+  Virt_addr va;
+  Phys_addr pa;
   // map sdram linear from 0xf0000000
-  for (va = Mem_layout::Map_base, pa = Mem_layout::Sdram_phys_base;
-       va < Mem_layout::Map_base + (4 << 20); va += 0x100000, pa += 0x100000)
-    map_1mb(page_dir, va, pa, true, false);
+  for (va = Virt_addr(Mem_layout::Map_base), pa = Phys_addr(Mem_layout::Sdram_phys_base);
+       va < Virt_addr(Mem_layout::Map_base + (4 << 20));
+       va += Bootstrap::map_page_size(), pa += Bootstrap::map_page_size_phys())
+    Bootstrap::map_memory(page_dir, va, pa, true, false);
 
   // map sdram 1:1
-  for (va = Mem_layout::Sdram_phys_base;
-       va < Mem_layout::Sdram_phys_base + (4 << 20); va += 0x100000)
-    map_1mb(page_dir, va, va, true, true);
+  for (va = Virt_addr(Mem_layout::Sdram_phys_base);
+       va < Virt_addr(Mem_layout::Sdram_phys_base + (4 << 20));
+       va += Bootstrap::map_page_size())
+    Bootstrap::map_memory(page_dir, va, Phys_addr(cxx::int_value<Virt_addr>(va)), true, true);
 
-  map_hw(page_dir);
+  unsigned domains = 0x55555555; // client for all domains
+  unsigned control = Config::Cache_enabled
+                     ? Cpu::Cp15_c1_cache_enabled : Cpu::Cp15_c1_cache_disabled;
 
-  unsigned domains      = 0x55555555; // client for all domains
-  unsigned control      = Config::Cache_enabled
-                          ? Cpu::Cp15_c1_cache_enabled : Cpu::Cp15_c1_cache_disabled;
+  Mmu<Bootstrap::Cache_flush_area, true>::flush_cache();
 
-  Mmu<Cache_flush_area, true>::flush_cache();
+  Bootstrap::do_arm_1176_cache_alias_workaround();
+  Bootstrap::set_asid();
 
-  extern char _start_kernel[];
+  asm volatile("mcr p15, 0, %[ttbcr], c2, c0, 2" // TTBCR
+               : : [ttbcr] "r" (Page::Ttbcr_bits));
+  Mem::dsb();
+  asm volatile("mcr p15, 0, %[null], c8, c7, 0" // TLBIALL
+               : : [null]  "r" (0));
+  Mem::dsb();
+  asm volatile("mcr p15, 0, %[doms], c3, c0" // domains
+               : : [doms]  "r" (domains));
 
-  do_arm_1176_cache_alias_workaround();
-  set_asid();
+  Bootstrap::set_ttbr(tbbr | Page::Ttbr_bits);
 
-  asm volatile (
-      "mcr p15, 0, %[null], c7, c10, 4\n" // dsb
-      "mcr p15, 0, %[null], c8, c7, 0 \n" // tlb flush
-      "mcr p15, 0, %[null], c7, c10, 4\n" // dsb
-      "mcr p15, 0, %[doms], c3, c0    \n" // domains
-      "mcr p15, 0, %[pdir], c2, c0    \n" // pdbr
-      "mcr p15, 0, %[control], c1, c0 \n" // control
+  asm volatile("mcr p15, 0, %[control], c1, c0" // control
+               : : [control] "r" (control));
+  Mem::isb();
 
-      "mrc p15, 0, r0, c2, c0, 0      \n" // arbitrary read of cp15
-      "mov r0, r0                     \n" // wait for result
-      "sub pc, pc, #4                 \n"
+  // The first 4MB of phys memory are always mapped to Map_base
+  Mem_layout::add_pmem(Mem_layout::Sdram_phys_base, Mem_layout::Map_base,
+                       4 << 20);
 
-      "mov pc, %[start]               \n"
-      : :
-      [pdir]    "r"((Mword)page_dir | Page_table::Ttbr_bits),
-      [doms]    "r"(domains),
-      [control] "r"(control),
-      [start]   "r"(_start_kernel),
-      [null]    "r"(0)
-      : "r0"
-      );
+  _start_kernel();
 
   while(1)
     ;

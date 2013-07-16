@@ -22,9 +22,6 @@
  */
 #pragma once
 
-#include <l4/sys/ipc.h>
-#include <l4/sys/task.h>
-
 /**
  * \defgroup l4_vm_tz_api VM API for TZ
  * \brief Virtual Machine API for ARM TrustZone
@@ -32,108 +29,77 @@
  */
 
 /**
+ * \internal
+ * \ingroup l4_vm_tz_api
+ */
+struct l4_vm_tz_state_mode
+{
+  l4_umword_t sp;
+  l4_umword_t lr;
+  l4_umword_t spsr;
+};
+
+struct l4_vm_tz_state_irq_inject
+{
+  l4_uint32_t group;
+  l4_uint32_t irqs[8];
+};
+
+/**
  * \brief state structure for TrustZone VMs
  * \ingroup l4_vm_tz_api
  */
-struct l4_vm_state
+struct l4_vm_tz_state
 {
   l4_umword_t r[13]; // r0 - r12
 
   l4_umword_t sp_usr;
   l4_umword_t lr_usr;
 
-  l4_umword_t sp_irq;
-  l4_umword_t lr_irq;
-  l4_umword_t spsr_irq;
+  struct l4_vm_tz_state_mode irq;
 
   l4_umword_t r_fiq[5]; // r8 - r12
-  l4_umword_t sp_fiq;
-  l4_umword_t lr_fiq;
-  l4_umword_t spsr_fiq;
-
-  l4_umword_t sp_abt;
-  l4_umword_t lr_abt;
-  l4_umword_t spsr_abt;
-
-  l4_umword_t sp_und;
-  l4_umword_t lr_und;
-  l4_umword_t spsr_und;
-
-  l4_umword_t sp_svc;
-  l4_umword_t lr_svc;
-  l4_umword_t spsr_svc;
+  struct l4_vm_tz_state_mode fiq;
+  struct l4_vm_tz_state_mode abt;
+  struct l4_vm_tz_state_mode und;
+  struct l4_vm_tz_state_mode svc;
 
   l4_umword_t pc;
   l4_umword_t cpsr;
 
   l4_umword_t pending_events;
-
-  l4_umword_t cp15_ttbr0;
-  l4_umword_t cp15_ttbr1;
-  l4_umword_t cp15_ttbc;
-  l4_umword_t cp15_vector_base;
-  l4_umword_t cp15_dfsr;
-  l4_umword_t cp15_dfar;
-  l4_umword_t cp15_ifsr;
-  l4_umword_t cp15_ifar;
-  l4_umword_t cp15_control;
-  l4_umword_t cp15_prim_region_remap;
-  l4_umword_t cp15_norm_region_remap;
-  l4_umword_t cp15_cid;    // banked
-  l4_umword_t cp15_tls[3]; // banked
+  l4_uint32_t cpacr;
   l4_umword_t cp10_fpexc;
 
   l4_umword_t pfs;
   l4_umword_t pfa;
   l4_umword_t exit_reason;
+
+  struct l4_vm_tz_state_irq_inject irq_inject;
 };
 
-
-/**
- * \brief Run a VM
- * \ingroup l4_vm_tz_api
- *
- * \param vm         Capability selector for VM
- */
-L4_INLINE l4_msgtag_t
-l4_vm_run(l4_cap_idx_t vm, l4_fpage_t const vm_state_fpage,
-          l4_umword_t *label) L4_NOTHROW;
-
-/**
- * \internal
- * \ingroup l4_vm_tz_api
- */
-L4_INLINE l4_msgtag_t
-l4_vm_run_u(l4_cap_idx_t vm, l4_fpage_t const vm_state_fpage,
-            l4_umword_t *label, l4_utcb_t *u) L4_NOTHROW;
-
-/**
- * \internal
- * \brief Operations on task objects.
- * \ingroup l4_vm_tz_api
- */
-enum
+enum L4_vm_exit_reason
 {
-  L4_VM_RUN_OP    = 0    /* Run a VM */
+  L4_vm_exit_reason_vmm_call   = 1,
+  L4_vm_exit_reason_inst_abort = 2,
+  L4_vm_exit_reason_data_abort = 3,
+  L4_vm_exit_reason_irq        = 4,
+  L4_vm_exit_reason_fiq        = 5,
+  L4_vm_exit_reason_undef      = 6,
 };
 
+L4_INLINE int
+l4_vm_tz_irq_inject(l4_vm_tz_state *state, unsigned irq);
 
-/****** Implementations ****************/
-
-L4_INLINE l4_msgtag_t
-l4_vm_run_u(l4_cap_idx_t vm, l4_fpage_t const vm_state_fpage,
-            l4_umword_t *label, l4_utcb_t *u) L4_NOTHROW
+L4_INLINE int
+l4_vm_tz_irq_inject(l4_vm_tz_state *state, unsigned irq)
 {
-  l4_msg_regs_t *r = l4_utcb_mr_u(u);
-  r->mr[0] = L4_VM_RUN_OP;
-  r->mr[1] = vm_state_fpage.raw;
+  if (irq > sizeof(state->irq_inject.irqs) * 8)
+    return -L4_EINVAL;
 
-  return l4_ipc(vm, u, L4_SYSF_CALL, *label, l4_msgtag(L4_PROTO_TASK, 3, 0, 0), label, L4_IPC_NEVER);
-}
+  unsigned g = irq / 32;
+  state->irq_inject.group   |= 1 << g;
+  state->irq_inject.irqs[g] |= 1 << (irq & 31);
 
-L4_INLINE l4_msgtag_t
-l4_vm_run(l4_cap_idx_t vm, l4_fpage_t const vm_state_fpage,
-          l4_umword_t *label) L4_NOTHROW
-{
-  return l4_vm_run_u(vm, vm_state_fpage, label, l4_utcb());
+  return 0;
 }

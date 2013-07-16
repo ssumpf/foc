@@ -289,14 +289,14 @@ Jdb_kern_info_gdt::Jdb_kern_info_gdt()
 
 PRIVATE static
 void
-Jdb_kern_info_gdt::show_gdt(unsigned cpu)
+Jdb_kern_info_gdt::show_gdt(Cpu_number cpu)
 {
   Gdt *gdt = Cpu::cpus.cpu(cpu).get_gdt();
   unsigned entries = Gdt::gdt_max / 8;
 
   if (Config::Max_num_cpus > 1)
     printf("CPU%d: GDT base=" L4_PTR_FMT "  limit=%04x (%04x bytes)\n",
-           cpu, (Mword)gdt, entries, Gdt::gdt_max);
+           cxx::int_value<Cpu_number>(cpu), (Mword)gdt, entries, Gdt::gdt_max);
   else
     printf("GDT base=" L4_PTR_FMT "  limit=%04x (%04x bytes)\n",
            (Mword)gdt, entries, Gdt::gdt_max);

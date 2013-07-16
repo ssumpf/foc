@@ -9,7 +9,8 @@ EXTENSION class Mem_layout
 
 //TODO cbass: check what can be omitted
 public:
-  enum Phys_layout {
+  enum Phys_layout : Address
+  {
     Utcb_ptr_page        = 0x3000,
     Syscalls_phys        = 0x4000,
     Tbuf_status_page     = 0x5000,
@@ -66,10 +67,10 @@ Mem_layout::phys_to_pmem (Address addr)
     {
       if (kernel_srmmu_l1[i] != 0)
         {
-          Mword v_page = addr &  (0xFF << Pte_base::Pdir_shift);
-          Mword entry  = (kernel_srmmu_l1[i] & Pte_base::Ppn_mask) << Pte_base::Ppn_addr_shift;
+          Mword v_page = addr &  (0xFF << Pte_ptr::Pdir_shift);
+          Mword entry  = (kernel_srmmu_l1[i] & Pte_ptr::Ppn_mask) << Pte_ptr::Ppn_addr_shift;
           if (entry == v_page)
-            return (i << Pte_base::Pdir_shift) | (addr & ~(0xFF << Pte_base::Pdir_shift));
+            return (i << Pte_ptr::Pdir_shift) | (addr & ~(0xFF << Pte_ptr::Pdir_shift));
         }
     }
   return ~0L;

@@ -1,7 +1,7 @@
 INTERFACE:
 
 #include "jdb_module.h"
-#include <slist>
+#include <cxx/slist>
 
 class Jdb_kern_info_module;
 

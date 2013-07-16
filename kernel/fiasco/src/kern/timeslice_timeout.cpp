@@ -19,7 +19,7 @@ DEFINE_PER_CPU Per_cpu<Timeout *> timeslice_timeout;
 DEFINE_PER_CPU static Per_cpu<Timeslice_timeout> the_timeslice_timeout(true);
 
 PUBLIC
-Timeslice_timeout::Timeslice_timeout(unsigned cpu)
+Timeslice_timeout::Timeslice_timeout(Cpu_number cpu)
 {
   timeslice_timeout.cpu(cpu) = this;
 }

@@ -1,5 +1,7 @@
 INTERFACE [hpet_timer]:
 
+#include "irq_chip.h"
+
 EXTENSION class Timer
 {
   static int hpet_irq;
@@ -10,7 +12,6 @@ IMPLEMENTATION [hpet_timer]:
 #include "config.h"
 #include "cpu.h"
 #include "hpet.h"
-#include "irq_chip.h"
 #include "logdefs.h"
 #include "pit.h"
 #include "std_macros.h"
@@ -22,12 +23,12 @@ int Timer::hpet_irq;
 PUBLIC static inline int Timer::irq() { return hpet_irq; }
 
 PUBLIC static inline NEEDS["irq_chip.h"]
-unsigned Timer::irq_mode()
-{ return Irq_base::Trigger_level | Irq_base::Polarity_low; }
+Irq_chip::Mode Timer::irq_mode()
+{ return Irq_chip::Mode::F_level_low; }
 
 IMPLEMENT
 void
-Timer::init(unsigned)
+Timer::init(Cpu_number)
 {
   hpet_irq = -1;
   if (!Hpet::init())

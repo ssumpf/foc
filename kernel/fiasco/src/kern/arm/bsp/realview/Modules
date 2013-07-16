@@ -7,10 +7,14 @@ PREPROCESS_PARTS        += $(if $(CONFIG_PF_REALVIEW_EB),realview_eb)
 PREPROCESS_PARTS        += $(if $(CONFIG_PF_REALVIEW_PB11MP),realview_pb11mp)
 PREPROCESS_PARTS        += $(if $(CONFIG_PF_REALVIEW_PBX),realview_pbx)
 PREPROCESS_PARTS        += $(if $(CONFIG_PF_REALVIEW_VEXPRESS),realview_vexpress)
+PREPROCESS_PARTS        += $(if $(CONFIG_PF_REALVIEW_VEXPRESS_A9),realview_vexpress_a9)
+PREPROCESS_PARTS        += $(if $(CONFIG_PF_REALVIEW_VEXPRESS_A15),realview_vexpress_a15)
 PREPROCESS_PARTS        += generic_tickless_idle
-CONFIG_KERNEL_LOAD_ADDR := $(CONFIG_PF_REALVIEW_RAM_PHYS_BASE)
+RAM_PHYS_BASE           := $(CONFIG_PF_REALVIEW_RAM_PHYS_BASE)
 
-MPCORE_PHYS_BASE        := $(if $(CONFIG_PF_REALVIEW_VEXPRESS),0x1e000000,0x1f000000)
+MPCORE_PHYS_BASE-$(CONFIG_PF_REALVIEW_VEXPRESS_A9)  := 0x1e000000
+MPCORE_PHYS_BASE-$(CONFIG_PF_REALVIEW_VEXPRESS_A15) := 0x2c000000
+MPCORE_PHYS_BASE        := $(if $(MPCORE_PHYS_BASE-y),$(MPCORE_PHYS_BASE-y),0x1f000000)
 
 timer_IMPL            += timer-arm-realview
 ifeq ($(CONFIG_ARM_MPCORE)$(CONFIG_ARM_CORTEX_A9),)
@@ -20,7 +24,7 @@ else
   timer_IMPL          += timer-arm-mptimer timer-arm-mptimer-realview
 endif
 
-INTERFACES_KERNEL     += gic platform board_check-arm-realview
+INTERFACES_KERNEL     += gic platform board_check-arm-realview timer_sp804
 
 timer_tick_IMPL       += timer_tick-single-vector
 uart_IMPL             += uart-arm-realview

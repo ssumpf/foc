@@ -23,7 +23,7 @@ INTERFACE:
 #include "spin_lock.h"
 #include "ref_obj.h"
 #include "slab_cache.h"
-#include <slist>
+#include <cxx/slist>
 
 class Ram_quota;
 class Context;
@@ -42,7 +42,24 @@ class Space
   friend class Jdb_space;
 
 public:
-  explicit Space(Ram_quota *q) : Mem_space(q) {}
+
+  struct Caps
+  : cxx::int_type_base<unsigned char, Caps>,
+    cxx::int_bit_ops<Caps>,
+    cxx::int_null_chk<Caps>
+  {
+    Caps() = default;
+    explicit Caps(unsigned char v)
+    : cxx::int_type_base<unsigned char, Caps>(v) {}
+
+    static Caps none() { return Caps(0); }
+    static Caps mem() { return Caps(1); }
+    static Caps obj() { return Caps(2); }
+    static Caps io() { return Caps(4); }
+    static Caps all() { return Caps(7); }
+  };
+
+  explicit Space(Ram_quota *q, Caps c) : Mem_space(q), _caps(c) {}
   virtual ~Space() = 0;
 
   enum State
@@ -74,8 +91,14 @@ public:
     }
   };
 
+  Caps caps() const { return _caps; }
+
+
 protected:
-  Space(Ram_quota *q, Mem_space::Dir_type* pdir) : Mem_space(q, pdir) {}
+  Space(Ram_quota *q, Mem_space::Dir_type* pdir, Caps c)
+  : Mem_space(q, pdir), _caps(c) {}
+
+  const Caps _caps;
 
 private:
   void switchin_ldt() const;
@@ -129,7 +152,7 @@ Space::find_ku_mem(User<void>::Ptr p, unsigned size)
   return 0;
 }
 
-PUBLIC inline
+PUBLIC inline NEEDS["kdb_ke.h"]
 void
 Space::switchin_context(Space *from)
 {

@@ -1,17 +1,21 @@
 IMPLEMENTATION [arm && pxa]:
 
-#include "timer.h"
-#include "io.h"
+#include "mem_layout.h"
+#include "mmio_register_block.h"
+#include "kmem.h"
 
 void __attribute__ ((noreturn))
 platform_reset(void)
 {
   enum {
-    OSCR  = Kmem::Timer_map_base + 0x10,
-    OWER  = Kmem::Timer_map_base + 0x18,
+    OSCR  = 0x10,
+    OWER  = 0x18,
   };
-  Io::write(1, OWER);
-  Io::write(0xffffff00, OSCR);
+
+  Mmio_register_block timer(Kmem::mmio_remap(Mem_layout::Timer_phys_base));
+
+  timer.write<Mword>(1, OWER);
+  timer.write<Mword>(0xffffff00, OSCR);
 
   for (;;)
     ;

@@ -131,7 +131,7 @@ static int getchar_timeout()
       if (Config::getchar_does_hlt_works_ok)
 	Proc::halt();
       else
-	Cpu::cpus.cpu(0).busy_wait_ns(1000000ULL);
+	Cpu::cpus.cpu(Cpu_number::boot_cpu()).busy_wait_ns(1000000ULL);
     }
 
   to = slice;

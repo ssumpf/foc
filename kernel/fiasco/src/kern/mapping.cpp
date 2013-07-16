@@ -1,6 +1,7 @@
 INTERFACE:
 
 #include "types.h"
+#include "mapdb_types.h"
 
 class Space;
 /** Represents one mapping in a mapping tree.
@@ -15,11 +16,17 @@ class Space;
     become invalid) when Mapdb::free is called with any one of its
     mappings.
  */
-class Mapping 
+class Mapping
 {
   friend class Jdb_mapdb;
 public:
-  enum Mapping_depth 
+  typedef Mdb_types::Order Order;
+  typedef Mdb_types::Pcnt Pcnt;
+  typedef Mdb_types::Pfn Pfn;
+  struct Page_t;
+  typedef cxx::int_type_order<Address, Page_t, Order> Page;
+
+  enum Mapping_depth
   {
     Depth_root = 0, Depth_max = 252, 
     Depth_submap = 253, Depth_empty = 254, Depth_end = 255 
@@ -81,20 +88,20 @@ Mapping::set_space(Space *space)
     @return the virtual address at which the frame is mapped.
  */
 PUBLIC inline NEEDS[Mapping::data]
-Page_number
+Mapping::Page
 Mapping::page() const
 {
-  return Page_number::create(data()->data.address);
+  return Page(data()->data.address);
 }
 
 /** Set virtual address.
     @param address the virtual address at which the frame is mapped.
  */
 PUBLIC inline NEEDS[Mapping::data]
-void 
-Mapping::set_page(Page_number address) 
+void
+Mapping::set_page(Page address)
 {
-  data()->data.address = address.value();
+  data()->data.address = cxx::int_value<Page>(address);
 }
 
 /** Depth of mapping in mapping tree. */

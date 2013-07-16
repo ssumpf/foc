@@ -1,9 +1,11 @@
 INTERFACE:
 
+#include "types.h"
+
 class Ipi
 {
 public:
-  static void init(unsigned cpu);
+  static void init(Cpu_number cpu);
 };
 
 INTERFACE[!mp]:
@@ -30,22 +32,22 @@ IMPLEMENTATION[!mp]:
 
 IMPLEMENT inline
 void
-Ipi::init(unsigned cpu)
+Ipi::init(Cpu_number cpu)
 { (void)cpu; }
 
 PUBLIC static inline
 void
-Ipi::send(Message, unsigned from_cpu, unsigned to_cpu)
+Ipi::send(Message, Cpu_number from_cpu, Cpu_number to_cpu)
 { (void)from_cpu; (void)to_cpu; }
 
 PUBLIC static inline
 void
-Ipi::eoi(Message, unsigned on_cpu)
+Ipi::eoi(Message, Cpu_number on_cpu)
 { (void)on_cpu; }
 
 PUBLIC static inline
 void
-Ipi::bcast(Message, unsigned from_cpu)
+Ipi::bcast(Message, Cpu_number from_cpu)
 { (void)from_cpu; }
 
 
@@ -59,12 +61,12 @@ IMPLEMENTATION[!(mp && debug)]:
 
 PUBLIC static inline
 void
-Ipi::stat_sent(unsigned from_cpu)
+Ipi::stat_sent(Cpu_number from_cpu)
 { (void)from_cpu; }
 
 PUBLIC static inline
 void
-Ipi::stat_received(unsigned on_cpu)
+Ipi::stat_received(Cpu_number on_cpu)
 { (void)on_cpu; }
 
 // ------------------------------------------------------------------------
@@ -82,10 +84,10 @@ private:
 
 PUBLIC static inline
 void
-Ipi::stat_sent(unsigned from_cpu)
+Ipi::stat_sent(Cpu_number from_cpu)
 { atomic_mp_add(&_ipi.cpu(from_cpu)._stat_sent, 1); }
 
 PUBLIC static inline
 void
-Ipi::stat_received(unsigned on_cpu)
+Ipi::stat_received(Cpu_number on_cpu)
 { _ipi.cpu(on_cpu)._stat_received++; }

@@ -3,7 +3,7 @@ INTERFACE:
 #include "spin_lock.h"
 #include "queue_item.h"
 #include "kdb_ke.h"
-#include <dlist>
+#include <cxx/dlist>
 
 class Queue
 {

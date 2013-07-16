@@ -3,6 +3,8 @@ INTERFACE [arm && imx21]:
 
 #include "kmem.h"
 #include "irq_chip.h"
+#include "mmio_register_block.h"
+
 
 EXTENSION class Timer
 {
@@ -10,20 +12,32 @@ public:
   static unsigned irq() { return 26; }
 
 private:
-  enum {
-    TCTL  = Kmem::Timer_map_base + 0x00,
-    TPRER = Kmem::Timer_map_base + 0x04,
-    TCMP  = Kmem::Timer_map_base + 0x08,
-    TCR   = Kmem::Timer_map_base + 0x0c,
-    TCN   = Kmem::Timer_map_base + 0x10,
-    TSTAT = Kmem::Timer_map_base + 0x14,
+  class Timer_imx21 : private Mmio_register_block
+  {
+  public:
+    Timer_imx21();
 
-    TCTL_TEN                            = 1 << 0,
-    TCTL_CLKSOURCE_PERCLK1_TO_PRESCALER = 1 << 1,
-    TCTL_CLKSOURCE_32kHz                = 1 << 3,
-    TCTL_COMP_EN                        = 1 << 4,
-    TCTL_SW_RESET                       = 1 << 15,
+  private:
+    enum {
+      TCTL  = 0x00,
+      TPRER = 0x04,
+      TCMP  = 0x08,
+      TCR   = 0x0c,
+      TCN   = 0x10,
+      TSTAT = 0x14,
+
+      TCTL_TEN                            = 1 << 0,
+      TCTL_CLKSOURCE_PERCLK1_TO_PRESCALER = 1 << 1,
+      TCTL_CLKSOURCE_32kHz                = 1 << 3,
+      TCTL_COMP_EN                        = 1 << 4,
+      TCTL_SW_RESET                       = 1 << 15,
+    };
+
+  public:
+    void acknowledge() const { write<Mword>(1, TSTAT); }
   };
+
+  static Static_object<Timer_imx21> _timer;
 };
 
 // ----------------------------------------------------------------------
@@ -36,18 +50,27 @@ IMPLEMENTATION [arm && imx21]:
 #include <cstdio>
 
 IMPLEMENT
-void Timer::init(unsigned)
+Timer::Timer_imx21::Timer_imx21()
+: Mmio_register_block(Kmem::mmio_remap(Mem_layout::Timer_phys_base))
 {
-  Io::write<Mword>(0, TCTL); // Disable
-  Io::write<Mword>(TCTL_SW_RESET, TCTL); // reset timer
+  write<Mword>(0, TCTL); // Disable
+  write<Mword>(TCTL_SW_RESET, TCTL); // reset timer
   for (int i = 0; i < 10; ++i)
-    Io::read<Mword>(TCN); // docu says reset takes 5 cycles
+    read<Mword>(TCN); // docu says reset takes 5 cycles
 
-  Io::write<Mword>(TCTL_CLKSOURCE_32kHz | TCTL_COMP_EN, TCTL);
-  Io::write<Mword>(0, TPRER);
-  Io::write<Mword>(32, TCMP);
+  write<Mword>(TCTL_CLKSOURCE_32kHz | TCTL_COMP_EN, TCTL);
+  write<Mword>(0, TPRER);
+  write<Mword>(32, TCMP);
 
-  Io::set<Mword>(TCTL_TEN, TCTL);
+  modify<Mword>(TCTL_TEN, 0, TCTL);
+}
+
+Static_object<Timer::Timer_imx21> Timer::_timer;
+
+IMPLEMENT
+void Timer::init(Cpu_number)
+{
+  _timer.construct();
 }
 
 static inline
@@ -64,7 +87,7 @@ PUBLIC static inline NEEDS["io.h"]
 void
 Timer::acknowledge()
 {
-  Io::write<Mword>(1, TSTAT);
+  _timer->acknowledge();
 }
 
 IMPLEMENT inline NEEDS["kip.h", "io.h", Timer::timer_to_us, Timer::us_to_timer]

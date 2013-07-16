@@ -3,7 +3,7 @@
 SUBSYSTEMS              += LIBUART
 OBJECTS_LIBUART         += uart_s3c2410.o
 PREPROCESS_PARTS        += libuart s3c2410 generic_tickless_idle
-CONFIG_KERNEL_LOAD_ADDR := 0x30000000
+RAM_PHYS_BASE           := 0x30000000
 
 uart_IMPL             += uart-s3c2410
 config_IMPL           += config-arm-s3c2410

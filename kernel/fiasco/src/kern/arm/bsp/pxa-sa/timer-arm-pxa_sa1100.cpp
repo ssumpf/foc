@@ -2,25 +2,28 @@
 INTERFACE [arm && (sa1100 || pxa)]:
 
 #include "kmem.h"
+#include "mmio_register_block.h"
 
-EXTENSION class Timer
+EXTENSION class Timer : private Mmio_register_block
 {
 public:
   static unsigned irq() { return 26; }
 
 private:
   enum {
-    OSMR0 = Kmem::Timer_map_base + 0x00,
-    OSMR1 = Kmem::Timer_map_base + 0x04,
-    OSMR2 = Kmem::Timer_map_base + 0x08,
-    OSMR3 = Kmem::Timer_map_base + 0x0c,
-    OSCR  = Kmem::Timer_map_base + 0x10,
-    OSSR  = Kmem::Timer_map_base + 0x14,
-    OWER  = Kmem::Timer_map_base + 0x18,
-    OIER  = Kmem::Timer_map_base + 0x1c,
+    OSMR0 = 0x00,
+    OSMR1 = 0x04,
+    OSMR2 = 0x08,
+    OSMR3 = 0x0c,
+    OSCR  = 0x10,
+    OSSR  = 0x14,
+    OWER  = 0x18,
+    OIER  = 0x1c,
 
     Timer_diff = (36864 * Config::Scheduler_granularity) / 10000, // 36864MHz*1ms
   };
+
+  static Static_object<Timer> _timer;
 };
 
 
@@ -30,16 +33,24 @@ IMPLEMENTATION [arm && (sa1100 || pxa)]:
 #include "config.h"
 #include "kip.h"
 #include "pic.h"
-#include "io.h"
+
+Static_object<Timer> Timer::_timer;
+
+PUBLIC
+Timer::Timer()
+: Mmio_register_block(Kmem::mmio_remap(Mem_layout::Timer_phys_base))
+{
+  write<Mword>(1,          OIER); // enable OSMR0
+  write<Mword>(0,          OWER); // disable Watchdog
+  write<Mword>(Timer_diff, OSMR0);
+  write<Mword>(0,          OSCR); // set timer counter to zero
+  write<Mword>(~0U,        OSSR); // clear all status bits
+}
 
 IMPLEMENT
-void Timer::init(unsigned)
+void Timer::init(Cpu_number)
 {
-  Io::write(1,          OIER); // enable OSMR0
-  Io::write(0,          OWER); // disable Watchdog
-  Io::write<Mword>(Timer_diff, OSMR0);
-  Io::write(0,          OSCR); // set timer counter to zero
-  Io::write(~0U,        OSSR); // clear all status bits
+  _timer.construct();
 }
 
 static inline
@@ -52,32 +63,38 @@ Unsigned64
 Timer::us_to_timer(Unsigned64 us)
 { return (us * 60398) >> 14; }
 
-PUBLIC static inline NEEDS["io.h", "config.h", Timer::timer_to_us]
+PUBLIC inline NEEDS["config.h", Timer::timer_to_us]
 void
-Timer::acknowledge()
+Timer::ack()
 {
   if (Config::Scheduler_one_shot)
     {
-      Kip::k()->clock += timer_to_us(Io::read<Unsigned32>(OSCR));
+      Kip::k()->clock += timer_to_us(read<Unsigned32>(OSCR));
       //puts("Reset timer");
-      Io::write(0, OSCR);
-      Io::write(0xffffffff, OSMR0);
+      write<Mword>(0, OSCR);
+      write<Mword>(0xffffffff, OSMR0);
     }
   else
-    Io::write(0, OSCR);
-  Io::write(1, OSSR); // clear all status bits
+    write<Mword>(0, OSCR);
+  write<Mword>(1, OSSR); // clear all status bits
 
   // hmmm?
   //enable();
 }
+PUBLIC static inline NEEDS["config.h", Timer::timer_to_us]
+void
+Timer::acknowledge()
+{
+  _timer->ack();
+}
 
-IMPLEMENT inline NEEDS["kip.h", "io.h", Timer::timer_to_us, Timer::us_to_timer]
+IMPLEMENT inline NEEDS["kip.h", Timer::timer_to_us, Timer::us_to_timer]
 void
 Timer::update_one_shot(Unsigned64 wakeup)
 {
   Unsigned32 apic;
-  Kip::k()->clock += timer_to_us(Io::read<Unsigned32>(OSCR));
-  Io::write(0, OSCR);
+  Kip::k()->clock += timer_to_us(_timer->read<Unsigned32>(OSCR));
+  _timer->write(0, OSCR);
   Unsigned64 now = Kip::k()->clock;
 
   if (EXPECT_FALSE (wakeup <= now) )
@@ -95,16 +112,16 @@ Timer::update_one_shot(Unsigned64 wakeup)
 
   //printf("%15lld: Set Timer to %lld [%08x]\n", now, wakeup, apic);
 
-  Io::write(apic, OSMR0);
-  Io::write(1, OSSR); // clear all status bits
+  _timer->write<Mword>(apic, OSMR0);
+  _timer->write<Mword>(1, OSSR); // clear all status bits
 }
 
-IMPLEMENT inline NEEDS["config.h", "kip.h", "io.h", Timer::timer_to_us]
+IMPLEMENT inline NEEDS["config.h", "kip.h", Timer::timer_to_us]
 Unsigned64
 Timer::system_clock()
 {
   if (Config::Scheduler_one_shot)
-    return Kip::k()->clock + timer_to_us(Io::read<Unsigned32>(OSCR));
+    return Kip::k()->clock + timer_to_us(_timer->read<Unsigned32>(OSCR));
   else
     return Kip::k()->clock;
 }

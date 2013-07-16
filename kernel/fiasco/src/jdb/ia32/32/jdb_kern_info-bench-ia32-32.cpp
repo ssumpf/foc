@@ -371,7 +371,7 @@ Jdb_kern_info_bench::show_arch()
       // and do "sysret ; syscall". Gdt doesn't care us since sysret loads a
       // flat segment. Sysret enables the interrupts again so make sure that
       // we don't receive a timer interrupt.
-      Timer_tick::disable(0);
+      Timer_tick::disable(Cpu_number::boot_cpu());
       Proc::sti();
       Proc::irq_chance();
       asm volatile ("pushf			\n\t"
@@ -419,7 +419,7 @@ Jdb_kern_info_bench::show_arch()
 		    : "i"(Mem_layout::Tbuf_status_page + Config::PAGE_SIZE-2)
 		    : "ebx", "ecx", "esi", "edi", "memory");
       Proc::cli();
-      Timer_tick::enable(0);
+      Timer_tick::enable(Cpu_number::boot_cpu());
       show_time(time, 200000, "syscall + sysret");
     }
   BENCH("push EAX + pop EAX",	inst_push_pop,     200000);

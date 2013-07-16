@@ -1,8 +1,19 @@
+INTERFACE:
+EXTENSION class Thread
+{
+protected:
+  void arch_init_vcpu_state(Vcpu_state *vcpu_state, bool ext);
+};
+
 IMPLEMENTATION:
 
 #include "logdefs.h"
 #include "task.h"
 #include "vcpu.h"
+
+IMPLEMENT_DEFAULT inline
+void Thread::arch_init_vcpu_state(Vcpu_state *, bool /*ext*/) {}
+
 
 PUBLIC inline NEEDS["task.h"]
 void

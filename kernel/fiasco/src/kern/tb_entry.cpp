@@ -278,36 +278,6 @@ public:
   unsigned print(int max, char *buf) const;
 };
 
-/** logged context switch. */
-class Tb_entry_ctx_sw : public Tb_entry
-{
-public:
-  using Tb_entry::_ip;
-
-  Context const *dst;		///< switcher target
-  Context const *dst_orig;
-  Address kernel_ip;
-  Mword lock_cnt;
-  Space const *from_space;
-  Sched_context const *from_sched;
-  Mword from_prio;
-  unsigned print(int max, char *buf) const;
-} __attribute__((packed));
-
-/** logged scheduling event. */
-class Tb_entry_sched : public Tb_entry
-{
-public:
-  unsigned short mode;
-  Context const *owner;
-  unsigned short id;
-  unsigned short prio;
-  signed long left;
-  unsigned long quantum;
-
-  unsigned print(int max, char *buf) const;
-} __attribute__((packed));
-
 /** logged binary kernel event. */
 class Tb_entry_ke_bin : public Tb_entry
 {
@@ -375,7 +345,7 @@ Tb_entry::set_global(char type, Context const *ctx, Address ip)
   _ctx    = ctx;
   _ip     = ip;
   _kclock = (Unsigned32)Kip::k()->clock;
-  _cpu    = current_cpu();
+  _cpu    = cxx::int_value<Cpu_number>(current_cpu());
 }
 
 PUBLIC inline

@@ -45,17 +45,17 @@ Jdb_rcupdate::action(int cmd, void *&, char const *&, int &)
       print_batch(Rcu::_rcu._completed); puts("");
       printf("  next_pending=%s\n"
              "  cpus=", Rcu::_rcu._next_pending?"yes":"no");
-      for (unsigned i = 0; i < Config::Max_num_cpus; ++i)
-	printf("%s%s", Rcu::_rcu._cpus.get(i)?"1":"0", i%4 == 3?" ":"");
+      for (Cpu_number i = Cpu_number::first(); i < Config::max_num_cpus(); ++i)
+	printf("%s%s", Rcu::_rcu._cpus.get(i)?"1":"0", cxx::int_value<Cpu_number>(i) % 4 == 3?" ":"");
 
       puts("");
 
-      for (unsigned i = 0; i < Config::Max_num_cpus; ++i)
+      for (Cpu_number i = Cpu_number::first(); i < Config::max_num_cpus(); ++i)
 	{
 	  if (!Cpu::online(i))
 	    continue;
 
-	  printf("  CPU[%2u]:", i);
+	  printf("  CPU[%2u]:", cxx::int_value<Cpu_number>(i));
 	  Rcu_data const *d = &Rcu::_rcu_data.cpu(i);
 	  printf("    quiescent batch=");
 	  print_batch(d->_q_batch); puts("");

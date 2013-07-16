@@ -50,8 +50,8 @@ typedef struct __attribute__((packed))
 } l4util_mb_addr_range_t;
 
 #define l4util_mb_for_each_mmap_entry(i, mbi) \
-  for (i = (l4util_mb_addr_range_t *) mbi->mmap_addr; \
-       (unsigned long)i < mbi->mmap_addr + mbi->mmap_length; \
+  for (i = (l4util_mb_addr_range_t *)(unsigned long)mbi->mmap_addr; \
+       (unsigned long)i < (unsigned long)mbi->mmap_addr + mbi->mmap_length; \
        i = (l4util_mb_addr_range_t *)((unsigned long)i + mmap->struct_size + sizeof (mmap->struct_size)))
 
 /** usable memory "Type", all others are reserved.  */

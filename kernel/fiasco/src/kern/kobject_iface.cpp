@@ -27,7 +27,7 @@ public:
 class Kobject_iface : public Kobject_common
 {
 public:
-  virtual void invoke(L4_obj_ref self, Mword rights, Syscall_frame *, Utcb *) = 0;
+  virtual void invoke(L4_obj_ref self, L4_fpage::Rights rights, Syscall_frame *, Utcb *) = 0;
 };
 
 IMPLEMENTATION:

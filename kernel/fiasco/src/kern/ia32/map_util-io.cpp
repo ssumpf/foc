@@ -23,7 +23,7 @@ void init_mapdb_io(Space *sigma0)
   static size_t const io_page_sizes[] =
     {Io_space::Map_superpage_shift, 9, Io_space::Page_shift};
 
-  mapdb_io.construct(sigma0, Page_number::create(0x10000 >> io_page_sizes[0]), io_page_sizes, 3);
+  mapdb_io.construct(sigma0, Mapping::Page(0x10000 >> io_page_sizes[0]), io_page_sizes, 3);
 }
 
 /** Map the IO port region described by "fp_from" of address space "from"
@@ -52,29 +52,38 @@ io_map(Space *from, L4_fpage const &fp_from,
  *   kdb_ke("io_fpage_map 1");
  */
 
-  typedef Map_traits<Io_space> Mt;
-  Mt::Addr rcv_pos = Mt::get_addr(fp_to);
-  Mt::Addr snd_pos = Mt::get_addr(fp_from);
+  Io_space::V_pfn rcv_addr = fp_to.io_address();
+  Io_space::V_pfn snd_addr = fp_from.io_address();
 
-  Mt::Size rcv_size = Mt::Size::from_shift(fp_to.order());
-  Mt::Size snd_size = Mt::Size::from_shift(fp_from.order());
+  Order ro = Mu::get_order_from_fp<Io_space::V_pfc>(fp_to);
+  Order so = Mu::get_order_from_fp<Io_space::V_pfc>(fp_from);
 
-  snd_pos = snd_pos.trunc(snd_size);
-  rcv_pos = rcv_pos.trunc(rcv_size);
-  Mt::constraint(snd_pos, snd_size, rcv_pos, rcv_size, Mt::Addr(0));
+  snd_addr = cxx::mask_lsb(snd_addr, so);
+  rcv_addr = cxx::mask_lsb(rcv_addr, ro);
 
-  if (snd_size == 0)
+  Io_space::V_pfc rcv_size = Io_space::V_pfc(1) << ro;
+  Io_space::V_pfc snd_size = Io_space::V_pfc(1) << so;
+
+  if (rcv_addr > snd_addr)
+    {
+      if (rcv_addr - snd_addr < snd_size)
+        snd_size -= rcv_addr - snd_addr;
+      else
+        return L4_error::None;
+
+      snd_addr = rcv_addr;
+    }
+
+  if (snd_size > rcv_size)
+    snd_size = rcv_size;
+
+  if (snd_size == Io_space::V_pfc(0))
     return L4_error::None;
 
-  //assert(snd_pos < L4_fpage::Io_port_max);
-
-  unsigned long del_attribs, add_attribs;
-  Mt::attribs(control, fp_from, &del_attribs, &add_attribs);
-
-  return map<Io_space>(mapdb_io.get(), from, from, snd_pos,
+  return map<Io_space>(mapdb_io.get(), from, from, snd_addr,
              snd_size,
-             to, to, snd_pos,
-             control.is_grant(), add_attribs, del_attribs,
+             to, to, snd_addr,
+             control.is_grant(), fp_from.rights(),
              (Io_space::Reap_list**)0);
 }
 
@@ -90,13 +99,12 @@ io_map(Space *from, L4_fpage const &fp_from,
                  additionally flush the region in the given address space.
     @return true if successful
 */
-unsigned __attribute__((nonnull(1)))
+L4_fpage::Rights __attribute__((nonnull(1)))
 io_fpage_unmap(Space *space, L4_fpage fp, L4_map_mask mask)
 {
-  typedef Map_traits<Io_space> Mt;
-  Mt::Size size = Mt::Size::from_shift(fp.order());
-  Mt::Addr port = Mt::get_addr(fp);
-  port = port.trunc(size);
+  Order size = Mu::get_order_from_fp<Io_space::V_pfc>(fp);
+  Io_space::V_pfn port = fp.io_address();
+  port = cxx::mask_lsb(port, size);
 
   // Here we _would_ reset IOPL to 0 but this doesn't make much sense
   // for only one thread since this thread may have forwarded the right
@@ -106,16 +114,7 @@ io_fpage_unmap(Space *space, L4_fpage fp, L4_map_mask mask)
   // current()->regs()->eflags &= ~EFLAGS_IOPL;
 
   return unmap<Io_space>(mapdb_io.get(), space, space,
-               port, size,
+               port, Io_space::V_pfc(1) << size,
                fp.rights(), mask, (Io_space::Reap_list**)0);
 }
 
-static inline
-void
-save_access_attribs(Mapdb* /*mapdb*/, const Mapdb::Frame& /*mapdb_frame*/,
-		    Mapping* /*mapping*/, Io_space* /*space*/,
-		    unsigned /*page_rights*/,
-		    Io_space::Addr /*virt*/, Io_space::Phys_addr /*phys*/,
-		    Io_space::Size /*size*/,
-		    bool /*me_too*/)
-{}

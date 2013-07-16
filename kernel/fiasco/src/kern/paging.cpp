@@ -1,12 +1,15 @@
 INTERFACE:
 
 #include "types.h"
+#include "l4_msg_item.h"
 
-namespace Page {
-  
+EXTENSION class Page
+{
+public:
+
   /* These things must be defined in arch part in
      the most efficent way according to the architecture.
-  
+
   typedef int Attribs;
 
   enum Attribs_enum {
@@ -20,11 +23,42 @@ namespace Page {
     NONCACHEABLE = xxx, ///< Caching is off
     CACHEABLE    = xxx, ///< Cahe is enabled
   };
-     
-  
+
   */
+  typedef L4_msg_item::Memory_type Type;
 
+  struct Kern
+  : cxx::int_type_base<unsigned char, Kern>,
+    cxx::int_bit_ops<Kern>,
+    cxx::int_null_chk<Kern>
+  {
+    Kern() = default;
+    explicit Kern(Value v) : cxx::int_type_base<unsigned char, Kern>(v) {}
 
+    static Kern Global() { return Kern(1); }
+  };
+
+  typedef L4_fpage::Rights Rights;
+
+  struct Attr
+  {
+    Rights rights;
+    Type type;
+    Kern kern;
+
+    Attr() = default;
+    explicit Attr(Rights r, Type t = Type::Normal(), Kern k = Kern(0))
+    : rights(r), type(t), kern(k) {}
+
+    Attr apply(Attr o) const
+    {
+      Attr n = *this;
+      n.rights &= o.rights;
+      if ((o.type & Type::Set()) == Type::Set())
+        n.type = o.type & ~Type::Set();
+      return n;
+    }
+  };
 };
 
 EXTENSION class PF {
@@ -60,44 +94,27 @@ public:
 
   bool valid() const { return _a; }
 
+  Phys_mem_addr::Value
+  to_phys(void *v) const { return _a->to_phys(v); }
+
 private:
   ALLOC *_a;
 };
 
 
-class Pdir : public Ptab::Base<Pte_base, Ptab_traits_vpn, Ptab_va_vpn >
+class Pdir
+: public Ptab::Base<Pte_ptr, Ptab_traits_vpn, Ptab_va_vpn >
 {
 public:
-  enum { Super_level = Pte_base::Super_level };
-
-private:
-  static bool       _have_superpages;
-  static unsigned   _super_level;
+  enum { Super_level = Pte_ptr::Super_level };
 };
 
 IMPLEMENTATION:
 //---------------------------------------------------------------------------
 
-bool Pdir::_have_superpages;
-unsigned  Pdir::_super_level;
-
 template<typename ALLOC>
 inline Pdir_alloc_simple<ALLOC> pdir_alloc(ALLOC *a)
 { return Pdir_alloc_simple<ALLOC>(a); }
-
-PUBLIC static inline
-void
-Pdir::have_superpages(bool yes)
-{
-  _have_superpages = yes;
-  _super_level = yes ? Super_level : (Super_level + 1);
-}
-
-PUBLIC static inline
-unsigned
-Pdir::super_level()
-{ return _super_level; }
-
 
 IMPLEMENT inline NEEDS[PF::is_usermode_error]
 Mword PF::pc_to_msgword1(Address pc, Mword error)
@@ -112,11 +129,12 @@ PUBLIC
 Address
 Pdir::virt_to_phys(Address virt) const
 {
-  Iter i = walk(Virt_addr(virt));
-  if (!i.e->valid())
+  Virt_addr va(virt);
+  auto i = walk(va);
+  if (!i.is_valid())
     return ~0;
 
-  return i.e->addr() | (virt & ~(~0UL << i.shift()));
+  return i.page_addr() | cxx::get_lsb(virt, i.page_order());
 }
 
 //---------------------------------------------------------------------------
@@ -126,12 +144,14 @@ PUBLIC
 Address
 Pdir::virt_to_phys(Address virt) const
 {
-  Iter i = walk(Virt_addr(virt));
+  auto i = walk(Virt_addr(virt));
 
-  if (!i.e->valid())
+  //if (!i.is_valid())
     return ~0UL;
 
+#ifdef FIX_THIS
   Address phys;
   Pte_htab::pte_lookup(i.e, &phys);
-  return phys | (virt & ~(~0UL << i.shift()));
+  return phys | (virt & ~(~0UL << i.page_order()));
+#endif
 }

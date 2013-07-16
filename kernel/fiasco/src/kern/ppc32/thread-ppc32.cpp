@@ -136,11 +136,9 @@ IMPLEMENT inline NEEDS["space.h", <cstdio>, "types.h" ,"config.h"]
 bool Thread::handle_sigma0_page_fault(Address pfa)
 {
   bool ret = (mem_space()->v_insert(Mem_space::Phys_addr(pfa & Config::PAGE_MASK),
-				    Mem_space::Addr(pfa & Config::PAGE_MASK),
-				    Mem_space::Size(Config::PAGE_SIZE),
-				    Mem_space::Page_writable |
-				    Mem_space::Page_user_accessible |
-				    Mem_space::Page_cacheable
+				    Virt_addr(pfa & Config::PAGE_MASK),
+				    Virt_order(Config::PAGE_SIZE),
+				    Mem_space::Attr(L4_fpage::Rights::URWX())
 				   )
 	!= Mem_space::Insert_err_nomem);
 
@@ -339,7 +337,7 @@ Thread::do_trigger_exception(Entry_frame * /*r*/, void * /*ret_handler*/)
 PRIVATE static inline
 bool FIASCO_WARN_RESULT
 Thread::copy_utcb_to_ts(L4_msg_tag const &/*tag*/, Thread * /*snd*/,
-                        Thread * /*rcv*/, unsigned char /*rights*/)
+                        Thread * /*rcv*/, L4_fpage::Rights /*rights*/)
 {
   NOT_IMPL_PANIC;
   return true;
@@ -348,7 +346,7 @@ Thread::copy_utcb_to_ts(L4_msg_tag const &/*tag*/, Thread * /*snd*/,
 PRIVATE static inline
 bool FIASCO_WARN_RESULT
 Thread::copy_ts_to_utcb(L4_msg_tag const &, Thread * /*snd*/, Thread * /*rcv*/,
-                        unsigned char /*rights*/)
+                        L4_fpage::Rights /*rights*/)
 {
   NOT_IMPL_PANIC;
   return true;

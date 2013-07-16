@@ -218,6 +218,8 @@
  */
 #define L4_NORETURN __attribute__((noreturn))
 
+#define L4_PURE __attribute__((pure))
+
 /**
  * No instrumentation function attribute.
  * \hideinitializer

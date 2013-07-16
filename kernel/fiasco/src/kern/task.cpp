@@ -116,45 +116,45 @@ Task::alloc_ku_mem_chunk(User<void>::Ptr u_addr, unsigned size, void **k_addr)
   // clean up utcbs
   memset(p, 0, size);
 
-  unsigned long page_size = Config::PAGE_SIZE;
+  Virt_addr base((Address)p);
+  Mem_space::Page_order page_size(Config::PAGE_SHIFT);
 
   // the following works because the size is a power of two
   // and once we have size larger than a super page we have
   // always multiples of superpages
   if (size >= Config::SUPERPAGE_SIZE)
-    page_size = Config::SUPERPAGE_SIZE;
+    page_size = Mem_space::Page_order(Config::SUPERPAGE_SHIFT);
 
-  for (unsigned long i = 0; i < size; i += page_size)
+  for (Virt_size i = Virt_size(0); i < Virt_size(size);
+       i += Virt_size(1) << page_size)
     {
-      Address kern_va = (Address)p + i;
-      Address user_va = (Address)u_addr.get() + i;
-      Address pa = pmem_to_phys(kern_va);
+      Virt_addr kern_va = base + i;
+      Virt_addr user_va = Virt_addr((Address)u_addr.get()) + i;
+      Mem_space::Phys_addr pa(pmem_to_phys(Virt_addr::val(kern_va)));
 
       // must be valid physical address
-      assert(pa != ~0UL);
+      assert(pa != Mem_space::Phys_addr(~0UL));
 
       Mem_space::Status res =
-	static_cast<Mem_space*>(this)->v_insert(Mem_space::Phys_addr(pa),
-	    Mem_space::Addr(user_va), Mem_space::Size(page_size),
-	    Mem_space::Page_writable | Mem_space::Page_user_accessible
-	    | Mem_space::Page_cacheable);
+	static_cast<Mem_space*>(this)->v_insert(pa, user_va, page_size,
+	    Mem_space::Attr(L4_fpage::Rights::URW()));
 
       switch (res)
 	{
 	case Mem_space::Insert_ok: break;
 	case Mem_space::Insert_err_nomem:
-	  free_ku_mem_chunk(p, u_addr, size, i);
+	  free_ku_mem_chunk(p, u_addr, size, Virt_size::val(i));
 	  return -L4_err::ENomem;
 
 	case Mem_space::Insert_err_exists:
-	  free_ku_mem_chunk(p, u_addr, size, i);
+	  free_ku_mem_chunk(p, u_addr, size, Virt_size::val(i));
 	  return -L4_err::EExists;
 
 	default:
 	  printf("UTCB mapping failed: va=%p, ph=%p, res=%d\n",
-	      (void*)user_va, (void*)kern_va, res);
+	      (void*)Virt_addr::val(user_va), (void*)Virt_addr::val(kern_va), res);
 	  kdb_ke("BUG in utcb allocation");
-	  free_ku_mem_chunk(p, u_addr, size, i);
+	  free_ku_mem_chunk(p, u_addr, size, Virt_size::val(i));
 	  return 0;
 	}
     }
@@ -178,7 +178,7 @@ Task::alloc_ku_mem(L4_fpage ku_area)
   if (!m)
     return -L4_err::ENomem;
 
-  User<void>::Ptr u_addr((void*)Virt_addr(ku_area.mem_address()).value());
+  User<void>::Ptr u_addr((void*)Virt_addr::val(ku_area.mem_address()));
 
   void *p;
   if (int e = alloc_ku_mem_chunk(u_addr, sz, &p))
@@ -211,19 +211,19 @@ Task::free_ku_mem_chunk(void *k_addr, User<void>::Ptr u_addr, unsigned size,
 {
 
   Kmem_alloc * const alloc = Kmem_alloc::allocator();
-  unsigned long page_size = Config::PAGE_SIZE;
+  Mem_space::Page_order page_size(Config::PAGE_SHIFT);
 
-  // the following works because the size is a poer of two
+  // the following works because the size is a power of two
   // and once we have size larger than a super page we have
   // always multiples of superpages
   if (size >= Config::SUPERPAGE_SIZE)
-    page_size = Config::SUPERPAGE_SIZE;
+    page_size = Mem_space::Page_order(Config::SUPERPAGE_SHIFT);
 
-  for (unsigned long i = 0; i < mapped_size; i += page_size)
+  for (Virt_size i = Virt_size(0); i < Virt_size(mapped_size);
+       i += Virt_size(1) << page_size)
     {
-      Address user_va = (Address)u_addr.get() + i;
-      static_cast<Mem_space*>(this)->v_delete(Mem_space::Addr(user_va),
-                            Mem_space::Size(page_size));
+      Virt_addr user_va = Virt_addr((Address)u_addr.get()) + i;
+      static_cast<Mem_space*>(this)->v_delete(user_va, page_size, L4_fpage::Rights::FULL());
     }
 
   alloc->q_unaligned_free(ram_quota(), size, k_addr);
@@ -259,7 +259,7 @@ Task::initialize()
  * \pre \a parent must be valid and exist.
  */
 PUBLIC explicit
-Task::Task(Ram_quota *q) : Space(q)
+Task::Task(Ram_quota *q, Caps c) : Space(q, c)
 {
   ux_init();
 
@@ -268,8 +268,8 @@ Task::Task(Ram_quota *q) : Space(q)
 }
 
 PROTECTED
-Task::Task(Ram_quota *q, Mem_space::Dir_type* pdir)
-: Space(q, pdir)
+Task::Task(Ram_quota *q, Mem_space::Dir_type* pdir, Caps c)
+: Space(q, pdir, c)
 {
   // increment reference counter from zero
   inc_ref(true);
@@ -318,7 +318,7 @@ Task::create(Ram_quota *quota, L4_fpage const &utcb_area)
   if (!t)
     return 0;
 
-  cxx::unique_ptr<Task> a(new (t) TARGET(quota));
+  cxx::unique_ptr<Task> a(new (t) TARGET(quota, Caps::mem() | Caps::io() | Caps::obj()));
 
   if (!a->initialize())
     return 0;
@@ -349,19 +349,19 @@ Task::destroy(Kobject ***reap_list)
 {
   Kobject::destroy(reap_list);
 
-  fpage_unmap(this, L4_fpage::all_spaces(L4_fpage::RWX), L4_map_mask::full(), reap_list);
+  fpage_unmap(this, L4_fpage::all_spaces(L4_fpage::Rights::FULL()), L4_map_mask::full(), reap_list);
 }
 
 PRIVATE inline NOEXPORT
 L4_msg_tag
-Task::sys_map(unsigned char rights, Syscall_frame *f, Utcb *utcb)
+Task::sys_map(L4_fpage::Rights rights, Syscall_frame *f, Utcb *utcb)
 {
   LOG_TRACE("Task map", "map", ::current(), Log_unmap,
       l->id = dbg_id();
       l->mask  = utcb->values[1];
       l->fpage = utcb->values[2]);
 
-  if (EXPECT_FALSE(!(rights & L4_fpage::W)))
+  if (EXPECT_FALSE(!(rights & L4_fpage::Rights::CW())))
     return commit_result(-L4_err::EPerm);
 
   L4_msg_tag const tag = f->tag();
@@ -377,9 +377,16 @@ Task::sys_map(unsigned char rights, Syscall_frame *f, Utcb *utcb)
   if (EXPECT_FALSE(!src_task.is_objpage()))
     return commit_result(-L4_err::EInval);
 
-  Task *from = Kobject::dcast<Task*>(s->lookup_local(src_task.obj_index()));
+  L4_fpage::Rights mask;
+  Task *from = Kobject::dcast<Task*>(s->lookup_local(src_task.obj_index(), &mask));
   if (!from)
     return commit_result(-L4_err::EInval);
+
+  mask &= rights;
+  mask |= L4_fpage::Rights::CD() | L4_fpage::Rights::CRW();
+
+  L4_fpage sfp(utcb->values[2]);
+  sfp.mask_rights(mask);
 
   ::Reap_list rl;
   L4_error ret;
@@ -395,7 +402,7 @@ Task::sys_map(unsigned char rights, Syscall_frame *f, Utcb *utcb)
 
       cpu_lock.clear();
 
-      ret = fpage_map(from, L4_fpage(utcb->values[2]), this,
+      ret = fpage_map(from, sfp, this,
                       L4_fpage::all_spaces(), L4_msg_item(utcb->values[1]), &rl);
       cpu_lock.lock();
     }
@@ -437,8 +444,11 @@ Task::sys_unmap(Syscall_frame *f, Utcb *utcb)
 
       for (unsigned i = 2; i < words; ++i)
         {
-          unsigned const flushed = fpage_unmap(this, L4_fpage(utcb->values[i]), m, rl.list());
-          utcb->values[i] = (utcb->values[i] & ~0xfUL) | flushed;
+          L4_fpage::Rights const flushed
+            = fpage_unmap(this, L4_fpage(utcb->values[i]), m, rl.list());
+
+          utcb->values[i] = (utcb->values[i] & ~0xfUL)
+                          | cxx::int_value<L4_fpage::Rights>(flushed);
         }
       cpu_lock.lock();
     }
@@ -526,7 +536,7 @@ Task::sys_cap_info(Syscall_frame *f, Utcb *utcb)
 
 PUBLIC
 void
-Task::invoke(L4_obj_ref, Mword rights, Syscall_frame *f, Utcb *utcb)
+Task::invoke(L4_obj_ref, L4_fpage::Rights rights, Syscall_frame *f, Utcb *utcb)
 {
   if (EXPECT_FALSE(f->tag().proto() != L4_msg_tag::Label_task))
     {

@@ -70,8 +70,8 @@ main_switch_ap_cpu_stack(Kernel_thread *kernel)
 
   // switch to stack of kernel thread and bootstrap the kernel
   asm volatile
-    ("	mov %%rsi, %%rsp	\n\t"	// switch stack
+    ("	mov %[rsp], %%rsp	\n\t"	// switch stack
      "	call call_ap_bootstrap	\n\t"	// bootstrap kernel thread
      :  "=a" (dummy), "=c" (dummy), "=d" (dummy)
-     :	"a"(kernel), "S" (kernel->init_stack()));
+     :	"D"(kernel), [rsp]"r" (kernel->init_stack()));
 }

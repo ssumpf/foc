@@ -3,7 +3,7 @@ INTERFACE:
 #include "jdb_module.h"
 #include "jdb_list.h"
 #include "kobject.h"
-#include <slist>
+#include <cxx/slist>
 
 class Kobject;
 class Jdb_kobject_handler;

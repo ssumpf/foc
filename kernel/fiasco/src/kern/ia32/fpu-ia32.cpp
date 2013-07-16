@@ -15,7 +15,7 @@ IMPLEMENTATION [{ia32,amd64}-fpu]:
 
 PRIVATE static
 void
-Fpu::init_xsave(unsigned cpu)
+Fpu::init_xsave(Cpu_number cpu)
 {
   Unsigned32 eax, ebx, ecx, edx;
 

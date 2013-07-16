@@ -18,9 +18,9 @@ public:
   virtual ~Context_base() = 0;
 
 protected:
-  friend unsigned &__cpu_of(const void *);
+  friend Cpu_number &__cpu_of(const void *);
   Mword _state;
-  unsigned _cpu;
+  Cpu_number _cpu;
 };
 
 
@@ -44,29 +44,29 @@ Context *current()
 { return context_of((void *)Proc::stack_pointer()); }
 
 inline NEEDS ["config.h"]
-unsigned &__cpu_of(const void *ptr)
+Cpu_number &__cpu_of(const void *ptr)
 { return reinterpret_cast<Context_base*>(context_of(ptr))->_cpu; }
 
 inline NEEDS [__cpu_of]
-void set_cpu_of(const void *ptr, unsigned cpu)
+void set_cpu_of(const void *ptr, Cpu_number cpu)
 { __cpu_of(ptr) = cpu; }
 
 
 inline NEEDS [__cpu_of]
-unsigned cpu_of(const void *ptr)
+Cpu_number cpu_of(const void *ptr)
 { return __cpu_of(ptr); }
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [!mp]:
 
 inline
-unsigned current_cpu()
-{ return 0; }
+Cpu_number current_cpu()
+{ return Cpu_number::boot_cpu(); }
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [mp]:
 
 inline NEEDS [current, cpu_of]
-unsigned current_cpu()
+Cpu_number current_cpu()
 { return cpu_of(current()); }
 

@@ -1,7 +1,7 @@
 # vim:set ft=make:
 
 PREPROCESS_PARTS        += kirkwood 16550 generic_tickless_idle
-CONFIG_KERNEL_LOAD_ADDR := 0x0
+RAM_PHYS_BASE           := 0x0
 
 uart_IMPL             += uart-16550 uart-16550-arm-kirkwood
 config_IMPL           += config-arm-kirkwood

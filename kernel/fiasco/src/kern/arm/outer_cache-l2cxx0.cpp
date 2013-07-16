@@ -1,56 +1,77 @@
 INTERFACE [arm && outer_cache_l2cxx0]:
 
+#include "lock_guard.h"
 #include "mem_layout.h"
 #include "spin_lock.h"
+#include "mmio_register_block.h"
 
 EXTENSION class Outer_cache
 {
 private:
-  enum
+
+  class L2cxx0 : public Mmio_register_block
   {
-    Cache_line_shift = 5,
+  public:
+    enum
+    {
+      CACHE_ID                       = 0x000,
+      CACHE_TYPE                     = 0x004,
+      CONTROL                        = 0x100,
+      AUX_CONTROL                    = 0x104,
+      TAG_RAM_CONTROL                = 0x108,
+      DATA_RAM_CONTROL               = 0x10c,
+      EVENT_COUNTER_CONTROL          = 0x200,
+      EVENT_COUTNER1_CONFIG          = 0x204,
+      EVENT_COUNTER0_CONFIG          = 0x208,
+      EVENT_COUNTER1_VALUE           = 0x20c,
+      EVENT_COUNTER0_VALUE           = 0x210,
+      INTERRUPT_MASK                 = 0x214,
+      MASKED_INTERRUPT_STATUS        = 0x218,
+      RAW_INTERRUPT_STATUS           = 0x21c,
+      INTERRUPT_CLEAR                = 0x220,
+      CACHE_SYNC                     = 0x730,
+      INVALIDATE_LINE_BY_PA          = 0x770,
+      INVALIDATE_BY_WAY              = 0x77c,
+      CLEAN_LINE_BY_PA               = 0x7b0,
+      CLEAN_LINE_BY_INDEXWAY         = 0x7bb,
+      CLEAN_BY_WAY                   = 0x7bc,
+      CLEAN_AND_INV_LINE_BY_PA       = 0x7f0,
+      CLEAN_AND_INV_LINE_BY_INDEXWAY = 0x7f8,
+      CLEAN_AND_INV_BY_WAY           = 0x7fc,
+      LOCKDOWN_BY_WAY_D_SIDE         = 0x900,
+      LOCKDOWN_BY_WAY_I_SIDE         = 0x904,
+      TEST_OPERATION                 = 0xf00,
+      LINE_TAG                       = 0xf30,
+      DEBUG_CONTROL_REGISTER         = 0xf40,
+    };
 
-    CACHE_ID                       = Mem_layout::L2cxx0_map_base + 0x000,
-    CACHE_TYPE                     = Mem_layout::L2cxx0_map_base + 0x004,
-    CONTROL                        = Mem_layout::L2cxx0_map_base + 0x100,
-    AUX_CONTROL                    = Mem_layout::L2cxx0_map_base + 0x104,
-    TAG_RAM_CONTROL                = Mem_layout::L2cxx0_map_base + 0x108,
-    DATA_RAM_CONTROL               = Mem_layout::L2cxx0_map_base + 0x10c,
-    EVENT_COUNTER_CONTROL          = Mem_layout::L2cxx0_map_base + 0x200,
-    EVENT_COUTNER1_CONFIG          = Mem_layout::L2cxx0_map_base + 0x204,
-    EVENT_COUNTER0_CONFIG          = Mem_layout::L2cxx0_map_base + 0x208,
-    EVENT_COUNTER1_VALUE           = Mem_layout::L2cxx0_map_base + 0x20c,
-    EVENT_COUNTER0_VALUE           = Mem_layout::L2cxx0_map_base + 0x210,
-    INTERRUPT_MASK                 = Mem_layout::L2cxx0_map_base + 0x214,
-    MASKED_INTERRUPT_STATUS        = Mem_layout::L2cxx0_map_base + 0x218,
-    RAW_INTERRUPT_STATUS           = Mem_layout::L2cxx0_map_base + 0x21c,
-    INTERRUPT_CLEAR                = Mem_layout::L2cxx0_map_base + 0x220,
-    CACHE_SYNC                     = Mem_layout::L2cxx0_map_base + 0x730,
-    INVALIDATE_LINE_BY_PA          = Mem_layout::L2cxx0_map_base + 0x770,
-    INVALIDATE_BY_WAY              = Mem_layout::L2cxx0_map_base + 0x77c,
-    CLEAN_LINE_BY_PA               = Mem_layout::L2cxx0_map_base + 0x7b0,
-    CLEAN_LINE_BY_INDEXWAY         = Mem_layout::L2cxx0_map_base + 0x7bb,
-    CLEAN_BY_WAY                   = Mem_layout::L2cxx0_map_base + 0x7bc,
-    CLEAN_AND_INV_LINE_BY_PA       = Mem_layout::L2cxx0_map_base + 0x7f0,
-    CLEAN_AND_INV_LINE_BY_INDEXWAY = Mem_layout::L2cxx0_map_base + 0x7f8,
-    CLEAN_AND_INV_BY_WAY           = Mem_layout::L2cxx0_map_base + 0x7fc,
-    LOCKDOWN_BY_WAY_D_SIDE         = Mem_layout::L2cxx0_map_base + 0x900,
-    LOCKDOWN_BY_WAY_I_SIDE         = Mem_layout::L2cxx0_map_base + 0x904,
-    TEST_OPERATION                 = Mem_layout::L2cxx0_map_base + 0xf00,
-    LINE_TAG                       = Mem_layout::L2cxx0_map_base + 0xf30,
-    DEBUG_CONTROL_REGISTER         = Mem_layout::L2cxx0_map_base + 0xf40,
+    Spin_lock<> _lock;
+
+    explicit L2cxx0(Address virt) : Mmio_register_block(virt) {}
+
+    void write_op(Address reg, Mword val, bool before = false)
+    {
+      auto guard = lock_guard(_lock);
+      if (before)
+        while (read<Mword>(reg) & 1)
+          ;
+      Mmio_register_block::write<Mword>(val, reg);
+      if (!before)
+        while (read<Mword>(reg) & 1)
+          ;
+    }
   };
-
-  static Spin_lock<> _lock;
 
   static Mword platform_init(Mword aux);
 
+  static Static_object<L2cxx0> l2cxx0;
   static bool need_sync;
   static unsigned waymask;
 
 public:
   enum
   {
+    Cache_line_shift = 5,
     Cache_line_size = 1 << Cache_line_shift,
     Cache_line_mask = Cache_line_size - 1,
   };
@@ -59,83 +80,71 @@ public:
 // ------------------------------------------------------------------------
 IMPLEMENTATION [arm && outer_cache_l2cxx0]:
 
-#include "io.h"
-#include "lock_guard.h"
+#include "kmem.h"
+#include "processor.h"
 #include "static_init.h"
 
-Spin_lock<> Outer_cache::_lock;
+Static_object<Outer_cache::L2cxx0> Outer_cache::l2cxx0;
+
+//Spin_lock<> Outer_cache::_lock;
 bool Outer_cache::need_sync;
 unsigned Outer_cache::waymask;
 
-IMPLEMENT inline NEEDS ["io.h"]
+IMPLEMENT inline
 void
 Outer_cache::sync()
 {
-  while (Io::read<Mword>(CACHE_SYNC))
+  while (l2cxx0->read<Mword>(L2cxx0::CACHE_SYNC))
     Proc::preemption_point();
 }
 
-PRIVATE static inline NEEDS ["io.h", "lock_guard.h"]
-void
-Outer_cache::write(Address reg, Mword val, bool before = false)
-{
-  auto guard = lock_guard(_lock);
-  if (before)
-    while (Io::read<Mword>(reg) & 1)
-      ;
-  Io::write<Mword>(val, reg);
-  if (!before)
-    while (Io::read<Mword>(reg) & 1)
-      ;
-}
-
-IMPLEMENT inline NEEDS[Outer_cache::write]
+IMPLEMENT inline
 void
 Outer_cache::clean()
 {
-  write(CLEAN_BY_WAY, waymask);
+  l2cxx0->write_op(L2cxx0::CLEAN_BY_WAY, waymask);
   sync();
 }
 
-IMPLEMENT inline NEEDS[Outer_cache::write]
+IMPLEMENT inline
 void
 Outer_cache::clean(Mword phys_addr, bool do_sync = true)
 {
-  write(CLEAN_LINE_BY_PA, phys_addr & (~0UL << Cache_line_shift));
+  l2cxx0->write_op(L2cxx0::CLEAN_LINE_BY_PA, phys_addr & (~0UL << Cache_line_shift));
   if (need_sync && do_sync)
     sync();
 }
 
-IMPLEMENT inline NEEDS[Outer_cache::write]
+IMPLEMENT inline
 void
 Outer_cache::flush()
 {
-  write(CLEAN_AND_INV_BY_WAY, waymask);
+  l2cxx0->write_op(L2cxx0::CLEAN_AND_INV_BY_WAY, waymask);
   sync();
 }
 
-IMPLEMENT inline NEEDS[Outer_cache::write]
+IMPLEMENT inline
 void
 Outer_cache::flush(Mword phys_addr, bool do_sync = true)
 {
-  write(CLEAN_AND_INV_LINE_BY_PA, phys_addr & (~0UL << Cache_line_shift));
+  l2cxx0->write_op(L2cxx0::CLEAN_AND_INV_LINE_BY_PA, phys_addr & (~0UL << Cache_line_shift));
   if (need_sync && do_sync)
     sync();
 }
 
-IMPLEMENT inline NEEDS[Outer_cache::write]
+IMPLEMENT inline
 void
 Outer_cache::invalidate()
 {
-  write(INVALIDATE_BY_WAY, waymask);
+  l2cxx0->write_op(L2cxx0::INVALIDATE_BY_WAY, waymask);
   sync();
 }
 
-IMPLEMENT inline NEEDS[Outer_cache::write]
+IMPLEMENT inline
 void
 Outer_cache::invalidate(Address phys_addr, bool do_sync = true)
 {
-  write(INVALIDATE_LINE_BY_PA, phys_addr & (~0UL << Cache_line_shift));
+  l2cxx0->write_op(L2cxx0::INVALIDATE_LINE_BY_PA, phys_addr & (~0UL << Cache_line_shift));
   if (need_sync && do_sync)
     sync();
 }
@@ -144,8 +153,9 @@ PUBLIC static
 void
 Outer_cache::initialize(bool v)
 {
-  Mword cache_id   = Io::read<Mword>(CACHE_ID);
-  Mword aux        = Io::read<Mword>(AUX_CONTROL);
+  l2cxx0.construct(Kmem::mmio_remap(Mem_layout::L2cxx0_phys_base));
+  Mword cache_id   = l2cxx0->read<Mword>(L2cxx0::CACHE_ID);
+  Mword aux        = l2cxx0->read<Mword>(L2cxx0::AUX_CONTROL);
   unsigned ways    = 8;
 
   need_sync = true;
@@ -167,14 +177,14 @@ Outer_cache::initialize(bool v)
 
   waymask = (1 << ways) - 1;
 
-  Io::write<Mword>(0,    INTERRUPT_MASK);
-  Io::write<Mword>(~0UL, INTERRUPT_CLEAR);
+  l2cxx0->write<Mword>(0, L2cxx0::INTERRUPT_MASK);
+  l2cxx0->write<Mword>(~0UL, L2cxx0::INTERRUPT_CLEAR);
 
-  if (!(Io::read<Mword>(CONTROL) & 1))
+  if (!(l2cxx0->read<Mword>(L2cxx0::CONTROL) & 1))
     {
-      Io::write(aux, AUX_CONTROL);
+      l2cxx0->write(aux, L2cxx0::AUX_CONTROL);
       invalidate();
-      Io::write<Mword>(1, CONTROL);
+      l2cxx0->write<Mword>(1, L2cxx0::CONTROL);
     }
 
   if (v)
@@ -209,7 +219,7 @@ void
 Outer_cache::show_info(unsigned ways, Mword cache_id, Mword aux)
 {
   printf("L2: ID=%08lx Type=%08lx Aux=%08lx WMask=%x S=%d\n",
-         cache_id, Io::read<Mword>(CACHE_TYPE), aux, waymask, need_sync);
+         cache_id, l2cxx0->read<Mword>(L2cxx0::CACHE_TYPE), aux, waymask, need_sync);
 
   const char *type;
   switch ((cache_id >> 6) & 0xf)

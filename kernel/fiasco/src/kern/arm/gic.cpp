@@ -16,8 +16,10 @@ public:
     DIST_CTRL         = 0x000,
     DIST_CTR          = 0x004,
     DIST_IRQ_SEC      = 0x080,
+    GICD_IGROUPR      = DIST_IRQ_SEC, // new name
     DIST_ENABLE_SET   = 0x100,
     DIST_ENABLE_CLEAR = 0x180,
+    DIST_SET_PENDING  = 0x200,
     DIST_CLR_PENDING  = 0x280,
     DIST_PRI          = 0x400,
     DIST_TARGET       = 0x800,
@@ -41,8 +43,10 @@ public:
     MXC_TZIC_CTRL_NSEN       = 1 << 16,
     MXC_TZIC_CTRL_NSENMASK   = 1 << 31,
 
-    CPU_CTRL_ENABLE          = 1,
-    CPU_CTRL_USE_FIQ_FOR_SEC = 8,
+    CPU_CTRL_ENABLE_GRP0     = 1 << 0,
+    CPU_CTRL_ENABLE          = CPU_CTRL_ENABLE_GRP0,
+    CPU_CTRL_ENABLE_GRP1     = 1 << 1,
+    CPU_CTRL_USE_FIQ_FOR_SEC = 1 << 3,
   };
 
 };
@@ -58,14 +62,14 @@ INTERFACE [arm && pic_gic && !pic_gic_mxc_tzic]:
 EXTENSION class Gic { enum { Config_mxc_tzic = 0 }; };
 
 // ------------------------------------------------------------------------
-INTERFACE [arm && tz]:
+INTERFACE [arm && arm_em_tz]:
 
-EXTENSION class Gic { enum { Config_tz = 1 }; };
+EXTENSION class Gic { enum { Config_tz_sec = 1 }; };
 
 // ------------------------------------------------------------------------
-INTERFACE [arm && !tz]:
+INTERFACE [arm && !arm_em_tz]:
 
-EXTENSION class Gic { enum { Config_tz = 0 }; };
+EXTENSION class Gic { enum { Config_tz_sec = 0 }; };
 
 
 //-------------------------------------------------------------------
@@ -79,6 +83,7 @@ IMPLEMENTATION [arm && pic_gic]:
 #include "io.h"
 #include "irq_chip_generic.h"
 #include "panic.h"
+#include "processor.h"
 
 PUBLIC inline NEEDS["io.h"]
 unsigned
@@ -93,19 +98,54 @@ Gic::has_sec_ext()
 PUBLIC inline
 void Gic::softint_cpu(unsigned callmap, unsigned m)
 {
-  Io::write<Mword>((callmap & 0xff) << 16 | m, _dist_base + DIST_SOFTINT);
+  Io::write<Mword>(((callmap & 0xff) << 16) | m, _dist_base + DIST_SOFTINT);
 }
 
 PUBLIC inline
 void Gic::softint_bcast(unsigned m)
-{ Io::write<Mword>(1 << 24 | m, _dist_base + DIST_SOFTINT); }
+{ Io::write<Mword>((1 << 24) | m, _dist_base + DIST_SOFTINT); }
+
+PRIVATE
+void
+Gic::cpu_init()
+{
+  Io::write<Mword>(0, _cpu_base + CPU_CTRL);
+
+  Io::write<Mword>(0xffffffff, _dist_base + DIST_ENABLE_CLEAR);
+  if (Config_tz_sec)
+    {
+      Io::write<Mword>(0x00000f00, _dist_base + DIST_ENABLE_SET);
+      Io::write<Mword>(0xfffff0ff, _dist_base + GICD_IGROUPR);
+    }
+  else
+    {
+      Io::write<Mword>(0x0000001e, _dist_base + DIST_ENABLE_SET);
+      Io::write<Mword>(0, _dist_base + GICD_IGROUPR);
+    }
+
+  Io::write<Mword>(0xffffffff, _dist_base + DIST_CLR_PENDING);
+
+  Io::write<Mword>(0xffffffff, _dist_base + 0x380); // clear active
+  Io::write<Mword>(0xffffffff, _dist_base + 0xf10); // sgi pending clear
+  Io::write<Mword>(0xffffffff, _dist_base + 0xf14); // sgi pending clear
+  Io::write<Mword>(0xffffffff, _dist_base + 0xf18); // sgi pending clear
+  Io::write<Mword>(0xffffffff, _dist_base + 0xf1c); // sgi pending clear
+
+  for (unsigned i = 0; i < 32; i += 4)
+    Io::write<Mword>(0xa0a0a0a0, _dist_base + DIST_PRI + i);
+
+  if (Config_tz_sec)
+    Io::write<Mword>(0x40404040, _dist_base + DIST_PRI + 8);
+
+  Io::write<Mword>(CPU_CTRL_ENABLE | (Config_tz_sec ? CPU_CTRL_USE_FIQ_FOR_SEC : 0), _cpu_base + CPU_CTRL);
+  Io::write<Mword>(0xf0, _cpu_base + CPU_PRIMASK);
+}
 
 PUBLIC
 void
 Gic::init_ap()
 {
-  Io::write<Mword>(CPU_CTRL_ENABLE, _cpu_base + CPU_CTRL);
-  Io::write<Mword>(0xf0, _cpu_base + CPU_PRIMASK);
+  cpu_init();
 }
 
 PUBLIC
@@ -114,7 +154,7 @@ Gic::init(bool primary_gic, int nr_irqs_override = -1)
 {
   if (!primary_gic)
     {
-      init_ap();
+      cpu_init();
       return 0;
     }
 
@@ -126,7 +166,7 @@ Gic::init(bool primary_gic, int nr_irqs_override = -1)
 
   if (!Config_mxc_tzic)
     {
-      unsigned int intmask = 1 << Proc::cpu_id();
+      unsigned int intmask = 1U << cxx::int_value<Cpu_phys_id>(Proc::cpu_id());
       intmask |= intmask << 8;
       intmask |= intmask << 16;
 
@@ -135,18 +175,26 @@ Gic::init(bool primary_gic, int nr_irqs_override = -1)
       for (unsigned i = 32; i < num; i += 4)
         Io::write<Mword>(intmask, _dist_base + DIST_TARGET + i);
     }
-  for (unsigned i = 0; i < num; i += 4)
+
+  for (unsigned i = 32; i < num; i += 4)
     Io::write<Mword>(0xa0a0a0a0, _dist_base + DIST_PRI + i);
-  for (unsigned i = 0; i < num; i += 32)
+
+  for (unsigned i = 32; i < num; i += 32)
     Io::write<Mword>(0xffffffff, _dist_base + DIST_ENABLE_CLEAR + i * 4 / 32);
 
-  if (Config_mxc_tzic && !Config_tz)
-    for (unsigned i = 0; i < num; i += 32)
-      Io::write<Mword>(0xffffffff, _dist_base + DIST_IRQ_SEC + i * 4 / 32);
+  Mword v = 0;
+  if (Config_tz_sec || Config_mxc_tzic)
+    v = 0xffffffff;
+
+  for (unsigned i = 32; i < num; i += 32)
+    Io::write<Mword>(v, _dist_base + GICD_IGROUPR + i / 8);
 
   Mword dist_enable = DIST_CTRL_ENABLE;
-  if (Config_mxc_tzic && !Config_tz)
+  if (Config_mxc_tzic && !Config_tz_sec)
     dist_enable |= MXC_TZIC_CTRL_NSEN | MXC_TZIC_CTRL_NSENMASK;
+
+  for (unsigned i = 0; i < num; ++i)
+    set_cpu(i, Cpu_number(0));
 
   Io::write<Mword>(dist_enable, _dist_base + DIST_CTRL);
 
@@ -156,10 +204,7 @@ Gic::init(bool primary_gic, int nr_irqs_override = -1)
       Io::write<Mword>(0xf0, _dist_base + MXC_TZIC_PRIOMASK);
     }
   else
-    {
-      Io::write<Mword>(CPU_CTRL_ENABLE, _cpu_base + CPU_CTRL);
-      Io::write<Mword>(0xf0, _cpu_base + CPU_PRIMASK);
-    }
+    cpu_init();
 
   return num;
 }
@@ -173,8 +218,6 @@ Gic::Gic(Address cpu_base, Address dist_base, int nr_irqs_override = -1)
   printf("Number of IRQs available at this GIC: %d\n", num);
 
   Irq_chip_gen::init(num);
-
-  //enable_tz_support();
 }
 
 /**
@@ -237,9 +280,16 @@ Gic::unmask(Mword pin)
 }
 
 PUBLIC
-unsigned
-Gic::set_mode(Mword, unsigned)
-{ return Irq_base::Trigger_level; }
+int
+Gic::set_mode(Mword, Mode)
+{
+  return 0;
+}
+
+PUBLIC
+bool
+Gic::is_edge_triggered(Mword) const
+{ return false; }
 
 PUBLIC inline
 void
@@ -265,11 +315,54 @@ Gic::cascade_hit(Irq_base *_self, Upstream_irq const *u)
 }
 
 //-------------------------------------------------------------------
+IMPLEMENTATION [arm && arm_em_tz]:
+
+PUBLIC
+bool
+Gic::alloc(Irq_base *irq, Mword pin)
+{
+  if (Irq_chip_gen::alloc(irq, pin))
+    {
+      printf("GIC: Switching IRQ %ld to secure\n", pin);
+
+      unsigned shift = (pin & 3) * 8;
+
+      if (pin < 32)
+        {
+          assert(((Io::read<Mword>(_dist_base + GICD_IGROUPR) >> pin) & 1) == 0);
+          assert(((Io::read<Mword>(_dist_base + DIST_PRI + (pin & ~3)) >> shift) & 0xff) == 0x40);
+        }
+      else
+        {
+          Io::clear<Mword>(1UL << (pin & 0x1f),
+                           _dist_base + GICD_IGROUPR + (pin & ~0x1f) / 8);
+
+          Io::modify<Mword>(0x40 << shift, 0xff << shift,
+                            _dist_base + DIST_PRI + (pin & ~3));
+        }
+      return true;
+    }
+  return false;
+}
+
+PUBLIC
+void
+Gic::set_pending_irq(unsigned idx, Unsigned32 val)
+{
+  if (idx < 32)
+    {
+      Address o = _dist_base + idx * 4;
+      Io::write<Mword>(val & Io::read<Mword>(o + GICD_IGROUPR),
+                       o + DIST_SET_PENDING);
+    }
+}
+
+//-------------------------------------------------------------------
 IMPLEMENTATION [arm && !mp && pic_gic]:
 
 PUBLIC
 void
-Gic::set_cpu(Mword, unsigned)
+Gic::set_cpu(Mword, Cpu_number)
 {}
 
 PUBLIC inline NEEDS["io.h"]
@@ -309,50 +402,17 @@ Unsigned32 Gic::pending()
 
 PUBLIC inline NEEDS["cpu.h"]
 void
-Gic::set_cpu(Mword pin, unsigned cpu)
+Gic::set_cpu(Mword pin, Cpu_number cpu)
 {
   Mword reg = _dist_base + DIST_TARGET + (pin & ~3);
   Mword val = Io::read<Mword>(reg);
 
   int shift = (pin % 4) * 8;
-  val = (val & ~(0xf << shift)) | (1 << (Cpu::cpus.cpu(cpu).phys_id() + shift));
+  unsigned pcpu = cxx::int_value<Cpu_phys_id>(Cpu::cpus.cpu(cpu).phys_id());
+  val = (val & ~(0xf << shift)) | (1 << (pcpu + shift));
 
   Io::write<Mword>(val, reg);
 }
-
-
-//-------------------------------------------------------------------
-IMPLEMENTATION [arm && pic_gic && tz]:
-
-#if 0
-PRIVATE
-void
-Gic::set_irq_nonsecure(unsigned irqnum)
-{
-  Io::set<Mword>(1 << (irqnum % 32),
-                 _dist_base + DIST_IRQ_SEC + ((irqnum & ~31) / 8));
-}
-#endif
-
-PUBLIC inline NEEDS[<cstdio>]
-void
-Gic::enable_tz_support()
-{
-  if (has_sec_ext())
-    printf("GIC:Has security extension\n");
-
-  printf("GIC: Signal secure Interrupts as FIQs!\n");
-  Io::write<Mword>(CPU_CTRL_ENABLE | CPU_CTRL_USE_FIQ_FOR_SEC,
-                   _cpu_base + CPU_CTRL);
-}
-
-//-------------------------------------------------------------------
-IMPLEMENTATION [arm && pic_gic && !tz]:
-
-PUBLIC inline
-void
-Gic::enable_tz_support()
-{}
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [debug]:

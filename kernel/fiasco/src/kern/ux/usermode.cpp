@@ -181,16 +181,16 @@ Usermode::write_debug_register (pid_t pid, Mword reg, Mword value)
  */
 PRIVATE static
 void
-Usermode::kernel_entry (unsigned _cpu,
-                        struct ucontext *context,
-                        Mword trap,
-                        Mword xss,
-                        Mword esp,
-                        Mword efl,
-                        Mword xcs,
-                        Mword eip,
-                        Mword err,
-                        Mword cr2)
+Usermode::kernel_entry(Cpu_number _cpu,
+                       struct ucontext *context,
+                       Mword trap,
+                       Mword xss,
+                       Mword esp,
+                       Mword efl,
+                       Mword xcs,
+                       Mword eip,
+                       Mword err,
+                       Mword cr2)
 {
   Mword *kesp = (xcs & 3) == 3
               ? (Mword *) Cpu::cpus.cpu(_cpu).kernel_sp() - 5
@@ -281,8 +281,8 @@ Usermode::l4_syscall (Mword opcode)
 
 PRIVATE static inline NOEXPORT NEEDS["thread_state.h"]
 bool
-Usermode::user_exception (unsigned _cpu, pid_t pid, struct ucontext *context,
-                          struct user_regs_struct *regs)
+Usermode::user_exception(Cpu_number _cpu, pid_t pid, struct ucontext *context,
+                         struct user_regs_struct *regs)
 {
   Mword trap, error = 0, addr = 0;
 
@@ -382,9 +382,9 @@ Usermode::user_exception (unsigned _cpu, pid_t pid, struct ucontext *context,
 
 PRIVATE static inline NOEXPORT
 bool
-Usermode::user_emulation (unsigned _cpu, int stop, pid_t pid,
-                          struct ucontext *context,
-                          struct user_regs_struct *regs)
+Usermode::user_emulation(Cpu_number _cpu, int stop, pid_t pid,
+                         struct ucontext *context,
+                         struct user_regs_struct *regs)
 {
   Mword trap, error = 0;
 
@@ -451,8 +451,8 @@ Usermode::user_emulation (unsigned _cpu, int stop, pid_t pid,
  */
 PRIVATE static inline NOEXPORT
 void
-Usermode::iret_to_user_mode (unsigned _cpu,
-                             struct ucontext *context, Mword *kesp)
+Usermode::iret_to_user_mode(Cpu_number _cpu,
+                            struct ucontext *context, Mword *kesp)
 {
   struct user_regs_struct regs;
   int irq_pend;
@@ -581,7 +581,7 @@ Usermode::iret_to_kern_mode (struct ucontext *context, Mword *kesp)
  */
 PRIVATE static inline NOEXPORT
 void
-Usermode::iret (unsigned _cpu, struct ucontext *context)
+Usermode::iret(Cpu_number _cpu, struct ucontext *context)
 {
   Mword *kesp = (Mword *) context->uc_mcontext.gregs[REG_ESP];
 
@@ -609,7 +609,7 @@ Usermode::emu_handler (int, siginfo_t *, void *ctx)
   struct ucontext *context = reinterpret_cast<struct ucontext *>(ctx);
   unsigned int trap = context->uc_mcontext.gregs[REG_TRAPNO];
 
-  unsigned _cpu = Cpu::cpus.find_cpu(Cpu::By_phys_id(Cpu::phys_id_direct()));
+  Cpu_number _cpu = Cpu::cpus.find_cpu(Cpu::By_phys_id(Cpu::phys_id_direct()));
 
   if (trap == 0xd)	/* General protection fault */
     {
@@ -730,12 +730,12 @@ Usermode::set_signal (int sig)
 
 PUBLIC static FIASCO_INIT_CPU
 void
-Usermode::init(unsigned cpu)
+Usermode::init(Cpu_number cpu)
 {
   stack_t stack;
 
   /* We want signals, aka interrupts to be delivered on an alternate stack */
-  if (cpu == 0)
+  if (cpu == Cpu_number::boot_cpu())
     stack.ss_sp  = (void *) Mem_layout::phys_to_pmem
                                 (Mem_layout::Sigstack_cpu0_start_frame);
   else
@@ -753,7 +753,7 @@ Usermode::init(unsigned cpu)
 
   set_signal (SIGSEGV);
   set_signal (SIGIO);
-  if (cpu == 0)
+  if (cpu == Cpu_number::boot_cpu())
     set_signal (SIGINT);
   else
     signal (SIGINT, SIG_IGN);

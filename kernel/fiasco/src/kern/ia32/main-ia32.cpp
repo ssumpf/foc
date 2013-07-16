@@ -49,7 +49,7 @@ exit_question()
   if (Config::getchar_does_hlt_works_ok)
     {
       Timer_tick::set_vectors_stop();
-      Timer_tick::enable(0); // hmexit alway on CPU 0
+      Timer_tick::enable(Cpu_number::boot_cpu()); // hmexit alway on CPU 0
       Proc::sti();
     }
 
@@ -106,10 +106,10 @@ int FIASCO_FASTCALL boot_ap_cpu() __asm__("BOOT_AP_CPU");
 
 int FIASCO_FASTCALL boot_ap_cpu()
 {
-  unsigned _cpu = Apic::find_cpu(Apic::get_id());
+  Cpu_number _cpu = Apic::find_cpu(Apic::get_id());
   bool cpu_is_new = false;
-  static unsigned last_cpu; // keep track of the last cpu ever appeared
-  if (_cpu == ~0U)
+  static Cpu_number last_cpu; // keep track of the last cpu ever appeared
+  if (_cpu == Cpu_number::nil())
     {
       _cpu = ++last_cpu; // 0 is the boot cpu, so pre increment
       cpu_is_new = true;
@@ -118,7 +118,8 @@ int FIASCO_FASTCALL boot_ap_cpu()
   if (cpu_is_new && !Per_cpu_data_alloc::alloc(_cpu))
     {
       extern Spin_lock<Mword> _tramp_mp_spinlock;
-      printf("CPU allocation failed for CPU%u, disabling CPU.\n", _cpu);
+      printf("CPU allocation failed for CPU%u, disabling CPU.\n",
+             cxx::int_value<Cpu_number>(_cpu));
       _tramp_mp_spinlock.clear();
       while (1)
 	Proc::halt();

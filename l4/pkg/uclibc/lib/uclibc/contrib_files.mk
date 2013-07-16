@@ -90,6 +90,7 @@ define SRC_libc/stdlib
   erand48
   erand48_r
   exit
+  gcvt
   getenv
   jrand48
   jrand48_r

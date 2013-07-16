@@ -90,7 +90,7 @@ fiasco: fiasco.builddir.create
 	$(MAKE) -C $(DFLBUILDDIR) -j$(PL)
 
 checkallseq:
-	error=0;						      \
+	@error=0;						      \
 	$(RM) -r $(ALLBUILDDIR);				      \
 	for X in $(TEST_TEMPLATES); do				      \
 		echo -e "\n= Building configuration: $$X\n\n";	      \
@@ -116,7 +116,7 @@ checkall l4check:
 .PHONY: dobuildparallel checkallp
 
 dobuildparallel: $(addprefix $(ALLBUILDDIR)/,$(TEST_TEMPLATES))
-	error=0;						              \
+	@error=0;							      \
 	echo "======================================================";        \
 	for d in $(TEST_TEMPLATES); do                                        \
 	  if [ -e $(ALLBUILDDIR)/$$d/build.failed ]; then                     \
@@ -137,7 +137,7 @@ $(addprefix $(ALLBUILDDIR)/,$(TEST_TEMPLATES)):
 	$(MAKE) -C $@ 2>&1 | tee $@/build.log;                                \
 	if [ $${PIPESTATUS[0]} = 0 ];                                         \
 	then [ -z "$(KEEP_BUILD_DIRS)" ] && $(RM) -r $@;                      \
-	else echo $${PIPESTATUS[0]} > $@/build.failed; fi
+	else echo $${PIPESTATUS[0]} > $@/build.failed; fi; true
 
 list:
 	@echo "Templates:"

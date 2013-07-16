@@ -70,7 +70,7 @@ static Proc::Status jdb_irq_state;
 
 IMPLEMENT inline
 void
-Jdb::enter_trap_handler(unsigned /*cpu*/)
+Jdb::enter_trap_handler(Cpu_number)
 {
   conf_screen();
 
@@ -83,7 +83,7 @@ Jdb::enter_trap_handler(unsigned /*cpu*/)
 
 IMPLEMENT inline
 void
-Jdb::leave_trap_handler(unsigned)
+Jdb::leave_trap_handler(Cpu_number)
 {
   // Restore terminal mode
   leave_getchar();
@@ -95,12 +95,12 @@ Jdb::leave_trap_handler(unsigned)
 
 PROTECTED static inline
 void
-Jdb::monitor_address(unsigned, void *)
+Jdb::monitor_address(Cpu_number, void *)
 {}
 
 IMPLEMENT inline
 bool
-Jdb::handle_user_request(unsigned /*cpu*/)
+Jdb::handle_user_request(Cpu_number)
 { return false; }
 
 IMPLEMENT inline
@@ -112,18 +112,18 @@ Jdb::test_checksums()
 // disable interrupts before entering the kernel debugger
 IMPLEMENT
 void
-Jdb::save_disable_irqs(unsigned cpu)
+Jdb::save_disable_irqs(Cpu_number cpu)
 {
-  assert(cpu == 0);
+  assert(cpu == Cpu_number::boot_cpu());
   jdb_irq_state = Proc::cli_save();
 }
 
 // restore interrupts after leaving the kernel debugger
 IMPLEMENT
 void
-Jdb::restore_irqs(unsigned cpu)
+Jdb::restore_irqs(Cpu_number cpu)
 {
-  assert(cpu == 0);
+  assert(cpu == Cpu_number::boot_cpu());
   Proc::sti_restore(jdb_irq_state);
 }
 
@@ -167,7 +167,7 @@ PUBLIC static inline NOEXPORT
 int
 Jdb::int3_extension()
 {
-  Jdb_entry_frame *entry_frame = Jdb::entry_frame.cpu(0);
+  Jdb_entry_frame *entry_frame = Jdb::entry_frame.cpu(Cpu_number::boot_cpu());
   Address      addr = entry_frame->ip();
   Address_type user = (entry_frame->cs() & 3) ? ADDR_USER : ADDR_KERNEL;
   Unsigned8    todo = peek ((Unsigned8 *) addr, user);
@@ -183,7 +183,7 @@ Jdb::int3_extension()
     }
   else if (todo != 0xeb)
     {
-      snprintf (error_buffer.cpu(0), sizeof (error_buffer.cpu(0)), "INT 3");
+      snprintf (error_buffer.cpu(Cpu_number::boot_cpu()), sizeof (error_buffer.cpu(Cpu_number::boot_cpu())), "INT 3");
       return 0;
     }
 
@@ -203,10 +203,10 @@ Jdb::int3_extension()
 	return 1; // => leave Jdb
     }
 
-  len = len < sizeof(error_buffer.cpu(0))-1 ? len : sizeof(error_buffer.cpu(0))-1;
+  len = len < sizeof(error_buffer.cpu(Cpu_number::boot_cpu()))-1 ? len : sizeof(error_buffer.cpu(Cpu_number::boot_cpu()))-1;
   for (i = 0; i < len; i++)
-    error_buffer.cpu(0)[i] = peek ((Unsigned8 *) ++addr, user);
-  error_buffer.cpu(0)[i] = 0;
+    error_buffer.cpu(Cpu_number::boot_cpu())[i] = peek ((Unsigned8 *) ++addr, user);
+  error_buffer.cpu(Cpu_number::boot_cpu())[i] = 0;
   return 0;
 }
 
@@ -217,7 +217,7 @@ Jdb::handle_special_cmds(int)
 
 IMPLEMENT
 bool
-Jdb::handle_debug_traps(unsigned cpu)
+Jdb::handle_debug_traps(Cpu_number cpu)
 {
   switch (entry_frame.cpu(cpu)->_trapno)
     {
@@ -251,7 +251,7 @@ Jdb::handle_nested_trap(Jdb_entry_frame *e)
 
 IMPLEMENT inline
 bool
-Jdb::handle_conditional_breakpoint(unsigned /*cpu*/)
+Jdb::handle_conditional_breakpoint(Cpu_number)
 { return false; }
 
 
@@ -269,7 +269,7 @@ static Address
 Jdb::virt_to_kvirt(Address virt, Mem_space* space)
 {
   Mem_space::Phys_addr phys;
-  Mem_space::Size size;
+  Mem_space::Page_order size;
 
   if (!space)
     {
@@ -291,8 +291,9 @@ Jdb::virt_to_kvirt(Address virt, Mem_space* space)
       // We can't directly access it because it's in a different host process
       // but if the task's pagetable has a mapping for it, we can translate
       // task-virtual -> physical -> kernel-virtual address and then access.
-      return (space->v_lookup(Mem_space::Addr::create(virt), &phys, &size, 0))
-	? (Address) Kmem::phys_to_virt(phys.value() + (virt & (size.value()-1)))
+      Virt_addr va(virt);
+      return (space->v_lookup(va, &phys, &size, 0))
+	? (Address) Kmem::phys_to_virt(Mem_space::Phys_addr::val(phys) + Virt_size::val(cxx::get_lsb(va, size)))
 	: (Address) -1;
     }
 }
@@ -303,7 +304,7 @@ T
 Jdb::peek (T const *addr, Address_type user)
 {
   // FIXME: assume UP here (current_meme_space(0))
-  return Mem_space::current_mem_space(0)->peek(addr, user);
+  return Mem_space::current_mem_space(Cpu_number::boot_cpu())->peek(addr, user);
 }
 
 PUBLIC static
@@ -441,7 +442,7 @@ Jdb::set_monitored_address(T *dest, T val)
 
 PROTECTED static inline
 template< typename T >
-T Jdb::monitor_address(unsigned, T volatile *addr)
+T Jdb::monitor_address(Cpu_number, T volatile *addr)
 {
   return *addr;
 }
@@ -451,6 +452,6 @@ IMPLEMENTATION [ux && mp]:
 
 static
 void
-Jdb::send_nmi(unsigned /*cpu*/)
+Jdb::send_nmi(Cpu_number)
 {
 }

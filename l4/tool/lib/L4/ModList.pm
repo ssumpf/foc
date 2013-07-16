@@ -25,6 +25,12 @@ sub get_command_and_cmdline($)
   ($file, $full);
 }
 
+sub error($)
+{
+  print STDERR shift;
+  exit(1);
+}
+
 # extract an entry with modules from a modules.list file
 sub get_module_entry($$)
 {
@@ -46,7 +52,7 @@ sub get_module_entry($$)
     );
   }
 
-  open(M, $mod_file) || die "Cannot open $mod_file!: $!";
+  open(M, $mod_file) || error "Cannot open $mod_file!: $!\n";
 
   # preseed first 3 modules
   $mods[0] = { command => 'fiasco',   cmdline => 'fiasco',   type => 'bin'};
@@ -125,7 +131,7 @@ sub get_module_entry($$)
 	                'bootstrap', 'roottask', 'kernel', 'sigma0',
                         'module-perl', 'module-shell', 'module-glob',
 			'module-group', 'moe', 'initrd', 'set');
-    die "$line: Invalid type \"$type\""
+    error "$mod_file:$line: Invalid type \"$type\"\n"
       unless grep(/^$type$/, @valid_types);
 
     @m = ( $remaining );
@@ -141,7 +147,7 @@ sub get_module_entry($$)
       $type = 'bin';
     } elsif ($type eq 'module-shell') {
       @m = split /\n/, `$remaining`;
-      die "Shell command on line $line failed\n" if $?;
+      error "$mod_file:$line: Shell command failed\n" if $?;
       $type = 'bin';
     } elsif ($type eq 'module-glob') {
       @m = glob $remaining;
@@ -149,7 +155,7 @@ sub get_module_entry($$)
     } elsif ($type eq 'module-group') {
       @m = ();
       foreach (split /\s+/, $remaining) {
-	die "Unknown group '$_'" unless defined $groups{$_};
+	error "$mod_file:$line: Unknown group '$_'\n" unless defined $groups{$_};
         push @m, @{$groups{$_}};
       }
       $type = 'bin';
@@ -193,19 +199,19 @@ sub get_module_entry($$)
     } elsif ($process_mode eq 'group') {
       push @{$groups{$current_group_name}}, @m;
     } else {
-      die "Invalid mode '$process_mode'";
+      error "$mod_file:$line: Invalid mode '$process_mode'\n";
     }
   }
 
   close M;
 
-  die "Unknown entry \"$entry_to_pick\"!" unless $found_entry;
-  die "'modaddr' not set" unless $modaddr_title || $modaddr_global;
+  error "$mod_file: Unknown entry \"$entry_to_pick\"!\n" unless $found_entry;
+  error "$mod_file: 'modaddr' not set\n" unless $modaddr_title || $modaddr_global;
 
   my $m = $modaddr_title || $modaddr_global;
   if (defined $is_mode_linux)
     {
-      die "No Linux kernel image defined" unless defined $mods[0]{cmdline};
+      error "No Linux kernel image defined\n" unless defined $mods[0]{cmdline};
       print STDERR "Entry '$entry_to_pick' is a Linux type entry\n";
       my @files;
       # @files is actually redundant but eases file selection for entry
@@ -265,7 +271,7 @@ sub get_entries($)
   my ($mod_file) = @_;
   my @entry_list;
 
-  open(M, $mod_file) || die "Cannot open $mod_file!: $!";
+  open(M, $mod_file) || error "Cannot open $mod_file!: $!\n";
 
   while (<M>) {
     chomp;
@@ -302,7 +308,7 @@ sub search_file_or_die($$)
   my $file = shift;
   my $paths = shift;
   my $f = search_file($file, $paths);
-  die "Could not find '$file' with path '$paths'" unless defined $f;
+  error "Could not find '$file' with path '$paths'\n" unless defined $f;
   $f;
 }
 
@@ -315,7 +321,7 @@ sub get_or_copy_file_uncompressed_or_die($$$$)
 
   my $fp = L4::ModList::search_file_or_die($command, $paths);
 
-  open F, $fp || die "connot open '$fp': $!";
+  open F, $fp || error "Cannot open '$fp': $!\n";
   my $buf;
   read F, $buf, 2;
   close F;

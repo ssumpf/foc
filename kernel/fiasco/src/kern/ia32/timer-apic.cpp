@@ -14,7 +14,7 @@ PUBLIC static inline int Timer::irq() { return -1; }
 
 IMPLEMENT
 void
-Timer::init(unsigned)
+Timer::init(Cpu_number)
 {
   Apic::timer_assign_irq_vector(Config::Apic_timer_vector);
 
@@ -50,9 +50,8 @@ static
 void
 Timer::update_one_shot(Unsigned64 wakeup)
 {
-  //unsigned cpu = current_cpu();
   Unsigned32 apic;
-  Unsigned64 now = Kip::k()->clock; //Cpu::cpus.cpu(cpu).time_us();
+  Unsigned64 now = Kip::k()->clock;
   if (EXPECT_FALSE (wakeup <= now))
     // already expired
     apic = 1;

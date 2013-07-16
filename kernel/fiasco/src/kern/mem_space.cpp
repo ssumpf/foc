@@ -7,6 +7,7 @@ INTERFACE:
 #include "per_cpu_data.h"
 #include "ram_quota.h"
 #include "types.h"
+#include "mapdb_types.h"
 
 class Space;
 
@@ -24,16 +25,22 @@ class Mem_space
 
 public:
   typedef int Status;
-
   static char const *const name;
 
+  typedef Page::Attr Attr;
   typedef Pdir::Va Vaddr;
-  typedef Pdir::Va Vsize;
+  typedef Pdir::Vs Vsize;
 
-  typedef Virt_addr Addr;
-  typedef Virt_size Size;
-  typedef Page_addr<Config::PAGE_SHIFT> Phys_addr;
+  typedef Addr::Addr<Config::PAGE_SHIFT> Phys_addr;
+  typedef Addr::Diff<Config::PAGE_SHIFT> Phys_diff;
+  typedef Addr::Order<Config::PAGE_SHIFT> Page_order;
+
   typedef void Reap_list;
+
+  // for map_util
+  typedef Page_number V_pfn;
+  typedef Page_count V_pfc;
+  typedef Addr::Order<0> V_order;
 
   // Each architecture must provide these members:
   void switchin_context(Mem_space *from);
@@ -57,8 +64,9 @@ public:
    *                           range
    * @pre phys and virt need to be size-aligned according to the size argument.
    */
-  Status v_insert(Phys_addr phys, Vaddr virt, Vsize size,
-                  unsigned page_attribs, bool upgrade_ignore_size = false);
+  FIASCO_SPACE_VIRTUAL
+  Status v_insert(Phys_addr phys, Vaddr virt, Page_order size,
+                  Attr page_attribs);
 
   /** Look up a page-table entry.
    *
@@ -76,8 +84,9 @@ public:
    *             either case, it is either 4KB or 4MB.
    * @return True if an entry was found, false otherwise.
    */
-  bool v_lookup(Vaddr virt, Phys_addr *phys = 0, Size *size = 0,
-                unsigned *page_attribs = 0);
+  FIASCO_SPACE_VIRTUAL
+  bool v_lookup(Vaddr virt, Phys_addr *phys = 0, Page_order *order = 0,
+                Attr *page_attribs = 0);
 
   /** Delete page-table entries, or some of the entries' attributes.
    *
@@ -91,8 +100,12 @@ public:
    * @return Combined (bit-ORed) page attributes that were removed.  In
    *         case of errors, ~Page_all_attribs is additionally bit-ORed in.
    */
-  unsigned long v_delete(Vaddr virt, Vsize size,
-                         unsigned long page_attribs = Page_all_attribs);
+  FIASCO_SPACE_VIRTUAL
+  L4_fpage::Rights v_delete(Vaddr virt, Page_order size,
+                            L4_fpage::Rights page_attribs);
+
+  FIASCO_SPACE_VIRTUAL
+  void v_set_access_flags(Vaddr virt, L4_fpage::Rights access_flags);
 
   /** Set this memory space as the current on on this CPU. */
   void make_current();
@@ -100,19 +113,75 @@ public:
   static Mem_space *kernel_space()
   { return _kernel_space; }
 
-  static inline Mem_space *current_mem_space(unsigned cpu);
+  static inline Mem_space *current_mem_space(Cpu_number cpu);
 
-  virtual Page_number map_max_address() const
-  { return Addr::create(Map_max_address); }
 
-  static Address superpage_size()
-  { return Map_superpage_size; }
+  virtual
+  Page_number mem_space_map_max_address() const
+  { return Virt_addr(Map_max_address); }
 
-  static Phys_addr page_address(Phys_addr o, Size s)
-  { return o.trunc(s); }
+  Page_number map_max_address() const
+  { return mem_space_map_max_address(); }
 
-  static Phys_addr subpage_address(Phys_addr addr, Size offset)
-  { return addr | offset; }
+  static Phys_addr page_address(Phys_addr o, Page_order s)
+  { return cxx::mask_lsb(o, s); }
+
+  static V_pfn page_address(V_pfn a, Page_order o)
+  { return cxx::mask_lsb(a, o); }
+
+  static Phys_addr subpage_address(Phys_addr addr, V_pfc offset)
+  { return addr | Phys_diff(offset); }
+
+  struct Fit_size
+  {
+    typedef cxx::array<Page_order, Page_order, 65> Size_array;
+    Size_array const &o;
+    Page_order operator () (Page_order i) const { return o[i]; }
+
+    explicit Fit_size(Size_array const &o) :o(o) {}
+  };
+
+  FIASCO_SPACE_VIRTUAL
+  Fit_size mem_space_fitting_sizes() const __attribute__((pure));
+
+  Fit_size fitting_sizes() const
+  { return mem_space_fitting_sizes(); }
+
+  static Mdb_types::Pfn to_pfn(Phys_addr p)
+  { return Mdb_types::Pfn(cxx::int_value<Page_number>(p)); }
+
+  static Mdb_types::Pfn to_pfn(V_pfn p)
+  { return Mdb_types::Pfn(cxx::int_value<Page_number>(p)); }
+
+  static Mdb_types::Pcnt to_pcnt(Page_order s)
+  { return Mdb_types::Pcnt(1) << Mdb_types::Order(cxx::int_value<Page_order>(s) - Config::PAGE_SHIFT); }
+
+  static V_pfn to_virt(Mdb_types::Pfn p)
+  { return Page_number(cxx::int_value<Mdb_types::Pfn>(p)); }
+
+  static Page_order to_order(Mdb_types::Order p)
+  { return Page_order(cxx::int_value<Mdb_types::Order>(p) + Config::PAGE_SHIFT); }
+
+  static V_pfc to_size(Page_order p)
+  { return V_pfc(1) << p; }
+
+  static V_pfc subpage_offset(V_pfn a, Page_order o)
+  { return cxx::get_lsb(a, o); }
+
+  Page_order largest_page_size() const
+  { return mem_space_fitting_sizes()(Page_order(64)); }
+
+  enum
+  {
+    Max_num_global_page_sizes = 5
+  };
+
+  static Page_order const *get_global_page_sizes(bool finalize = true)
+  {
+    if (finalize)
+      _glbl_page_sizes_finished = true;
+    return _glbl_page_sizes;
+  }
 
 private:
   Mem_space(const Mem_space &) = delete;
@@ -121,6 +190,9 @@ private:
 
   static Per_cpu<Mem_space *> _current;
   static Mem_space *_kernel_space;
+  static Page_order _glbl_page_sizes[Max_num_global_page_sizes];
+  static unsigned _num_glbl_page_sizes;
+  static bool _glbl_page_sizes_finished;
 };
 
 
@@ -168,6 +240,52 @@ DEFINE_PER_CPU Per_cpu<Mem_space *> Mem_space::_current;
 char const * const Mem_space::name = "Mem_space";
 Mem_space *Mem_space::_kernel_space;
 
+static Mem_space::Fit_size::Size_array __mfs;
+Mem_space::Page_order Mem_space::_glbl_page_sizes[Max_num_global_page_sizes];
+unsigned Mem_space::_num_glbl_page_sizes;
+bool Mem_space::_glbl_page_sizes_finished;
+
+PROTECTED static
+void
+Mem_space::add_global_page_size(Page_order o)
+{
+  assert_kdb (!_glbl_page_sizes_finished);
+  unsigned i;
+  for (i = 0; i < _num_glbl_page_sizes; ++i)
+    {
+      if (_glbl_page_sizes[i] == o)
+        return;
+
+      if (_glbl_page_sizes[i] < o)
+        break;
+    }
+
+  assert (_num_glbl_page_sizes + 1 < Max_num_global_page_sizes);
+
+  for (unsigned x = _num_glbl_page_sizes; x > i; --x)
+    _glbl_page_sizes[x] = _glbl_page_sizes[x - 1];
+
+  _glbl_page_sizes[i] = o;
+  assert (_glbl_page_sizes[_num_glbl_page_sizes] <= Page_order(Config::PAGE_SHIFT));
+
+  ++_num_glbl_page_sizes;
+}
+
+PUBLIC static
+void
+Mem_space::add_page_size(Page_order o)
+{
+  add_global_page_size(o);
+  for (Page_order c = o; c < __mfs.size(); ++c)
+    __mfs[c] = o;
+}
+
+IMPLEMENT
+Mem_space::Fit_size
+Mem_space::mem_space_fitting_sizes() const
+{
+  return Fit_size(__mfs);
+}
 
 PUBLIC inline
 Ram_quota *
@@ -193,11 +311,11 @@ Mem_space::dir() const
 
 PUBLIC
 virtual bool
-Mem_space::v_fabricate(Vaddr address,
-                       Phys_addr* phys, Size* size, unsigned* attribs = 0)
+Mem_space::v_fabricate(Vaddr address, Phys_addr *phys, Page_order *order,
+                       Attr *attribs = 0)
 {
-  return Mem_space::v_lookup(address.trunc(Size(Map_page_size)),
-      phys, size, attribs);
+  return v_lookup(cxx::mask_lsb(address, Page_order(Config::PAGE_SHIFT)),
+      phys, order, attribs);
 }
 
 PUBLIC virtual

@@ -11,7 +11,7 @@ class Clock : public Clock_base
 public:
   typedef Unsigned64 Time;
 
-  Clock(unsigned cpu);
+  Clock(Cpu_number cpu);
 
   Time delta();
 
@@ -19,7 +19,7 @@ public:
 
 
 private:
-  unsigned _cpu_id;
+  Cpu_number _cpu_id;
   Counter _last_value;
 
   Counter read_counter() const;
@@ -28,7 +28,7 @@ private:
 IMPLEMENTATION:
 
 IMPLEMENT inline
-Clock::Clock(unsigned cpu)
+Clock::Clock(Cpu_number cpu)
   : _cpu_id(cpu), _last_value(read_counter())
 {}
 

@@ -116,7 +116,7 @@ $(NONDEBUG_C:.c=.S) : %.S: %.c
 %.o:	%.cc
 	$(COMP_MESSAGE)
 	$(VERBOSE)$(CXX) -c -MD -MP -MF .$*.cc.d.new -o $@ \
-	  $(CPPFLAGS) $(CXXFLAGS) $(PROF_FLAGS) $(OPT_CXXFLAGS) $<
+	  $(CPPFLAGS) $(CXXFLAGS) $(PROF_FLAGS) $(OPT_CXXFLAGS) $(CXXFLAGS_$(basename $(notdir $@))) $<
 	@mv .$*.cc.d.new .$*.cc.d
 
 %.S:	%.cc
@@ -157,7 +157,7 @@ $(NONDEBUG_C:.c=.S) : %.S: %.c
 
 %.lds:	%.ld
 	$(COMP_MESSAGE)
-	$(VERBOSE)$(CPP) -undef -P -DASSEMBLER -o $@ $(CPPFLAGS) $<
+	$(VERBOSE)$(CPP) -MD -MP -MF .$*.ld.d -undef -P -DASSEMBLER -o $@ $(CPPFLAGS) $<
 
 (%): %
 	$(AR_MESSAGE)

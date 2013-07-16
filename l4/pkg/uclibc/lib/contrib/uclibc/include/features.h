@@ -19,10 +19,6 @@
 #ifndef	_FEATURES_H
 #define	_FEATURES_H	1
 
-#ifndef _GNU_SOURCE
-# define _GNU_SOURCE 1
-#endif
-
 /* These are defined by the user (or the compiler)
    to specify the desired environment:
 

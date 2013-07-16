@@ -1,8 +1,17 @@
 INTERFACE:
 
 #include "types.h"
+#include <cxx/bitfield>
+#include <cxx/cxx_int>
 
-#include <bitfield>
+/// Difference between two capability indexes
+typedef cxx::int_type_order<Mword, struct Cap_diff_t, Order> Cap_diff;
+
+/// A capability index
+typedef cxx::int_type_full<Mword, struct Cap_index_t, Cap_diff, Order> Cap_index;
+
+/// IA32 I/O port numbers
+typedef cxx::int_type_order<unsigned long, struct Port_number_t, Order> Port_number;
 
 /**
  * A L4 flex page.
@@ -57,17 +66,95 @@ public:
 
   enum { Addr_shift = 12 };
 
+  struct Rights
+  : cxx::int_type_base<unsigned char, Rights>,
+    cxx::int_bit_ops<Rights>,
+    cxx::int_null_chk<Rights>
+  {
+    Rights() = default;
+    explicit Rights(unsigned char v)
+    : cxx::int_type_base<unsigned char, Rights>(v) {}
+
+    Rights apply(Rights r) const { return *this & r; }
+
+    /// Memory flex page is user accessible
+    static Rights U() { return Rights(8); }
+
+    /// Memory flex page is readable
+    static Rights R() { return Rights(4); }
+
+    /// Memory flex page is writable
+    static Rights W() { return Rights(2); }
+
+    /// Memory flex page is executable (often equal to #R)
+    static Rights X() { return Rights(1); }
+
+    static Rights UR() { return U() | R(); }
+    static Rights URX() { return U() | R() | X(); }
+    static Rights URWX() { return U() | R() | W() | X(); }
+    static Rights URW() { return U() | R() | W(); }
+
+    /// Memory flex page is readable and executable
+    static Rights RX() { return R() | X(); }
+
+    /// Memory flex page is readable, writeable, and executable
+    static Rights RWX() { return R() | W() | X(); }
+
+    /// Memory flex page is readable and writable
+    static Rights RW() { return R() | W(); }
+
+    ///< Memory flex page is writable and executable
+    static Rights WX() { return W() | X(); }
+
+
+    /// Object flex page: delete rights
+    static Rights CD() { return Rights(0x8); }
+
+    /// Object flex page: read rights (w/o this the mapping is not present)
+    static Rights CR() { return Rights(0x4); }
+
+    /** Object flex page: strong semantics (object specific, i.e. not having
+     *  this right on an IPC gate demotes all capabilities transferred via this
+     *  IPC gate to also suffer this right. */
+    static Rights CS() { return Rights(0x2); }
+
+    /// Object flex page: write rights (purely object specific)
+    static Rights CW() { return Rights(0x1); }
+
+    /// Object flex page: combine #CR and #CW
+    static Rights CRW() { return CR() | CW(); }
+
+    /// Object flex page: combine #CR and #CS
+    static Rights CRS() { return CR() | CS(); }
+
+    /// Object flex page: combine #CR, #CW, and #CS
+    static Rights CRWS() { return CRW() | CS(); }
+
+    /// Object flex page: combine #CS and #CW
+    static Rights CWS() { return CW() | CS(); }
+
+    /// Object flex page: combine #CS, #CW, and #CD
+    static Rights CWSD() { return CW() | CS() | CD(); }
+
+    /// Object flex page: combine #CR, #CW, #CS, and #CD
+    static Rights CRWSD() { return CRWS() | CD(); }
+
+    /// All rights shall be transferred, independent of the type
+    static Rights FULL() { return Rights(0xf); }
+  };
+
 private:
   /**
    * Create a flex page with the given parameters.
    */
   L4_fpage(Type type, Mword address, unsigned char order,
-           unsigned char rights)
-  : _raw(  address | rights_bfm_t::val_dirty(rights)
+           Rights rights)
+  : _raw(  address | _rights_bfm_t::val_dirty(cxx::int_value<Rights>(rights))
          | order_bfm_t::val_dirty(order) | type_bfm_t::val_dirty(type))
   {}
 
 public:
+
   enum
   {
     Whole_space = 63 ///< Value to use as \a order for a whole address space.
@@ -83,7 +170,7 @@ public:
    * \param order the order of the I/O flex page, size is 2^\a order ports.
    */
   static L4_fpage io(Mword port, unsigned char order)
-  { return L4_fpage(Io, adr_bfm_t::val_dirty(port), order, 0); }
+  { return L4_fpage(Io, adr_bfm_t::val_dirty(port), order, Rights(0)); }
 
   /**
    * Create an object flex page.
@@ -93,7 +180,7 @@ public:
    * \param order The size of the flex page is 2^\a order. The value in \a idx
    *              must be aligned to 2^(\a order + #Addr_shift.
    */
-  static L4_fpage obj(Mword idx, unsigned char order, unsigned char rights = 0)
+  static L4_fpage obj(Mword idx, unsigned char order, Rights rights = Rights(0))
   { return L4_fpage(Obj, idx & adr_bfm_t::Mask, order, rights); }
 
   /**
@@ -103,7 +190,7 @@ public:
    *             considered, bits from 0 to \a order-1 are dropped.
    * \param order The size of the flex page is 2^\a order in bytes.
    */
-  static L4_fpage mem(Mword addr, unsigned char order, unsigned char rights = 0)
+  static L4_fpage mem(Mword addr, unsigned char order, Rights rights = Rights(0))
   { return L4_fpage(Memory, addr & adr_bfm_t::Mask, order, rights); }
 
   /**
@@ -117,7 +204,7 @@ public:
    * all available address spaces at once. This is used
    * for page-fault and exception IPC.
    */
-  static L4_fpage all_spaces(unsigned char rights = 0)
+  static L4_fpage all_spaces(Rights rights = Rights(0))
   { return L4_fpage(Special, 0, Whole_space, rights); }
 
   /**
@@ -154,7 +241,7 @@ public:
    * \pre type() must return #Io to return a valid value.
    * \return The I/O-port index of this flex page.
    */
-  Mword io_address() const { return adr(); }
+  Port_number io_address() const { return (Port_number)(unsigned)adr(); }
 
   /**
    * Get the capability index of an object flex page.
@@ -164,7 +251,7 @@ public:
    *         This value is shifted #Addr_shift to be a real index
    *         (opposed to obj_address()).
    */
-  Mword obj_index() const { return adr(); }
+  Cap_index obj_index() const { return Cap_index((Mword)adr()); }
 
   /**
    * Test for memory flex page (if type() is #Memory).
@@ -209,10 +296,10 @@ public:
 private:
   Raw _raw;
 
-public:
-
   /** \name Rights of the flex page */
-  CXX_BITFIELD_MEMBER( 0,  3, rights, _raw);
+  CXX_BITFIELD_MEMBER( 0,  3, _rights, _raw);
+
+public:
   /** \name Type of the flex page */
   CXX_BITFIELD_MEMBER( 4,  5, type, _raw);
   /** \name Size (as power of 2) of the flex page */
@@ -222,6 +309,9 @@ private:
   CXX_BITFIELD_MEMBER(12, MWORD_BITS-1, adr, _raw);
 
 public:
+
+  Rights rights() const { return Rights(_rights()); }
+
   /**
    * Rights bits for flex pages.
    *
@@ -231,40 +321,13 @@ public:
    * there are #CD, #CR, #CS, and #CW rights on the object and additional
    * rights in the map control value of the map operation (see L4_fpage::Obj_map_ctl).
    */
-  enum Rights
-  {
-    R   = 4, ///< Memory flex page is readable
-    W   = 2, ///< Memory flex page is writable
-    X   = 1, ///< Memory flex page is executable (often equal to #R)
 
-    RX  = R | X,     ///< Memory flex page is readable and executable
-    RWX = R | W | X, ///< Memory flex page is readable, writeable, and executable
-    RW  = R | W,     ///< Memory flex page is readable and writable
-    WX  = W | X,     ///< Memory flex page is writable and executable
-
-
-    CD    = 0x8, ///< Object flex page: delete rights
-    CR    = 0x4, ///< Object flex page: read rights (w/o this the mapping is not present)
-    CS    = 0x2, ///< Object flex page: strong semantics (object specific, i.e. not having
-                 ///  this right on an IPC gate demotes all capabilities transferred via this
-                 ///  IPC gate to also suffer this right.
-    CW    = 0x1, ///< Object flex page: write rights (purely object specific)
-
-    CRW   = CR | CW,       ///< Object flex page: combine #CR and #CW
-    CRS   = CR | CS,       ///< Object flex page: combine #CR and #CS
-    CRWS  = CRW | CS,      ///< Object flex page: combine #CR, #CW, and #CS
-    CWS   = CW | CS,       ///< Object flex page: combine #CS and #CW
-    CWSD  = CW | CS | CD,  ///< Object flex page: combine #CS, #CW, and #CD
-    CRWSD = CRWS | CD,     ///< Object flex page: combine #CR, #CW, #CS, and #CD
-
-    FULL  = 0xf, ///< All rights shall be transferred, independent of the type
-  };
 
   /**
    * Remove the given rights from this flex page.
    * \param r the rights to remove. The semantics depend on the
    *          type (type()) of the flex page.
    */
-  void mask_rights(Rights r) { _raw &= (Mword(r) | ~rights_bfm_t::Mask); }
+  void mask_rights(Rights r) { _raw &= (Mword(cxx::int_value<Rights>(r)) | ~_rights_bfm_t::Mask); }
 };
 

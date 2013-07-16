@@ -136,14 +136,14 @@ static void tbuf(Thread *t, Entry_frame *r)
 }
 
 static void do_cli(Thread *, Entry_frame *r)
-{ r->psr |= Proc::Status_IRQ_disabled; }
+{ r->psr |= Proc::Status_preempt_disabled; }
 
 static void do_sti(Thread *, Entry_frame *r)
-{ r->psr &= ~Proc::Status_IRQ_disabled; }
+{ r->psr &= ~Proc::Status_preempt_disabled; }
 
 static void getcpu(Thread *, Entry_frame *r)
 {
-  r->r[0] = current_cpu();
+  r->r[0] = cxx::int_value<Cpu_number>(current_cpu());
 }
 
 static void init_dbg_extensions()
@@ -159,9 +159,13 @@ static void init_dbg_extensions()
   Thread::dbg_extension[0x09] = &outhex8;
   Thread::dbg_extension[0x0d] = &inchar;
   Thread::dbg_extension[0x1d] = &tbuf;
-  Thread::dbg_extension[0x32] = &do_cli;
-  Thread::dbg_extension[0x33] = &do_sti;
-  Thread::dbg_extension[0x34] = &getcpu;
+
+  if (0)
+    {
+      Thread::dbg_extension[0x32] = &do_cli;
+      Thread::dbg_extension[0x33] = &do_sti;
+      Thread::dbg_extension[0x34] = &getcpu;
+    }
 }
 
 STATIC_INITIALIZER(init_dbg_extensions);

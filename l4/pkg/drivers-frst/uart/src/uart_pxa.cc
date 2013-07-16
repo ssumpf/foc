@@ -64,9 +64,7 @@ namespace L4
 
     _regs->write<unsigned char>(IER, Base_ier_bits);/* disable all rs-232 interrupts */
     _regs->write<unsigned char>(MCR, 0xb);          /* out2, rts, and dtr enabled */
-    _regs->write<unsigned char>(FCR, 1);            /* enable fifo */
-    _regs->write<unsigned char>(FCR, 7);            /* clear rcv xmit fifo */
-    _regs->write<unsigned char>(FCR, 1);            /* enable fifo */
+    _regs->write<unsigned char>(FCR, 7);            /* enable fifo + clear rcv+xmit fifo */
     _regs->write<unsigned char>(LCR, 0);            /* clear line control register */
 
     /* clearall interrupts */

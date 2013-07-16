@@ -27,7 +27,7 @@ INTERFACE:
 
 #define GREETING_COLOR_ANSI_OFF    "\033[0m"
 
-#define FIASCO_KERNEL_SUBVERSION 1
+#define FIASCO_KERNEL_SUBVERSION 2
 
 class Config
 {
@@ -110,6 +110,8 @@ public:
     Max_num_cpus = 1,
 #endif
   };
+
+  static Cpu_number max_num_cpus() { return Cpu_number(Max_num_cpus); }
 
   static bool getchar_does_hlt_works_ok;
   static bool esc_hack;
@@ -194,6 +196,17 @@ EXTENSION class Config
 public:
   static const int serial_esc = 0;
 };
+
+
+//---------------------------------------------------------------------------
+INTERFACE [!virtual_space_iface]:
+
+#define FIASCO_SPACE_VIRTUAL
+
+//---------------------------------------------------------------------------
+INTERFACE [virtual_space_iface]:
+
+#define FIASCO_SPACE_VIRTUAL virtual
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION:

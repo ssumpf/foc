@@ -1,7 +1,7 @@
 INTERFACE:
 
 #include <auto_quota.h>
-#include <slist>
+#include <cxx/slist>
 
 #include "spin_lock.h"
 #include "lock_guard.h"
@@ -62,6 +62,10 @@ public:
     _a->unaligned_free(size, block);
     _q->free(size);
   }
+
+  template<typename V>
+  Phys_mem_addr::Value to_phys(V v) const
+  { return _a->to_phys(v); }
 
 private:
   Kmem_alloc *_a;

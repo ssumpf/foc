@@ -6,12 +6,11 @@ INTERFACE[ia32,ux]:
 #include "ptab_base.h"
 
 class PF {};
+class Page {};
 
-class Pte_base
+class Pt_entry
 {
 public:
-  typedef Mword Raw;
-
   enum
   {
     Super_level   = 0,
@@ -26,46 +25,25 @@ public:
     Pse_bit       = 0x00000080, ///< Indicates a super page
     Cpu_global    = 0x00000100, ///< pinned in the TLB
     L4_global     = 0x00000200, ///< pinned in the TLB
-    Pfn           = 0xfffff000, ///< page frame number
+    XD            = 0,
+    ATTRIBS_MASK  = 0x06,
   };
-
-  Mword addr() const { return _raw & Pfn; }
-
-protected:
-  Raw _raw;
-
-private:
-  static Unsigned32 _cpu_global;
 };
 
-class Pt_entry : public Pte_base
+class Pte_ptr
 {
 public:
-  enum { Page_shift = Config::PAGE_SHIFT };
-  Mword leaf() const { return true; }
-  void set(Address p, bool intermed, bool present, unsigned long attrs = 0)
-  {
-    _raw = (p & Pfn) | (present ? 1 : 0)
-      | (intermed ? (Writable | User | Cacheable) : 0) | attrs;
-  }
-};
+  Pte_ptr(void *pte, unsigned char level) : pte((Mword*)pte), level(level) {}
+  Pte_ptr() = default;
 
-class Pd_entry : public Pte_base
-{
-public:
-  enum { Page_shift = Config::SUPERPAGE_SHIFT };
-  Mword leaf() const { return _raw & Pse_bit; }
-  void set(Address p, bool intermed, bool present, unsigned long attrs = 0)
-  {
-    _raw = (p & Pfn) | (present ? 1 : 0)
-      | (intermed ? (Writable | User | Cacheable) : Pse_bit) | attrs;
-  }
+  Mword *pte;
+  unsigned char level;
 };
 
 
 
-typedef Ptab::List< Ptab::Traits<Pd_entry, 22, 10, true, false>,
-                    Ptab::Traits<Pt_entry, 12, 10, true> > Ptab_traits;
+typedef Ptab::List< Ptab::Traits<Unsigned32, 22, 10, true, false>,
+                    Ptab::Traits<Unsigned32, 12, 10, true> > Ptab_traits;
 
 typedef Ptab::Shift<Ptab_traits, Virt_addr::Shift>::List Ptab_traits_vpn;
 typedef Ptab::Page_addr_wrap<Page_number, Virt_addr::Shift> Ptab_va_vpn;

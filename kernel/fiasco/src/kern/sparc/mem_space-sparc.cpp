@@ -33,14 +33,6 @@ public:
       Page_noncacheable = 0, // XXX
       /// it's a user page.
       Page_user_accessible = 0, // XXX
-      /// Page has been referenced
-      Page_referenced = Pt_entry::Referenced,
-      /// Page is dirty
-      Page_dirty = Pt_entry::Modified,
-      Page_references = Pt_entry::Referenced| Page_dirty,
-      /// A mask which contains all mask bits
-      Page_all_attribs = Page_writable | Page_noncacheable |
-			 Page_user_accessible | Page_referenced | Page_dirty,
     };
 
   // Mapping utilities
@@ -49,7 +41,6 @@ public:
     Need_insert_tlb_flush = 0,
     Map_page_size = Config::PAGE_SIZE,
     Page_shift = Config::PAGE_SHIFT,
-    Map_superpage_size = Config::SUPERPAGE_SIZE,
     Map_max_address = Mem_layout::User_max,
     Whole_space = MWORD_BITS,
     Identity_map = 0,
@@ -96,7 +87,7 @@ Mem_space::initialize()
     return false;
 
   _dir = static_cast<Dir_type*>(b);
-  _dir->clear();	// initialize to zero
+  _dir->clear(true);	// initialize to zero
   return true; // success
 }
 
@@ -105,7 +96,7 @@ Mem_space::Mem_space(Ram_quota *q, Dir_type* pdir)
   : _quota(q), _dir(pdir)
 {
   _kernel_space = this;
-  _current.cpu(0) = this;
+  _current.cpu(Cpu_number::boot_cpu()) = this;
 }
 
 IMPLEMENT inline
@@ -131,39 +122,11 @@ void Mem_space::switchin_context(Mem_space *from)
   printf("%s FIXME\n", __func__);
 }
 
-//XXX cbass: check;
 PUBLIC static inline
-Mword
-Mem_space::xlate_flush(unsigned char rights)
+bool
+Mem_space::is_full_flush(L4_fpage::Rights rights)
 {
-  Mword a = Page_references;
-  if (rights & L4_fpage::RX)
-    a |= Page_all_attribs;
-  else if (rights & L4_fpage::W)
-    a |= Page_writable;
-
-  return a;
-}
-
-PUBLIC static inline
-Mword
-Mem_space::is_full_flush(unsigned char rights)
-{
-  return rights & L4_fpage::RX;
-}
-
-PUBLIC static inline
-unsigned char
-Mem_space::xlate_flush_result(Mword attribs)
-{
-  unsigned char r = 0;
-  if (attribs & Page_referenced)
-    r |= L4_fpage::RX;
-
-  if (attribs & Page_dirty)
-    r |= L4_fpage::W;
-
-  return r;
+  return rights & L4_fpage::Rights::R();
 }
 
 PUBLIC inline NEEDS["cpu.h"]
@@ -181,6 +144,20 @@ Mem_space::tlb_flush(bool = false)
   //Mem_unit::tlb_flush();
 }
 
+PUBLIC static inline NEEDS["mem_unit.h"]
+void
+Mem_space::tlb_flush_spaces(bool all, Mem_space *s1, Mem_space *s2)
+{
+  if (all) // || !Have_asids)
+    Mem_unit::tlb_flush();
+  else
+    {
+      if (s1)
+        s1->tlb_flush(true);
+      if (s2)
+        s2->tlb_flush(true);
+    }
+}
 
 /*
 PUBLIC inline
@@ -222,7 +199,7 @@ Mem_space::dir_shutdown()
   // except the ones in kernel space which are always shared
   /*
   _dir->alloc_cast<Mem_space_q_alloc>()
-    ->destroy(0, Kmem::mem_user_max, Pdir::Depth - 1,
+    ->destroy(0, Kmem::mem_user_max, 0, Pdir::Depth,
               Mem_space_q_alloc(_quota, Kmem_alloc::allocator()));
 */
   NOT_IMPL_PANIC;
@@ -230,7 +207,7 @@ Mem_space::dir_shutdown()
 
 IMPLEMENT inline
 Mem_space *
-Mem_space::current_mem_space(unsigned cpu) /// XXX: do not fix, deprecated, remove!
+Mem_space::current_mem_space(Cpu_number cpu) /// XXX: do not fix, deprecated, remove!
 {
   return _current.cpu(cpu);
 }
@@ -255,12 +232,12 @@ Mem_space::current_mem_space(unsigned cpu) /// XXX: do not fix, deprecated, remo
  */
 IMPLEMENT inline
 Mem_space::Status
-Mem_space::v_insert(Phys_addr phys, Vaddr virt, Vsize size,
-		    unsigned page_attribs, bool /*upgrade_ignore_size*/)
+Mem_space::v_insert(Phys_addr phys, Vaddr virt, Page_order size,
+		    Attr page_attribs)
 {
   (void)phys; (void)virt; (void)page_attribs;
-  assert(size == Size(Config::PAGE_SIZE) 
-         || size == Size(Config::SUPERPAGE_SIZE));
+  assert (cxx::get_lsb(Phys_addr(phys), size) == 0);
+  assert (cxx::get_lsb(Virt_addr(virt), size) == 0);
 /*
   printf("v_insert: phys %08lx virt %08lx (%s) %p\n", phys, virt, 
          page_attribs & Page_writable?"rw":"ro", this);*/
@@ -314,10 +291,10 @@ Mem_space::pmem_to_phys (Address virt) const
  */
 IMPLEMENT
 bool
-Mem_space::v_lookup(Vaddr virt, Phys_addr *phys = 0, Size *size = 0,
-		    unsigned *page_attribs = 0)
+Mem_space::v_lookup(Vaddr virt, Phys_addr *phys, Page_order *order,
+		    Attr *page_attribs)
 {
-  (void)virt; (void)phys; (void)size; (void)page_attribs;
+  (void)virt; (void)phys; (void)order; (void)page_attribs;
   return false;
 }
 
@@ -331,16 +308,20 @@ Mem_space::v_lookup(Vaddr virt, Phys_addr *phys = 0, Size *size = 0,
             case of errors, ~Page_all_attribs is additionally bit-ORed in.
  */
 IMPLEMENT
-unsigned long
-Mem_space::v_delete(Vaddr virt, Vsize size,
-		    unsigned long page_attribs = Page_all_attribs)
+L4_fpage::Rights
+Mem_space::v_delete(Vaddr virt, Page_order size,
+		    L4_fpage::Rights page_attribs)
 {
   (void)virt; (void)size; (void)page_attribs;
-  unsigned ret = 0;
-  return ret;
+  return page_attribs;
 }
 
 PUBLIC static inline
 Page_number
 Mem_space::canonize(Page_number v)
 { return v; }
+
+IMPLEMENT inline
+void
+Mem_space::v_set_access_flags(Vaddr, L4_fpage::Rights)
+{}

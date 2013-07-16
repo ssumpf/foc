@@ -89,7 +89,7 @@ void Factory::operator delete (void *_f)
 
 PRIVATE
 L4_msg_tag
-Factory::map_obj(Kobject_iface *o, Mword cap, Space *c_space,
+Factory::map_obj(Kobject_iface *o, Cap_index cap, Space *c_space,
                  Obj_space *o_space)
 {
   Reap_list rl;
@@ -149,11 +149,11 @@ Factory::new_gate(L4_msg_tag const &tag, Utcb const *utcb, Obj_space *o_space,
       if (EXPECT_FALSE(!bind_thread.is_objpage()))
 	return 0;
 
-      unsigned char thread_rights = 0;
+      L4_fpage::Rights thread_rights = L4_fpage::Rights(0);
       thread = Kobject::dcast<Thread_object*>(o_space->lookup_local(bind_thread.obj_index(), &thread_rights));
 
       *err = L4_err::EPerm;
-      if (EXPECT_FALSE(!(thread_rights & L4_fpage::W)))
+      if (EXPECT_FALSE(!(thread_rights & L4_fpage::Rights::W())))
 	return 0;
     }
 #if 0
@@ -177,7 +177,7 @@ Factory::new_irq(unsigned w, Utcb const *utcb, int *)
 
 PUBLIC
 L4_msg_tag
-Factory::kinvoke(L4_obj_ref ref, Mword rights, Syscall_frame *f,
+Factory::kinvoke(L4_obj_ref ref, L4_fpage::Rights rights, Syscall_frame *f,
                  Utcb const *utcb, Utcb *)
 {
   register Context *const c_thread = ::current();
@@ -186,7 +186,7 @@ Factory::kinvoke(L4_obj_ref ref, Mword rights, Syscall_frame *f,
   if (EXPECT_FALSE(f->tag().proto() != L4_msg_tag::Label_factory))
     return commit_result(-L4_err::EBadproto);
 
-  if (EXPECT_FALSE(!(rights & L4_fpage::W)))
+  if (EXPECT_FALSE(!(rights & L4_fpage::Rights::CS())))
     return commit_result(-L4_err::EPerm);
 
   if (EXPECT_FALSE(!ref.have_recv()))
@@ -269,9 +269,10 @@ Factory::kinvoke(L4_obj_ref ref, Mword rights, Syscall_frame *f,
 
 
 //----------------------------------------------------------------------------
-IMPLEMENTATION [svm || vmx]:
+IMPLEMENTATION [svm || vmx || arm_em_tz]:
 
 #include "vm_factory.h"
+#include "vm.h"
 
 PRIVATE inline NOEXPORT
 Kobject_iface *
@@ -283,20 +284,8 @@ Factory::new_vm(Utcb const *, int *err)
   return 0;
 }
 
-IMPLEMENTATION [tz]:
-
-#include "vm.h"
-
-PRIVATE inline NOEXPORT
-Kobject_iface *
-Factory::new_vm(Utcb const *, int *err)
-{
-  *err = L4_err::ENomem;
-  return Vm::create(this);
-}
-
 //----------------------------------------------------------------------------
-IMPLEMENTATION [!svm && !tz && !vmx]:
+IMPLEMENTATION [!svm && !vmx && !arm_em_tz]:
 
 PRIVATE inline NOEXPORT
 Kobject_iface *
@@ -317,7 +306,7 @@ private:
   struct Log_entry : public Tb_entry
   {
     Smword op;
-    Mword buffer;
+    Cap_index buffer;
     Mword id;
     Mword ram;
     Mword newo;
@@ -342,5 +331,5 @@ Factory::Log_entry::print(int maxlen, char *buf) const
     _op = "(nan)";
 
   return snprintf(buf, maxlen, "factory=%lx [%s] new=%lx cap=[C:%lx] ram=%lx",
-                  id, _op, newo, buffer, ram);
+                  id, _op, newo, cxx::int_value<Cap_index>(buffer), ram);
 }

@@ -3,7 +3,7 @@
  * \brief  Support for Tegra 2 platforms
  *
  * \date   2010-05
- * \author Adam Lackorznynski <adam@os.inf.tu-dresden.de>
+ * \author Adam Lackorzynski <adam@os.inf.tu-dresden.de>
  *
  */
 /*

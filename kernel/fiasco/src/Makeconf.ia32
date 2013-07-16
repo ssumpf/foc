@@ -33,6 +33,8 @@ SHARED_FLAGS                      += $(call CHECKCC,-mno-mmx,)
 SHARED_FLAGS                      += $(call CHECKCC,-mno-sse,)
 SHARED_FLAGS                      += $(call CHECKCC,-mno-sse2,)
 SHARED_FLAGS                      += $(call CHECKCC,-mno-sse3,)
+SHARED_FLAGS                      += $(call CHECKCC,-mno-sse4,)
+SHARED_FLAGS                      += $(call CHECKCC,-mno-sse4a,)
 SHARED_FLAGS                      += $(call CHECKCC,-mno-3dnow,)
 
 ASFLAGS				  += -m32

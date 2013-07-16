@@ -2,7 +2,7 @@ INTERFACE:
 
 #include "types.h"
 #include "irq_chip.h"
-#include <type_traits>
+#include <cxx/type_traits>
 
 /**
  * Interface used to manage harware IRQs on a platform.
@@ -54,7 +54,7 @@ public:
    */
   virtual Mword msg(Mword irqnum) const { (void)irqnum; return 0; }
 
-  virtual void set_cpu(Mword irqnum, unsigned cpu) const;
+  virtual void set_cpu(Mword irqnum, Cpu_number cpu) const;
 
   /// The pointer to the single global instance of the actual IRQ manager.
   static Irq_mgr *mgr;
@@ -122,7 +122,8 @@ Irq_mgr::irq(Mword irqnum) const
 
 IMPLEMENT
 void
-Irq_mgr::set_cpu(Mword irqnum, unsigned cpu) const
+Irq_mgr::set_cpu(Mword irqnum, Cpu_number cpu) const
 {
-  WARNX(Warning, "IRQ%ld: ignoring CPU setting (%d).\n", irqnum, cpu);
+  WARNX(Warning, "IRQ%ld: ignoring CPU setting (%d).\n", irqnum,
+        cxx::int_value<Cpu_number>(cpu));
 }

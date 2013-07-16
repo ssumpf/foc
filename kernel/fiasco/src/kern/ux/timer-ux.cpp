@@ -1,6 +1,8 @@
 // ------------------------------------------------------------------------
 INTERFACE[ux]:
 
+#include "irq_chip.h"
+
 EXTENSION class Timer
 {
 private:
@@ -16,7 +18,6 @@ IMPLEMENTATION[ux]:
 #include <sys/types.h>
 #include "boot_info.h"
 #include "initcalls.h"
-#include "irq_chip.h"
 #include "irq_mgr.h"
 #include "pic.h"
 
@@ -24,13 +25,14 @@ PUBLIC static inline NEEDS["pic.h"]
 unsigned
 Timer::irq() { return Pic::Irq_timer; }
 
-PUBLIC static inline
-unsigned
-Timer::irq_mode() { return 0; }
+PUBLIC static inline NEEDS["irq_chip.h"]
+Irq_chip::Mode
+Timer::irq_mode()
+{ return Irq_chip::Mode::F_raising_edge; }
 
 IMPLEMENT FIASCO_INIT_CPU
 void
-Timer::init(unsigned)
+Timer::init(Cpu_number)
 {
   if (Boot_info::irq0_disabled())
     return;
