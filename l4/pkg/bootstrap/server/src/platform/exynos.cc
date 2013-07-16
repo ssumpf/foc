@@ -17,8 +17,6 @@
 #include "support.h"
 #include <l4/drivers/uart_s3c2410.h>
 
-#include <cstdio>
-
 namespace {
 class Platform_arm_exynos : public Platform_single_region_ram
 {
