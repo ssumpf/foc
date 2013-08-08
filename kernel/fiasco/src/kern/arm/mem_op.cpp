@@ -113,7 +113,7 @@ Mem_op::arm_mem_cache_maint(int op, void const *start, void const *end)
 
     case Op_cache_dma_coherent:
         {
-          Mem_unit::flush_dcache(Virt_addr(Address(start)), Virt_addr(Address(end)));
+          Mem_unit::flush_dcache(start, end);
           outer_cache_op(Op_cache_l2_flush, Address(start), Address(end));
         }
       break;
