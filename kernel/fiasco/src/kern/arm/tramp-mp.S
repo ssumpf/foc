@@ -59,7 +59,7 @@ _tramp_mp_entry:
 	msr   cpsr_c, r0
 
 	// enable SMP
-#ifndef CONFIG_ARM_EM_NS
+#if !defined(CONFIG_ARM_EM_NS) && !defined(CONFIG_ARM_CORTEX_A15)
 	adr   r0, .Lmpcore_phys_base
 	ldr   r0, [r0]
 	ldr   r1, [r0]
