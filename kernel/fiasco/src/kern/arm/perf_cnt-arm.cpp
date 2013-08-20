@@ -261,6 +261,7 @@ Perf_cnt::init_cpu()
   //set_event_type(0, EVENT_EXTMEM_TRANSFER_READ);
   //set_event_type(1, EVENT_EXTMEM_TRANSFER_WRITE);
 
+
 #if 0
   set_event_type(3, EVENT_EXTMEM_TRANSFER_READ);
   set_event_type(4, EVENT_LINE_MIGRATION);
@@ -296,7 +297,8 @@ int Perf_cnt::_nr_counters;
 PRIVATE static
 bool
 Perf_cnt::is_avail()
-{ return Cpu::boot_cpu()->copro_dbg_model() == Cpu::Copro_dbg_model_v7; }
+{ return Cpu::boot_cpu()->copro_dbg_model() == Cpu::Copro_dbg_model_v7 ||
+         Cpu::boot_cpu()->copro_dbg_model() == Cpu::Copro_dbg_model_v7_1; }
 
 PRIVATE static
 void
