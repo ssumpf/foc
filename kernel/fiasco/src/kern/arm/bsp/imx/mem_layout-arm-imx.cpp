@@ -83,3 +83,4 @@ public:
     Uart_phys_base       = Uart2_phys_base,
   };
 };
+

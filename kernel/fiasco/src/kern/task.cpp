@@ -494,10 +494,12 @@ Task::sys_caps_equal(Syscall_frame *, Utcb *utcb)
   if (obj_a.special() || obj_b.special())
     return commit_result(obj_a.special_cap() == obj_b.special_cap());
 
-  Obj_space::Capability c_a = lookup(obj_a.cap());
-  Obj_space::Capability c_b = lookup(obj_b.cap());
+  Kobject_iface* ki_a = lookup(obj_a.cap()).obj();
+  Kobject_iface* ki_b = lookup(obj_b.cap()).obj();
+  Address a_a = ki_a ? ki_a->kobject_start_addr() : 0;
+  Address a_b = ki_b ? ki_b->kobject_start_addr() : 0;
 
-  return commit_result(c_a == c_b);
+  return commit_result(a_a == a_b);
 }
 
 PRIVATE inline NOEXPORT

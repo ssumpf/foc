@@ -40,6 +40,7 @@ public:
     Copro_dbg_model_v6            = 2,
     Copro_dbg_model_v6_1          = 3,
     Copro_dbg_model_v7            = 4,
+    Copro_dbg_model_v7_1          = 5,
   };
 
   unsigned copro_dbg_model() const { return _cpu_id._dfr0 & 0xf; }
@@ -498,7 +499,7 @@ Cpu::id_init()
 }
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION [!arm_cpu_errata || !armv6plus]:
+IMPLEMENTATION [!arm_cpu_errata || !armv6plus || omap4_pandaboard]:
 
 PRIVATE static inline
 void Cpu::init_errata_workarounds() {}
@@ -559,8 +560,8 @@ Cpu::init_errata_workarounds()
           if (rev == 0x20 || rev == 0x21 || rev == 0x22)
             set_c15_c0_1((1 << 12) | (1 << 22));
 
-          // errata: 743622
-          if ((rev & 0xf0) == 0x20)
+          // errata: 743622 (r2p0 - r2p2)
+          if ((rev & 0xf0) == 0x20 && (rev & 0xf) < 0x3)
             set_c15_c0_1(1 << 6);
 
           // errata: 751472

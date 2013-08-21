@@ -306,6 +306,10 @@ Thread::user_ip(Mword ip)
     }
 }
 
+IMPLEMENT inline
+void Thread::user_single_step(bool)
+{}
+
 PUBLIC inline NEEDS ["trap_state.h"]
 int
 Thread::send_exception_arch(Trap_state * /*ts*/)

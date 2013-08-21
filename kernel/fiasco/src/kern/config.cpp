@@ -246,8 +246,8 @@ void Config::init()
     esc_hack = true;
 
 #ifdef CONFIG_SERIAL
-  if (    Koptions::o()->opt(Koptions::F_serial_esc)
-      && !Koptions::o()->opt(Koptions::F_noserial)
+  if (    /*Koptions::o()->opt(Koptions::F_serial_esc)
+      &&*/ !Koptions::o()->opt(Koptions::F_noserial)
 # ifdef CONFIG_KDB
       &&  Koptions::o()->opt(Koptions::F_nokdb)
 # endif

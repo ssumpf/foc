@@ -316,6 +316,10 @@ extern "C" {
             if (handle_copro_fault[copro](opcode, ts))
               return;
           }
+
+        /* check for ARM default GDB breakpoint */
+        if (!(ts->psr & Proc::Status_thumb) && opcode == 0xe7ffdefe)
+          ts->pc -= 4;
       }
 
 undef_insn:
@@ -415,7 +419,7 @@ Thread::user_ip() const
 IMPLEMENT inline
 Mword
 Thread::user_flags() const
-{ return 0; }
+{ return state() & Thread_ready; }
 
 IMPLEMENT inline NEEDS[Thread::exception_triggered]
 void
@@ -613,6 +617,10 @@ Thread::condition_valid(Unsigned32 insn, Unsigned32 psr)
 
   return (v[insn >> 28] >> (psr >> 28)) & 1;
 }
+
+IMPLEMENT inline
+void Thread::user_single_step(bool)
+{}
 
 // ------------------------------------------------------------------------
 IMPLEMENTATION [arm && armv6plus]:

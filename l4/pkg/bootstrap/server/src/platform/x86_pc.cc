@@ -612,8 +612,15 @@ public:
             printf("PCI IO port = %x\n", comport);
           }
 
-        if (comport == -1)
-          comport = 1;
+        if (comport == -1) {
+          /* try to read Bios Data Area (BDA) to get comport information */
+          unsigned short comport_count = (*((unsigned short *)0x410) >> 9) & 0x7;
+          if (comport_count)
+            comport = *((unsigned short *)0x400);
+          else
+            /* give up and try default values */
+            comport = 1;
+		}
 
         if (init_uart(comport, comirq, &du))
           printf("UART init failed\n");
