@@ -505,7 +505,17 @@ Thread::copy_utcb_to_ts(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
     }
   else
     {
-      Mem::memcpy_mwords (ts, snd_utcb->values, s > 19 ? 19 : s);
+      /*
+       * copy R0..R12,SP,LR,PC,PSR (UTCB Mwords 3..15,16,17,19,20)
+       * don't allow to overwrite pf_address, error_code, tpidruro, km_lr
+       * (these might have changed in the kernel without the Genode exception
+       *  handler knowing about it, so it could try to restore outdated values)
+       */
+      Mem::memcpy_mwords (&ts->r[0], &snd_utcb->values[3], s > 15 ? 13 : s);
+      if (EXPECT_TRUE(s > 16))
+          ts->usp = snd_utcb->values[16];
+      if (EXPECT_TRUE(s > 17))
+          ts->ulr = snd_utcb->values[17];
       if (EXPECT_TRUE(s > 19))
 	ts->pc = snd_utcb->values[19];
       if (EXPECT_TRUE(s > 20))

@@ -79,6 +79,7 @@ Thread::copy_utcb_to_ts(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
   Trap_state *ts = (Trap_state*)rcv->_utcb_handler;
   Mword       s  = tag.words();
   Unsigned32  cs = ts->cs();
+  Unsigned32  eflags_tf = ts->flags() & EFLAGS_TF;
   Utcb *snd_utcb = snd->utcb().access();
 
   // XXX: check that gs and fs point to valid user_entry only, for gdt and
@@ -109,6 +110,13 @@ Thread::copy_utcb_to_ts(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
 
   // don't allow to overwrite the code selector!
   ts->cs(cs);
+
+  /*
+   * don't allow to overwrite the single-step flag
+   * (it might have changed in the kernel without the Genode exception handler
+   *  knowing about it, so it could try to restore an outdated value)
+   */
+  ts->flags((ts->flags() & ~EFLAGS_TF) | eflags_tf);
 
   bool ret = transfer_msg_items(tag, snd, snd_utcb,
                                 rcv, rcv->utcb().access(), rights);
