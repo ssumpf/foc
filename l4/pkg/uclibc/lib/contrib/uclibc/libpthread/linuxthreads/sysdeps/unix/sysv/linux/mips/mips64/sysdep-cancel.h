@@ -15,9 +15,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <sysdep.h>
 #ifndef __ASSEMBLER__
@@ -31,7 +30,7 @@
 # undef PSEUDO
 # define PSEUDO(name, syscall_name, args)				      \
   .align 2;								      \
-  99:									      \
+  99: move a0, v0; 							      \
   PTR_LA t9,__syscall_error;					 	      \
   /* manual cpreturn.  */						      \
   REG_L gp, STKOFF_GP(sp);						      \

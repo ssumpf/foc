@@ -30,15 +30,25 @@ class Platform_arm_imx : public Platform_single_region_ram
     static L4::Uart_imx21 _uart;
 #elif defined(PLATFORM_TYPE_imx35)
     static L4::Uart_imx35 _uart;
-    static L4::Io_register_block_mmio r(0x43f90000); // UART-1
-    //static L4::Io_register_block_mmio r(0x43f94000); // UART-2
-    //static L4::Io_register_block_mmio r(0x5000c000); // UART-3
+    unsigned long uart_base;
+    switch (PLATFORM_UART_NR) {
+      default:
+      case 1: uart_base = 0x43f90000; break;
+      case 2: uart_base = 0x43f94000; break;
+      case 3: uart_base = 0x5000c000; break;
+    }
+    static L4::Io_register_block_mmio r(uart_base);
 #elif defined(PLATFORM_TYPE_imx51)
     static L4::Io_register_block_mmio r(0x73fbc000);
     static L4::Uart_imx51 _uart;
 #elif defined(PLATFORM_TYPE_imx6)
-    //static L4::Io_register_block_mmio r(0x02020000); // UART1
-    static L4::Io_register_block_mmio r(0x021e8000); // UART2
+    unsigned long uart_base;
+    switch (PLATFORM_UART_NR) {
+      case 1: uart_base = 0x02020000; break;
+      default:
+      case 2: uart_base = 0x021e8000; break;
+    };
+    static L4::Io_register_block_mmio r(uart_base);
     static L4::Uart_imx6 _uart;
 #else
 #error Which platform type?

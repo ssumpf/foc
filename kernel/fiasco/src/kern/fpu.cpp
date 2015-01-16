@@ -18,15 +18,13 @@ class Fpu
 {
 public:
   // all the following methods are arch dependent
-  static void init(Cpu_number cpu) FIASCO_INIT_CPU;
+  static void init(Cpu_number cpu, bool) FIASCO_INIT_CPU_AND_PM;
 
   static unsigned state_size();
   static unsigned state_align();
   static void init_state(Fpu_state *);
   static void restore_state(Fpu_state *);
   static void save_state(Fpu_state *);
-  static void disable();
-  static void enable();
 
   static Per_cpu<Fpu> fpu;
 
@@ -61,7 +59,7 @@ unsigned Fpu::state_align()
 { return 1; }
 
 IMPLEMENT
-void Fpu::init(Cpu_number)
+void Fpu::init(Cpu_number, bool)
 {}
 
 IMPLEMENT inline
@@ -72,10 +70,10 @@ IMPLEMENT inline
 void Fpu::restore_state(Fpu_state *)
 {}
 
-IMPLEMENT inline
+PUBLIC static inline
 void Fpu::disable()
 {}
 
-IMPLEMENT inline
+PUBLIC static inline
 void Fpu::enable()
 {}

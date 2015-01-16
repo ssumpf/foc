@@ -11,7 +11,8 @@ EXTENSION
 class Cpu
 {
 public:
-  void init(bool is_boot_cpu = false);
+  void init(bool resume, bool is_boot_cpu);
+  static void init_mmu();
 
   static void early_init();
 
@@ -40,11 +41,15 @@ public:
     Copro_dbg_model_v6            = 2,
     Copro_dbg_model_v6_1          = 3,
     Copro_dbg_model_v7            = 4,
+    Copro_dbg_model_v7_1          = 5,
   };
 
+  bool has_generic_timer() const { return (_cpu_id._pfr[1] & 0xf000) == 0x1000; }
   unsigned copro_dbg_model() const { return _cpu_id._dfr0 & 0xf; }
 
 private:
+  void init_hyp_mode();
+
   static Cpu *_boot_cpu;
 
   Cpu_phys_id _phys_id;
@@ -96,20 +101,46 @@ public:
     Cp15_c1_xp              = 1 << 23,
     Cp15_c1_ee              = 1 << 25,
     Cp15_c1_nmfi            = 1 << 27,
-    Cp15_c1_tex             = 1 << 28,
+    Cp15_c1_tre             = 1 << 28,
     Cp15_c1_force_ap        = 1 << 29,
 
+    Cp15_c1_cache_bits      = Cp15_c1_cache
+                              | Cp15_c1_insn_cache,
+  };
+};
+
+INTERFACE [arm && armv6 && !mpcore]:
+
+EXTENSION class Cpu
+{
+public:
+  enum {
     Cp15_c1_generic         = Cp15_c1_mmu
                               | (Config::Cp15_c1_use_alignment_check ?  Cp15_c1_alignment_check : 0)
 			      | Cp15_c1_branch_predict
 			      | Cp15_c1_high_vector
                               | Cp15_c1_u
 			      | Cp15_c1_xp,
-
-    Cp15_c1_cache_bits      = Cp15_c1_cache
-                              | Cp15_c1_insn_cache,
   };
 };
+
+INTERFACE [arm && armv6 && mpcore]:
+
+EXTENSION class Cpu
+{
+public:
+  enum {
+    Cp15_c1_generic         = Cp15_c1_mmu
+                              | (Config::Cp15_c1_use_alignment_check
+                                 ? Cp15_c1_alignment_check : 0)
+                              | Cp15_c1_branch_predict
+                              | Cp15_c1_high_vector
+                              | Cp15_c1_u
+                              | Cp15_c1_xp
+                              | Cp15_c1_tre,
+  };
+};
+
 
 INTERFACE [arm && armv7 && armca8]:
 
@@ -119,6 +150,7 @@ public:
   enum {
     Cp15_c1_ee              = 1 << 25,
     Cp15_c1_nmfi            = 1 << 27,
+    Cp15_c1_tre             = 1 << 28,
     Cp15_c1_te              = 1 << 30,
     Cp15_c1_rao_sbop        = (0xf << 3) | (1 << 16) | (1 << 18) | (1 << 22) | (1 << 23),
 
@@ -128,6 +160,7 @@ public:
     Cp15_c1_generic         = Cp15_c1_mmu
                               | (Config::Cp15_c1_use_alignment_check ?  Cp15_c1_alignment_check : 0)
 			      | Cp15_c1_branch_predict
+                              | Cp15_c1_tre
                               | Cp15_c1_rao_sbop
 			      | Cp15_c1_high_vector,
   };
@@ -143,6 +176,7 @@ public:
     Cp15_c1_ha              = 1 << 17,
     Cp15_c1_ee              = 1 << 25,
     Cp15_c1_nmfi            = 1 << 27,
+    Cp15_c1_tre             = 1 << 28,
     Cp15_c1_te              = 1 << 30,
     Cp15_c1_rao_sbop        = (0xf << 3) | (1 << 16) | (1 << 18) | (1 << 22) | (1 << 23),
 
@@ -153,6 +187,7 @@ public:
                               | (Config::Cp15_c1_use_alignment_check ?  Cp15_c1_alignment_check : 0)
 			      | Cp15_c1_branch_predict
 			      | Cp15_c1_high_vector
+                              | Cp15_c1_tre
                               | Cp15_c1_rao_sbop
 			      | (Config::Cp15_c1_use_swp_enable ? Cp15_c1_sw : 0),
   };
@@ -306,7 +341,7 @@ IMPLEMENTATION [arm]:
 #include "processor.h"
 #include "ram_quota.h"
 
-DEFINE_PER_CPU_P(0) Per_cpu<Cpu> Cpu::cpus(true);
+DEFINE_PER_CPU_P(0) Per_cpu<Cpu> Cpu::cpus(Per_cpu_data::Cpu_num);
 Cpu *Cpu::_boot_cpu;
 
 PUBLIC static inline
@@ -379,8 +414,9 @@ Unsigned64
 Cpu::rdtsc (void)
 { return 0; }
 
-PUBLIC static
-void Cpu::init_mmu()
+IMPLEMENT_DEFAULT
+void
+Cpu::init_mmu()
 {
   extern char ivt_start;
   // map the interrupt vector table to 0xffff0000
@@ -388,10 +424,10 @@ void Cpu::init_mmu()
       Pdir::Depth, true,
       Kmem_alloc::q_allocator(Ram_quota::root));
 
-  pte.create_page(Phys_mem_addr((unsigned long)&ivt_start), Page::Attr(Page::Rights::RWX(),
-        Page::Type::Normal(), Page::Kern::Global()));
-  pte.write_back_if(true);
-  Mem_unit::tlb_flush();
+  pte.create_page(Phys_mem_addr((unsigned long)&ivt_start),
+                  Page::Attr(Page::Rights::RWX(),
+                  Page::Type::Normal(), Page::Kern::Global()));
+  pte.write_back_if(true, Mem_unit::Asid_kernel);
 }
 
 PUBLIC inline
@@ -401,11 +437,12 @@ Cpu::phys_id() const
 
 IMPLEMENT
 void
-Cpu::init(bool is_boot_cpu)
+Cpu::init(bool, bool is_boot_cpu)
 {
   if (is_boot_cpu)
     {
       _boot_cpu = this;
+      set_present(1);
       set_online(1);
     }
 
@@ -414,9 +451,8 @@ Cpu::init(bool is_boot_cpu)
   init_tz();
   id_init();
   init_errata_workarounds();
+  init_hyp_mode();
   bsp_init(is_boot_cpu);
-
-  print_infos();
 }
 
 PUBLIC static inline
@@ -438,6 +474,11 @@ Cpu::disable_dcache()
                "mcr     p15, 0, %0, c1, c0, 0 \n"
                : : "r" (0), "i" (Cp15_c1_cache));
 }
+
+IMPLEMENT_DEFAULT inline
+void
+Cpu::init_hyp_mode()
+{}
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && !arm_lpae]:
@@ -463,25 +504,26 @@ IMPLEMENTATION [arm && armv6plus]:
 
 PRIVATE static inline
 void
-Cpu::set_actrl(Mword bit_mask)
+Cpu::modify_actrl(Mword set_mask, Mword clear_mask)
 {
   Mword t;
-  asm volatile("mrc p15, 0, %0, c1, c0, 1 \n\t"
-               "orr %0, %0, %1            \n\t"
-               "mcr p15, 0, %0, c1, c0, 1 \n\t"
-               : "=r"(t) : "r" (bit_mask));
+  asm volatile("mrc p15, 0, %[reg], c1, c0, 1 \n\t"
+               "bic %[reg], %[reg], %[clr]    \n\t"
+               "orr %[reg], %[reg], %[set]    \n\t"
+               "mcr p15, 0, %[reg], c1, c0, 1 \n\t"
+               : [reg] "=r" (t)
+               : [set] "r" (set_mask), [clr] "r" (clear_mask));
 }
 
-PRIVATE static inline
+PRIVATE static inline NEEDS[Cpu::modify_actrl]
+void
+Cpu::set_actrl(Mword bit_mask)
+{ modify_actrl(bit_mask, 0); }
+
+PRIVATE static inline NEEDS[Cpu::modify_actrl]
 void
 Cpu::clear_actrl(Mword bit_mask)
-{
-  Mword t;
-  asm volatile("mrc p15, 0, %0, c1, c0, 1 \n\t"
-               "bic %0, %1                \n\t"
-               "mcr p15, 0, %0, c1, c0, 1 \n\t"
-               : "=r"(t) : "r" (bit_mask));
-}
+{ modify_actrl(0, bit_mask); }
 
 IMPLEMENT
 void
@@ -596,6 +638,11 @@ PRIVATE inline NEEDS[<cassert>]
 void
 Cpu::init_tz()
 {
+  Mword sctrl;
+  asm volatile("mrc p15, 0, %0, c1, c0, 0" : "=r" (sctrl));
+  if (sctrl & Cp15_c1_nmfi)
+    panic("Non-maskable FIQs (NMFI) detected, cannot use TZ mode");
+
   // set monitor vector base address
   assert(!((Mword)&monitor_vector_base & 31));
   asm volatile ("mcr p15, 0, %0, c12, c0, 1" : : "r" (&monitor_vector_base));
@@ -688,9 +735,9 @@ Cpu::tz_scr(Mword val)
 // ------------------------------------------------------------------------
 IMPLEMENTATION [!debug]:
 
-PRIVATE static inline
+PUBLIC inline
 void
-Cpu::print_infos()
+Cpu::print_infos() const
 {}
 
 // ------------------------------------------------------------------------
@@ -698,7 +745,7 @@ IMPLEMENTATION [debug && armv6plus]:
 
 PRIVATE
 void
-Cpu::id_print_infos()
+Cpu::id_print_infos() const
 {
   printf("ID_PFR[01]:  %08lx %08lx", _cpu_id._pfr[0], _cpu_id._pfr[1]);
   printf(" ID_[DA]FR0: %08lx %08lx\n", _cpu_id._dfr0, _cpu_id._afr0);
@@ -711,16 +758,16 @@ IMPLEMENTATION [debug && !armv6plus]:
 
 PRIVATE
 void
-Cpu::id_print_infos()
+Cpu::id_print_infos() const
 {
 }
 
 // ------------------------------------------------------------------------
 IMPLEMENTATION [debug]:
 
-PRIVATE
+PUBLIC
 void
-Cpu::print_infos()
+Cpu::print_infos() const
 {
   printf("Cache config: %s\n", Config::Cache_enabled ? "ON" : "OFF");
   id_print_infos();

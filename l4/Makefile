@@ -118,6 +118,7 @@ doc:
 
 cont:
 	$(VERBOSE)$(MAKE) -C pkg cont
+	$(VERBOSE)$(MAKE) l4defs
 
 .PHONY: all clean cleanall install up update doc
 .PHONY: $(BUILD_DIRS) doc check_build_tools cont cleanfast
@@ -148,6 +149,7 @@ generate_l4defs_files = \
 	echo "L4_BUILDDIR = $(OBJ_BASE)"                >> $$tmpdir/Makefile && \
 	echo "SRC_DIR = $$tmpdir"                       >> $$tmpdir/Makefile && \
 	echo "PKGDIR_ABS = $(L4DIR_ABS)/l4defs.gen.dir" >> $$tmpdir/Makefile && \
+	echo "BUILD_MESSAGE ="                          >> $$tmpdir/Makefile && \
 	cat $(L4DIR)/mk/export_defs.inc                 >> $$tmpdir/Makefile && \
 	PWD=$$tmpdir $(MAKE) -C $$tmpdir -f $$tmpdir/Makefile          \
 	  CALLED_FOR=$(1) L4DEF_FILE_MK=$(L4DEF_FILE_MK) L4DEF_FILE_SH=$(L4DEF_FILE_SH) && \
@@ -155,6 +157,7 @@ generate_l4defs_files = \
 
 $(L4DEF_FILE_MK): $(BUILD_DIRS) $(DROPSCONF_CONFIG_MK) $(L4DIR)/mk/export_defs.inc
 	+$(call generate_l4defs_files,static)
+	+$(call generate_l4defs_files,minimal)
 	+$(call generate_l4defs_files,shared)
 	+$(call generate_l4defs_files,sharedlib)
 
@@ -162,6 +165,7 @@ $(L4DEF_FILE_SH): $(L4DEF_FILE_MK)
 
 regen_l4defs:
 	+$(call generate_l4defs_files,static)
+	+$(call generate_l4defs_files,minimal)
 	+$(call generate_l4defs_files,shared)
 	+$(call generate_l4defs_files,sharedlib)
 
@@ -252,9 +256,9 @@ Makeconf.bid.local-helper:
 	               $(ARCH)_$(CPU)-$(BUILD_ABI))" >> $(DROPSCONF_CONFIG_MK)
 	$(VERBOSE)$(foreach v, GCCDIR GCCLIB_HOST GCCLIB_EH GCCLIB_S_SO \
 	                GCCVERSION GCCMAJORVERSION GCCMINORVERSION      \
-			GCCSUBVERSION GCC_HAS_ATOMICS                   \
-			GCCNOSTACKPROTOPT LDVERSION GCCSYSLIBDIRS       \
-			GCCFORTRANAVAIL                                 \
+			GCC_HAS_ATOMICS                   \
+			GCCNOSTACKPROTOPT GCCSTACKPROTOPT GCCSTACKPROTALLOPT LDVERSION \
+			GCCSYSLIBDIRS GCCFORTRANAVAIL                                 \
 			$(if $(GCCNOFPU_$(ARCH)_f),GCCNOFPU_$(ARCH))    \
 			$(if $(GCCIS_$(ARCH)_leon_f),GCCIS_$(ARCH)_leon),   \
 			echo $(v)=$(call $(v)_f,$(ARCH))                \
@@ -265,7 +269,6 @@ Makeconf.bid.local-helper:
 			>>$(DROPSCONF_CONFIG_MK);)
 	$(VERBOSE)$(foreach v, LD_GENDEP_PREFIX, echo $v=$($(v)) >>$(DROPSCONF_CONFIG_MK);)
 	$(VERBOSE)echo "HOST_SYSTEM=$(HOST_SYSTEM)" >>$(DROPSCONF_CONFIG_MK)
-	$(VERBOSE)echo "COLOR_TERMINAL=$(shell if [ $$(tput colors || echo -1) = '-1' ]; then echo n; else echo y; fi)" >>$(DROPSCONF_CONFIG_MK)
 	$(VERBOSE)echo "LD_HAS_HASH_STYLE_OPTION=$(shell if $(LD) --help 2>&1 | grep -q ' --hash-style='; then echo y; else echo n; fi)" >>$(DROPSCONF_CONFIG_MK)
 	$(VERBOSE)# we need to call make again, because HOST_SYSTEM (set above) must be
 	$(VERBOSE)# evaluated for LD_PRELOAD to be set, which we need in the following
@@ -434,8 +437,15 @@ uimage: check_and_adjust_ram_base
 rawimage: check_and_adjust_ram_base
 	$(call genimage,BOOTSTRAP_DO_UIMAGE= BOOTSTRAP_DO_RAW_IMAGE=y)
 
-fastboot: rawimage
+fastboot fastboot_rawimage: rawimage
 	$(VERBOSE)$(FASTBOOT_BOOT_CMD) $(IMAGES_DIR)/bootstrap.raw
+
+fastboot_uimage: uimage
+	$(VERBOSE)$(FASTBOOT_BOOT_CMD) $(IMAGES_DIR)/bootstrap.uimage
+
+efiimage: check_and_adjust_ram_base
+	$(checkx86amd64build)
+	$(call genimage,BOOTSTRAP_DO_UIMAGE= BOOTSTRAP_DO_RAW_IMAGE= BOOTSTRAP_DO_UEFI=y)
 
 ifneq ($(filter $(ARCH),x86 amd64),)
 qemu:
@@ -516,6 +526,7 @@ exportpack:
 help::
 	@echo
 	@echo "Image generation targets:"
+	@echo "  efiimage   - Generate an EFI image, containing all modules."
 	@echo "  elfimage   - Generate an ELF image, containing all modules."
 	@echo "  rawimage   - Generate a raw image (memory dump), containing all modules."
 	@echo "  uimage     - Generate a uimage for u-boot, containing all modules."
@@ -525,15 +536,34 @@ help::
 	@echo "  exportpack - Export binaries with launch support." 
 	@echo "  vbox       - Use VirtualBox to run 'name'." 
 	@echo "  fastboot   - Call fastboot with the created rawimage."
+	@echo "  fastboot_rawimage - Call fastboot with the created rawimage."
+	@echo "  fastboot_uimage   - Call fastboot with the created uimage."
 	@echo "  ux         - Run 'name' under Fiasco/UX. [x86]" 
 	@echo "  kexec      - Issue a kexec call to start the entry." 
 	@echo " Add 'E=name' to directly select the entry without using the menu."
 	@echo " Modules are defined in conf/modules.list."
 
+listplatforms:
+	$(VERBOSE)for p in $(wildcard $(L4DIR)/conf/platforms/*.conf    \
+	                              $(L4DIR)/mk/platforms/*.conf); do \
+	  $(call extract_var,a,$$p,PLATFORM_ARCH);                      \
+	  for ar in $$a; do                                             \
+	    [ "$$ar" = "$(BUILD_ARCH)" ] && arch_hit=1;                 \
+	  done;                                                         \
+	  if [ -n "$$arch_hit" ]; then                                  \
+	    $(call extract_var,n,$$p,PLATFORM_NAME);                    \
+	    pn=$${p##*/};                                               \
+	    pn=$${pn%.conf};                                            \
+	    printf "%20s -- %s\n" $$pn "$$n";                           \
+	  fi;                                                           \
+	  unset arch_hit;                                               \
+	done
+
 
 .PHONY: elfimage rawimage uimage qemu vbox ux switch_ram_base \
         grub1iso grub2iso listentries shellcodeentry exportpack \
-        fastboot check_and_adjust_ram_base
+        fastboot fastboot_rawimage fastboot_uimage \
+	check_and_adjust_ram_base listplatforms
 
 switch_ram_base:
 	$(VERBOSE)$(call switch_ram_base_func,$(RAM_BASE))
@@ -634,6 +664,7 @@ report:
 	@echo
 	@echo "Archive information:"
 	@svn info || true
+	@git describe || true
 	@echo
 	@echo "CC       = $(CC) $(CCXX_FLAGS)"
 	@echo "CXX      = $(CXX) $(CCXX_FLAGS)"
@@ -688,3 +719,4 @@ help::
 	@echo "  cleanfast        - Delete all directories created during build." 
 	@echo "  report           - Print out host configuration information." 
 	@echo "  help             - Print this help text." 
+	@echo "  listplatforms    - List available platforms."

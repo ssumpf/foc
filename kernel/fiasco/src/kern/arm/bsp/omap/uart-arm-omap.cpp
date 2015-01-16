@@ -10,6 +10,10 @@ IMPLEMENTATION [arm && omap4_pandaboard]: // ------------------------------
 
 IMPLEMENT int Uart::irq() const { return 32 + 74; }
 
+IMPLEMENTATION [arm && omap5]: // -----------------------------------------
+
+IMPLEMENT int Uart::irq() const { return 32 + 74; }
+
 IMPLEMENTATION: // --------------------------------------------------------
 
 #include "mem_layout.h"

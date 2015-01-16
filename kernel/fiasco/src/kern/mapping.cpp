@@ -94,6 +94,13 @@ Mapping::page() const
   return Page(data()->data.address);
 }
 
+PUBLIC inline NEEDS[Mapping::data]
+Mapping::Pfn
+Mapping::pfn(Mapping::Order order) const
+{
+  return Pfn(data()->data.address) << order;
+}
+
 /** Set virtual address.
     @param address the virtual address at which the frame is mapped.
  */

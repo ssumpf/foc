@@ -4,12 +4,21 @@ INTERFACE:
 
 EXTENSION class Context
 {
+public:
+  void vcpu_pv_switch_to_kernel(Vcpu_state *, bool);
+  void vcpu_pv_switch_to_user(Vcpu_state *, bool);
 protected:
   Ku_mem_ptr<Vcpu_state> _vcpu_state;
 };
 
 
 IMPLEMENTATION:
+
+IMPLEMENT_DEFAULT inline
+void Context::vcpu_pv_switch_to_kernel(Vcpu_state *, bool) {}
+
+IMPLEMENT_DEFAULT inline
+void Context::vcpu_pv_switch_to_user(Vcpu_state *, bool) {}
 
 PUBLIC inline
 Context::Ku_mem_ptr<Vcpu_state> const &
@@ -48,11 +57,13 @@ Context::vcpu_save_state_and_upcall()
   _exc_cont.activate(regs(), leave_by_vcpu_upcall);
 }
 
-PUBLIC inline NEEDS["fpu.h", "space.h", Context::arch_load_vcpu_kern_state]
+PUBLIC inline NEEDS["fpu.h", "space.h", Context::arch_load_vcpu_kern_state,
+                    Context::vcpu_pv_switch_to_kernel]
 bool
 Context::vcpu_enter_kernel_mode(Vcpu_state *vcpu)
 {
-  if (EXPECT_FALSE(state() & Thread_vcpu_enabled))
+  unsigned s = state();
+  if (EXPECT_FALSE(s & Thread_vcpu_enabled))
     {
       state_del_dirty(Thread_vcpu_user);
       vcpu->_saved_state = vcpu->state;
@@ -73,11 +84,13 @@ Context::vcpu_enter_kernel_mode(Vcpu_state *vcpu)
           bool load_cpu_state = current() == this;
 
           arch_load_vcpu_kern_state(vcpu, load_cpu_state);
+          vcpu_pv_switch_to_kernel(vcpu, load_cpu_state);
 
 	  if (load_cpu_state)
 	    {
-	      if (state() & Thread_fpu_owner)
-		Fpu::enable();
+	      if ((s & (Thread_fpu_owner | Thread_vcpu_fpu_disabled))
+                  == (Thread_fpu_owner | Thread_vcpu_fpu_disabled))
+                Fpu::fpu.current().enable();
 
 	      space()->switchin_context(vcpu_user_space());
 	      return true;
@@ -145,28 +158,34 @@ EXTENSION class Context
 IMPLEMENTATION [debug]:
 
 #include "kobject_dbg.h"
+#include "string_buffer.h"
 
 IMPLEMENT
-unsigned
-Context::Vcpu_log::print(int maxlen, char *buf) const
+void
+Context::Vcpu_log::print(String_buffer *buf) const
 {
   switch (type)
     {
     case 0:
     case 4:
-      return snprintf(buf, maxlen, "%sret pc=%lx sp=%lx state=%lx task=D:%lx",
-	  type == 4 ? "f" : "", ip, sp, state, space);
+      buf->printf("%sret pc=%lx sp=%lx state=%lx task=D:%lx",
+                  type == 4 ? "f" : "", ip, sp, state, space);
+      break;
     case 1:
-      return snprintf(buf, maxlen, "ipc from D:%lx task=D:%lx sp=%lx",
-	  Kobject_dbg::pointer_to_id((Kobject*)ip), state, sp);
+      buf->printf("ipc from D:%lx task=D:%lx sp=%lx",
+                  Kobject_dbg::pointer_to_id((Kobject*)ip), state, sp);
+      break;
     case 2:
-      return snprintf(buf, maxlen, "exc #%x err=%lx pc=%lx sp=%lx state=%lx task=D:%lx",
-	  (unsigned)trap, err, ip, sp, state, space);
+      buf->printf("exc #%x err=%lx pc=%lx sp=%lx state=%lx task=D:%lx",
+                  (unsigned)trap, err, ip, sp, state, space);
+      break;
     case 3:
-      return snprintf(buf, maxlen, "pf  pc=%lx pfa=%lx state=%lx task=D:%lx",
-	  ip, sp, state, space);
+      buf->printf("pf  pc=%lx pfa=%lx err=%lx state=%lx task=D:%lx",
+                  ip, sp, err, state, space);
+      break;
     default:
-      return snprintf(buf, maxlen, "unknown");
+      buf->printf("vcpu: unknown");
+      break;
     }
 }
 

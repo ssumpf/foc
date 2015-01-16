@@ -16,6 +16,7 @@ public:
   typedef Obj_space::Phys_addr Phys_addr;
   typedef Obj_space::V_pfn Vaddr;
   typedef Obj::Mapping Mapping;
+  typedef int Order;
 
   class Iterator;
   class Frame 
@@ -28,22 +29,9 @@ public:
     inline size_t size() const;
   };
 
-  /**
-   * We'll never iterate over some thing, because we have
-   * no child relationship for capability passing.
-   */
-  class Iterator
-  {
-  public:
-    inline Mapping* operator->() const { return 0; }
-    inline Mapping* operator * () const { return 0; }
-    inline operator Mapping*() const   { return 0; }
-    Iterator() {}
-
-    Iterator(Frame const &, Mapping *, Obj_space::V_pfn, Obj_space::V_pfn) {}
-
-    Iterator &operator ++ () { return *this; }
-  };
+  template< typename F >
+  static void foreach_mapping(Frame const &, Mapping *, Obj_space::V_pfn, Obj_space::V_pfn, F)
+  {}
 };
 
 

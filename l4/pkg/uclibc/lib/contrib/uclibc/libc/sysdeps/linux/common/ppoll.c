@@ -13,26 +13,22 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
-#include <signal.h>
 #include <sys/syscall.h>
-#include <sys/poll.h>
+
+#if defined __NR_ppoll && defined __UCLIBC_LINUX_SPECIFIC__ && defined __USE_GNU
+
 #define __need_NULL
 #include <stddef.h>
+#include <signal.h>
+#include <sys/poll.h>
+#include <cancel.h>
 
-#if defined __NR_ppoll && defined __UCLIBC_LINUX_SPECIFIC__
-# ifdef __UCLIBC_HAS_THREADS_NATIVE__
-#  include <sysdep-cancel.h>
-# else
-#  define SINGLE_THREAD_P 1
-# endif
-
-int
-ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *timeout,
-       const sigset_t *sigmask)
+static int
+__NC(ppoll)(struct pollfd *fds, nfds_t nfds, const struct timespec *timeout,
+	    const sigset_t *sigmask)
 {
 	/* The Linux kernel can in some situations update the timeout value.
 	   We do not want that so use a local variable.  */
@@ -41,15 +37,11 @@ ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *timeout,
 		tval = *timeout;
 		timeout = &tval;
 	}
-  if (SINGLE_THREAD_P)
-		return INLINE_SYSCALL(ppoll, 5, fds, nfds, timeout, sigmask, _NSIG / 8);
-
-# ifdef __UCLIBC_HAS_THREADS_NATIVE__
-	int oldtype = LIBC_CANCEL_ASYNC ();
-	int result = INLINE_SYSCALL(ppoll, 5, fds, nfds, timeout, sigmask, _NSIG / 8);
-	LIBC_CANCEL_RESET (oldtype);
-	return result;
-# endif
+	return INLINE_SYSCALL(ppoll, 5, fds, nfds, timeout, sigmask, __SYSCALL_SIGSET_T_SIZE);
 }
-libc_hidden_def(ppoll)
+
+CANCELLABLE_SYSCALL(int, ppoll, (struct pollfd *fds, nfds_t nfds, const struct timespec *timeout,
+				 const sigset_t *sigmask),
+		    (fds, nfds, timeout, sigmask))
+
 #endif

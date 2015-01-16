@@ -16,9 +16,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _MATH_H
 # error "Never use <bits/huge_val.h> directly; include <math.h> instead."
@@ -32,7 +31,7 @@
 # define HUGE_VAL (__extension__ 0x1.0p2047)
 #elif defined __GNUC__
 
-#ifndef __CONFIG_ARM_EABI__
+#ifndef __ARM_EABI__
 # define HUGE_VAL \
   (__extension__							      \
    ((union { unsigned __l __attribute__((__mode__(__DI__))); double __d; })   \
@@ -50,7 +49,7 @@
 
 typedef union { unsigned char __c[8]; double __d; } __huge_val_t;
 
-#ifndef __CONFIG_ARM_EABI__
+#ifndef __ARM_EABI__
 # if __BYTE_ORDER == __BIG_ENDIAN
 #  define __HUGE_VAL_bytes	{ 0, 0, 0, 0, 0x7f, 0xf0, 0, 0 }
 # endif

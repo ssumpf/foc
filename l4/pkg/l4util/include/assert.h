@@ -17,7 +17,7 @@
 /*****************************************************************************/
 #pragma once
 
-#ifndef DEBUG
+#ifdef NDEBUG
 
 #define DO_NOTHING              do {} while (0)
 #define ASSERT_VALID(c)         DO_NOTHING
@@ -33,75 +33,90 @@
 #define assert(cond)            DO_NOTHING
 #endif
 
-#else // DEBUG 
+#else // NDEBUG
 
+#ifndef ASSERT_PRINTF
 #include <stdio.h>
+#define ASSERT_PRINTF printf
+#endif
+#ifndef ASSERT_ASSERT
 #include <assert.h>
-#include <l4/sys/kdebug.h>
+#define ASSERT_ASSERT(x) assert(x)
+#endif
 
 #define ASSERT_VALID(cap) \
 	do { \
-		if (l4_is_invalid_cap(cap)) { \
-			printf("%s: Cap invalid.\n", __func__); \
-			assert(l4_is_invalid_cap(cap)); \
+		typeof(cap) _cap = cap; \
+		if (l4_is_invalid_cap(_cap)) { \
+			ASSERT_PRINTF("%s: Cap invalid.\n", __func__); \
+			ASSERT_ASSERT(!l4_is_invalid_cap(_cap)); \
 		} \
 	} while (0)
 
 
 #define ASSERT_EQUAL(a, b) \
 	do { \
-		if ((a) != (b)) { \
-			printf("%s:\n", __func__); \
-			printf("    "#a" (%lx) != "#b" (%lx)\n", (unsigned long)(a), (unsigned long)(b)); \
-			assert((a)==(b)); \
+		typeof(a) _a = a; \
+		typeof(b) _b = b; \
+		if (_a != _b) { \
+			ASSERT_PRINTF("%s:\n", __func__); \
+			ASSERT_PRINTF("    "#a" (%lx) != "#b" (%lx)\n", (unsigned long)_a, (unsigned long)_b); \
+			ASSERT_ASSERT(_a == _b); \
 		} \
 	} while (0)
 
 
 #define ASSERT_NOT_EQUAL(a, b) \
 	do { \
-		if ((a) == (b)) { \
-			printf("%s:\n", __func__); \
-			printf("    "#a" (%lx) == "#b" (%lx)\n", (unsigned long)(a), (unsigned long)(b)); \
-			assert((a)!=(b)); \
+		typeof(a) _a = a; \
+		typeof(b) _b = b; \
+		if (_a == _b) { \
+			ASSERT_PRINTF("%s:\n", __func__); \
+			ASSERT_PRINTF("    "#a" (%lx) == "#b" (%lx)\n", (unsigned long)_a, (unsigned long)_b); \
+			ASSERT_ASSERT(_a != _b); \
 		} \
 	} while (0)
 
 
 #define ASSERT_LOWER_EQ(val, max) \
 	do { \
-		if ((val) > (max)) { \
-			printf("%s:\n", __func__); \
-			printf("    "#val" (%lx) > "#max" (%lx)\n", (unsigned long)(val), (unsigned long)(max)); \
-			assert((val)<=(max)); \
+		typeof(val) _val = val; \
+		typeof(max) _max = max; \
+		if (_val > _max) { \
+			ASSERT_PRINTF("%s:\n", __func__); \
+			ASSERT_PRINTF("    "#val" (%lx) > "#max" (%lx)\n", (unsigned long)_val, (unsigned long)_max); \
+			ASSERT_ASSERT(_val <= _max); \
 		} \
 	} while (0)
 
 
 #define ASSERT_GREATER_EQ(val, min) \
 	do { \
-		if ((val) < (min)) { \
-			printf("%s:\n", __func__); \
-			printf("    "#val" (%lx) < "#min" (%lx)\n", (unsigned long)(val), (unsigned long)(min)); \
-			assert((val)>=(min)); \
+		typeof(val) _val = val; \
+		typeof(min) _min = min; \
+		if (_val < _min) { \
+			ASSERT_PRINTF("%s:\n", __func__); \
+			ASSERT_PRINTF("    "#val" (%lx) < "#min" (%lx)\n", (unsigned long)_val, (unsigned long)_min); \
+			ASSERT_ASSERT(_val >= _min); \
 		} \
 	} while (0)
 
 
 #define ASSERT_BETWEEN(val, min, max) \
 	ASSERT_LOWER_EQ((val), (max)); \
-    ASSERT_GREATER_EQ((val), (min));
+	ASSERT_GREATER_EQ((val), (min));
 
 
 #define ASSERT_IPC_OK(msgtag) \
 	do { \
-		if (l4_ipc_error((msgtag), l4_utcb())) { \
-			printf("%s: IPC Error: %lx\n", __func__, l4_ipc_error(msgtag)); \
-			assert(!l4_ipc_error(msgtag)); \
+		int _r = l4_ipc_error(msgtag, l4_utcb()); \
+		if (_r) { \
+			ASSERT_PRINTF("%s: IPC Error: %lx\n", __func__, _r); \
+			ASSERT_ASSERT(_r == 0); \
 		} \
 	} while (0)
 
 #define ASSERT_OK(val)         ASSERT_EQUAL((val), 0)
-#define ASSERT_NOT_NULL(ptr)   ASSERT_NOT_EQUAL((ptr), NULL)
+#define ASSERT_NOT_NULL(ptr)   ASSERT_NOT_EQUAL((ptr), (void *)0)
 
-#endif // DEBUG
+#endif // NDEBUG

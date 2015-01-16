@@ -155,7 +155,7 @@ l4_calibrate_tsc (l4_kernel_info_t *kip);
  *                         calibration using the PIT.
  * \param kip            KIP pointer
  * \return 0 on error (no scalers exported by kernel, calibrating failed ...)
- *         otherwise returns (2^32 / (tsc per µsec)). This value has the
+ *         otherwise returns (2^32 / (tsc per Âµsec)). This value has the
  *         same semantics as the value returned by the calibrate_delay_loop()
  *         function of the Linux kernel.
  */

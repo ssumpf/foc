@@ -24,7 +24,7 @@ PUBLIC
 void
 Jdb_kern_info_misc::show()
 {
-  // FIXME: assume UP here (current_meme_space(0))
+  // FIXME: assume UP here (current_mem_space(0))
   printf("clck: %08x.%08x\n"
 	 "pdir: %08x\n",
 	 (unsigned) (Kip::k()->clock >> 32), 

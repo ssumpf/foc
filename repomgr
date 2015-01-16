@@ -51,7 +51,7 @@ my %modules =
    # ./mk/pkgdeps -A mk/aliases.d pkgdeps pkg ...
    l4linux_requirements
         => { paths => [ map { "l4/pkg/$_" } qw(
-			libio libio-io lxfuxlibc rtc shmc
+			libedid libio libio-io lxfuxlibc rtc shmc
 			acpica io drivers fb-drv x86emu input libirq
 		    ) ],
                     pub_module => 1,
@@ -101,6 +101,7 @@ my %modules =
                 qw(acpica
                    ankh
                    boost-lite
+                   cons
                    cunit
                    dash
                    demangle
@@ -111,7 +112,9 @@ my %modules =
                    expat2
                    fb-drv
                    fbterminal
+                   ferret
                    fuxfprov
+                   gnu-efi
                    hello
                    input
                    io
@@ -119,6 +122,7 @@ my %modules =
                    lib_vt100
                    libbsd
                    libbsd-full
+                   libedid
                    libevent
                    libc_be_stdin
                    libcrypto
@@ -126,6 +130,7 @@ my %modules =
                    libgfxbitmap
                    libgfortran
                    libgomp
+                   libfdt
                    libiniparser
                    libio
                    libio-io
@@ -156,6 +161,7 @@ my %modules =
                    tmpfs
                    udis86
                    valgrind
+                   vmm
                    x86emu
                    zlib
                    ) ],

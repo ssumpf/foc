@@ -57,6 +57,7 @@ IMPLEMENTATION [jdb_disasm]:
 #include "jdb.h"
 #include "jdb_bp.h"
 #include "jdb_input.h"
+#include "jdb_input_task.h"
 #include "jdb_lines.h"
 #include "jdb_module.h"
 #include "jdb_screen.h"
@@ -233,7 +234,7 @@ Jdb_disasm::show(Address virt, Space *task, int level, bool do_clear_screen = fa
           if (Mword i = Jdb_bp::instruction_bp_at_addr(addr))
             {
               stat_str[0] = '#';
-              stat_str[1] = '0'+i;
+              stat_str[1] = '0' + i - 1;
             }
 
 	  printf("%s" L4_PTR_FMT "%s%s  ", 

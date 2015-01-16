@@ -2,7 +2,6 @@ INTERFACE:
 
 #include "kobject.h"
 #include "kobject_helper.h"
-#include "ref_ptr.h"
 #include "slab_cache.h"
 #include "thread_object.h"
 
@@ -26,7 +25,7 @@ class Ipc_gate : public Kobject
   friend class Jdb_sender_list;
 protected:
 
-  Ref_ptr<Thread> _thread;
+  Thread *_thread;
   Mword _id;
   Ram_quota *_quota;
   Locked_prio_list _wait_q;
@@ -43,7 +42,7 @@ private:
 public:
   bool put() { return Ipc_gate::put(); }
 
-  Thread *thread() const { return _thread.ptr(); }
+  Thread *thread() const { return _thread; }
   Mword id() const { return _id; }
   Mword obj_id() const { return _id; }
   bool is_local(Space *s) const { return _thread && _thread->space() == s; }
@@ -62,7 +61,7 @@ protected:
     Mword gate_dbg_id;
     Mword thread_dbg_id;
     Mword label;
-    unsigned print(int max, char *buf) const;
+    void print(String_buffer *buf) const;
   };
 
 };
@@ -102,8 +101,14 @@ Ipc_gate_obj::downgrade(unsigned long attr)
 
 PUBLIC inline
 Ipc_gate::Ipc_gate(Ram_quota *q, Thread *t, Mword id)
-  : _thread(t), _id(id), _quota(q), _wait_q()
-{}
+  : _thread(0), _id(id), _quota(q), _wait_q()
+{
+  if (t)
+    {
+      t->inc_ref();
+      _thread = t;
+    }
+}
 
 PUBLIC inline
 Ipc_gate_obj::Ipc_gate_obj(Ram_quota *q, Thread *t, Mword id)
@@ -145,8 +150,13 @@ void
 Ipc_gate_obj::destroy(Kobject ***r)
 {
   Kobject::destroy(r);
-  _thread = 0;
-  unblock_all();
+  Thread *tmp = access_once(&_thread);
+  if (tmp)
+    {
+      _thread = 0;
+      unblock_all();
+      tmp->put_n_reap(r);
+    }
 }
 
 PUBLIC
@@ -224,6 +234,7 @@ Ipc_gate_ctl::bind_thread(L4_obj_ref, L4_fpage::Rights,
   Ipc_gate_obj *g = static_cast<Ipc_gate_obj*>(this);
   g->_id = in->values[1];
   Mem::mp_wmb();
+  t->inc_ref();
   g->_thread = t;
   Mem::mp_wmb();
   g->unblock_all();
@@ -300,7 +311,7 @@ Ipc_gate::block(Thread *ct, L4_timeout const &to, Utcb *u)
   IPC_timeout timeout;
   if (t)
     {
-      timeout.set(t, ct->cpu(true));
+      timeout.set(t, current_cpu());
       ct->set_timeout(&timeout);
     }
 
@@ -334,7 +345,7 @@ Ipc_gate::invoke(L4_obj_ref /*self*/, L4_fpage::Rights rights, Syscall_frame *f,
   Thread *partner = 0;
   bool have_rcv = false;
 
-  if (EXPECT_FALSE(!_thread.ptr()))
+  if (EXPECT_FALSE(!_thread))
     {
       L4_error e = block(ct, f->timeout().snd, utcb);
       if (!e.ok())
@@ -343,7 +354,7 @@ Ipc_gate::invoke(L4_obj_ref /*self*/, L4_fpage::Rights rights, Syscall_frame *f,
 	  return;
 	}
 
-      if (EXPECT_FALSE(!_thread.ptr()))
+      if (EXPECT_FALSE(!_thread))
 	{
 	  f->tag(commit_error(utcb, L4_error::Not_existent));
 	  return;
@@ -371,16 +382,18 @@ Ipc_gate::invoke(L4_obj_ref /*self*/, L4_fpage::Rights rights, Syscall_frame *f,
 //---------------------------------------------------------------------------
 IMPLEMENTATION [debug]:
 
+#include "string_buffer.h"
+
 PUBLIC
 ::Kobject_dbg *
 Ipc_gate_obj::dbg_info() const
 { return Ipc_gate::dbg_info(); }
 
 IMPLEMENT
-unsigned
-Ipc_gate::Log_ipc_gate_invoke::print(int max, char *buf) const
+void
+Ipc_gate::Log_ipc_gate_invoke::print(String_buffer *buf) const
 {
-  return snprintf(buf, max, "D-gate=%lx D-thread=%lx L=%lx",
-                  gate_dbg_id, thread_dbg_id, label);
+  buf->printf("D-gate=%lx D-thread=%lx L=%lx",
+              gate_dbg_id, thread_dbg_id, label);
 }
 

@@ -7,12 +7,14 @@
  */
 
 #include <features.h>
+#include <bits/arm_bx.h>
 
 #if !defined(__thumb__)
 __asm__(
     "	.text\n"
     "	.globl	_start\n"
     "	.type	_start,%function\n"
+	"	.hidden	_start\n"
 	"_start:\n"
 	"	@ at start time, all the args are on the stack\n"
 	"	mov	r0, sp\n"
@@ -140,7 +142,7 @@ static __always_inline
 void PERFORM_BOOTSTRAP_RELOC(ELF_RELOC *rpnt, unsigned long *reloc_addr,
 	unsigned long symbol_addr, unsigned long load_addr, Elf32_Sym *symtab)
 {
-	switch (ELF32_R_TYPE(rpnt->r_info)) {
+	switch (ELF_R_TYPE(rpnt->r_info)) {
 		case R_ARM_NONE:
 			break;
 		case R_ARM_ABS32:

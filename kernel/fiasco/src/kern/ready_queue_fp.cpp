@@ -104,8 +104,8 @@ Ready_queue_fp<E>::requeue(E *i)
 {
   if (!i->in_ready_list())
     enqueue(i, false);
-
-  prio_next[i->prio()].rotate_to(*++List::iter(i));
+  else
+    prio_next[i->prio()].rotate_to(*++List::iter(i));
 }
 
 

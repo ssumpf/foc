@@ -667,7 +667,7 @@ allocate_and_init (struct link_map *map)
 	newp = _dl_memalign (map->l_tls_align, map->l_tls_blocksize);
 	if (newp == NULL)
 	{
-		_dl_dprintf(2, "%s:%d: Out of memory!!!\n", __FUNCTION__, __LINE__);
+		_dl_dprintf(2, "%s:%d: Out of memory!!!\n", __func__, __LINE__);
 		_dl_exit(1);
 	}
 
@@ -926,8 +926,7 @@ _dl_add_to_slotinfo (struct link_map  *l)
 	     generation.  */
 	  ++_dl_tls_generation;
 
-	  _dl_dprintf (_dl_debug_file,
-			"cannot create TLS data structures: ABORT\n");
+	  _dl_dprintf(2, "cannot create TLS data structures: ABORT\n");
 	  _dl_exit (127);
 	}
 
@@ -1029,7 +1028,7 @@ init_tls (void)
 
 	/* And finally install it for the main thread.  If ld.so itself uses
 	   TLS we know the thread pointer was initialized earlier.  */
-	const char *lossage = TLS_INIT_TP (tcbp, USE___THREAD);
+	const char *lossage = (char *)TLS_INIT_TP (tcbp, USE___THREAD);
 	if(__builtin_expect (lossage != NULL, 0)) {
 		_dl_debug_early("cannot set up thread-local storage: %s\n", lossage);
 		_dl_exit(30);

@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <semaphore.h>
 #include "pthreadP.h"
@@ -56,14 +55,3 @@ extern void __where_is_shmfs (void) attribute_hidden;
 
 /* Comparison function for search in tree with existing mappings.  */
 extern int __sem_search (const void *a, const void *b) attribute_hidden;
-
-
-/* Prototypes of functions with multiple interfaces.  */
-extern int __new_sem_init (sem_t *sem, int pshared, unsigned int value);
-extern int __old_sem_init (sem_t *sem, int pshared, unsigned int value);
-extern int __new_sem_destroy (sem_t *sem);
-extern int __new_sem_post (sem_t *sem);
-extern int __new_sem_wait (sem_t *sem);
-extern int __old_sem_wait (sem_t *sem);
-extern int __new_sem_trywait (sem_t *sem);
-extern int __new_sem_getvalue (sem_t *sem, int *sval);

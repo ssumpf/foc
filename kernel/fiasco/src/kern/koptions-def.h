@@ -47,11 +47,18 @@ namespace L4_kernel_options
     Uart_type_mmio    = 2,
   };
 
+  enum
+  {
+    Uart_irq_none = 0xffff,
+  };
+
   struct Uart
   {
-    Unsigned32  access_type;  ///< Accesstype of UART: unset, MMIO or ports
-    Unsigned32  baud;         ///< Baud rate
-    Unsigned32  irqno;        ///< (Receive) IRQ
+    Unsigned32  base_baud;    ///< Base baud rate of the UART (if applicable)
+    Unsigned32  baud;         ///< Baud rate (this is the baud rate to use)
+    Unsigned16  irqno;        ///< (Receive) IRQ
+    Unsigned8   reg_shift;    ///< Shift value for register addressing
+    Unsigned8   access_type;  ///< Accesstype of UART: unset, MMIO or ports
     Unsigned64  base_address; ///< Start address of UART
   } __attribute__((packed));
 

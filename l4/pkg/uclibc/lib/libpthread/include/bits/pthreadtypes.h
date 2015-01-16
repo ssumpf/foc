@@ -31,7 +31,7 @@ struct _pthread_fastlock
 
 #ifndef _PTHREAD_DESCR_DEFINED
 /* Thread descriptors */
-typedef struct _pthread_descr_struct *_pthread_descr;
+typedef struct pthread *_pthread_descr;
 # define _PTHREAD_DESCR_DEFINED
 #endif
 

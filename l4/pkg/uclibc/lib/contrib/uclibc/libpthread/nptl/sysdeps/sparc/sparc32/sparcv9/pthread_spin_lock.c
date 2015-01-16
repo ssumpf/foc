@@ -13,16 +13,15 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include "pthreadP.h"
 
 int
 pthread_spin_lock (pthread_spinlock_t *lock)
 {
-  __asm__ __volatile
+  __asm__ __volatile__
     ("1: ldstub  [%0], %%g2\n"
      "   brnz,pn %%g2, 2f\n"
      "    membar #StoreLoad | #StoreStore\n"

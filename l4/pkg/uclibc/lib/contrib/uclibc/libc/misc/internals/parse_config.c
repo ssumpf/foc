@@ -75,8 +75,8 @@ static off_t bb_get_chunk_with_continuation(parser_t* parsr)
 			else
 				break;
 		} else if (parsr->allocated) {
-			 parsr->line_len += PAGE_SIZE;
-			 parsr->data = realloc(parsr->data,
+			parsr->line_len += PAGE_SIZE;
+			parsr->data = realloc(parsr->data,
 								   parsr->data_len + parsr->line_len);
 			parsr->line = parsr->data + parsr->data_len;
 		} else {
@@ -129,7 +129,7 @@ static __always_inline parser_t * FAST_FUNC config_open2(const char *filename,
 	return parser;
 }
 
-parser_t attribute_hidden * FAST_FUNC config_open(const char *filename)
+parser_t * FAST_FUNC config_open(const char *filename)
 {
 	return config_open2(filename, fopen_or_warn_stdin);
 }
@@ -142,7 +142,7 @@ static void config_free_data(parser_t *parser)
 }
 #endif
 
-void attribute_hidden FAST_FUNC config_close(parser_t *parser)
+void FAST_FUNC config_close(parser_t *parser)
 {
 	if (parser) {
 		fclose(parser->fp);
@@ -176,7 +176,7 @@ mintokens > 0 make config_read() print error message if less than mintokens
 (but more than 0) are found. Empty lines are always skipped (not warned about).
 */
 #undef config_read
-int attribute_hidden FAST_FUNC config_read(parser_t *parser, char ***tokens,
+int FAST_FUNC config_read(parser_t *parser, char ***tokens,
 											unsigned flags, const char *delims)
 {
 	char *line;
@@ -206,8 +206,6 @@ again:
 	len = bb_get_chunk_with_continuation(parser);
 	if (len == -1)
 		return 0;
-	*tokens = (char **) parser->data;
-	memset(*tokens, 0, sizeof(*tokens[0]) * ntokens);
 	line = parser->line;
 
 	/* Skip multiple token-delimiters in the start of line? */
@@ -216,6 +214,9 @@ again:
 
 	if (line[0] == '\0' || line[0] == delims[0])
 		goto again;
+
+	*tokens = (char **) parser->data;
+	memset(*tokens, 0, sizeof(*tokens[0]) * ntokens);
 
 	/* Tokenize the line */
 	for (t = 0; *line && *line != delims[0] && t < ntokens; t++) {

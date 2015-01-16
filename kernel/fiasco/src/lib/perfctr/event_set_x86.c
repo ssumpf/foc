@@ -1,4 +1,4 @@
-/* $Id: event_set_x86.c 37048 2009-11-12 21:44:56Z adam $
+/* $Id$
  * Descriptions of the events available for different processor types.
  *
  * Copyright (C) 1999-2004  Mikael Pettersson
@@ -36,10 +36,10 @@ static const struct perfctr_event_set * const cpu_event_set[] = {
     [PERFCTR_X86_WINCHIP_2] = &perfctr_wc2_event_set,
     [PERFCTR_X86_AMD_K7] = &perfctr_k7_event_set,
     [PERFCTR_X86_VIA_C3] = &perfctr_vc3_event_set,
+#endif
     [PERFCTR_X86_INTEL_P4] = &perfctr_p4_event_set,
     [PERFCTR_X86_INTEL_P4M2] = &perfctr_p4_event_set,
     [PERFCTR_X86_INTEL_PENTM] = &perfctr_pentm_event_set,
-#endif
     [PERFCTR_X86_INTEL_P4M3] = &perfctr_p4m3_event_set,
     [PERFCTR_X86_AMD_K8] = &perfctr_k8_event_set,
     [PERFCTR_X86_AMD_K8C] = &perfctr_k8c_event_set,

@@ -17,9 +17,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <fpu_control.h>
 #include <stdlib.h>
@@ -187,6 +186,7 @@
 
 #define _FP_DECL_EX	fpu_control_t _fcw
 
+#ifdef __UCLIBC_HAS_FPU__
 #define FP_INIT_ROUNDMODE					\
 do {								\
   _FPU_GETCW(_fcw);						\
@@ -211,3 +211,4 @@ do {								\
   else								\
     ___Q_simulate_exceptions (_fex);			        \
 } while (0)
+#endif

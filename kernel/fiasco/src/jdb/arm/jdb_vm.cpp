@@ -43,10 +43,10 @@ Jdb_vm::kobject_type() const
 }
 
 PUBLIC
-int
-Jdb_vm::show_kobject_short(char *buf, int max, Kobject_common *o)
+void
+Jdb_vm::show_kobject_short(String_buffer *buf, Kobject_common *o)
 {
-  return Kobject::dcast<Vm *>(o)->show_short(buf, max);
+  return Kobject::dcast<Vm *>(o)->show_short(buf);
 }
 
 //static Jdb_vm jdb_vm INIT_PRIORITY(JDB_MODULE_INIT_PRIO);

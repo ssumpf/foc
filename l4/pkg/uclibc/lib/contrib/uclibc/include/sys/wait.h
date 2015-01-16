@@ -1,5 +1,5 @@
-/* Copyright (C) 1991-1994,1996-2001,2003,2004,2005
-	Free Software Foundation, Inc.
+/* Copyright (C) 1991-1994,1996-2001,2003,2004,2005,2007,2009
+   Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /*
  *	POSIX Standard: 3.2.1 Wait for Process Termination	<sys/wait.h>
@@ -47,11 +46,11 @@ __BEGIN_DECLS
   (__extension__ (((union { __typeof(status) __in; int __i; }) \
                    { .__in = (status) }).__i))
 #  else
-#   define __WAIT_INT(status)	(*(__const int *) &(status))
+#   define __WAIT_INT(status)	(*(const int *) &(status))
 #  endif
 
 /* This is the type of the argument to `wait'.  The funky union
-   causes redeclarations with ether `int *' or `union wait *' to be
+   causes redeclarations with either `int *' or `union wait *' to be
    allowed without complaint.  __WAIT_STATUS_DEFN is the type used in
    the actual function definitions.  */
 
@@ -79,22 +78,22 @@ typedef union
 /* This will define all the `__W*' macros.  */
 # include <bits/waitstatus.h>
 
-# define WEXITSTATUS(status)	__WEXITSTATUS(__WAIT_INT(status))
-# define WTERMSIG(status)	__WTERMSIG(__WAIT_INT(status))
-# define WSTOPSIG(status)	__WSTOPSIG(__WAIT_INT(status))
-# define WIFEXITED(status)	__WIFEXITED(__WAIT_INT(status))
-# define WIFSIGNALED(status)	__WIFSIGNALED(__WAIT_INT(status))
-# define WIFSTOPPED(status)	__WIFSTOPPED(__WAIT_INT(status))
+# define WEXITSTATUS(status)	__WEXITSTATUS (__WAIT_INT (status))
+# define WTERMSIG(status)	__WTERMSIG (__WAIT_INT (status))
+# define WSTOPSIG(status)	__WSTOPSIG (__WAIT_INT (status))
+# define WIFEXITED(status)	__WIFEXITED (__WAIT_INT (status))
+# define WIFSIGNALED(status)	__WIFSIGNALED (__WAIT_INT (status))
+# define WIFSTOPPED(status)	__WIFSTOPPED (__WAIT_INT (status))
 # ifdef __WIFCONTINUED
-#  define WIFCONTINUED(status)	__WIFCONTINUED(__WAIT_INT(status))
+#  define WIFCONTINUED(status)	__WIFCONTINUED (__WAIT_INT (status))
 # endif
 #endif	/* <stdlib.h> not included.  */
 
 #ifdef	__USE_BSD
 # define WCOREFLAG		__WCOREFLAG
-# define WCOREDUMP(status)	__WCOREDUMP(__WAIT_INT(status))
-# define W_EXITCODE(ret, sig)	__W_EXITCODE(ret, sig)
-# define W_STOPCODE(sig)	__W_STOPCODE(sig)
+# define WCOREDUMP(status)	__WCOREDUMP (__WAIT_INT (status))
+# define W_EXITCODE(ret, sig)	__W_EXITCODE (ret, sig)
+# define W_STOPCODE(sig)	__W_STOPCODE (sig)
 #endif
 
 /* The following values are used by the `waitid' function.  */
@@ -137,7 +136,10 @@ extern __pid_t wait (__WAIT_STATUS __stat_loc);
    This function is a cancellation point and therefore not marked with
    __THROW.  */
 extern __pid_t waitpid (__pid_t __pid, int *__stat_loc, int __options);
+#ifdef _LIBC
+extern __typeof(waitpid) __waitpid_nocancel attribute_hidden;
 libc_hidden_proto(waitpid)
+#endif
 
 #if defined __USE_SVID || defined __USE_XOPEN
 # define __need_siginfo_t
@@ -158,10 +160,6 @@ extern int waitid (idtype_t __idtype, __id_t __id, siginfo_t *__infop,
 #endif
 
 #if defined __USE_BSD || defined __USE_XOPEN_EXTENDED
-/* This being here makes the prototypes valid whether or not
-   we have already included <sys/resource.h> to define `struct rusage'.  */
-struct rusage;
-
 /* Wait for a child to exit.  When one does, put its status in *STAT_LOC and
    return its process ID.  For errors return (pid_t) -1.  If USAGE is not
    nil, store information about the child's resource usage there.  If the
@@ -172,15 +170,14 @@ extern __pid_t wait3 (__WAIT_STATUS __stat_loc, int __options,
 #endif
 
 #ifdef __USE_BSD
-/* This being here makes the prototypes valid whether or not
-   we have already included <sys/resource.h> to define `struct rusage'.  */
-struct rusage;
-
 /* PID is like waitpid.  Other args are like wait3.  */
 extern __pid_t wait4 (__pid_t __pid, __WAIT_STATUS __stat_loc, int __options,
 		      struct rusage *__usage) __THROW;
-libc_hidden_proto(wait4)
 #endif /* Use BSD.  */
+
+#ifdef _LIBC
+extern __pid_t __wait4_nocancel(__pid_t, __WAIT_STATUS, int, struct rusage *) attribute_hidden;
+#endif
 
 
 __END_DECLS

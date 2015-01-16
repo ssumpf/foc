@@ -34,9 +34,6 @@
  * Client interface to pmap rpc service.
  */
 
-#define __FORCE_GLIBC
-#include <features.h>
-
 #include <stdio.h>
 #include <unistd.h>
 #include <net/if.h>
@@ -44,7 +41,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <rpc/rpc.h>
+#include "rpc_private.h"
 #include <rpc/pmap_prot.h>
 #include <rpc/pmap_clnt.h>
 

@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Where is System V/SH ABI?  */
 
@@ -32,10 +31,10 @@
 typedef int greg_t;
 
 /* Number of general registers.  */
-#define NFPREG	16
+#define NGREG	16
 
 /* Container for all general registers.  */
-typedef greg_t gregset_t[NFPREG];
+typedef greg_t gregset_t[NGREG];
 
 #ifdef __USE_GNU
 /* Number of each register is the `gregset_t' array.  */

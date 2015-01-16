@@ -31,8 +31,7 @@ kernel_main(void)
 
   // caution: no stack variables in this function because we're going
   // to change the stack pointer!
-  cpu.print();
-  cpu.show_cache_tlb_info("");
+  cpu.print_infos();
 
   printf ("\nFreeing init code/data: %lu bytes (%lu pages)\n\n",
           (Address)(&Mem_layout::initcall_end - &Mem_layout::initcall_start),
@@ -64,7 +63,7 @@ IMPLEMENTATION[amd64 && mp]:
 #include "kernel_thread.h"
 
 void
-main_switch_ap_cpu_stack(Kernel_thread *kernel)
+main_switch_ap_cpu_stack(Kernel_thread *kernel, bool resume)
 {
   Mword dummy;
 
@@ -73,5 +72,5 @@ main_switch_ap_cpu_stack(Kernel_thread *kernel)
     ("	mov %[rsp], %%rsp	\n\t"	// switch stack
      "	call call_ap_bootstrap	\n\t"	// bootstrap kernel thread
      :  "=a" (dummy), "=c" (dummy), "=d" (dummy)
-     :	"D"(kernel), [rsp]"r" (kernel->init_stack()));
+     :	"D"(kernel), "S"(resume), [rsp]"r" (kernel->init_stack()));
 }

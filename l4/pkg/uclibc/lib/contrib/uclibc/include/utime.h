@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /*
  *	POSIX Standard: 5.6.6 Set File Access and Modification Times  <utime.h>
@@ -43,8 +42,8 @@ struct utimbuf
 
 /* Set the access and modification times of FILE to those given in
    *FILE_TIMES.  If FILE_TIMES is NULL, set them to the current time.  */
-extern int utime (__const char *__file,
-		  __const struct utimbuf *__file_times)
+extern int utime (const char *__file,
+		  const struct utimbuf *__file_times)
      __THROW __nonnull ((1));
 libc_hidden_proto(utime)
 

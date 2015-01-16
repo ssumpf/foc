@@ -3,35 +3,115 @@ INTERFACE:
 #include "assert_opt.h"
 #include "l4_types.h"
 #include "space.h"
+#include <cxx/function>
 
 class Mapdb;
 
 namespace Mu {
 
+template<typename SPACE>
+struct Auto_tlb_flush
+{
+  void add_page(SPACE *, typename SPACE::V_pfn, typename SPACE::Page_order) {}
+};
+
+template<>
+struct Auto_tlb_flush<Mem_space>
+{
+  enum { N_spaces = 4 };
+  bool all;
+  bool empty;
+
+  Mem_space *spaces[N_spaces];
+  Auto_tlb_flush() : all(false), empty(true)
+  {
+    for (unsigned i = 0; i < N_spaces; ++i)
+      spaces[i] = 0;
+  }
+
+  void add_page(Mem_space *space, Mem_space::V_pfn, Mem_space::Page_order)
+  {
+    if (all)
+      return;
+
+    empty = false;
+
+    for (unsigned i = 0; i < N_spaces; ++i)
+      {
+        if (spaces[i] == 0)
+          {
+            spaces[i] = space;
+            return;
+          }
+
+        if (spaces[i] == space)
+          return;
+      }
+
+    // got an overflow, we have to flush all
+    all = true;
+  }
+
+  void do_flush()
+  {
+    if (all)
+      {
+        // do a full flush locally
+        Mem_unit::tlb_flush();
+        return;
+      }
+
+    for (unsigned i = 0; i < N_spaces; ++i)
+      {
+        if (spaces[i])
+          spaces[i]->tlb_flush(true);
+        else
+          return;
+      }
+  }
+
+  void global_flush()
+  {
+    if (empty)
+      return;
+
+    Context::cpu_call_many(Context::active_tlb(), [this](Cpu_number) {
+      this->do_flush();
+      return false;
+    });
+  }
+
+  ~Auto_tlb_flush() { global_flush(); }
+};
+
+
 struct Mapping_type_t;
 typedef cxx::int_type<unsigned, Mapping_type_t> Mapping_type;
 
-template< typename SPACE, typename M >
+template< typename SPACE, typename M, typename O >
 inline
 L4_fpage::Rights
-v_delete(M &m, L4_fpage::Rights flush_rights, bool full_flush)
+v_delete(M *m, O order, L4_fpage::Rights flush_rights,
+         bool full_flush, Auto_tlb_flush<SPACE> &tlb)
 {
   SPACE* child_space = m->space();
   assert_opt (child_space);
-  L4_fpage::Rights res = child_space->v_delete(SPACE::to_virt(m.page()),
-                                               SPACE::to_order(m.order()),
+  L4_fpage::Rights res = child_space->v_delete(SPACE::to_virt(m->pfn(order)),
+                                               SPACE::to_order(order),
                                                flush_rights);
+  tlb.add_page(child_space, SPACE::to_virt(m->pfn(order)), SPACE::to_order(order));
   (void) full_flush;
-  assert_kdb (full_flush != child_space->v_lookup(SPACE::to_virt(m.page())));
+  assert_kdb (full_flush != child_space->v_lookup(SPACE::to_virt(m->pfn(order))));
   return res;
 }
 
 template<>
 inline
 L4_fpage::Rights
-v_delete<Obj_space>(Kobject_mapdb::Iterator &m, L4_fpage::Rights flush_rights, bool /*full_flush*/)
+v_delete<Obj_space>(Kobject_mapdb::Mapping *m, int, L4_fpage::Rights flush_rights,
+                    bool /*full_flush*/, Auto_tlb_flush<Obj_space> &)
 {
-  Obj_space::Entry *c = static_cast<Obj_space::Entry*>(*m);
+  Obj_space::Entry *c = static_cast<Obj_space::Entry*>(m);
 
   if (c->valid())
     {
@@ -91,16 +171,6 @@ public:
 };
 
 
-class Reap_list
-{
-private:
-  Kobject *_h;
-  Kobject **_t;
-
-public:
-  Reap_list() : _h(0), _t(&_h) {}
-  Kobject ***list() { return &_t; }
-};
 
 //------------------------------------------------------------------------
 IMPLEMENTATION:
@@ -214,7 +284,7 @@ Map_traits<Obj_space>::apply_attribs(Obj_space::Attr attribs,
 // inline NEEDS ["config.h", io_map]
 L4_error
 fpage_map(Space *from, L4_fpage fp_from, Space *to,
-          L4_fpage fp_to, L4_msg_item control, Reap_list *r)
+          L4_fpage fp_to, L4_msg_item control, Kobject::Reap_list *r)
 {
   Space::Caps caps = from->caps() & to->caps();
 
@@ -263,33 +333,6 @@ fpage_unmap(Space *space, L4_fpage fp, L4_map_mask mask, Kobject ***rl)
   return ret;
 }
 
-PUBLIC
-void
-Reap_list::del()
-{
-  if (EXPECT_TRUE(!_h))
-    return;
-
-  for (Kobject *reap = _h; reap; reap = reap->_next_to_reap)
-    reap->destroy(list());
-
-  current()->rcu_wait();
-
-  for (Kobject *reap = _h; reap;)
-    {
-      Kobject *d = reap;
-      reap = reap->_next_to_reap;
-      if (d->put())
-	delete d;
-    }
-
-  _h = 0;
-  _t = &_h;
-}
-
-PUBLIC inline
-Reap_list::~Reap_list()
-{ del(); }
 
 //////////////////////////////////////////////////////////////////////
 //
@@ -297,7 +340,7 @@ Reap_list::~Reap_list()
 //
 
 inline
-template <typename SPACE, typename MAPDB>
+template <typename SPACE, typename MAPDB> inline
 L4_error
 map(MAPDB* mapdb,
     SPACE* from, Space *from_id,
@@ -306,6 +349,7 @@ map(MAPDB* mapdb,
     SPACE* to, Space *to_id,
     typename SPACE::V_pfn rcv_addr,
     bool grant, typename SPACE::Attr attribs,
+    Mu::Auto_tlb_flush<SPACE> &tlb,
     typename SPACE::Reap_list **reap_list = 0)
 {
   using namespace Mu;
@@ -353,9 +397,6 @@ map(MAPDB* mapdb,
   // increment variable for our map loop
   V_pfc size;
 
-  bool from_needs_tlb_flush = false;
-  bool to_needs_tlb_flush = false;
-  bool need_xcpu_tlb_flush = false;
   V_pfn const to_max = to->map_max_address();
   V_pfn const from_max = from->map_max_address();
 
@@ -454,7 +495,7 @@ map(MAPDB* mapdb,
 
           if (! sender_mapping)	// Need flush
             unmap(mapdb, to, to_id, SPACE::page_address(rcv_addr, r_order), SPACE::to_size(r_order),
-                  L4_fpage::Rights::FULL(), L4_map_mask::full(), reap_list);
+                  L4_fpage::Rights::FULL(), L4_map_mask::full(), tlb, reap_list);
         }
 
       // Loop increment is size of insertion
@@ -498,7 +539,7 @@ map(MAPDB* mapdb,
                 {
                   // Error -- remove mapping again.
                   to->v_delete(rcv_addr, i_order, L4_fpage::Rights::FULL());
-                  to_needs_tlb_flush = true;
+                  tlb.add_page(to, rcv_addr, i_order);
 
                   // may fail due to quota limits
                   condition = L4_error::Map_failed;
@@ -506,7 +547,7 @@ map(MAPDB* mapdb,
                 }
 
               from->v_delete(SPACE::page_address(snd_addr, s_order), s_order, L4_fpage::Rights::FULL());
-              from_needs_tlb_flush = true;
+              tlb.add_page(from, SPACE::page_address(snd_addr, s_order), s_order);
             }
           else if (status == SPACE::Insert_ok)
             {
@@ -517,7 +558,7 @@ map(MAPDB* mapdb,
                 {
                   // Error -- remove mapping again.
                   to->v_delete(rcv_addr, i_order, L4_fpage::Rights::FULL());
-                  to_needs_tlb_flush = true;
+                  tlb.add_page(to, rcv_addr, i_order);
 
                   // XXX This is not race-free as the mapping could have
                   // been used in the mean-time, but we do not care.
@@ -526,8 +567,8 @@ map(MAPDB* mapdb,
                 }
             }
 
-          if (SPACE::Need_xcpu_tlb_flush && SPACE::Need_insert_tlb_flush)
-            need_xcpu_tlb_flush = true;
+          if (SPACE::Need_insert_tlb_flush)
+            tlb.add_page(to, rcv_addr, i_order);
 
             {
               V_pfc super_offset = SPACE::subpage_offset(snd_addr, i_order);
@@ -562,21 +603,6 @@ map(MAPDB* mapdb,
       if (!condition.ok())
         break;
     }
-
-  if (from_needs_tlb_flush || to_needs_tlb_flush)
-    {
-      SPACE *f = from_needs_tlb_flush ? from : 0;
-      SPACE *t = to_needs_tlb_flush   ? to   : 0;
-      SPACE::tlb_flush_spaces(false, t, f);
-      if (SPACE::Need_xcpu_tlb_flush)
-        {
-          need_xcpu_tlb_flush = false;
-          Context::xcpu_tlb_flush(false, t, f);
-        }
-    }
-
-  if (need_xcpu_tlb_flush)
-    Context::xcpu_tlb_flush(false, to, from);
 
   // FIXME: make this debugging code optional
   if (EXPECT_FALSE(no_page_mapped))
@@ -624,18 +650,19 @@ save_access_flags(SPACE *, typename SPACE::V_pfn, bool,
 {}
 
 
-template <typename SPACE, typename MAPDB>
+template <typename SPACE, typename MAPDB> inline
 L4_fpage::Rights
 unmap(MAPDB* mapdb, SPACE* space, Space *space_id,
       typename SPACE::V_pfn start,
       typename SPACE::V_pfc size,
       L4_fpage::Rights rights,
-      L4_map_mask mask, typename SPACE::Reap_list **reap_list)
+      L4_map_mask mask,
+      Mu::Auto_tlb_flush<SPACE> &tlb,
+      typename SPACE::Reap_list **reap_list)
 {
   using namespace Mu;
 
   typedef typename MAPDB::Mapping Mapping;
-  typedef typename MAPDB::Iterator Iterator;
   typedef typename MAPDB::Frame Frame;
 
   typedef typename SPACE::V_pfn V_pfn;
@@ -653,8 +680,6 @@ unmap(MAPDB* mapdb, SPACE* space, Space *space_id,
   V_pfn page_address;
 
   bool const full_flush = SPACE::is_full_flush(rights);
-  bool need_tlb_flush = false;
-  bool need_xcpu_tlb_flush = false;
 
   // iterate over all pages in "space"'s page table that are mapped
   // into the specified region
@@ -709,19 +734,14 @@ unmap(MAPDB* mapdb, SPACE* space, Space *space_id,
           page_rights |=
             space->v_delete(address, phys_order, rights);
 
-          // assert_kdb (full_flush != space->v_lookup(address));
-          need_tlb_flush = true;
-          need_xcpu_tlb_flush = true;
+          tlb.add_page(space, address, phys_order);
         }
 
-      // now delete from the other address spaces
-      for (Iterator m(mapdb_frame, mapping, SPACE::to_pfn(address), SPACE::to_pfn(end));
-           m;
-           ++m)
-        {
-          page_rights |= v_delete<SPACE>(m, rights, full_flush);
-          need_xcpu_tlb_flush = true;
-        }
+      MAPDB::foreach_mapping(mapdb_frame, mapping, SPACE::to_pfn(address), SPACE::to_pfn(end),
+          [&page_rights, rights, full_flush, &tlb](typename MAPDB::Mapping *m, typename MAPDB::Order size)
+          {
+            page_rights |= v_delete<SPACE>(m, size, rights, full_flush, tlb);
+          });
 
       flushed_rights |= page_rights;
 
@@ -736,12 +756,6 @@ unmap(MAPDB* mapdb, SPACE* space, Space *space_id,
 
       mapdb->free(mapdb_frame);
     }
-
-  if (need_tlb_flush)
-    space->tlb_flush();
-
-  if (SPACE::Need_xcpu_tlb_flush && need_xcpu_tlb_flush)
-    Context::xcpu_tlb_flush(true, space, 0);
 
   return flushed_rights;
 }

@@ -27,9 +27,8 @@ public:
 private:
   enum
   {
-    Timeout_ipc       = 1,
-    Timeout_deadline  = 2,
-    Timeout_timeslice = 3
+    Timeout_timeslice = 1,
+    Timeout_sc        = 2,
   };
 };
 
@@ -191,15 +190,11 @@ static
 int
 Jdb_list_timeouts::get_type(Timeout *t)
 {
-  Address addr = (Address)t;
+  for (Cpu_number i = Cpu_number::first(); i < Config::max_num_cpus(); ++i)
+    if (t == timeslice_timeout.cpu(i))
+      return Timeout_timeslice;
 
-  if (t == timeslice_timeout.cpu(Cpu_number::first()))
-    // there is only one global timeslice timeout
-    return Timeout_timeslice;
-
-  if ((addr % Context::Size) >= sizeof(Thread))
-    // IPC timeouts are located at the kernel stack
-    return Timeout_ipc;
+  // add others
 
   // unknown
   return 0;
@@ -211,10 +206,6 @@ Jdb_list_timeouts::get_owner(Timeout *t)
 {
   switch (get_type(t))
     {
-      case Timeout_ipc:
-        return static_cast<Thread*>(context_of(t));
-      case Timeout_deadline:
-        return static_cast<Thread*>(context_of(t));
       case Timeout_timeslice:
         return static_cast<Thread*>(Context::kernel_context(Cpu_number::first()));
 #if 0
@@ -231,7 +222,6 @@ static
 void
 Jdb_list_timeouts::show_header()
 {
-  Jdb::cursor();
   printf("%s  type           timeout    owner       name\033[m\033[K\n",
          Jdb::esc_emph);
 }
@@ -249,27 +239,17 @@ Jdb_list_timeouts::list_timeouts_show_timeout(Timeout *t)
 
   switch (get_type(t))
     {
-    case Timeout_ipc:
-      type  = "ipc";
-      owner = get_owner(t);
-      snprintf(ownerstr, sizeof(ownerstr), "  %p", owner);
-      break;
-    case Timeout_deadline:
-      type  = "deadline";
-      owner = get_owner(t);
-      snprintf(ownerstr, sizeof(ownerstr), "  %p", owner);
-      break;
     case Timeout_timeslice:
       type  = "timeslice";
       owner = get_owner(t);
       if (owner)
         snprintf(ownerstr, sizeof(ownerstr), "  %p", owner);
       else
-       strcpy (ownerstr, "destruct");
+       strcpy(ownerstr, "destruct");
       break;
     default:
-      snprintf(ownerstr, sizeof(ownerstr), L4_PTR_FMT, (Address)t);
-      type  = "???";
+      snprintf(ownerstr, sizeof(ownerstr), "  0x%lx", (Address)t);
+      type  = "unkn";
       owner = 0;
       break;
     }
@@ -279,11 +259,10 @@ Jdb_list_timeouts::list_timeouts_show_timeout(Timeout *t)
     putstr("   over     ");
   else
     {
-      char time_str[12];
-      Jdb::write_ll_ns(timeout * 1000, time_str,
-                       11 < sizeof(time_str) - 1 ? 11 : sizeof(time_str) - 1,
-                       false);
-      putstr(time_str);
+      String_buf<12> time_str;
+      Jdb::write_ll_ns(&time_str, timeout * 1000, false);
+      time_str.terminate();
+      putstr(time_str.begin());
     }
 
   Jdb_kobject_name *nx = 0;
@@ -298,6 +277,21 @@ IMPLEMENT
 Jdb_list_timeouts::Jdb_list_timeouts()
   : Jdb_module("INFO")
 {}
+
+static
+void
+Jdb_list_timeouts::complete_show()
+{
+  typedef Rnd_container<Timeout_iter> Cont;
+  typedef Cont::Iterator Iter;
+
+  Cont to_cont(Timeout_iter(&Timeout_q::timeout_queue.cpu(Cpu_number::first())),
+               Timeout_iter(&Timeout_q::timeout_queue.cpu(Cpu_number::first()), true));
+
+  show_header();
+  for (Iter i = to_cont.begin(); i != to_cont.end(); ++i)
+    list_timeouts_show_timeout(*i);
+}
 
 static
 void
@@ -316,6 +310,7 @@ Jdb_list_timeouts::list()
   --end;
 
   Jdb::clear_screen();
+  Jdb::cursor();
   show_header();
   for (;;)
     {
@@ -325,6 +320,7 @@ Jdb_list_timeouts::list()
         {
           Jdb::cursor(2, 1);
           y_max = 0;
+          // need to check for y_max > Jdb_screen::height()-3 here too
           for (Iter i = current; i != to_cont.end(); ++i, ++y_max)
             list_timeouts_show_timeout(*i);
 
@@ -401,6 +397,7 @@ Jdb_list_timeouts::list()
                         {
                           if (!jdb_show_tcb(owner, 1))
                             return;
+                          Jdb::cursor();
                           show_header();
                           redraw = 1;
                         }
@@ -424,6 +421,8 @@ Jdb_list_timeouts::action(int cmd, void *&, char const *&, int &)
 {
   if (cmd == 0)
     list();
+  else if (cmd == 1)
+    complete_show();
 
   return NOTHING;
 }
@@ -435,6 +434,7 @@ Jdb_list_timeouts::cmds() const
   static Cmd cs[] =
     {
         { 0, "lt", "timeouts", "", "lt\tshow enqueued timeouts", 0 },
+        { 1, "", "timeoutsdump", "", 0, 0 },
     };
 
   return cs;
@@ -444,7 +444,7 @@ PUBLIC
 int
 Jdb_list_timeouts::num_cmds() const
 {
-  return 1;
+  return 2;
 }
 
 static Jdb_list_timeouts jdb_list_timeouts INIT_PRIORITY(JDB_MODULE_INIT_PRIO);

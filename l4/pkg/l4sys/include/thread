@@ -162,7 +162,7 @@ public:
   { return l4_thread_switch_u(cap(), utcb); }
 
   /**
-   * \brief Get consumed timed of thread in ns.
+   * \brief Get consumed time of thread in us.
    * \param utcb the UTCB of the current thread.
    *
    * The consumed time is return as l4_kernel_clock_t at UTCB message

@@ -236,7 +236,7 @@ IMPLEMENTATION [ppc32]:
     @param id user-visible thread ID of the sender
     @param init_prio initial priority
     @param mcp thread's maximum controlled priority
-    @post state() != Thread_invalid
+    @post state() != 0
  */
 IMPLEMENT
 Thread::Thread()
@@ -246,7 +246,7 @@ Thread::Thread()
     _del_observer(0)
 {
 
-  assert(state(false) == Thread_invalid);
+  assert(state(false) == 0);
 
   inc_ref();
   _space.space(Kernel_task::kernel_task());

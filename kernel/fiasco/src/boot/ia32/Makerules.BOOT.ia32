@@ -30,7 +30,7 @@ boot_img.x2:	boot_img.x1
 
 kernel.ia32.lds: linking.h
 
-$(KERNEL):	kernel.ia32.lds boot_img.o $(CRT0) $(OBJ_KERNEL) $(JDB) $(LIBK) $(KERNEL_EXTRA_LIBS) $(ABI) $(JABI) libdrivers.a $(CXXLIB) $(LIBKERN) $(MINILIBC) libgluedriverslibc.a
+$(KERNEL):	kernel.ia32.lds boot_img.o $(CRT0) $(OBJ_KERNEL) $(JDB) $(LIBK) $(KERNEL_EXTRA_LIBS) $(ABI) $(JABI) libdrivers.a $(LIBUART) $(CXXLIB) $(LIBKERN) $(MINILIBC) libgluedriverslibc.a
 		$(LINK_MESSAGE)
 		$(VERBOSE)$(LD)	-m $(LD_EMULATION) -N -o $@ \
 		   -T $< -gc-sections $(filter-out $<,$+) \

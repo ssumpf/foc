@@ -7,6 +7,7 @@ IMPLEMENTATION [arm]:
 #include "ipi.h"
 #include "kern_lib_page.h"
 #include "kernel_task.h"
+#include "kernel_uart.h"
 #include "kip_init.h"
 #include "kmem_alloc.h"
 #include "kmem_space.h"
@@ -28,6 +29,7 @@ IMPLEMENT FIASCO_INIT FIASCO_NOINLINE
 void
 Startup::stage1()
 {
+  Kernel_uart::init(Kernel_uart::Init_after_mmu);
   Proc::cli();
   Boot_info::init();
   Cpu::early_init();
@@ -54,12 +56,12 @@ Startup::stage2()
   Kernel_task::init();
   Mem_space::kernel_space(Kernel_task::kernel_task());
   Pic::init();
-  Thread::init_per_cpu(boot_cpu);
+  Thread::init_per_cpu(boot_cpu, false);
 
   Cpu::init_mmu();
-  Cpu::cpus.cpu(boot_cpu).init(true);
+  Cpu::cpus.cpu(boot_cpu).init(false, true);
   Platform_control::init(boot_cpu);
-  Fpu::init(boot_cpu);
+  Fpu::init(boot_cpu, false);
   Ipi::init(boot_cpu);
   Timer::init(boot_cpu);
   Kern_lib_page::init();

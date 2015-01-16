@@ -43,11 +43,11 @@ Jdb_factory::kobject_type() const
 }
 
 PUBLIC
-int
-Jdb_factory::show_kobject_short(char *buf, int max, Kobject_common *o)
+void
+Jdb_factory::show_kobject_short(String_buffer *buf, Kobject_common *o)
 {
   Factory *t = Kobject::dcast<Factory*>(o);
-  return snprintf(buf, max, " c=%ld l=%ld", t->current(), t->limit());
+  buf->printf(" c=%ld l=%ld", t->current(), t->limit());
 }
 
 static Jdb_factory jdb_factory INIT_PRIORITY(JDB_MODULE_INIT_PRIO);

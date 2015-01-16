@@ -13,21 +13,22 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _SIGNAL_H
 # error "Never include this file directly.  Use <signal.h> instead"
 #endif
 
 
+#if defined __UCLIBC_SUSV4_LEGACY__ || !defined __STRICT_HEADERS__
 /* Structure describing a signal stack (obsolete).  */
 struct sigstack
   {
     void *ss_sp;		/* Signal stack pointer.  */
     int ss_onstack;		/* Nonzero if executing on this stack.  */
   };
+#endif
 
 
 /* Possible values for `ss_flags.'.  */

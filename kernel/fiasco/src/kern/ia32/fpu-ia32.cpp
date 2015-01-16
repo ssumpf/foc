@@ -19,7 +19,7 @@ Fpu::init_xsave(Cpu_number cpu)
 {
   Unsigned32 eax, ebx, ecx, edx;
 
-  Cpu::cpus.cpu(cpu).cpuid_0xd(0, &eax, &ebx, &ecx, &edx);
+  Cpu::cpus.cpu(cpu).cpuid(0xd, 0, &eax, &ebx, &ecx, &edx);
 
   Unsigned64 valid_xcr0 = ((Unsigned64)edx << 32) | eax;
 
@@ -130,7 +130,7 @@ Fpu::restore_state(Fpu_state *s)
 /*
  * Mark the FPU busy. The next attempt to use it will yield a trap.
  */
-IMPLEMENT inline NEEDS ["regdefs.h","cpu.h"]
+PUBLIC static inline NEEDS ["regdefs.h","cpu.h"]
 void
 Fpu::disable()
 {
@@ -140,7 +140,7 @@ Fpu::disable()
 /*
  * Mark the FPU no longer busy. Subsequent FPU access won't trap.
  */
-IMPLEMENT inline
+PUBLIC static inline
 void
 Fpu::enable()
 {

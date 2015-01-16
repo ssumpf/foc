@@ -15,9 +15,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _BITS_SYSCALLS_H
 #define _BITS_SYSCALLS_H
@@ -62,23 +61,28 @@
     _retval = _r8;
 
 #define INLINE_SYSCALL_NCS(name, nr, args...)		\
+(__extension__						\
   ({							\
-    DO_INLINE_SYSCALL_NCS (name, nr, args)	\
-    if (_r10 == -1)					\
+    DO_INLINE_SYSCALL_NCS (name, nr, args)		\
+    if (unlikely (_r10 == -1))				\
       {							\
 	__set_errno (_retval);				\
 	_retval = -1;					\
       }							\
-    _retval; })
+    _retval;						\
+   })							\
+)
 
 #define INTERNAL_SYSCALL_DECL(err) long int err
 
 #define INTERNAL_SYSCALL_NCS(name, err, nr, args...)	\
+(__extension__ \
   ({							\
     DO_INLINE_SYSCALL_NCS (name, nr, args)		\
     err = _r10;						\
-    _retval; })
-
+    _retval;						\
+   }) \
+)
 #define INTERNAL_SYSCALL_ERROR_P(val, err)	(err == -1)
 
 #define INTERNAL_SYSCALL_ERRNO(val, err)	(val)

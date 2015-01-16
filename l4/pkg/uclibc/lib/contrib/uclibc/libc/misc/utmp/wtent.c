@@ -11,6 +11,9 @@
 #include <time.h>
 #include <unistd.h>
 #include <utmp.h>
+#ifdef __UCLIBC_HAS_UTMPX__
+# include <utmpx.h>
+#endif
 #include <fcntl.h>
 #include <sys/file.h>
 #include <not-cancel.h>
@@ -33,11 +36,11 @@ void logwtmp (const char *line, const char *name, const char *host)
 }
 #endif
 
-void updwtmp(const char *wtmp_file, const struct utmp *lutmp)
+static void __updwtmp(const char *wtmp_file, const struct utmp *lutmp)
 {
     int fd;
 
-    fd = open_not_cancel(wtmp_file, O_APPEND | O_WRONLY, 0);
+    fd = open_not_cancel_2(wtmp_file, O_APPEND | O_WRONLY);
     if (fd >= 0) {
 	if (lockf(fd, F_LOCK, 0) == 0) {
 	    write_not_cancel(fd, lutmp, sizeof(struct utmp));
@@ -46,4 +49,11 @@ void updwtmp(const char *wtmp_file, const struct utmp *lutmp)
 	}
     }
 }
-libc_hidden_def(updwtmp)
+strong_alias(__updwtmp,updwtmp)
+
+#ifdef __UCLIBC_HAS_UTMPX__
+void updwtmpx (const char *wtmpx_file, const struct utmpx *utmpx)
+{
+	__updwtmp (wtmpx_file, (const struct utmp *) utmpx);
+}
+#endif

@@ -353,3 +353,4 @@ Pic::set_cpu(unsigned, Cpu_number cpu)
   (void)cpu;
   assert(cpu == Cpu_number::boot_cpu());
 }
+

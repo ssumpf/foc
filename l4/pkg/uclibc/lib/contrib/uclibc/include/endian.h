@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef	_ENDIAN_H
 #define	_ENDIAN_H	1
@@ -55,6 +54,17 @@
 # define __LONG_LONG_PAIR(HI, LO) HI, LO
 #endif
 
+#ifdef _LIBC
+# ifndef __ASSEMBLER__
+#  include <stdint.h>
+#  define OFF_HI(offset) (offset >> 31)
+#  define OFF_LO(offset) (offset)
+#  define OFF64_HI(offset) (uint32_t)(offset >> 32)
+#  define OFF64_LO(offset) (uint32_t)(offset & 0xffffffff)
+#  define OFF_HI_LO(offset) __LONG_LONG_PAIR(OFF_HI(offset), OFF_LO(offset))
+#  define OFF64_HI_LO(offset) __LONG_LONG_PAIR(OFF64_HI(offset), OFF64_LO(offset))
+# endif
+#endif
 
 #ifdef __USE_BSD
 /* Conversion interfaces.  */

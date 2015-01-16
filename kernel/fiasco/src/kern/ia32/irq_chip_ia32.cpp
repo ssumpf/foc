@@ -177,7 +177,7 @@ Irq_chip_ia32::Irq_chip_ia32(unsigned irqs)
 : _irqs(irqs),
   _entry(new Irq_entry_code[irqs])
 {
-  // add vectors from 0x40 upo to APIC_IRQ_BASE - 0x10 as free
+  // add vectors from 0x40 up to APIC_IRQ_BASE - 0x10 as free
   // if we are the first IA32 chip ctor running
   if (_vectors.empty())
     _vectors.add_free(0x40, APIC_IRQ_BASE - 0x10);

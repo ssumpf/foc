@@ -17,9 +17,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; see the file COPYING.LIB.  If not,
-   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   License along with the GNU C Library; see the file COPYING.LIB.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #include <string.h>
 #include <stdlib.h>
@@ -32,7 +31,7 @@ size_t strnlen (const char *str, size_t maxlen)
 {
   const char *char_ptr, *end_ptr = str + maxlen;
   const unsigned long int *longword_ptr;
-  unsigned long int longword, magic_bits, himagic, lomagic;
+  unsigned long int longword, himagic, lomagic;
 
   if (maxlen == 0)
     return 0;
@@ -66,14 +65,12 @@ size_t strnlen (const char *str, size_t maxlen)
 
      The 1-bits make sure that carries propagate to the next 0-bit.
      The 0-bits provide holes for carries to fall into.  */
-  magic_bits = 0x7efefeffL;
   himagic = 0x80808080L;
   lomagic = 0x01010101L;
   if (sizeof (longword) > 4)
     {
       /* 64-bit version of the magic.  */
       /* Do the shift in two steps to avoid a warning if long has 32 bits.  */
-      magic_bits = ((0x7efefefeL << 16) << 16) | 0xfefefeffL;
       himagic = ((himagic << 16) << 16) | himagic;
       lomagic = ((lomagic << 16) << 16) | lomagic;
     }

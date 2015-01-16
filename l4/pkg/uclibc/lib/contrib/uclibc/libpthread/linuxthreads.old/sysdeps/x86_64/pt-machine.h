@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _PT_MACHINE_H
 #define _PT_MACHINE_H   1
@@ -32,6 +31,9 @@
 # ifndef PT_EI
 #  define PT_EI __extern_always_inline
 # endif
+
+extern long int testandset (int *);
+extern int __compare_and_swap (long int *, long int, long int);
 
 /* Get some notion of the current stack.  Need not be exactly the top
    of the stack, just something somewhere in the current frame.  */

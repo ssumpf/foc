@@ -2,6 +2,9 @@ INTERFACE:
 
 #include "l4_types.h"
 
+class Syscall_pre_frame {};
+class Syscall_post_frame {};
+
 /**
  * Encapsulation of syscall data.
  *
@@ -47,7 +50,11 @@ public:
  * kernel stack after a syscall (including the 
  * iret return frame).
  */
-class Entry_frame : public Syscall_frame, public Return_frame
-{};
+class Entry_frame
+: public Syscall_post_frame,
+  public Syscall_frame,
+  public Syscall_pre_frame,
+  public Return_frame
+{} __attribute__((packed));
 
 

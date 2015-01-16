@@ -73,38 +73,112 @@ Mem_op::inv_icache(Address start, Address end)
     }
 }
 
-PUBLIC static void
-Mem_op::arm_mem_cache_maint(int op, void const *start, void const *end)
+PRIVATE static inline void
+Mem_op::__arm_kmem_l1_cache_maint(int op, void const *kstart, void const *kend)
 {
-  Context *c = current();
-
-  if (EXPECT_FALSE(start > end))
-    return;
-
-  c->set_ignore_mem_op_in_progress(true);
-
   switch (op)
     {
     case Op_cache_clean_data:
-      Mem_unit::clean_dcache(start, end);
+      Mem_unit::clean_dcache(kstart, kend);
       break;
 
     case Op_cache_flush_data:
-      Mem_unit::flush_dcache(start, end);
+      Mem_unit::flush_dcache(kstart, kend);
       break;
 
     case Op_cache_inv_data:
-      l1_inv_dcache((Address)start, (Address)end);
+      l1_inv_dcache((Address)kstart, (Address)kend);
       break;
 
     case Op_cache_coherent:
-      Mem_unit::clean_dcache(start, end);
+      Mem_unit::clean_dcache(kstart, kend);
       Mem::dsb();
       Mem_unit::btc_inv();
-      inv_icache(Address(start), Address(end));
+      inv_icache(Address(kstart), Address(kend));
       Mem::dsb();
       break;
 
+    case Op_cache_dma_coherent:
+      Mem_unit::flush_dcache(Virt_addr(Address(kstart)), Virt_addr(Address(kend)));
+      break;
+
+    // We might not want to implement this one but single address outer
+    // cache flushing can be really slow
+    case Op_cache_dma_coherent_full:
+      Mem_unit::flush_dcache();
+      break;
+
+    default:
+      break;
+    };
+}
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [arm && !hyp]:
+
+PRIVATE static inline void
+Mem_op::__arm_mem_l1_cache_maint(int op, void const *start, void const *end)
+{ __arm_kmem_l1_cache_maint(op, start, end); }
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [arm && hyp]:
+
+PRIVATE static inline void
+Mem_op::__arm_mem_l1_cache_maint(int op, void const *start, void const *end)
+{
+  if (op == Op_cache_dma_coherent_full)
+    {
+      __arm_kmem_l1_cache_maint(Op_cache_dma_coherent_full, 0, 0);
+      return;
+    }
+
+  Virt_addr v = Virt_addr((Address)start);
+  Virt_addr e = Virt_addr((Address)end);
+
+  Context *c = current();
+
+  while (v < e)
+    {
+      Mem_space::Page_order phys_size;
+      Mem_space::Phys_addr phys_addr;
+      Page::Attr attrs;
+      bool mapped = (   c->mem_space()->v_lookup(Mem_space::Vaddr(v), &phys_addr, &phys_size, &attrs)
+                     && (attrs.rights & Page::Rights::U()));
+
+      Virt_size sz = Virt_size(1) << phys_size;
+      Virt_size offs = cxx::get_lsb(v, phys_size);
+      sz -= offs;
+      if (e - v < sz)
+        sz = e - v;
+
+      if (mapped)
+        {
+          Virt_addr vstart = Virt_addr(phys_addr) | offs;
+          Virt_addr vend = vstart + sz;
+          __arm_kmem_l1_cache_maint(op, (void*)Virt_addr::val(vstart),
+                                    (void*)Virt_addr::val(vend));
+        }
+      v += sz;
+    }
+
+}
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [arm]:
+
+PUBLIC static void
+Mem_op::arm_mem_cache_maint(int op, void const *start, void const *end)
+{
+  if (EXPECT_FALSE(start > end))
+    return;
+
+  Context *c = current();
+
+  c->set_ignore_mem_op_in_progress(true);
+  __arm_mem_l1_cache_maint(op, start, end);
+  c->set_ignore_mem_op_in_progress(false);
+  switch (op)
+    {
     case Op_cache_l2_clean:
     case Op_cache_l2_flush:
     case Op_cache_l2_inv:
@@ -112,16 +186,12 @@ Mem_op::arm_mem_cache_maint(int op, void const *start, void const *end)
       break;
 
     case Op_cache_dma_coherent:
-        {
-          Mem_unit::flush_dcache(Virt_addr(Address(start)), Virt_addr(Address(end)));
-          outer_cache_op(Op_cache_l2_flush, Address(start), Address(end));
-        }
+      outer_cache_op(Op_cache_l2_flush, Address(start), Address(end));
       break;
 
     // We might not want to implement this one but single address outer
     // cache flushing can be really slow
     case Op_cache_dma_coherent_full:
-      Mem_unit::flush_dcache();
       Outer_cache::flush();
       break;
 
@@ -129,7 +199,6 @@ Mem_op::arm_mem_cache_maint(int op, void const *start, void const *end)
       break;
     };
 
-  c->set_ignore_mem_op_in_progress(false);
 }
 
 PUBLIC static void
@@ -222,7 +291,6 @@ void
 Mem_op::outer_cache_op(int op, Address start, Address end)
 {
 
-  Virt_addr s = Virt_addr(start);
   Virt_addr v = Virt_addr(start);
   Virt_addr e = Virt_addr(end);
 

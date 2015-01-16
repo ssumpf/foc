@@ -106,7 +106,7 @@ fiasco_ldt_set(l4_cap_idx_t task, void *ldt, unsigned int num_desc,
 L4_INLINE unsigned
 fiasco_gdt_get_entry_offset(l4_cap_idx_t thread, l4_utcb_t *utcb)
 {
-  l4_utcb_mr_u(utcb)->mr[0] = L4_THREAD_GDT_X86_OP;
+  l4_utcb_mr_u(utcb)->mr[0] = L4_THREAD_X86_GDT_OP;
   if (l4_error_u(l4_ipc_call(thread, utcb, l4_msgtag(L4_PROTO_THREAD, 1, 0, 0), L4_IPC_NEVER), utcb))
     return -1;
   return l4_utcb_mr_u(utcb)->mr[0];

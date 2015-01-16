@@ -31,7 +31,6 @@ public:
     Need_insert_tlb_flush = 1,
     Map_page_size = Config::PAGE_SIZE,
     Page_shift = Config::PAGE_SHIFT,
-    Map_max_address = Mem_layout::User_max,
     Whole_space = 32,
     Identity_map = 0,
   };
@@ -53,7 +52,6 @@ IMPLEMENTATION [arm]:
 #include <new>
 
 #include "atomic.h"
-#include "bug.h"
 #include "config.h"
 #include "globals.h"
 #include "kdb_ke.h"
@@ -201,12 +199,6 @@ Mem_space::virt_to_phys(Address virt) const
   return dir()->virt_to_phys(virt);
 }
 
-PUBLIC inline NEEDS [Mem_space::virt_to_phys]
-Address
-Mem_space::pmem_to_phys(Address virt) const
-{
-  return virt_to_phys(virt);
-}
 
 /** Simple page-table lookup.  This method is similar to Mem_space's 
     lookup().  The difference is that this version handles 
@@ -281,12 +273,13 @@ Mem_space::~Mem_space()
       // free all page tables we have allocated for this address space
       // except the ones in kernel space which are always shared
       _dir->destroy(Virt_addr(0UL),
-                    Virt_addr(Mem_layout::User_max-1), 0, Pdir::Depth,
+                    Virt_addr(Mem_layout::User_max), 0, Pdir::Depth,
                     Kmem_alloc::q_allocator(_quota));
       // free all unshared page table levels for the kernel space
-      _dir->destroy(Virt_addr(Mem_layout::User_max),
-                    Virt_addr(~0UL), 0, Pdir::Super_level,
-                    Kmem_alloc::q_allocator(_quota));
+      if (Virt_addr(Mem_layout::User_max) < Virt_addr(~0UL))
+        _dir->destroy(Virt_addr(Mem_layout::User_max + 1),
+                      Virt_addr(~0UL), 0, Pdir::Super_level,
+                      Kmem_alloc::q_allocator(_quota));
       Kmem_alloc::allocator()->q_unaligned_free(ram_quota(), sizeof(Dir_type), _dir);
     }
 }
@@ -320,21 +313,10 @@ Mem_space::initialize()
     return false;
 
   _dir->clear(Pte_ptr::need_cache_write_back(false));
-  _dir_phys = Phys_mem_addr(kernel_space()->virt_to_phys((Address)_dir));
+  _dir_phys = Phys_mem_addr(Kmem_space::kdir()->virt_to_phys((Address)_dir));
 
   q.release();
   return true;
-}
-
-PROTECTED inline
-void
-Mem_space::sync_kernel()
-{
-  _dir->sync(Virt_addr(Mem_layout::User_max), kernel_space()->_dir,
-             Virt_addr(Mem_layout::User_max),
-             Virt_size(-Mem_layout::User_max), Pdir::Super_level,
-             Pte_ptr::need_cache_write_back(this == _current.current()),
-             Kmem_alloc::q_allocator(_quota));
 }
 
 PUBLIC
@@ -343,7 +325,7 @@ Mem_space::Mem_space(Ram_quota *q, Dir_type* pdir)
 {
   asid(Mem_unit::Asid_invalid);
   _current.cpu(Cpu_number::boot_cpu()) = this;
-  _dir_phys = Phys_mem_addr(virt_to_phys((Address)_dir));
+  _dir_phys = Phys_mem_addr(Kmem_space::kdir()->virt_to_phys((Address)_dir));
 }
 
 PUBLIC static inline
@@ -359,6 +341,95 @@ Mem_space::init_page_sizes()
 {
   add_page_size(Page_order(Config::PAGE_SHIFT));
   add_page_size(Page_order(20)); // 1MB
+}
+
+//----------------------------------------------------------------------------
+IMPLEMENTATION [arm && !hyp]:
+
+PROTECTED inline
+int
+Mem_space::sync_kernel()
+{
+  return _dir->sync(Virt_addr(Mem_layout::User_max + 1), kernel_space()->_dir,
+                    Virt_addr(Mem_layout::User_max + 1),
+                    Virt_size(-(Mem_layout::User_max + 1)), Pdir::Super_level,
+                    Pte_ptr::need_cache_write_back(this == _current.current()),
+                    Kmem_alloc::q_allocator(_quota));
+}
+
+PUBLIC inline NEEDS [Mem_space::virt_to_phys]
+Address
+Mem_space::pmem_to_phys(Address virt) const
+{
+  return virt_to_phys(virt);
+}
+
+//----------------------------------------------------------------------------
+IMPLEMENTATION [arm && hyp]:
+
+static Address __mem_space_syscall_page;
+
+IMPLEMENT inline
+template< typename T >
+T
+Mem_space::peek_user(T const *addr)
+{
+  Address pa = virt_to_phys((Address)addr);
+  if (pa == ~0UL)
+    return ~0;
+
+  Address ka = Mem_layout::phys_to_pmem(pa);
+  if (ka == ~0UL)
+    return ~0;
+
+  return *reinterpret_cast<T const *>(ka);
+}
+
+PROTECTED static
+void
+Mem_space::set_syscall_page(void *p)
+{
+  __mem_space_syscall_page = (Address)p;
+}
+
+PROTECTED
+int
+Mem_space::sync_kernel()
+{
+  auto pte = _dir->walk(Virt_addr(Mem_layout::Kern_lib_base),
+      Pdir::Depth, true, Kmem_alloc::q_allocator(ram_quota()));
+  if (pte.level < Pdir::Depth - 1)
+    return -1;
+
+  extern char kern_lib_start[];
+
+  Phys_mem_addr pa((Address)kern_lib_start - Mem_layout::Map_base
+                   + Mem_layout::Sdram_phys_base);
+  pte.create_page(pa, Page::Attr(Page::Rights::URX(), Page::Type::Normal(),
+                                 Page::Kern::Global()));
+
+  pte.write_back_if(true, Mem_unit::Asid_kernel);
+
+  pte = _dir->walk(Virt_addr(Mem_layout::Syscalls),
+      Pdir::Depth, true, Kmem_alloc::q_allocator(ram_quota()));
+
+  if (pte.level < Pdir::Depth - 1)
+    return -1;
+
+  pa = Phys_mem_addr(__mem_space_syscall_page);
+  pte.create_page(pa, Page::Attr(Page::Rights::URX(), Page::Type::Normal(),
+                                 Page::Kern::Global()));
+
+  pte.write_back_if(true, Mem_unit::Asid_kernel);
+
+  return 0;
+}
+
+PUBLIC inline NEEDS [Mem_space::virt_to_phys]
+Address
+Mem_space::pmem_to_phys(Address virt) const
+{
+  return Kmem_space::kdir()->virt_to_phys(virt);
 }
 
 //----------------------------------------------------------------------------
@@ -590,9 +661,11 @@ Mem_space::init_page_sizes()
 {
   add_page_size(Page_order(Config::PAGE_SHIFT));
   add_page_size(Page_order(21)); // 2MB
-  if (0)
-    add_page_size(Page_order(30)); // 1GB
+  add_page_size(Page_order(30)); // 1GB
 }
+
+//----------------------------------------------------------------------------
+IMPLEMENTATION [armv7 && arm_lpae && !hyp]:
 
 IMPLEMENT inline
 void
@@ -610,5 +683,30 @@ Mem_space::make_current()
       :
       : "r" (Phys_mem_addr::val(_dir_phys)), "r"(asid() << 16), "r" (0)
       : "r1");
+  _current.current() = this;
+}
+
+
+//----------------------------------------------------------------------------
+IMPLEMENTATION [armv7 && arm_lpae && hyp]:
+
+IMPLEMENT inline
+void
+Mem_space::make_current()
+{
+
+  asm volatile (
+      "mcr p15, 0, %2, c7, c5, 6    \n" // bt flush
+      "isb                          \n"
+      "mcrr p15, 6, %0, %1, c2      \n" // set TTBR
+      "isb                          \n"
+      "mcr p15, 0, %2, c7, c5, 6    \n" // bt flush
+      "isb                          \n"
+      "mov r1, r1                   \n"
+      "sub pc, pc, #4               \n"
+      :
+      : "r" (Phys_mem_addr::val(_dir_phys)), "r"(asid() << 16), "r" (0)
+      : "r1");
+
   _current.current() = this;
 }

@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _LINUX_I386_SYSDEP_H
 #define _LINUX_I386_SYSDEP_H 1
@@ -44,12 +43,9 @@
    incomplete stabs information.  Fake some entries here which specify
    the current source file.  */
 #define	ENTRY(name)							      \
-  STABS_CURRENT_FILE1("")						      \
-  STABS_CURRENT_FILE(name)						      \
   ASM_GLOBAL_DIRECTIVE C_SYMBOL_NAME(name);				      \
   ASM_TYPE_DIRECTIVE (C_SYMBOL_NAME(name),@function)			      \
   .align ALIGNARG(4);							      \
-  STABS_FUN(name)							      \
   C_LABEL(name)								      \
   cfi_startproc;							      \
   CALL_MCOUNT
@@ -58,30 +54,6 @@
 #define END(name)							      \
   cfi_endproc;								      \
   ASM_SIZE_DIRECTIVE(name)						      \
-  STABS_FUN_END(name)
-
-#ifdef HAVE_CPP_ASM_DEBUGINFO
-/* Disable that goop, because we just pass -g through to the assembler
-   and it generates proper line number information directly.  */
-# define STABS_CURRENT_FILE1(name)
-# define STABS_CURRENT_FILE(name)
-# define STABS_FUN(name)
-# define STABS_FUN_END(name)
-#else
-/* Remove the following two lines once the gdb bug is fixed.  */
-#define STABS_CURRENT_FILE(name)					      \
-  STABS_CURRENT_FILE1 (#name)
-#define STABS_CURRENT_FILE1(name)					      \
-  1: .stabs name,100,0,0,1b;
-/* Emit stabs definition lines.  We use F(0,1) and define t(0,1) as `int',
-   the same way gcc does it.  */
-#define STABS_FUN(name) STABS_FUN2(name, name##:F(0,1))
-#define STABS_FUN2(name, namestr)					      \
-  .stabs "int:t(0,1)=r(0,1);-2147483648;2147483647;",128,0,0,0;		      \
-  .stabs #namestr,36,0,0,name;
-#define STABS_FUN_END(name)						      \
-  1: .stabs "",36,0,0,1b-name;
-#endif
 
 /* If compiled for profiling, call `mcount' at the start of each function.  */
 #ifdef	PROF
@@ -149,10 +121,6 @@ __x86.get_pc_thunk.reg:						      \
 /* Avoid conflics with thunk section */
 #undef __i686
 #endif	/* __ASSEMBLER__ */
-
-#ifndef offsetof
-# define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
-#endif
 
 /* For Linux we can use the system call table in the header file
 	/usr/include/asm/unistd.h
@@ -226,8 +194,6 @@ __x86.get_pc_thunk.reg:						      \
 #undef	PSEUDO_END_ERRVAL
 #define	PSEUDO_END_ERRVAL(name) \
   END (name)
-
-#define ret_ERRVAL ret
 
 #ifndef __PIC__
 # define SYSCALL_ERROR_HANDLER	/* Nothing here; code in sysdep.S is used.  */
@@ -444,6 +410,7 @@ __x86.get_pc_thunk.reg:						      \
 #  define PTR_DEMANGLE(reg)	rorl $9, reg;				      \
 				xorl %gs:POINTER_GUARD, reg
 # else
+#  include <stddef.h>
 #  define PTR_MANGLE(var)	__asm__ ("xorl %%gs:%c2, %0\n"		      \
 				     "roll $9, %0"			      \
 				     : "=r" (var)			      \

@@ -3,14 +3,15 @@ INTERFACE:
 #include "per_cpu_data.h"
 #include "types.h"
 #include "initcalls.h"
+#include "pm.h"
 
 class Return_frame;
 class Cpu;
 
-class Apic
+class Apic : public Pm_object
 {
 public:
-  static void init() FIASCO_INIT;
+  static void init(bool resume = false) FIASCO_INIT_AND_PM;
   Unsigned32 apic_id() const { return _id; }
   Unsigned32 cpu_id() const { return _id >> 24; }
 
@@ -21,7 +22,7 @@ private:
   Apic &operator = (Apic const &) = delete;
 
   Unsigned32 _id;
-
+  Unsigned32 _saved_apic_timer;
 
   static void			error_interrupt(Return_frame *regs)
 				asm ("apic_error_interrupt") FIASCO_FASTCALL;
@@ -104,7 +105,7 @@ IMPLEMENTATION:
 DEFINE_PER_CPU Per_cpu<Static_object<Apic> >  Apic::apic;
 
 PUBLIC inline
-Apic::Apic() : _id(get_id()) {}
+Apic::Apic(Cpu_number cpu) : _id(get_id()) { register_pm(cpu); }
 
 
 PRIVATE static
@@ -127,6 +128,36 @@ Apic::find_cpu(Unsigned32 phys_id)
 {
   return apic.find_cpu(By_id(phys_id));
 }
+
+PUBLIC void
+Apic::pm_on_suspend(Cpu_number)
+{
+  _saved_apic_timer = timer_reg_read();
+}
+
+//----------------------------------------------------------------------------
+IMPLEMENTATION [!mp]:
+
+PUBLIC void
+Apic::pm_on_resume(Cpu_number)
+{
+  Apic::init(true);
+  timer_reg_write(_saved_apic_timer);
+}
+
+//----------------------------------------------------------------------------
+IMPLEMENTATION [mp]:
+
+PUBLIC void
+Apic::pm_on_resume(Cpu_number cpu)
+{
+  if (cpu == Cpu_number::boot_cpu())
+    Apic::init(true);
+  else
+    Apic::init_ap();
+  timer_reg_write(_saved_apic_timer);
+}
+
 
 //----------------------------------------------------------------------------
 IMPLEMENTATION[ia32]:
@@ -309,7 +340,7 @@ Apic::apic_page_phys()
 
 // set the global pagetable entry for the Local APIC device registers
 PUBLIC
-static
+static FIASCO_INIT_AND_PM
 void
 Apic::map_apic_page()
 {
@@ -327,7 +358,7 @@ Apic::map_apic_page()
 }
 
 // check CPU type if APIC could be present
-static FIASCO_INIT
+static FIASCO_INIT_AND_PM
 int
 Apic::test_cpu()
 {
@@ -482,7 +513,7 @@ Apic::have_tsint()
 }
 
 // check if APIC is working (check timer functionality)
-static FIASCO_INIT
+static FIASCO_INIT_AND_PM
 int
 Apic::check_working()
 {
@@ -491,24 +522,24 @@ Apic::check_working()
   timer_disable_irq();
   timer_set_divisor(1);
   timer_reg_write(0x10000000);
-  
-  tsc_until = Cpu::rdtsc() + 0x200;  // we only have to wait for one bus cycle
 
-  do 
+  tsc_until = Cpu::rdtsc() + 0x400;  // we only have to wait for one bus cycle
+
+  do
     {
       if (timer_reg_read() != 0x10000000)
-	return 1;
+        return 1;
     } while (Cpu::rdtsc() < tsc_until);
 
   return 0;
 }
 
-static FIASCO_INIT_CPU
+static FIASCO_INIT_CPU_AND_PM
 void
 Apic::init_spiv()
 {
   Unsigned32 tmp_val;
-  
+
   tmp_val = reg_read(APIC_spiv);
   tmp_val |= (1<<8);            // enable APIC
   tmp_val &= ~(1<<9);           // enable Focus Processor Checking
@@ -528,15 +559,15 @@ unsigned
 Apic::tpr()
 { return reg_read(APIC_tpr); }
 
-static FIASCO_INIT_CPU
+static FIASCO_INIT_CPU_AND_PM
 void
 Apic::init_tpr()
 {
-  reg_write (APIC_tpr, 0);
+  reg_write(APIC_tpr, 0);
 }
 
 // activate APIC error interrupt
-static FIASCO_INIT_CPU
+static FIASCO_INIT_CPU_AND_PM
 void
 Apic::enable_errors()
 {
@@ -564,7 +595,7 @@ Apic::enable_errors()
 // activate APIC after activating by MSR was successful
 // see "Intel Architecture Software Developer's Manual,
 //      Volume 3: System Programming Guide, Appendix E"
-static FIASCO_INIT
+static FIASCO_INIT_AND_PM
 void
 Apic::route_pic_through_apic()
 {
@@ -579,7 +610,7 @@ Apic::route_pic_through_apic()
   tmp_val &= 0xfffe5800;
   tmp_val |= 0x00000700;
   reg_write(APIC_lvt0, tmp_val);
-    
+
   // set LINT1 to NMI, edge triggered
   tmp_val = reg_read(APIC_lvt1);
   tmp_val &= 0xfffe5800;
@@ -592,34 +623,22 @@ Apic::route_pic_through_apic()
   printf("APIC was disabled --- routing PIC through APIC\n");
 }
 
-static FIASCO_INIT_CPU
+static FIASCO_INIT_CPU_AND_PM
 void
 Apic::init_lvt()
 {
-  Unsigned32 tmp_val;
   auto guard = lock_guard(cpu_lock);
 
   // mask timer interrupt and set vector to _not_ invalid value
-  tmp_val  = reg_read(APIC_lvtt);
-  tmp_val |= APIC_lvt_masked;
-  tmp_val |= 0xff;
-  reg_write(APIC_lvtt, tmp_val);
+  reg_write(APIC_lvtt, reg_read(APIC_lvtt) | APIC_lvt_masked | 0xff);
+
   if (have_pcint())
-    {
-      // mask performance interrupt and set vector to a valid value
-      tmp_val  = reg_read(APIC_lvtpc);
-      tmp_val |= APIC_lvt_masked;
-      tmp_val |= 0xff;
-      reg_write(APIC_lvtpc, tmp_val);
-    }
+    // mask performance interrupt and set vector to a valid value
+    reg_write(APIC_lvtpc, reg_read(APIC_lvtpc) | APIC_lvt_masked | 0xff);
+
   if (have_tsint())
-    {
-      // mask thermal sensor interrupt and set vector to a valid value
-      tmp_val  = reg_read(APIC_lvtthmr);
-      tmp_val |= APIC_lvt_masked;
-      tmp_val |= 0xff;
-      reg_write(APIC_lvtthmr, tmp_val);
-    }
+    // mask thermal sensor interrupt and set vector to a valid value
+    reg_write(APIC_lvtthmr, reg_read(APIC_lvtthmr) | APIC_lvt_masked | 0xff);
 }
 
 // give us a hint if we have an APIC but it is disabled
@@ -635,7 +654,7 @@ Apic::test_present_but_disabled()
 }
 
 // activate APIC by writing to appropriate MSR
-static FIASCO_INIT_CPU
+static FIASCO_INIT_CPU_AND_PM
 void
 Apic::activate_by_msr()
 {
@@ -647,7 +666,7 @@ Apic::activate_by_msr()
   Cpu::wrmsr(msr, APIC_base_msr);
 
   // now the CPU feature flags may have changed
-  cpu().identify();
+  cpu().update_features_info();
 }
 
 // check if we still receive interrupts after we changed the IRQ routing
@@ -691,7 +710,7 @@ Apic::set_perf_nmi()
     reg_write(APIC_lvtpc, 0x400);
 }
 
-static FIASCO_INIT_CPU
+static FIASCO_INIT_CPU_AND_PM
 void
 Apic::calibrate_timer()
 {
@@ -794,7 +813,7 @@ Apic::done()
   Cpu::wrmsr(val, APIC_base_msr);
 }
 
-PRIVATE static FIASCO_INIT_CPU
+PRIVATE static FIASCO_INIT_CPU_AND_PM
 void
 Apic::init_timer()
 {
@@ -813,9 +832,13 @@ Apic::dump_info()
 
 IMPLEMENT
 void
-Apic::init()
+Apic::init(bool resume)
 {
   int was_present;
+  // FIXME: reset cached CPU features, we should add a special function
+  // for the apic bit
+  if(resume)
+    cpu().update_features_info();
 
   was_present = present = test_present();
 
@@ -839,7 +862,8 @@ Apic::init()
   if (present)
     {
       // map the Local APIC device registers
-      map_apic_page();
+      if (!resume)
+        map_apic_page();
 
       // set some interrupt vectors to appropriate values
       init_lvt();

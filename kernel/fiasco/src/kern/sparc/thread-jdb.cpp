@@ -75,5 +75,3 @@ IMPLEMENTATION [sparc && !debug]:
 extern "C" void sys_kdb_ke()
 {
 }
-extern "C" void enter_jdb()
-{}

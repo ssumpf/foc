@@ -16,6 +16,13 @@ public:
   Cpu_mask_t(Cpu_mask_t const &) = default;
   Cpu_mask_t &operator = (Cpu_mask_t const &) = default;
 
+  template<unsigned NCPUS>
+  Cpu_mask_t &operator = (Cpu_mask_t<NCPUS> const &o)
+  {
+    _b = o._b;
+    return *this;
+  }
+
   bool empty() const { return _b.is_empty(); }
   bool get(Cpu_number cpu) const
   { return _b[cxx::int_value<Cpu_number>(cpu)]; }
@@ -36,6 +43,7 @@ public:
   { return _b.atomic_get_and_clear(cxx::int_value<Cpu_number>(cpu)); }
 
 private:
+  template<unsigned B> friend class Cpu_mask_t;
   Bitmap<Max_num_cpus> _b;
 };
 

@@ -54,27 +54,6 @@
 #endif
 
 /**********************************************************************/
-/* Make sure defines related to large files are consistent. */
-#ifdef _LIBC
-
-#ifdef __UCLIBC_HAS_LFS__
-#undef __USE_LARGEFILE
-#undef __USE_LARGEFILE64
-#undef __USE_FILE_OFFSET64
-/* If we're actually building uClibc with large file support, only define... */
-#define __USE_LARGEFILE64	1
-#endif /* __UCLIBC_HAS_LFS__ */
-
-#else  /* not _LIBC */
-
-#ifndef __UCLIBC_HAS_LFS__
-#if defined(__LARGEFILE64_SOURCE) || defined(__USE_LARGEFILE64) || defined(__USE_FILE_OFFSET64)
-#error Sorry... uClibc was built without large file support!
-#endif
-#endif /* __UCLIBC_HAS_LFS__ */
-
-#endif /* _LIBC */
-/**********************************************************************/
 #ifdef __UCLIBC_HAS_WCHAR__
 
 #define __need_wchar_t
@@ -99,22 +78,7 @@
 #define __STDIO_PUTC_MACRO
 #endif
 
-
-/* These are consistency checks on the different options */
-
-#ifndef __STDIO_BUFFERS
-#undef __STDIO_GETC_MACRO
-#undef __STDIO_PUTC_MACRO
-#endif
-
-#ifdef __BCC__
-#undef __UCLIBC_HAS_LFS__
-#endif
-
-#ifndef __UCLIBC_HAS_LFS__
-#undef __UCLIBC_HAS_FOPEN_LARGEFILE_MODE__
-#endif
-
+#ifdef _LIBC
 /**********************************************************************/
 #include <bits/uClibc_mutex.h>
 
@@ -169,6 +133,8 @@
 #endif
 #endif
 
+#endif /* _LIBC */
+
 /**********************************************************************/
 
 #define __STDIO_IOFBF 0		/* Fully buffered.  */
@@ -209,7 +175,7 @@ typedef __off_t __offmax_t;		/* TODO -- rename this? */
 
 typedef __ssize_t __io_read_fn(void *__cookie, char *__buf, size_t __bufsize);
 typedef __ssize_t __io_write_fn(void *__cookie,
-					__const char *__buf, size_t __bufsize);
+					const char *__buf, size_t __bufsize);
 /* NOTE: GLIBC difference!!! -- fopencookie seek function
  * For glibc, the type of pos is always (__off64_t *) but in our case
  * it is type (__off_t *) when the lib is built without large file support.
@@ -224,7 +190,7 @@ typedef struct {
 	__io_close_fn *close;
 } _IO_cookie_io_functions_t;
 
-#if defined(_LIBC) || defined(_GNU_SOURCE)
+#ifdef __USE_GNU
 
 typedef __io_read_fn cookie_read_function_t;
 typedef __io_write_fn cookie_write_function_t;
@@ -237,6 +203,17 @@ typedef _IO_cookie_io_functions_t cookie_io_functions_t;
 
 #endif
 /**********************************************************************/
+
+#if defined __UCLIBC_HAS_THREADS__ && !defined __UCLIBC_IO_MUTEX
+/* keep this in sync with uClibc_mutex.h */
+# ifdef __USE_STDIO_FUTEXES__
+#  include <bits/stdio-lock.h>
+#  define __UCLIBC_IO_MUTEX(M) _IO_lock_t M
+# else
+#  include <bits/pthreadtypes.h>
+#  define __UCLIBC_IO_MUTEX(M) pthread_mutex_t M
+# endif /* __UCLIBC_HAS_THREADS_NATIVE__ */
+#endif
 
 struct __STDIO_FILE_STRUCT {
 	unsigned short __modeflags;
@@ -351,22 +328,27 @@ struct __STDIO_FILE_STRUCT {
  **********************************************************************/
 #if defined _LIBC && (defined IS_IN_libc || defined NOT_IN_libc)
 
-extern void _stdio_init(void) attribute_hidden;
-extern void _stdio_term(void) attribute_hidden;
+extern void weak_function _stdio_init(void) attribute_hidden;
+extern void weak_function _stdio_term(void) attribute_hidden;
 
 #ifdef __STDIO_HAS_OPENLIST
 
 extern struct __STDIO_FILE_STRUCT *_stdio_openlist;
 
 #ifdef __UCLIBC_HAS_THREADS__
-__UCLIBC_IO_MUTEX_EXTERN(_stdio_openlist_add_lock);
+__UCLIBC_IO_MUTEX_EXTERN(_stdio_openlist_add_lock)
+# ifndef __UCLIBC_HAS_THREADS_NATIVE__
+	attribute_hidden
+# endif
+	;
 #ifdef __STDIO_BUFFERS
-__UCLIBC_IO_MUTEX_EXTERN(_stdio_openlist_del_lock);
-extern volatile int _stdio_openlist_use_count; /* _stdio_openlist_del_lock */
-extern int _stdio_openlist_del_count; /* _stdio_openlist_del_lock */
+__UCLIBC_IO_MUTEX_EXTERN(_stdio_openlist_del_lock)
+# ifndef __UCLIBC_HAS_THREADS_NATIVE__
+	attribute_hidden
+# endif
+	;
 #endif
 extern int _stdio_user_locking;
-extern void __stdio_init_mutex(__UCLIBC_MUTEX_TYPE *m) attribute_hidden;
 #endif
 
 #endif
@@ -465,6 +447,8 @@ extern FILE *__stdin;			/* For getchar() macro. */
 
 #else
 
+# define __stdin stdin
+
 #endif /* __STDIO_GETC_MACRO */
 
 
@@ -523,5 +507,9 @@ extern FILE *__stdout;			/* For putchar() macro. */
 
 #  endif
 # endif
+
+#else
+
+# define __stdout stdout
 
 #endif /* __STDIO_PUTC_MACRO */

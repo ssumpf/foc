@@ -98,6 +98,8 @@ public:
   }
 
 protected:
+  template< bool BIG, unsigned BTS > friend class Bitmap_base;
+
   Bitmap_base() {}
   Bitmap_base(Bitmap_base const &) = delete;
   Bitmap_base &operator = (Bitmap_base const &) = delete;
@@ -109,8 +111,13 @@ protected:
       _bits[i] |= r._bits[i];
   }
 
-  void _copy(Bitmap_base const &s)
-  { __builtin_memcpy(_bits, s._bits, Nr_elems * sizeof(_bits[0])); }
+  template<unsigned SOURCE_BITS>
+  void _copy(Bitmap_base<true, SOURCE_BITS> const &s)
+  {
+    static_assert(BITS <= SOURCE_BITS,
+                  "cannot copy smaller bitmap into bigger one");
+    __builtin_memcpy(_bits, s._bits, Nr_elems * sizeof(_bits[0]));
+  }
 
   unsigned long _bits[Nr_elems];
 };
@@ -183,6 +190,7 @@ public:
 
 
 protected:
+  template< bool BIG, unsigned BTS > friend class Bitmap_base;
   enum
   {
     Bpl      = sizeof(unsigned long) * 8,
@@ -201,17 +209,41 @@ protected:
 
   void _copy(Bitmap_base const &s)
   { _bits = s._bits; }
+
+  template<unsigned SOURCE_BITS>
+  void _copy(Bitmap_base<false, SOURCE_BITS> const &s)
+  {
+    static_assert(BITS <= SOURCE_BITS,
+                  "cannot copy smaller bitmap into bigger one");
+    _bits = s._bits;
+  }
+
+  template<unsigned SOURCE_BITS>
+  void _copy(Bitmap_base<true, SOURCE_BITS> const &s)
+  {
+    static_assert(BITS <= SOURCE_BITS,
+                  "cannot copy smaller bitmap into bigger one");
+    _bits = s._bits[0];
+  }
+
 };
 
-template<int BITS>
+template<unsigned BITS>
 class Bitmap : public Bitmap_base< (BITS > sizeof(unsigned long) * 8), BITS >
 {
 public:
   Bitmap() {}
-  Bitmap(Bitmap const &o)
+  Bitmap(Bitmap const &o) : Bitmap_base< (BITS > sizeof(unsigned long) * 8), BITS >()
   { this->_copy(o); }
 
   Bitmap &operator = (Bitmap const &o)
+  {
+    this->_copy(o);
+    return *this;
+  }
+
+  template<unsigned SBITS>
+  Bitmap &operator = (Bitmap<SBITS> const &o)
   {
     this->_copy(o);
     return *this;

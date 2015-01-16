@@ -38,6 +38,7 @@ l4_ipc(l4_cap_idx_t dest, l4_utcb_t *utcb,
        l4_umword_t *rlabel,
        l4_timeout_t timeout) L4_NOTHROW
 {
+	l4_msgtag_t t;
 	(void)dest;
 	(void)utcb;
 	(void)flags;
@@ -45,7 +46,6 @@ l4_ipc(l4_cap_idx_t dest, l4_utcb_t *utcb,
 	(void)tag;
 	(void)rlabel;
 	(void)timeout;
-	l4_msgtag_t t;
 	t.raw = ~0;
 	return t;
 }

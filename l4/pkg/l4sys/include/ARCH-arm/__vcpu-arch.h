@@ -29,7 +29,7 @@ typedef struct l4_vcpu_regs_t
   l4_umword_t pfa;
   l4_umword_t err;
 
-  l4_umword_t tpidruro;
+  l4_umword_t reserved;
   l4_umword_t r[13];
 
   l4_umword_t sp;
@@ -38,6 +38,12 @@ typedef struct l4_vcpu_regs_t
   l4_umword_t ip;
   l4_umword_t flags;
 } l4_vcpu_regs_t;
+
+typedef struct l4_vcpu_arch_state_t
+{
+  l4_umword_t host_tpidruro;
+  l4_umword_t user_tpidruro;
+} l4_vcpu_arch_state_t;
 
 /**
  * \brief vCPU message registers.

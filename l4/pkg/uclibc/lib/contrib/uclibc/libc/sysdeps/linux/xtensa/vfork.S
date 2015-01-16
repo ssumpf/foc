@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 51 Franklin Street - Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include "sysdep.h"
 #include <sys/syscall.h>
@@ -49,7 +48,7 @@
 /* pid_t vfork(void);
    Implemented as __clone_syscall(CLONE_VFORK | CLONE_VM | SIGCHLD, 0) */
 
-ENTRY (__vfork)
+HIDDEN_ENTRY (__vfork)
 
 	movi	a6, .Ljumptable
 	extui	a2, a0, 30, 2		/* call-size: call4/8/12 = 1/2/3 */
@@ -165,6 +164,5 @@ ENTRY (__vfork)
 .Lpseudo_end:
 	retw
 
-libc_hidden_def (__vfork)
-
 weak_alias (__vfork, vfork)
+libc_hidden_def(vfork)

@@ -8,7 +8,7 @@ INTERFACE:
 #include "context.h"
 
 class Ram_quota;
-class Receiver;
+class Thread;
 
 
 /** Hardware interrupts.  This class encapsulates handware IRQs.  Also,
@@ -57,7 +57,7 @@ private:
 
 protected:
   Smword _queued;
-  Receiver *_irq_thread;
+  Thread *_irq_thread;
 
 private:
   Mword _irq_id;
@@ -108,7 +108,6 @@ IMPLEMENTATION:
 #include "kmem_slab.h"
 #include "lock_guard.h"
 #include "minmax.h"
-#include "receiver.h"
 #include "std_macros.h"
 #include "thread_object.h"
 #include "thread_state.h"
@@ -312,17 +311,18 @@ Irq_muxer::kinvoke(L4_obj_ref, L4_fpage::Rights /*rights*/, Syscall_frame *f,
  */
 PUBLIC inline NEEDS ["atomic.h", "cpu_lock.h", "lock_guard.h"]
 bool
-Irq_sender::alloc(Receiver *t)
+Irq_sender::alloc(Thread *t)
 {
-  bool ret = mp_cas(&_irq_thread, reinterpret_cast<Receiver*>(0), t);
+  bool ret = mp_cas(&_irq_thread, reinterpret_cast<Thread*>(0), t);
 
   if (ret)
     {
       if (EXPECT_TRUE(t != 0))
-	{
+        {
           t->inc_ref();
-	  _chip->set_cpu(pin(), t->cpu());
-	}
+          if (Cpu::online(t->home_cpu()))
+            _chip->set_cpu(pin(), t->home_cpu());
+        }
 
       _queued = 0;
     }
@@ -339,11 +339,11 @@ Irq_sender::owner() const { return _irq_thread; }
     @return true if t really was the owner of the IRQ and operation was 
             successful
  */
-PUBLIC
+PRIVATE
 bool
-Irq_sender::free(Receiver *t)
+Irq_sender::free(Thread *t, Kobject ***rl)
 {
-  bool ret = mp_cas(&_irq_thread, t, reinterpret_cast<Receiver*>(0));
+  bool ret = mp_cas(&_irq_thread, t, reinterpret_cast<Thread*>(0));
 
   if (ret)
     {
@@ -352,13 +352,12 @@ Irq_sender::free(Receiver *t)
 
       if (EXPECT_TRUE(t != 0))
 	{
-	  t->abort_send(this);
+	  t->Receiver::abort_send(this);
 
 	  // release cpu-lock early, actually before delete
 	  guard.reset();
 
-	  if (t->dec_ref() == 0)
-	    delete t;
+          t->put_n_reap(rl);
 	}
     }
 
@@ -384,8 +383,9 @@ void
 Irq_sender::destroy(Kobject ***rl)
 {
   auto g = lock_guard(cpu_lock);
-  if (_irq_thread)
-    free(_irq_thread);
+  auto t = access_once(&_irq_thread);
+  if (t)
+    free(t, rl);
 
   Irq::destroy(rl);
 }
@@ -473,13 +473,14 @@ Irq_sender::modify_label(Mword const *todo, int cnt)
 
 
 PRIVATE static
-unsigned
+Context::Drq::Result
 Irq_sender::handle_remote_hit(Context::Drq *, Context *, void *arg)
 {
   Irq_sender *irq = (Irq_sender*)arg;
   irq->set_cpu(current_cpu());
-  irq->send_msg(irq->_irq_thread);
-  return Context::Drq::No_answer;
+  if (EXPECT_TRUE(irq->send_msg(irq->_irq_thread, false)))
+    return Context::Drq::no_answer_resched();
+  return Context::Drq::no_answer();
 }
 
 PRIVATE inline
@@ -500,11 +501,11 @@ Irq_sender::count_and_send(Smword queued)
 {
   if (EXPECT_TRUE (queued == 0) && EXPECT_TRUE(_irq_thread != 0))	// increase hit counter
     {
-      if (EXPECT_FALSE(_irq_thread->cpu() != current_cpu()))
-	_irq_thread->drq(&_drq, handle_remote_hit, this, 0,
+      if (EXPECT_FALSE(_irq_thread->home_cpu() != current_cpu()))
+	_irq_thread->drq(&_drq, handle_remote_hit, this,
 	                 Context::Drq::Target_ctxt, Context::Drq::No_wait);
       else
-	send_msg(_irq_thread);
+	send_msg(_irq_thread, true);
     }
 }
 
@@ -574,14 +575,17 @@ Irq_sender::sys_attach(L4_msg_tag const &tag, Utcb const *utcb, Syscall_frame * 
 {
   L4_snd_item_iter snd_items(utcb, tag.words());
 
-  Receiver *thread = 0;
-  unsigned mode = utcb->values[0] >> 16;
+  Thread *thread = 0;
 
   if (tag.items() == 0)
     {
       // detach
-      free(_irq_thread);
+      Reap_list rl;
+      free(_irq_thread, rl.list());
       _irq_id = ~0UL;
+      cpu_lock.clear();
+      rl.del();
+      cpu_lock.lock();
       return commit_result(0);
     }
 

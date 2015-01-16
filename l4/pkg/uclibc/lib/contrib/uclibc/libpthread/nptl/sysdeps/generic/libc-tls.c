@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <errno.h>
 #include <ldsodefs.h>
@@ -110,6 +109,7 @@ init_static_tls (size_t memsz, size_t align)
   GL(dl_tls_static_nelem) = GL(dl_tls_max_dtv_idx);
 }
 
+void __libc_setup_tls (size_t tcbsize, size_t tcbalign);
 void
 __libc_setup_tls (size_t tcbsize, size_t tcbalign)
 {
@@ -241,6 +241,7 @@ _dl_tls_setup (void)
   return 0;
 }
 
+extern void __pthread_initialize_minimal(void) __attribute__((weak));
 
 /* This is the minimal initialization function used when libpthread is
    not used.  */

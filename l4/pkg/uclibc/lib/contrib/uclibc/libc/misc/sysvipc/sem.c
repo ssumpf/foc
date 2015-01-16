@@ -14,8 +14,7 @@
 
    You should have received a copy of the GNU Library General Public
    License along with the GNU C Library; see the file COPYING.LIB.  If not,
-   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   see <http://www.gnu.org/licenses/>.  */
 
 #include <errno.h>
 #include <sys/sem.h>
@@ -41,7 +40,7 @@ union semun {
 
 #ifdef __NR_semctl
 #define __NR___semctl __NR_semctl
-static __inline__ _syscall4(int, __semctl, int, semid, int, semnum, int, cmd, void *, arg);
+static __inline__ _syscall4(int, __semctl, int, semid, int, semnum, int, cmd, void *, arg)
 #endif
 
 int semctl(int semid, int semnum, int cmd, ...)

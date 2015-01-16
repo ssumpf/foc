@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef	_FEATURES_H
 #define	_FEATURES_H	1
@@ -198,8 +197,11 @@
 # define __OPTIMIZE_SIZE__   1
 
 /* disable unsupported features */
-# undef _FORTIFY_SOURCE
 # undef __LDBL_COMPAT
+
+# ifndef __UCLIBC_HAS_FORTIFY__
+#  undef _FORTIFY_SOURCE
+# endif
 
 # ifndef __UCLIBC_HAS_THREADS__
 #  if defined _REENTRANT || defined _THREAD_SAFE
@@ -433,7 +435,7 @@ uClibc was built without large file support enabled.
  */
 #if __GNUC_PREREQ (2, 7) && defined __OPTIMIZE__ \
     && !defined __OPTIMIZE_SIZE__ && !defined __NO_INLINE__ \
-    && (defined __extern_inline || defined __GNUC_GNU_INLINE__)
+    && (defined __extern_inline || defined __GNUC_GNU_INLINE__ || defined __GNUC_STDC_INLINE__)
 # define __USE_EXTERN_INLINES	1
 #endif
 

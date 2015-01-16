@@ -10,16 +10,6 @@ extern "C" Sys_call sys_call_table[];
 
 
 IMPLEMENT void
-Jdb_set_trace::next_preiod_tracing(bool /*enable*/)
-{
-}
-
-IMPLEMENT void
-Jdb_set_trace::page_fault_tracing(bool /*enable*/)
-{
-}
-
-IMPLEMENT void
 Jdb_set_trace::ipc_tracing(Mode mode)
 {
   switch (mode)

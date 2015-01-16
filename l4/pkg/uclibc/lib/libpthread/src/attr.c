@@ -298,7 +298,7 @@ __pthread_attr_setstack (pthread_attr_t *attr, void *stackaddr,
   int err;
 
   if ((((uintptr_t) stackaddr)
-       & (__alignof__ (struct _pthread_descr_struct) - 1)) != 0)
+       & (__alignof__ (struct pthread) - 1)) != 0)
     err = EINVAL;
   else
     err = __pthread_attr_setstacksize (attr, stacksize);
@@ -329,7 +329,7 @@ __old_pthread_attr_setstack (pthread_attr_t *attr, void *stackaddr,
   int err;
 
   if ((((uintptr_t) stackaddr)
-       & (__alignof__ (struct _pthread_descr_struct) - 1)) != 0)
+       & (__alignof__ (struct pthread) - 1)) != 0)
     err = EINVAL;
   else
     err = __old_pthread_attr_setstacksize (attr, stacksize);

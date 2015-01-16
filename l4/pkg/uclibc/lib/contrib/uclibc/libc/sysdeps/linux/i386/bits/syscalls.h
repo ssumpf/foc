@@ -15,7 +15,8 @@
 #include <errno.h>
 
 #define INTERNAL_SYSCALL_NCS(name, err, nr, args...) \
-({ \
+(__extension__ \
+ ({ \
 	register unsigned int resultvar; \
 	__asm__ __volatile__ ( \
 		LOADARGS_##nr                                   \
@@ -26,8 +27,8 @@
 		: "g" (name) ASMFMT_##nr(args) : "memory", "cc" \
 	); \
 	(int) resultvar; \
-})
-
+  }) \
+)
 
 #if 1 /* defined __PIC__ || defined __pic__ */
 
@@ -43,9 +44,12 @@
 
 /* We need some help from the assembler to generate optimal code.
  * We define some macros here which later will be used.  */
+/* gcc>=4.6 with LTO need the same guards as IMA (a.k.a --combine) did.
+ * See gcc.gnu.org/PR47577  */
+/* FIXME: drop these b* macros! */
 
 __asm__ (
-#ifdef __DOMULTI__
+#if defined __DOMULTI__ || __GNUC_PREREQ (4, 6)
 	/* Protect against asm macro redefinition (happens in __DOMULTI__ mode).
 	 * Unfortunately, it ends up visible in .o files. */
 	".ifndef _BITS_SYSCALLS_ASM\n\t"
@@ -92,7 +96,7 @@ __asm__ (
 	".endif\n\t"
 	".endm\n\t"
 
-#ifdef __DOMULTI__
+#if defined __DOMULTI__ || __GNUC_PREREQ (4, 6)
 	".endif\n\t" /* _BITS_SYSCALLS_ASM */
 #endif
 );
@@ -132,7 +136,7 @@ __asm__ (
 #define ASMFMT_5(arg1, arg2, arg3, arg4, arg5) \
 	, "a" (arg1), "c" (arg2), "d" (arg3), "S" (arg4), "D" (arg5)
 #define ASMFMT_6(arg1, arg2, arg3, arg4, arg5, arg6) \
-	, "a" (arg1), "c" (arg2), "d" (arg3), "S" (arg4), "D" (arg5), "m" (arg6)
+	, "a" (arg1), "c" (arg2), "d" (arg3), "S" (arg4), "D" (arg5), "g" (arg6)
 
 #else /* !PIC */
 

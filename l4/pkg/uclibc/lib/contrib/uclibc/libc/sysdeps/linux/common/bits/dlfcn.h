@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _DLFCN_H
 # error "Never use <bits/dlfcn.h> directly; include <dlfcn.h> instead."
@@ -24,9 +23,9 @@
 /* The MODE argument to `dlopen' contains one of the following: */
 #define RTLD_LAZY	0x00001	/* Lazy function call binding.  */
 #define RTLD_NOW	0x00002	/* Immediate function call binding.  */
-#if 0 /* uClibc doesnt support these */
-#define	RTLD_BINDING_MASK   0x3	/* Mask of binding time value.  */
+#define RTLD_BINDING_MASK   0x3	/* Mask of binding time value.  */
 #define RTLD_NOLOAD	0x00004	/* Do not load the object.  */
+#if 0 /* uClibc doesnt support these */
 #define RTLD_DEEPBIND	0x00008	/* Use deep binding.  */
 #endif
 

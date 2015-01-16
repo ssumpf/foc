@@ -124,16 +124,6 @@ IMPLEMENTATION [arm && omap3]:
 #include "config.h"
 #include "kip.h"
 
-static inline
-Unsigned64
-Timer::timer_to_us(Unsigned32 /*cr*/)
-{ return 0; }
-
-static inline
-Unsigned64
-Timer::us_to_timer(Unsigned64 us)
-{ (void)us; return 0; }
-
 IMPLEMENT inline
 void
 Timer::update_one_shot(Unsigned64 wakeup)

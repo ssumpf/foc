@@ -27,6 +27,8 @@ public:
   static void enable(Cpu_number cpu);
   static void disable(Cpu_number cpu);
 
+  static Timer_tick *boot_cpu_timer_tick();
+
 protected:
   static bool allocate_irq(Irq_base *irq, unsigned irqnum);
 
@@ -47,7 +49,7 @@ public:
   {
     Irq_base *obj;
     Address user_ip;
-    unsigned print(int, char *) const;
+    void print(String_buffer *) const;
   };
 };
 
@@ -82,7 +84,7 @@ void
 Timer_tick::handler_all(Irq_base *_s, Upstream_irq const *ui)
 {
   Thread *t = current_thread();
-  handle_timer(_s, ui, t, t->cpu(true));
+  handle_timer(_s, ui, t, current_cpu());
 }
 
 PUBLIC static inline NEEDS[Timer_tick::handle_timer]
@@ -117,12 +119,13 @@ IMPLEMENTATION [debug]:
 
 #include "logdefs.h"
 #include "irq_chip.h"
+#include "string_buffer.h"
 
 IMPLEMENT
-unsigned
-Timer_tick::Log::print(int maxlen, char *buf) const
+void
+Timer_tick::Log::print(String_buffer *buf) const
 {
-  return snprintf(buf, maxlen, "u-ip=0x%lx", user_ip);
+  buf->printf("u-ip=0x%lx", user_ip);
 }
 
 PUBLIC inline NEEDS["logdefs.h"]

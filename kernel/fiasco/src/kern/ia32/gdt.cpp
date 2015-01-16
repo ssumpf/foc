@@ -22,6 +22,8 @@ public:
     gdt_user_entry1     = GDT_USER_ENTRY1,
     gdt_user_entry2     = GDT_USER_ENTRY2,
     gdt_user_entry3     = GDT_USER_ENTRY3,
+    gdt_user_entry4     = GDT_USER_ENTRY4,
+    gdt_code_user32     = GDT_CODE_USER32,
     gdt_max             = GDT_MAX,
   };
 

@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <sysdep.h>
 #include <pthread-errnos.h>
@@ -24,10 +23,10 @@
 
 	.text
 
-	.globl	__new_sem_trywait
-	.type	__new_sem_trywait,@function
+	.globl	sem_trywait
+	.type	sem_trywait,@function
 	.align	5
-__new_sem_trywait:
+sem_trywait:
 	mov.l	r12, @-r15
 	mov.l	r8, @-r15
 	sts.l	pr, @-r15
@@ -86,5 +85,4 @@ __new_sem_trywait:
 .Lerrloc1:
 	.long	__errno_location@PLT-(.Lerrloc1b-.)
 #endif
-	.size	__new_sem_trywait,.-__new_sem_trywait
-	weak_alias(__new_sem_trywait, sem_trywait)
+	.size	sem_trywait,.-sem_trywait

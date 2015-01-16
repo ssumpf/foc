@@ -161,6 +161,8 @@ void irq_handler()
 // ------------------------------------------------------------------------
 IMPLEMENTATION [arm && omap3 && arm_em_tz]:
 
+#include <cstdio>
+
 PUBLIC static
 void
 Pic::set_pending_irq(unsigned group32num, Unsigned32 val)

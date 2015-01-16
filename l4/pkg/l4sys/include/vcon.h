@@ -45,7 +45,8 @@
  *
  * \return Syscall return tag
  *
- * \note Size must not exceed L4_VCON_WRITE_SIZE.
+ * \note Size must not exceed L4_VCON_WRITE_SIZE, a proper value of the
+ *       \a size parameter is NOT checked.
  */
 L4_INLINE l4_msgtag_t
 l4_vcon_send(l4_cap_idx_t vcon, char const *buf, int size) L4_NOTHROW;
@@ -55,7 +56,6 @@ l4_vcon_send(l4_cap_idx_t vcon, char const *buf, int size) L4_NOTHROW;
  */
 L4_INLINE l4_msgtag_t
 l4_vcon_send_u(l4_cap_idx_t vcon, char const *buf, int size, l4_utcb_t *utcb) L4_NOTHROW;
-
 
 /**
  * \brief Write data to virtual console.
@@ -77,13 +77,15 @@ L4_INLINE long
 l4_vcon_write_u(l4_cap_idx_t vcon, char const *buf, int size, l4_utcb_t *utcb) L4_NOTHROW;
 
 /**
- * \brief Constants for l4_vcon_write.
+ * \brief Size constants.
  * \ingroup l4_vcon_api
  */
-enum L4_vcon_write_consts
+enum L4_vcon_size_consts
 {
   /** Maximum size that can be written with one l4_vcon_write call. */
   L4_VCON_WRITE_SIZE = (L4_UTCB_GENERIC_DATA_SIZE - 2) * sizeof(l4_umword_t),
+  /** Maximum size that can be read with one l4_vcon_read* call. */
+  L4_VCON_READ_SIZE  = (L4_UTCB_GENERIC_DATA_SIZE - 1) * sizeof(l4_umword_t),
 };
 
 /**
@@ -93,6 +95,8 @@ enum L4_vcon_write_consts
  * \param vcon    Vcon object.
  * \param buf     Pointer to data buffer.
  * \param size    Size of buffer in bytes.
+ *
+ * \note Size must not exceed \a L4_VCON_READ_SIZE.
  *
  * \return Negative error code on error,
  *         > size if more to read, size bytes are in the buffer,
@@ -107,6 +111,45 @@ l4_vcon_read(l4_cap_idx_t vcon, char *buf, int size) L4_NOTHROW;
 L4_INLINE int
 l4_vcon_read_u(l4_cap_idx_t vcon, char *buf, int size, l4_utcb_t *utcb) L4_NOTHROW;
 
+/**
+ * \brief Read data from virtual console, extended version including flags.
+ * \ingroup l4_vcon_api
+ *
+ * \param vcon    Vcon object.
+ * \param buf     Pointer to data buffer.
+ * \param size    Size of buffer in bytes.
+ *
+ * If a break condition is signaled, it is always the first event in the
+ * transmitted content, i.e. all characters supplied by this read call
+ * follow the break condition.
+ *
+ * \note Size must not exceed \a L4_VCON_READ_SIZE.
+ *
+ * \return Negative error code on error,
+ *         if positive, an enabled \a L4_VCON_READ_STAT_BREAK flag bit
+ *         indicates a break condition,
+ *         \a L4_VCON_READ_SIZE_MASK contains the size field,
+ *         > size if more to read, size bytes are in the buffer,
+ *         <= size bytes read
+ */
+L4_INLINE int
+l4_vcon_read_with_flags(l4_cap_idx_t vcon, char *buf, int size) L4_NOTHROW;
+
+/**
+ * \internal
+ */
+L4_INLINE int
+l4_vcon_read_with_flags_u(l4_cap_idx_t vcon, char *buf, int size,
+                          l4_utcb_t *utcb) L4_NOTHROW;
+
+/**
+ */
+enum L4_vcon_read_flags
+{
+  L4_VCON_READ_SIZE_MASK  = 0x3fffffff,
+  L4_VCON_READ_STAT_BREAK = 1 << 30,
+  L4_VCON_READ_STAT_DONE  = 1 << 31,
+};
 
 /**
  * \brief Vcon attribute structure.
@@ -150,7 +193,6 @@ enum L4_vcon_l_flags
   L4_VCON_ICANON = 000002,  ///< Cannonical mode
   L4_VCON_ECHO   = 000010,  ///< Echo input
 };
-
 
 /**
  * \brief Set attributes of a Vcon.
@@ -198,6 +240,7 @@ l4_vcon_get_attr_u(l4_cap_idx_t vcon, l4_vcon_attr_t *attr,
 enum L4_vcon_ops
 {
   L4_VCON_WRITE_OP       = 0UL,    /**< Write */
+  L4_VCON_READ_OP        = 1UL,    /**< Read */
   L4_VCON_SET_ATTR_OP    = 2UL,    /**< Get console attributes */
   L4_VCON_GET_ATTR_OP    = 3UL,    /**< Set console attributes */
 };
@@ -246,7 +289,8 @@ l4_vcon_write(l4_cap_idx_t vcon, char const *buf, int size) L4_NOTHROW
 }
 
 L4_INLINE int
-l4_vcon_read_u(l4_cap_idx_t vcon, char *buf, int size, l4_utcb_t *utcb) L4_NOTHROW
+l4_vcon_read_with_flags_u(l4_cap_idx_t vcon, char *buf, int size,
+                          l4_utcb_t *utcb) L4_NOTHROW
 {
   int ret, r;
   l4_msg_regs_t *mr;
@@ -255,17 +299,18 @@ l4_vcon_read_u(l4_cap_idx_t vcon, char *buf, int size, l4_utcb_t *utcb) L4_NOTHR
     return -L4_EINVAL;
 
   mr = l4_utcb_mr_u(utcb);
-  mr->mr[0] = (size << 16) | 1;
+  mr->mr[0] = (size << 16) | L4_VCON_READ_OP;
 
   ret = l4_error_u(l4_ipc_call(vcon, utcb,
                                l4_msgtag(L4_PROTO_LOG, 1, 0, 0),
-                               L4_IPC_NEVER), utcb);
+                               L4_IPC_NEVER),
+                   utcb);
   if (ret < 0)
     return ret;
 
-  r = mr->mr[0] & ~(1U << 31);
+  r = mr->mr[0] & L4_VCON_READ_SIZE_MASK;
 
-  if (!(mr->mr[0] & (1UL << 31))) // !eof
+  if (!(mr->mr[0] & L4_VCON_READ_STAT_DONE)) // !eof
     ret = size + 1;
   else if (r < size)
     ret = r;
@@ -273,7 +318,23 @@ l4_vcon_read_u(l4_cap_idx_t vcon, char *buf, int size, l4_utcb_t *utcb) L4_NOTHR
     ret = size;
 
   __builtin_memcpy(buf, &mr->mr[1], r < size ? r : size);
-  return ret;
+  return ret | (mr->mr[0] & ~(L4_VCON_READ_STAT_DONE | L4_VCON_READ_SIZE_MASK));
+}
+
+L4_INLINE int
+l4_vcon_read_with_flags(l4_cap_idx_t vcon, char *buf, int size) L4_NOTHROW
+{
+  return l4_vcon_read_with_flags_u(vcon, buf, size, l4_utcb());
+}
+
+L4_INLINE int
+l4_vcon_read_u(l4_cap_idx_t vcon, char *buf, int size, l4_utcb_t *utcb) L4_NOTHROW
+{
+  int r = l4_vcon_read_with_flags_u(vcon, buf, size, utcb);
+  if (r < 0)
+    return r;
+
+  return r & L4_VCON_READ_SIZE_MASK;
 }
 
 L4_INLINE int

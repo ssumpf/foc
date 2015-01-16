@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* This file must not contain any C code.  At least it must be protected
    to allow using the file also in assembler files.  */
@@ -309,6 +308,21 @@
 # define __ASSUME_O_CLOEXEC 1
 #endif
 
+/* Support for various CLOEXEC and NONBLOCK flags was added for x86,
+ *    x86-64, PPC, IA-64, and SPARC in 2.6.27.  */
+#if (__LINUX_KERNEL_VERSION >= 0x02061b \
+     && (defined __i386__ || defined __x86_64__ || defined __powerpc__ \
+         || defined __ia64__ || defined __sparc__ || defined __s390__) \
+	) || (__LINUX_KERNEL_VERSION >= 0x020621 && defined __alpha__) \
+	|| defined __aarch64__ || defined __tile__
+/* # define __ASSUME_SOCK_CLOEXEC  1 */
+/* # define __ASSUME_IN_NONBLOCK   1 */
+# define __ASSUME_PIPE2         1
+/* # define __ASSUME_EVENTFD2      1 */
+/* # define __ASSUME_SIGNALFD4     1 */
+/* # define __ASSUME_DUP3		1 */
+#endif
+
 /* These features were surely available with 2.4.12.  */
 #if __LINUX_KERNEL_VERSION >= 132108 && defined __mc68000__
 # define __ASSUME_MMAP2_SYSCALL		1
@@ -454,6 +468,18 @@
 #define __ASSUME_IEEE_RAISE_EXCEPTION	1
 #endif
 
+/* Support for the accept4 syscall was added in 2.6.28.  */
+#if __LINUX_KERNEL_VERSION >= 0x02061c \
+    && (defined __i386__ || defined __x86_64__ || defined __powerpc__ \
+        || defined __sparc__ || defined __s390__)
+# define __ASSUME_ACCEPT4       1
+#endif
+
+/* Support for the accept4 syscall for alpha was added after 2.6.33-rc1.  */
+#if __LINUX_KERNEL_VERSION >= 0x020621 && defined __alpha__
+# define __ASSUME_ACCEPT4       1
+#endif
+
 /* Support for the FUTEX_CLOCK_REALTIME flag was added in 2.6.29.  */
 #if __LINUX_KERNEL_VERSION >= 0x02061d
 # define __ASSUME_FUTEX_CLOCK_REALTIME	1
@@ -469,4 +495,15 @@
 # define __ASSUME_PRIVATE_FUTEX	1
 #endif
 
+/* Support for fallocate was added in 2.6.23,
+   on s390 only after 2.6.23-rc1, on alpha only after 2.6.33-rc1.  */
+#if __LINUX_KERNEL_VERSION >= 0x020617 \
+    && (!defined __s390__ || __LINUX_KERNEL_VERSION >= 0x020618) \
+    && (!defined __alpha__ || __LINUX_KERNEL_VERSION >= 0x020621)
+# define __ASSUME_FALLOCATE 1
+#endif
 
+/* getcpu is a syscall for x86-64 since 3.1.  */
+#if defined __x86_64__ && __LINUX_KERNEL_VERSION >= 0x030100
+# define __ASSUME_GETCPU_SYSCALL        1
+#endif

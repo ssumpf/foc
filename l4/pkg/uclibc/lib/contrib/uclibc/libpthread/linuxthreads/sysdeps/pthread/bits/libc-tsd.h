@@ -13,17 +13,15 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; see the file COPYING.LIB.  If not,
-   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   License along with the GNU C Library; see the file COPYING.LIB.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef _BITS_LIBC_TSD_H
 #define _BITS_LIBC_TSD_H 1
 
 #include <linuxthreads/descr.h>
+#ifdef __UCLIBC_HAS_TLS__
 #include <tls.h>
-
-#if USE_TLS && HAVE___THREAD
 
 /* When __thread works, the generic definition is what we want.  */
 # include <sysdeps/generic/bits/libc-tsd.h>

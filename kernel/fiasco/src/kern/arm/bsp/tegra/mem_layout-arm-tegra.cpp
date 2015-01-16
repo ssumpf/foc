@@ -15,7 +15,6 @@ public:
 
     Tmr_phys_base         = 0x60005000,
     Clock_reset_phys_base = 0x60006000,
-    Uart_phys_base        = 0x70006000,
     Pmc_phys_base         = 0x7000e400,
   };
 };

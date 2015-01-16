@@ -11,8 +11,8 @@
  *  Library General Public License for more details.
  *
  *  You should have received a copy of the GNU Library General Public
- *  License along with this library; if not, write to the Free
- *  Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  License along with this library; if not, see
+ *  <http://www.gnu.org/licenses/>.
  */
 
 /*  ATTENTION!   ATTENTION!   ATTENTION!   ATTENTION!   ATTENTION!
@@ -35,10 +35,6 @@
 #include <stdint.h>
 #include <assert.h>
 #include <locale.h>
-
-#ifdef __UCLIBC_HAS_XLOCALE__
-# include <xlocale.h>
-#endif
 
 /**********************************************************************/
 #ifdef __UCLIBC_HAS_CTYPE_TABLES__
@@ -306,8 +302,6 @@ int tolower_l(int c, __locale_t l)
 	return __UCLIBC_CTYPE_IN_TO_DOMAIN(c) ? l->__ctype_tolower[c] : c;
 }
 libc_hidden_def(tolower_l)
-/*remove after 0.9.31. See ctype.h for why.
- *weak_alias (tolower_l, __tolower_l) */
 
 #endif
 /**********************************************************************/
@@ -346,9 +340,6 @@ int toupper_l(int c, __locale_t l)
 #endif
 	return __UCLIBC_CTYPE_IN_TO_DOMAIN(c) ? l->__ctype_toupper[c] : c;
 }
-libc_hidden_def(toupper_l)
-/*remove after 0.9.31. See ctype.h for why.
- *weak_alias (toupper_l, __toupper_l) */
 
 #endif
 /**********************************************************************/

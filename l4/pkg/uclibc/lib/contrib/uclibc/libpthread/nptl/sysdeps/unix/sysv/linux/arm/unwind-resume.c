@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; see the file COPYING.LIB.  If not,
-   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   License along with the GNU C Library; see the file COPYING.LIB.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #include <dlfcn.h>
 #include <stdio.h>
@@ -65,7 +64,7 @@ __asm__ (
 "	.globl	_Unwind_Resume\n"
 "	.type	_Unwind_Resume, %function\n"
 "_Unwind_Resume:\n"
-"	.cfi_sections .debug_frame\n"
+"	" CFI_SECTIONS (.debug_frame) "\n"
 "	" CFI_STARTPROC "\n"
 "	stmfd	sp!, {r4, r5, r6, lr}\n"
 "	" CFI_ADJUST_CFA_OFFSET (16)" \n"

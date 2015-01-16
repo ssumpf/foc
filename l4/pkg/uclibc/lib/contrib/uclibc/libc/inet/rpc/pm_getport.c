@@ -65,7 +65,19 @@ pmap_getport (struct sockaddr_in *address, u_long program, u_long version,
   struct pmap parms;
 
   address->sin_port = htons (PMAPPORT);
-  client = clntudp_bufcreate (address, PMAPPROG,
+  if (protocol == IPPROTO_TCP)
+    {
+      // glibc does this:
+      ///* Don't need a reserved port to get ports from the portmapper.  */
+      //socket = __get_socket(address); // does socket(TCP),bind(),connect(address)
+      //if (_socket != -1)
+      //  closeit = true;
+      // do we need/want to do the same?
+      client = clnttcp_create (address, PMAPPROG,
+	      PMAPVERS, &_socket, RPCSMALLMSGSIZE, RPCSMALLMSGSIZE);
+    }
+  else
+    client = clntudp_bufcreate (address, PMAPPROG,
 	      PMAPVERS, timeout, &_socket, RPCSMALLMSGSIZE, RPCSMALLMSGSIZE);
   if (client != (CLIENT *) NULL)
     {
@@ -87,7 +99,7 @@ pmap_getport (struct sockaddr_in *address, u_long program, u_long version,
 	}
       CLNT_DESTROY (client);
     }
-  /* (void)__close(_socket); CLNT_DESTROY already closed it */
+  /* (void)close(_socket); CLNT_DESTROY already closed it */
   address->sin_port = 0;
   return port;
 }

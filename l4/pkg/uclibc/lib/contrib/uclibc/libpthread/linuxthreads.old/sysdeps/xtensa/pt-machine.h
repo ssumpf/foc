@@ -15,9 +15,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 51 Franklin Street - Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _PT_MACHINE_H
 #define _PT_MACHINE_H   1
@@ -26,19 +25,51 @@
 #include <asm/unistd.h>
 
 #ifndef PT_EI
-# define PT_EI __extern_always_inline
+# define PT_EI extern inline __attribute__ ((gnu_inline))
 #endif
 
-/* Memory barrier.  */
 #define MEMORY_BARRIER() __asm__ ("memw" : : : "memory")
+#define HAS_COMPARE_AND_SWAP
+
+extern long int testandset (int *spinlock);
+extern int __compare_and_swap (long int *p, long int oldval, long int newval);
 
 /* Spinlock implementation; required.  */
 PT_EI long int
 testandset (int *spinlock)
 {
-  int unused = 0;
-  return INTERNAL_SYSCALL (xtensa, , 4, SYS_XTENSA_ATOMIC_SET,
-			   spinlock, 1, unused);
+	unsigned long tmp;
+	__asm__ volatile (
+"	movi	%0, 0			\n"
+"	wsr	%0, SCOMPARE1		\n"
+"	movi	%0, 1			\n"
+"	s32c1i	%0, %1, 0		\n"
+	: "=&a" (tmp)
+	: "a" (spinlock)
+	: "memory"
+	);
+	return tmp;
+}
+
+PT_EI int
+__compare_and_swap (long int *p, long int oldval, long int newval)
+{
+        unsigned long tmp;
+        unsigned long value;
+        __asm__ volatile (
+"1:     l32i    %0, %2, 0            \n"
+"       bne     %0, %4, 2f           \n"
+"       wsr     %0, SCOMPARE1        \n"
+"       mov     %1, %0               \n"
+"       mov     %0, %3               \n"
+"       s32c1i  %0, %2, 0            \n"
+"       bne     %1, %0, 1b           \n"
+"2:                                  \n"
+          : "=&a" (tmp), "=&a" (value)
+          : "a" (p), "a" (newval), "a" (oldval)
+          : "memory" );
+
+        return tmp == oldval;
 }
 
 /* Get some notion of the current stack.  Need not be exactly the top

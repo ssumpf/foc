@@ -171,7 +171,7 @@ mp_cas2_arch(char *m, Mword o1, Mword o2, Mword n1, Mword n2)
 }
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION[(ppc32 && !mp) || (sparc && !mp) || (arm && !armv6plus)]:
+IMPLEMENTATION[(ppc32 && !mp) || (sparc && !mp) || (arm && (!armv6plus || arm1136))]:
 
 #include "processor.h"
 
@@ -203,7 +203,7 @@ atomic_mp_add(Mword *l, Mword value)
 }
 
 //---------------------------------------------------------------------------
-IMPLEMENTATION[arm && armv6plus]:
+IMPLEMENTATION[arm && armv6plus && !arm1136]:
 
 inline
 void

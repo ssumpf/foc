@@ -31,8 +31,8 @@ PHDRS {
 
 SECTIONS {
   . = FIASCO_MP_TRAMP_PAGE;
-  .mp_tramp : {
-      KEEP(*(.mp_tramp))
+  .realmode_tramp : {
+      *(.realmode_tramp*)
       . = ALIGN(0x1000);
   } : tramp
 
@@ -114,6 +114,7 @@ SECTIONS {
        are traversed from end to start, therefore the *_END__ symbols
        precede the *_LIST__ symbols. */
 
+    . = ALIGN(0x10);
     __PER_CPU_INIT_ARRAY_START__ = .;
     KEEP (*(.init_array.65534))
     KEEP (*(.init_array.65533))
@@ -127,6 +128,7 @@ SECTIONS {
     KEEP (*(.init_array.65525))
     __PER_CPU_INIT_ARRAY_END__ = .;
 
+    . = ALIGN(0x10);
     __PER_CPU_LATE_INIT_ARRAY_START__ = .;
     KEEP (*(.init_array.65524))
     KEEP (*(.init_array.65523))
@@ -140,11 +142,13 @@ SECTIONS {
     KEEP (*(.init_array.65515))
     __PER_CPU_LATE_INIT_ARRAY_END__ = .;
 
+    . = ALIGN(0x10);
     __INIT_ARRAY_START__ = .;
     KEEP (*(SORT (.init_array.*)))
     KEEP (*(.init_array))
     __INIT_ARRAY_END__ = .;
 
+    . = ALIGN(0x10);
     __PER_CPU_CTORS_END__ = .;
     KEEP (*(.ctors.00010))
     KEEP (*(.ctors.00009))
@@ -158,6 +162,7 @@ SECTIONS {
     KEEP (*(.ctors.00001))
     __PER_CPU_CTORS_LIST__ = .;
 
+    . = ALIGN(0x10);
     __PER_CPU_LATE_CTORS_END__ = .;
     KEEP (*(.ctors.00020))
     KEEP (*(.ctors.00019))
@@ -171,12 +176,14 @@ SECTIONS {
     KEEP (*(.ctors.00011))
     __PER_CPU_LATE_CTORS_LIST__ = .;
 
+    . = ALIGN(0x10);
     __CTOR_END__ = .;
     CONSTRUCTORS
     KEEP (*(.ctors))
     KEEP (*(SORT (.ctors.*)))
     __CTOR_LIST__ = .;
 
+    . = ALIGN(0x10);
     __DTOR_END__ = .;    
     KEEP (*(SORT (.dtors.*)))
     KEEP (*(.dtors))
@@ -211,7 +218,6 @@ SECTIONS {
   PROVIDE (_initcall_start = .);
   .initcall.text : AT (ADDR(.initcall.text) - _fiasco_image_offset) {
     *(.initcall.text*)
-    *(.text.*)
   } : kitext = 0x90909090
 
   .initcall.data : AT (ADDR(.initcall.data) - _fiasco_image_offset) {

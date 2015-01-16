@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 51 Franklin Street - Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Define the machine-dependent type `jmp_buf'.  Xtensa version.  */
 #ifndef _BITS_SETJMP_H
@@ -30,17 +29,6 @@
    subsequent alloca in proc moves $sp), and the return address within
    proc.  Everything else is saved on the stack in the normal save areas.  */
 
-#ifndef	_ASM
 typedef int __jmp_buf[17];
-#endif
-
-#define JB_SP	1
-#define JB_PC	16
-
-/* Test if longjmp to JMPBUF would unwind the frame containing a local
-   variable at ADDRESS.  */
-
-#define _JMPBUF_UNWINDS(jmpbuf, address) \
-  ((void *) (address) < (void *) (jmpbuf)[JB_SP])
 
 #endif	/* bits/setjmp.h */

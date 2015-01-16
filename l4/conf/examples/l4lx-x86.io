@@ -1,6 +1,6 @@
 input => new System_bus()
 {
-  ps2dev => wrap(hw-root.match("PNP0303"));
+  ps2dev => wrap(hw-root.match("PNP0303,PNP0F13"));
 }
 
 fbdrv => new System_bus()

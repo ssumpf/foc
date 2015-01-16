@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; see the file COPYING.LIB.  If not,
-   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   License along with the GNU C Library; see the file COPYING.LIB.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #include <errno.h>
 #include <setjmp.h>
@@ -49,7 +48,7 @@ timer_sigev_thread (void *arg)
      surprising for user code, although valid.  We unblock all
      signals.  */
   sigset_t ss;
-  sigemptyset (&ss);
+  __sigemptyset (&ss);
   INTERNAL_SYSCALL_DECL (err);
   INTERNAL_SYSCALL (rt_sigprocmask, err, 4, SIG_SETMASK, &ss, NULL, _NSIG / 8);
 
@@ -69,13 +68,13 @@ timer_sigev_thread (void *arg)
 
 
 /* Helper function to support starting threads for SIGEV_THREAD.  */
-static void *
+static attribute_noreturn void *
 timer_helper_thread (void *arg)
 {
   /* Wait for the SIGTIMER signal, allowing the setXid signal, and
      none else.  */
   sigset_t ss;
-  sigemptyset (&ss);
+  __sigemptyset (&ss);
   __sigaddset (&ss, SIGTIMER);
 
   /* Endless loop of waiting for signals.  The loop is only ended when
@@ -175,7 +174,7 @@ __start_helper_thread (void)
   sigset_t ss;
   sigset_t oss;
   sigfillset (&ss);
-  /*__sigaddset (&ss, SIGCANCEL); - already done by sigfillset */
+  __sigaddset (&ss, SIGCANCEL);
   INTERNAL_SYSCALL_DECL (err);
   INTERNAL_SYSCALL (rt_sigprocmask, err, 4, SIG_SETMASK, &ss, &oss, _NSIG / 8);
 

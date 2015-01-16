@@ -18,6 +18,8 @@ public:
 
   enum Keymap { Keymap_en, Keymap_de };
   void set_keymap(Keymap);
+
+  Keyb() : Console(ENABLED) {}
 };
 
 

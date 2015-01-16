@@ -8,7 +8,7 @@ protected:
   struct Log_thread_exregs : public Tb_entry
   {
     Mword       id, ip, sp, op;
-    unsigned print(int, char *) const;
+    void print(String_buffer *) const;
   };
 };
 
@@ -25,17 +25,19 @@ IMPLEMENTATION [debug]:
 //---------------------------------------------------------------------------
 IMPLEMENTATION [debug]:
 
+#include "string_buffer.h"
+
 IMPLEMENT
-unsigned
-Thread::Log_thread_exregs::print(int max, char *buf) const
+void
+Thread::Log_thread_exregs::print(String_buffer *buf) const
 {
-  return snprintf(buf, max, "D=%lx ip=%lx sp=%lx op=%s%s%s",
-                  id, ip, sp,
-                  op & Exr_cancel ? "Cancel" : "",
-                  ((op & (Exr_cancel | Exr_trigger_exception))
-                   == (Exr_cancel | Exr_trigger_exception))
-                   ? ","
-                   : ((op & (Exr_cancel | Exr_trigger_exception))
-                      == 0 ? "0" : "") ,
-                  op & Exr_trigger_exception ? "TrExc" : "");
+  buf->printf("D=%lx ip=%lx sp=%lx op=%s%s%s",
+              id, ip, sp,
+              op & Exr_cancel ? "Cancel" : "",
+              ((op & (Exr_cancel | Exr_trigger_exception))
+               == (Exr_cancel | Exr_trigger_exception))
+               ? ","
+               : ((op & (Exr_cancel | Exr_trigger_exception))
+                  == 0 ? "0" : "") ,
+              op & Exr_trigger_exception ? "TrExc" : "");
 }

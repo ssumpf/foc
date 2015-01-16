@@ -214,8 +214,8 @@ namespace Ptab
     {}
 
     template< typename _Alloc >
-    bool sync(Address &l_addr, This const &_r, Address &r_addr,
-              Address &size, unsigned, bool force_write_back, _Alloc const &)
+    int sync(Address &l_addr, This const &_r, Address &r_addr,
+             Address &size, unsigned, bool force_write_back, _Alloc const &)
     {
       unsigned count = size >> Traits::Shift;
       unsigned const l = Vec::idx(l_addr);
@@ -421,9 +421,9 @@ namespace Ptab
     }
 
     template< typename _Alloc >
-    bool sync(Address &l_a, This2 const &_r, Address &r_a,
-              Address &size, unsigned level, bool force_write_back,
-              _Alloc const &alloc)
+    int sync(Address &l_a, This2 const &_r, Address &r_a,
+             Address &size, unsigned level, bool force_write_back,
+             _Alloc const &alloc)
     {
       if (!level)
         return reinterpret_cast<This*>(this)
@@ -446,8 +446,7 @@ namespace Ptab
           PTE_PTR l(&_e[Vec::idx(l_a)], Depth);
           PTE_PTR r(const_cast<Entry *>(&_r._e[Vec::idx(r_a)]), Depth);
           Next *n = 0;
-          if (!r.is_valid()
-              || (!l.is_valid() && (!alloc.valid() || !(n = alloc_next(l, alloc, force_write_back)))))
+          if (!r.is_valid())
             {
               l_a += 1UL << Traits::Shift;
               r_a += 1UL << Traits::Shift;
@@ -459,13 +458,22 @@ namespace Ptab
               break;
             }
 
-          if (!n)
+          if (!l.is_valid())
+            {
+              if (!alloc.valid() || !(n = alloc_next(l, alloc, force_write_back)))
+                return -1;
+            }
+          else
             n = (Next*)Mem_layout::phys_to_pmem(l.next_level());
 
           Next *rn = (Next*)Mem_layout::phys_to_pmem(r.next_level());
 
-          if (n->sync(l_a, *rn, r_a, size, level - 1, force_write_back, alloc))
+          int err = n->sync(l_a, *rn, r_a, size, level - 1, force_write_back, alloc);
+          if (err > 0)
             need_flush = true;
+
+          if (err < 0)
+            return err;
         }
 
       return need_flush;
@@ -607,10 +615,10 @@ namespace Ptab
 
 
     template< typename OPTE_PTR, typename _Alloc >
-    bool sync(Va l_addr, Base< OPTE_PTR, _Traits, _Addr> const *_r,
-              Va r_addr, Vs size, unsigned level = Depth,
-              bool force_write_back = false,
-              _Alloc const &alloc = _Alloc())
+    int sync(Va l_addr, Base< OPTE_PTR, _Traits, _Addr> const *_r,
+             Va r_addr, Vs size, unsigned level = Depth,
+             bool force_write_back = false,
+             _Alloc const &alloc = _Alloc())
     {
       Address la = _Addr::val(l_addr);
       Address ra = _Addr::val(r_addr);

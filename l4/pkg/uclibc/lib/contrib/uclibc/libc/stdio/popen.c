@@ -26,15 +26,6 @@
 #warning "hmm... susv3 says Pipe streams are byte-oriented."
 #endif /* __UCLIBC_MJN3_ONLY__ */
 
-
-/* uClinux-2.0 has vfork, but Linux 2.0 doesn't */
-#include <sys/syscall.h>
-#if ! defined __NR_vfork
-# define vfork fork
-# define VFORK_LOCK		((void) 0)
-# define VFORK_UNLOCK		((void) 0)
-#endif
-
 #ifndef VFORK_LOCK
 __UCLIBC_MUTEX_STATIC(mylock, PTHREAD_MUTEX_INITIALIZER);
 # define VFORK_LOCK		__UCLIBC_MUTEX_LOCK(mylock)
@@ -138,7 +129,7 @@ FILE *popen(const char *command, const char *modes)
 int pclose(FILE *stream)
 {
 	struct popen_list_item *p;
-	int stat;
+	int status;
 	pid_t pid;
 
 	/* First, find the list entry corresponding to stream and remove it
@@ -173,8 +164,8 @@ int pclose(FILE *stream)
 		/* SUSv3 specificly requires that pclose not return before the child
 		 * terminates, in order to disallow pclose from returning on EINTR. */
 		do {
-			if (waitpid(pid, &stat, 0) >= 0) {
-				return stat;
+			if (waitpid(pid, &status, 0) >= 0) {
+				return status;
 			}
 			if (errno != EINTR) {
 				break;

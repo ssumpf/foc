@@ -13,25 +13,19 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
-#define __UCLIBC_HIDE_DEPRECATED__
-/* psm: need the BSD version of sigpause here */
-#include <errno.h>
-#define __FAVOR_BSD
 #include <signal.h>
-#include <stddef.h>		/* For NULL.  */
-#ifdef __UCLIBC_HAS_THREADS_NATIVE__
-#include <sysdep-cancel.h>
-#endif
+#define __need_NULL
+#include <stddef.h>
+#include <cancel.h>
 
 #include "sigset-cvt-mask.h"
 
 /* Set the mask of blocked signals to MASK,
    wait for a signal to arrive, and then restore the mask.  */
-int __sigpause (int sig_or_mask, int is_sig)
+static int __sigpause (int sig_or_mask, int is_sig)
 {
   sigset_t set;
 
@@ -49,29 +43,21 @@ int __sigpause (int sig_or_mask, int is_sig)
   /* Note the sigpause() is a cancellation point.  But since we call
      sigsuspend() which itself is a cancellation point we do not have
      to do anything here.  */
-  return sigsuspend (&set);
+  /* uClibc note: not true on uClibc, we call the non-cancellable version */
+  return __NC(sigsuspend)(&set);
 }
-libc_hidden_def(__sigpause)
 
-#undef sigpause
+int __bsd_sigpause(int mask);
+int __bsd_sigpause(int mask)
+{
+	return __sigpause(mask, 0);
+}
 
 /* We have to provide a default version of this function since the
    standards demand it.  The version which is a bit more reasonable is
    the BSD version.  So make this the default.  */
-int sigpause (int mask)
+static int __NC(sigpause)(int sig)
 {
-#ifdef __UCLIBC_HAS_THREADS_NATIVE__
-  if (SINGLE_THREAD_P)
-    return __sigpause (mask, 0);
-
-  int oldtype = LIBC_CANCEL_ASYNC ();
-
-  int result = __sigpause (mask, 0);
-
-  LIBC_CANCEL_RESET (oldtype);
-
-  return result;
-#else
-  return __sigpause (mask, 0);
-#endif
+	return __sigpause(sig, 1);
 }
+CANCELLABLE_SYSCALL(int, sigpause, (int sig), (sig))

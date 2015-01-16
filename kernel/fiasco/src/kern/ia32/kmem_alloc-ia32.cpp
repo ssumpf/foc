@@ -23,13 +23,12 @@ PUBLIC static FIASCO_INIT
 bool
 Kmem_alloc::base_init()
 {
-  //printf("Kmem_alloc::base_init(): kip=%p\n", Kip::k());
+  if (0)
+    printf("Kmem_alloc::base_init(): kip=%p\n", Kip::k());
   unsigned long available_size = 0;
   unsigned long requested_size;
 
   Mem_region_map<64> map;
-  //Kip::k()->add_mem_region(Mem_desc(0xc7ed000, 0xfeecfff, Mem_desc::Reserved));
-  //Kip::k()->add_mem_region(Mem_desc(0xea00000, 0xfeecfff, Mem_desc::Reserved));
 
   available_size = create_free_map(Kip::k(), &map);
 
@@ -41,39 +40,43 @@ Kmem_alloc::base_init()
 	requested_size = Config::kernel_mem_max;
     }
 
-  if (requested_size > (0-Mem_layout::Physmem))
-    requested_size = 0-Mem_layout::Physmem; // maximum mappable memory
+  if (requested_size > (0 - Mem_layout::Physmem))
+    requested_size = 0 - Mem_layout::Physmem; // maximum mappable memory
 
-  requested_size = (requested_size + Config::PAGE_SIZE - 1)
+  requested_size =    (requested_size + Config::PAGE_SIZE - 1)
                    & ~(Config::PAGE_SIZE - 1);
 
-  //printf("Kmem_alloc: available_memory=%lu KB requested_size=%lu\n",
-  //       available_size / 1024, requested_size / 1024);
+  if (0)
+    {
+      printf("Kmem_alloc: available_memory=%lu KB requested_size=%lu\n",
+             available_size / 1024, requested_size / 1024);
 
-  //printf("Kmem_alloc:: available blocks:\n");
-  //for (unsigned i = 0; i < map.length(); ++i)
-  //  printf("  %2u [%014lx; %014lx)\n", i, map[i].start, map[i].end+1);
+      printf("Kmem_alloc:: available blocks:\n");
+      for (unsigned i = 0; i < map.length(); ++i)
+        printf("  %2u [%014lx; %014lx)\n", i, map[i].start, map[i].end + 1);
+    }
 
   unsigned long base = 0;
   unsigned long sp_base = 0;
-  unsigned long end = map[map.length()-1].end;
+  unsigned long end = map[map.length() - 1].end;
   unsigned last = map.length();
   unsigned i;
   unsigned long size = requested_size;
+
   for (i = last; i > 0 && size > 0; --i)
     {
-      if (map[i-1].size() >= size)
+      if (map[i - 1].size() >= size)
 	{ // next block is sufficient
-	  base = map[i-1].end - size + 1;
-	  sp_base = base & ~(Config::SUPERPAGE_SIZE-1);
-	  if ((end - sp_base + 1) > (0-Mem_layout::Physmem))
+	  base = map[i - 1].end - size + 1;
+	  sp_base = base & ~(Config::SUPERPAGE_SIZE - 1);
+	  if ((end - sp_base + 1) > (0 - Mem_layout::Physmem))
 	    {
 	      if (last == i)
 		{ // already a single block, try to align
-		  if (sp_base >= map[i-1].start)
+		  if (sp_base >= map[i - 1].start)
 		    {
 		      base = sp_base;
-		      end  = sp_base + size -1;
+		      end  = sp_base + size - 1;
                       size = 0;
 		    }
 		  continue;
@@ -81,8 +84,8 @@ Kmem_alloc::base_init()
 	      else if (last > 1)
 		{ // too much virtual memory, try other blocks
                   // free last block
-		  size += map[last-1].size();
-		  end = map[last-2].end;
+		  size += map[last - 1].size();
+		  end = map[last - 2].end;
 		  --last;
                   ++i; // try same block again
                   continue;
@@ -92,30 +95,38 @@ Kmem_alloc::base_init()
 	    size = 0;
 	}
       else
-	size -= map[i-1].size();
+	size -= map[i - 1].size();
     }
 
   if (size)
     return false;
 
-  //printf("Kmem_alloc: kernel memory from %014lx to %014lx\n", base, end+1);
-  //printf("Kmem_alloc: blocks %u-%u\n", i, last-1);
+  if (0)
+    {
+      printf("Kmem_alloc: kernel memory from %014lx to %014lx\n", base, end + 1);
+      printf("Kmem_alloc: blocks %u-%u\n", i, last - 1);
+    }
 
-  Kip::k()->add_mem_region(Mem_desc(base,
-	end <= map[i].end ? end : map[i].end, Mem_desc::Kernel_tmp));
+  Kip::k()->add_mem_region(Mem_desc(base, end <= map[i].end ? end : map[i].end,
+                                    Mem_desc::Kernel_tmp));
   ++i;
   for (; i < last; ++i)
-    Kip::k()->add_mem_region(Mem_desc(map[i].start, map[i].end, Mem_desc::Kernel_tmp));
+    Kip::k()->add_mem_region(Mem_desc(map[i].start, map[i].end,
+                                      Mem_desc::Kernel_tmp));
 
   Mem_layout::kphys_base(sp_base);
-  Mem_layout::pmem_size = (end + 1 - sp_base + Config::SUPERPAGE_SIZE - 1) & ~(Config::SUPERPAGE_SIZE-1);
+  Mem_layout::pmem_size =    (end + 1 - sp_base + Config::SUPERPAGE_SIZE - 1)
+                          & ~(Config::SUPERPAGE_SIZE - 1);
+  assert(Mem_layout::pmem_size <= Config::kernel_mem_max);
+
   return true;
 }
 
 IMPLEMENT
 Kmem_alloc::Kmem_alloc()
 {
-  //printf("Kmem_alloc::Kmem_alloc()\n");
+  if (0)
+    printf("Kmem_alloc::Kmem_alloc()\n");
   Mem_desc *md = Kip::k()->mem_descs();
   Mem_desc const *const md_end = md + Kip::k()->num_mem_descs();
   bool initialized = false;
@@ -127,8 +138,8 @@ Kmem_alloc::Kmem_alloc()
 
       unsigned long s = md->start(), e = md->end();
 
-      // Speep out stupid descriptors (that have the end before the start)
-      if (s>=e)
+      // Sweep out stupid descriptors (that have the end before the start)
+      if (s >= e)
 	{
 	  md->type(Mem_desc::Undefined);
 	  continue;
@@ -141,15 +152,20 @@ Kmem_alloc::Kmem_alloc()
 	    {
 	      initialized = true;
 	      a->init(s_v & ~(Kmem_alloc::Alloc::Max_size - 1));
-	      //printf("Kmem_alloc: allocator base = %014lx\n", s_v & ~(Kmem_alloc::Alloc::Max_size - 1));
+	      if (0)
+                printf("Kmem_alloc: allocator base = %014lx\n",
+                       s_v & ~(Kmem_alloc::Alloc::Max_size - 1));
 	    }
-	  //printf("  Kmem_alloc: block %014lx(%014lx) size=%lx\n", s_v, s, e - s + 1);
-	  a->add_mem((void*)s_v, e - s + 1);
+	  if (0)
+            printf("  Kmem_alloc: block %014lx(%014lx) size=%lx\n",
+                   s_v, s, e - s + 1);
+	  a->add_mem((void *)s_v, e - s + 1);
 	  md->type(Mem_desc::Reserved);
 	  _orig_free += e - s + 1;
 	}
     }
-  //printf("Kmem_alloc: construction done\n");
+  if (0)
+    printf("Kmem_alloc: construction done\n");
 }
 
 //-----------------------------------------------------------------------------
@@ -160,14 +176,14 @@ IMPLEMENTATION [{ia32,ux,amd64}-debug]:
 PUBLIC
 void
 Kmem_alloc::debug_dump()
-{ 
-  a->dump(); 
+{
+  a->dump();
 
   unsigned long free = a->avail();
   printf("Used %ld%%, %ldKB out of %ldKB of Kmem\n",
-         (unsigned long) div32(100ULL * (orig_free() - free), orig_free()),
-	 (orig_free() - free + 1023)/1024,
-	 (orig_free()        + 1023)/1024);
+         (unsigned long)div32(100ULL * (orig_free() - free), orig_free()),
+	 (orig_free() - free + 1023) / 1024,
+	 (orig_free()        + 1023) / 1024);
 }
 
 PRIVATE inline

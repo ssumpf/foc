@@ -27,8 +27,6 @@
  * SUCH DAMAGE.
  */
 
-#define __FORCE_GLIBC
-#include <features.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -37,13 +35,14 @@
 #include <errno.h>
 #include <netdb.h>
 #include <stdio.h>
-#include <stdio_ext.h>
+#ifdef __UCLIBC_HAS_THREADS__
+# include <stdio_ext.h>
+#endif
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <libintl.h>
 
-
-#define _(X)  (X)
 /* #include "ftp_var.h" */
 
 static	int token (void);

@@ -1,4 +1,5 @@
 # -*- makefile -*-
+# vi:se ft=make:
 
 ###############################################################################
 
@@ -155,10 +156,10 @@ INTERFACES_JDB		:= jdb jdb_attach_irq jdb_core jdb_scheduler jdb_entry_frame \
 			   jdb_lines jdb_list jdb_module jdb_prompt_module     \
 			   jdb_obj_space jdb_prompt_ext jdb_screen jdb_space   \
 			   jdb_symbol jdb_table jdb_tcb jdb_thread             \
-			   jdb_thread_list jdb_util kern_cnt         \
+			   jdb_thread_list jdb_util kern_cnt jdb_counters      \
 			   push_console jdb_regex jdb_disasm jdb_bp            \
-			   jdb_tbuf_output              \
-			   jdb_tbuf_show
+			   jdb_tbuf_output  jdb_input_task      \
+			   jdb_tbuf_show jdb_report
 
 CXXSRC_JDB := tb_entry_output.cc
 

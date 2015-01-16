@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _SYS_MMAN_H
 # error "Never use <bits/mman.h> directly; include <sys/mman.h> instead."
@@ -66,7 +65,7 @@
 # define MAP_LOCKED	0x8000		/* pages are locked */
 # define MAP_POPULATE   0x10000         /* populate (prefault) pagetables */
 # define MAP_NONBLOCK   0x20000         /* do not block on IO */
-# define MAP_UNINITIALIZE 0x4000000     /* For anonymous mmap, memory could
+# define MAP_UNINITIALIZED 0x4000000    /* For anonymous mmap, memory could
 					   be uninitialized. */
 #endif
 

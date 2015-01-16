@@ -112,8 +112,8 @@ Vlog::get_input(L4_fpage::Rights rights, Syscall_frame *f, Utcb *u)
   char *buffer = reinterpret_cast<char *>(&u->values[1]);
   long cnt_down = min<Mword>(u->values[0] >> 16,
                              sizeof(u->values) - sizeof(u->values[0]));
-  int i = 0;
-  while (cnt_down && (i = Vkey::get()) != -1)
+  int i;
+  while ((i = Vkey::get()) != -1 && cnt_down)
     {
       Vkey::clear();
 

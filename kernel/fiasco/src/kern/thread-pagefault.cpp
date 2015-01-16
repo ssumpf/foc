@@ -8,7 +8,6 @@ IMPLEMENTATION:
 #include "kmem.h"
 #include "logdefs.h"
 #include "processor.h"
-#include "regdefs.h"
 #include "std_macros.h"
 #include "thread.h"
 #include "warn.h"
@@ -25,13 +24,13 @@ IMPLEMENTATION:
  * @return true if page fault could be resolved, false otherwise
  * @exception longjmp longjumps to recovery location if page-fault
  *                    handling fails (i.e., return value would be false),
- *                    but recovery location has been installed           
+ *                    but recovery location has been installed
  */
-IMPLEMENT inline NEEDS[<cstdio>,"regdefs.h", "kdb_ke.h","processor.h",
+IMPLEMENT inline NEEDS[<cstdio>,"kdb_ke.h","processor.h",
 		       "config.h","std_macros.h","logdefs.h",
 		       "warn.h",Thread::page_fault_log]
-int Thread::handle_page_fault (Address pfa, Mword error_code, Mword pc,
-    Return_frame *regs)
+int Thread::handle_page_fault(Address pfa, Mword error_code, Mword pc,
+                              Return_frame *regs)
 {
   //if (Config::Log_kernel_page_faults && !PF::is_usermode_error(error_code))
   if (0 && current_cpu() != Cpu_number::boot_cpu())
@@ -63,13 +62,13 @@ int Thread::handle_page_fault (Address pfa, Mword error_code, Mword pc,
   L4_msg_tag ipc_code = L4_msg_tag(0, 0, 0, 0);
 
   // Check for page fault in user memory area
-  if (EXPECT_TRUE (!Kmem::is_kmem_page_fault(pfa, error_code)))
+  if (EXPECT_TRUE(!Kmem::is_kmem_page_fault(pfa, error_code)))
     {
       // Make sure that we do not handle page faults that do not
       // belong to this thread.
       //assert_kdb (mem_space() == current_mem_space());
 
-      if (EXPECT_FALSE (mem_space()->is_sigma0()))
+      if (EXPECT_FALSE(mem_space()->is_sigma0()))
         {
           // special case: sigma0 can map in anything from the kernel
 	  if(handle_sigma0_page_fault(pfa))
@@ -123,7 +122,7 @@ int Thread::handle_page_fault (Address pfa, Mword error_code, Mword pc,
  error:
 
   if (_recover_jmpbuf)
-    longjmp (*_recover_jmpbuf, 1);
+    longjmp(*_recover_jmpbuf, 1);
 
   return 0;
 }

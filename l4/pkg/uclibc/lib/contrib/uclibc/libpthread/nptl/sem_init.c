@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <errno.h>
 #include <semaphore.h>
@@ -25,7 +24,7 @@
 
 
 int
-__new_sem_init (
+sem_init (
      sem_t *sem,
      int pshared,
      unsigned int value)
@@ -53,4 +52,3 @@ __new_sem_init (
 
   return 0;
 }
-weak_alias(__new_sem_init, sem_init)

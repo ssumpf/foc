@@ -35,7 +35,6 @@ IMPLEMENTATION [vmx]:
 #include "context.h"
 #include "mem_space.h"
 #include "fpu.h"
-#include "ref_ptr.h"
 #include "thread.h" // XXX: circular dep, move this out here!
 #include "thread_state.h" // XXX: circular dep, move this out here!
 #include "virt.h"
@@ -194,16 +193,21 @@ Vm_vmx::load_vm_memory(void *src)
   if (sizeof(long) > sizeof(int))
     {
       if (read<Mword>(src, 0x2806) & EFER_LME)
-        Vmx::vmwrite(0x6802, (Mword)phys_dir());
+        Vmx::vmwrite(Vmx::F_guest_cr3, (Mword)phys_dir());
       else
 	WARN("VMX: No, not possible\n");
     }
   else
     {
       // for 32bit we can just load the Vm pdbr
-      Vmx::vmwrite(0x6802, (Mword)phys_dir());
+      Vmx::vmwrite(Vmx::F_guest_cr3, (Mword)phys_dir());
     }
 }
+
+PUBLIC inline
+void
+Vm_vmx::store_vm_memory(void *)
+{}
 
 PRIVATE template<typename X>
 void
@@ -313,9 +317,9 @@ Vm_vmx_t<X>::load_guest_state(Cpu_number cpu, void *src)
 }
 
 
-PROTECTED
+PROTECTED template<typename X>
 void
-Vm_vmx_b::store_guest_state(Cpu_number cpu, void *dest)
+Vm_vmx_t<X>::store_guest_state(Cpu_number cpu, void *dest)
 {
   // read 16-bit fields
   store(0x800, 0x80e, dest);
@@ -349,7 +353,7 @@ Vm_vmx_b::store_guest_state(Cpu_number cpu, void *dest)
 
   // read natural-width fields
   store(0x6800, dest);
-  // skip cr3
+  static_cast<X*>(this)->store_vm_memory(dest);
   store(0x6804, 0x6822, dest);
 }
 
@@ -444,12 +448,11 @@ Vm_vmx_t<X>::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, void *vmcs_s)
     }
 #endif
 
-  // increment our refcount, and drop it at the end automatically
-  Ref_ptr<Vm_vmx_b> pin_myself(this);
-
   // set volatile host state
   Vmx::vmwrite<Mword>(Vmx::F_host_cr0, Cpu::get_cr0());
   Vmx::vmwrite<Mword>(Vmx::F_host_cr3, Cpu::get_pdbr()); // host_area.cr3
+
+  safe_host_segments(ctxt, vcpu);
 
   // host cr0 und cr4
   load_guest_state(cpu, vmcs_s);
@@ -555,4 +558,29 @@ Vm_vmx_t<X>::resume_vcpu(Context *ctxt, Vcpu_state *vcpu, bool user_mode)
                                  t->vcpu_state().usr().get());
         }
     }
+}
+
+//------------------------------------------------------------------
+IMPLEMENTATION [vmx && amd64]:
+
+PRIVATE inline template<typename X>
+void
+Vm_vmx_t<X>::safe_host_segments(Context *, Vcpu_state *)
+{
+  /* we can optimize GS and FS handling based on the assuption that
+   * FS and GS do not change often for the host / VMM */
+  Vmx::vmwrite<Mword>(Vmx::F_host_fs_base, Cpu::rdmsr(MSR_FS_BASE));
+  Vmx::vmwrite<Mword>(Vmx::F_host_gs_base, Cpu::rdmsr(MSR_GS_BASE));
+  Vmx::vmwrite<Unsigned16>(Vmx::F_host_fs_selector, Cpu::get_fs());
+  Vmx::vmwrite<Unsigned16>(Vmx::F_host_gs_selector, Cpu::get_gs());
+}
+
+//------------------------------------------------------------------
+IMPLEMENTATION [vmx && !amd64]:
+
+PRIVATE inline template<typename X>
+void
+Vm_vmx_t<X>::safe_host_segments(Context *, Vcpu_state *)
+{
+  /* GS and FS are handled via push/pop in asm code */
 }

@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; see the file COPYING.LIB.  If not,
-   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   License along with the GNU C Library; see the file COPYING.LIB.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef _BITS_LIBC_LOCK_H
 #define _BITS_LIBC_LOCK_H 1
@@ -271,6 +270,7 @@ typedef pthread_key_t __libc_key_t;
       _pthread_cleanup_pop_restore (&_buffer, (DOIT));			      \
     }
 
+#if 0
 #define __libc_cleanup_push(fct, arg) \
     { struct _pthread_cleanup_buffer _buffer; 				      \
     __libc_maybe_call (_pthread_cleanup_push, (&_buffer, (fct), (arg)), 0)
@@ -278,6 +278,7 @@ typedef pthread_key_t __libc_key_t;
 #define __libc_cleanup_pop(execute) \
     __libc_maybe_call (_pthread_cleanup_pop, (&_buffer, execute), 0);	      \
     }
+#endif
 
 /* Create thread-specific key.  */
 #define __libc_key_create(KEY, DESTRUCTOR) \
@@ -300,7 +301,7 @@ typedef pthread_key_t __libc_key_t;
    library.  */
 
 extern int __pthread_mutex_init (pthread_mutex_t *__mutex,
-				 __const pthread_mutexattr_t *__mutex_attr);
+				 const pthread_mutexattr_t *__mutex_attr);
 
 extern int __pthread_mutex_destroy (pthread_mutex_t *__mutex);
 
@@ -319,7 +320,7 @@ extern int __pthread_mutexattr_settype (pthread_mutexattr_t *__attr,
 
 #ifdef __USE_UNIX98
 extern int __pthread_rwlock_init (pthread_rwlock_t *__rwlock,
-				  __const pthread_rwlockattr_t *__attr);
+				  const pthread_rwlockattr_t *__attr);
 
 extern int __pthread_rwlock_destroy (pthread_rwlock_t *__rwlock);
 
@@ -338,7 +339,7 @@ extern int __pthread_key_create (pthread_key_t *__key,
 				 void (*__destr_function) (void *));
 
 extern int __pthread_setspecific (pthread_key_t __key,
-				  __const void *__pointer);
+				  const void *__pointer);
 
 extern void *__pthread_getspecific (pthread_key_t __key);
 
@@ -375,7 +376,6 @@ weak_extern (BP_SYM (__pthread_key_create))
 weak_extern (BP_SYM (__pthread_setspecific))
 weak_extern (BP_SYM (__pthread_getspecific))
 weak_extern (BP_SYM (__pthread_once))
-weak_extern (__pthread_initialize)
 weak_extern (__pthread_atfork)
 weak_extern (BP_SYM (_pthread_cleanup_push))
 weak_extern (BP_SYM (_pthread_cleanup_pop))
@@ -400,7 +400,6 @@ weak_extern (BP_SYM (_pthread_cleanup_pop_restore))
 #  pragma weak __pthread_setspecific
 #  pragma weak __pthread_getspecific
 #  pragma weak __pthread_once
-#  pragma weak __pthread_initialize
 #  pragma weak __pthread_atfork
 #  pragma weak _pthread_cleanup_push_defer
 #  pragma weak _pthread_cleanup_pop_restore

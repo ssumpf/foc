@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* I/O port access on the ARM is something of a fiction.  What we do is to
    map an appropriate area of /dev/mem into user space so that a program
@@ -33,21 +32,16 @@
    the area affected (this is a kernel limitation).  So we now just
    enable all the ports all of the time.  */
 
-#include <errno.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <ctype.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-
-#include <sys/types.h>
+#include <sys/io.h>
 #include <sys/mman.h>
 #include <sys/sysctl.h>
-#include <sys/io.h>
-
-
-
+#include <paths.h>
+#include <errno.h>
+#include <ctype.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <linux/version.h>
 
 #define PATH_ARM_SYSTYPE	"/etc/arm_systype"
@@ -186,7 +180,7 @@ int ioperm (unsigned long int from, unsigned long int num, int turn_on)
 	if (! io.base) {
 	    int fd;
 
-	    fd = open ("/dev/mem", O_RDWR);
+	    fd = open (_PATH_MEM, O_RDWR);
 	    if (fd < 0)
 		return -1;
 

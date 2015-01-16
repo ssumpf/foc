@@ -1,4 +1,6 @@
 # -*- makefile -*-
+# vi:se ft=make:
+
 #OPT_SHARED_FLAGS                  += $(call CHECKCC,-finline-limit=10000,)
 SYSTEM_TARGET			  ?= arm-linux-
 SHARED_FLAGS-$(CONFIG_ARM_PXA)    += -mcpu=xscale

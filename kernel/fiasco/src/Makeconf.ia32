@@ -1,4 +1,5 @@
 # -*- makefile -*-
+# vim:se ft=make:
 
 #OPT_SHARED_FLAGS	+= $(call CHECKCC,-finline-limit=10000,) 
 #OPT_CXXFLAGS		+= $(call CHECKCXX,--param large-function-insns=10000)
@@ -23,6 +24,7 @@ SHARED_FLAGS-$(CONFIG_IA32_P4)    += -march=i686 $(call CHECKCC,-mtune=pentium4,
 SHARED_FLAGS-$(CONFIG_IA32_PM)    += -march=i686 $(call CHECKCC,-mtune=pentium-m,\
                                                    $(call CHECKCC,-mcpu=pentiumm))
 SHARED_FLAGS-$(CONFIG_IA32_CORE2) += $(call CHECKCC,-march=core2,-march=i686)
+SHARED_FLAGS-$(CONFIG_IA32_CORE_I)+= $(call CHECKCC,-march=corei7,-march=i686)
 SHARED_FLAGS-$(CONFIG_IA32_ATOM)  += $(call CHECKCC,-march=atom,-march=i686)
 SHARED_FLAGS-$(CONFIG_IA32_K6)    += $(call CHECKCC,-march=k6,-march=i586)
 SHARED_FLAGS-$(CONFIG_IA32_K7)    += $(call CHECKCC,-march=athlon,-march=i686)

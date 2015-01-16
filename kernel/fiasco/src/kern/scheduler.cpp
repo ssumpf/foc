@@ -96,14 +96,14 @@ Scheduler::sys_run(L4_fpage::Rights, Syscall_frame *f, Utcb const *utcb)
 
   Thread::Migration info;
 
-  Cpu_number const t_cpu = thread->cpu();
+  Cpu_number const t_cpu = thread->home_cpu();
 
   if (Cpu::online(t_cpu) && sched_param->cpus.contains(t_cpu))
     info.cpu = t_cpu;
   else if (sched_param->cpus.contains(curr_cpu))
     info.cpu = curr_cpu;
   else
-    info.cpu = sched_param->cpus.first(Cpu::online_mask(), Config::max_num_cpus());
+    info.cpu = sched_param->cpus.first(Cpu::present_mask(), Config::max_num_cpus());
 
   info.sp = sched_param;
   if (0)
@@ -149,16 +149,18 @@ Scheduler::sys_info(L4_fpage::Rights, Syscall_frame *f,
   L4_cpu_set_descr const s = access_once(reinterpret_cast<L4_cpu_set_descr const*>(&iutcb->values[1]));
   Mword rm = 0;
   Cpu_number max = Config::max_num_cpus();
-  Cpu_number const offset = s.offset() << s.granularity();
+  Order granularity = s.granularity();
+  Cpu_number const offset = s.offset();
+
   if (offset >= max)
     return commit_result(-L4_err::EInval);
 
-  if (max > offset + Cpu_number(MWORD_BITS) << s.granularity())
-    max = offset + Cpu_number(MWORD_BITS) << s.granularity();
+  if (max > offset + Cpu_number(MWORD_BITS) << granularity)
+    max = offset + Cpu_number(MWORD_BITS) << granularity;
 
   for (Cpu_number i = Cpu_number::first(); i < max - offset; ++i)
-    if (Cpu::online(i + offset))
-      rm |= (1 << cxx::int_value<Cpu_number>(i >> s.granularity()));
+    if (Cpu::present_mask().get(i + offset))
+      rm |= (1 << cxx::int_value<Cpu_number>(i >> granularity));
 
   outcb->values[0] = rm;
   outcb->values[1] = Config::Max_num_cpus;

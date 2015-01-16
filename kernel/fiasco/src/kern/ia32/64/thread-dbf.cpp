@@ -34,14 +34,14 @@ Thread::handle_double_fault (Trap_state *ts)
      printf ("\n\033[1;31mDOUBLE FAULT!\033[m\n"
              "RAX=%016lx  RSI=%016lx\n"
 	     "RBX=%016lx  RDI=%016lx\n"
-    	     "RCX=%016lx  RBP=%016lx\n"
+	     "RCX=%016lx  RBP=%016lx\n"
 	     "RDX=%016lx  RSP=%016lx\n"
-    	     "R8= %016lx  R9= %016lx\n"
-    	     "R10=%016lx  R11=%016lx\n"
-    	     "R12=%016lx  R13=%016lx\n"
-    	     "R14=%016lx  R15=%016lx\n"
+	     "R8= %016lx  R9= %016lx\n"
+	     "R10=%016lx  R11=%016lx\n"
+	     "R12=%016lx  R13=%016lx\n"
+	     "R14=%016lx  R15=%016lx\n"
 	     "RIP %016lx  RFLAGS %016lx\n"
-	     "CS %04lx    SS %04lx\n\n",
+	     "CS %04lx    SS %04lx          CPU=%d\n\n",
 	     ts->_ax, ts->_si,
 	     ts->_bx, ts->_di,
 	     ts->_cx, ts->_bp,
@@ -51,7 +51,9 @@ Thread::handle_double_fault (Trap_state *ts)
 	     ts->_r12, ts->_r13,
 	     ts->_r14, ts->_r15,
 	     ts->ip(), ts->flags(),
-	     ts->cs() & 0xffff, ts->ss() & 0xffff);
+	     ts->cs() & 0xffff, ts->ss() & 0xffff,
+	     cxx::int_value<Cpu_number>(current_cpu()));
+
   if (may_enter_jdb)
     {
       puts ("Return reboots, \"k\" tries to enter the L4 kernel debugger...");

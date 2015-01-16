@@ -28,6 +28,8 @@
 #define LOG_TRAP_N(n)                          do { } while (0)
 #define LOG_SCHED_SAVE(n)                      do { } while (0)
 #define LOG_SCHED_LOAD(n)                      do { } while (0)
+#define LOG_MSG(ctx, txt)                      do { } while (0)
+#define LOG_MSG_3VAL(ctx, txt, v1, v2, v3)     do { } while (0)
 
 #else
 

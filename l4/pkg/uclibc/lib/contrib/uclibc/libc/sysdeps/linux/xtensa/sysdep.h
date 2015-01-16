@@ -13,9 +13,10 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 51 Franklin Street - Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
+
+#include <sys/syscall.h>
 
 #ifdef __ASSEMBLER__
 
@@ -31,6 +32,16 @@
 
 #define	ENTRY(name)							\
   ASM_GLOBAL_DIRECTIVE C_SYMBOL_NAME(name);				\
+  ASM_TYPE_DIRECTIVE (C_SYMBOL_NAME(name), @function);			\
+  .align ALIGNARG(2);							\
+  LITERAL_POSITION;							\
+  C_LABEL(name)								\
+  entry sp, FRAMESIZE;							\
+  CALL_MCOUNT
+
+#define	HIDDEN_ENTRY(name)						\
+  ASM_GLOBAL_DIRECTIVE C_SYMBOL_NAME(name);				\
+  .hidden C_SYMBOL_NAME(name);						\
   ASM_TYPE_DIRECTIVE (C_SYMBOL_NAME(name), @function);			\
   .align ALIGNARG(2);							\
   LITERAL_POSITION;							\
@@ -112,6 +123,7 @@
 #define	PSEUDO_END_ERRVAL(name)						      \
   END (name)
 
+#undef ret_ERRVAL
 #define ret_ERRVAL retw
 
 #if defined RTLD_PRIVATE_ERRNO

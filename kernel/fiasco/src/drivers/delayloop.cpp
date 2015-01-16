@@ -20,11 +20,12 @@ IMPLEMENTATION:
 
 unsigned Delay::count;
 
-IMPLEMENT void
-Delay::init()
+PRIVATE static
+unsigned
+Delay::measure()
 {
   Cpu_time t1;
-  count = 0;
+  unsigned count = 0;
 
   Kip *k = Kip::k();
   Cpu_time t = Kip::k()->clock;
@@ -37,6 +38,17 @@ Delay::init()
       ++count;
       Proc::pause();
     }
+
+  return count;
+}
+
+IMPLEMENT void
+Delay::init()
+{
+  count = measure();
+  unsigned c2 = measure();
+  if (c2 > count)
+    count = c2;
 }
 
 /**

@@ -89,10 +89,22 @@ void Factory::operator delete (void *_f)
 
 PRIVATE
 L4_msg_tag
-Factory::map_obj(Kobject_iface *o, Cap_index cap, Space *c_space,
-                 Obj_space *o_space)
+Factory::map_obj(Kobject_iface *o, Cap_index cap, Task *c_space,
+                 Obj_space *o_space, Utcb const *utcb)
 {
+  // must be before the lock guard
   Reap_list rl;
+
+  auto space_lock_guard = lock_guard_dont_lock(c_space->existence_lock);
+
+  // We take the existence_lock for syncronizing maps...
+  // This is kind of coarse grained
+  // try_lock fails if the lock is neither locked nor unlocked
+  if (!space_lock_guard.check_and_lock(&c_space->existence_lock))
+    {
+      delete o;
+      return commit_error(utcb, L4_error(L4_error::Overflow, L4_error::Rcv));
+    }
 
   if (!map(o, o_space, c_space, cap, rl.list()))
     {
@@ -110,7 +122,6 @@ PRIVATE inline NOEXPORT
 Kobject_iface *
 Factory::new_factory(Utcb const *u, int *)
 {
-  // XXX: should check for type tag in new call
   return create_factory(u->values[2]);
 }
 
@@ -120,7 +131,6 @@ Kobject_iface *
 Factory::new_task(Utcb const *u, int *)
 {
   L4_fpage utcb_area(0);
-  // XXX: should check for type tag in new call
   utcb_area = L4_fpage(u->values[2]);
 
   if (Task *new_t = Task::create<Task>(this, utcb_area))
@@ -156,11 +166,7 @@ Factory::new_gate(L4_msg_tag const &tag, Utcb const *utcb, Obj_space *o_space,
       if (EXPECT_FALSE(!(thread_rights & L4_fpage::Rights::W())))
 	return 0;
     }
-#if 0
-  if (!thread)
-    return reinterpret_cast<Kobject_iface*>(-L4_err::EInval);
-#endif
-  // should check type tag of varg
+
   *err = L4_err::ENomem;
   return static_cast<Ipc_gate_ctl*>(Ipc_gate::create(this, thread, utcb->values[2]));
 }
@@ -213,15 +219,7 @@ Factory::kinvoke(L4_obj_ref ref, L4_fpage::Rights rights, Syscall_frame *f,
   Kobject_iface *new_o;
   int err = L4_err::ENomem;
 
-  Lock_guard<decltype(c_space->existence_lock)> space_lock_guard;
-
-  // We take the existence_lock for syncronizing maps...
-  // This is kind of coarse grained
-  // try_lock fails if the lock is neither locked nor unlocked
-  if (!space_lock_guard.check_and_lock(&c_space->existence_lock))
-    return commit_error(utcb, L4_error(L4_error::Overflow, L4_error::Rcv));
-
-  Lock_guard<Cpu_lock, Lock_guard_inverse_policy> cpu_lock_guard(&cpu_lock);
+  auto cpu_lock_guard = lock_guard<Lock_guard_inverse_policy>(cpu_lock);
 
   switch ((long)utcb->values[0])
     {
@@ -234,7 +232,7 @@ Factory::kinvoke(L4_obj_ref ref, L4_fpage::Rights rights, Syscall_frame *f,
       break;
 
     case L4_msg_tag::Label_task:
-      new_o =  new_task(utcb, &err);
+      new_o = new_task(utcb, &err);
       break;
 
     case L4_msg_tag::Label_thread:
@@ -261,7 +259,7 @@ Factory::kinvoke(L4_obj_ref ref, L4_fpage::Rights rights, Syscall_frame *f,
     l->newo = new_o ? new_o->dbg_info()->dbg_id() : ~0);
 
   if (new_o)
-    return map_obj(new_o, buffer.obj_index(), c_space, c_space);
+    return map_obj(new_o, buffer.obj_index(), c_space, c_space, utcb);
   else
     return commit_result(-err);
 
@@ -310,16 +308,18 @@ private:
     Mword id;
     Mword ram;
     Mword newo;
-    unsigned print(int max, char *buf) const;
+    void print(String_buffer *buf) const;
   };
 };
 
 // ------------------------------------------------------------------------
 IMPLEMENTATION [debug]:
 
+#include "string_buffer.h"
+
 IMPLEMENT
-unsigned
-Factory::Log_entry::print(int maxlen, char *buf) const
+void
+Factory::Log_entry::print(String_buffer *buf) const
 {
   static char const *const ops[] =
   { /*   0 */ "gate", "irq", 0, 0, 0, 0, 0, 0,
@@ -330,6 +330,6 @@ Factory::Log_entry::print(int maxlen, char *buf) const
   if (!_op)
     _op = "(nan)";
 
-  return snprintf(buf, maxlen, "factory=%lx [%s] new=%lx cap=[C:%lx] ram=%lx",
-                  id, _op, newo, cxx::int_value<Cap_index>(buffer), ram);
+  buf->printf("factory=%lx [%s] new=%lx cap=[C:%lx] ram=%lx",
+              id, _op, newo, cxx::int_value<Cap_index>(buffer), ram);
 }

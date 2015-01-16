@@ -16,7 +16,7 @@
  */
 
 #include "support.h"
-#include <l4/drivers/uart_pxa.h>
+#include "mmio_16550.h"
 
 namespace {
 class Platform_arm_tegra3 : public Platform_single_region_ram
@@ -25,16 +25,23 @@ class Platform_arm_tegra3 : public Platform_single_region_ram
 
   void init()
   {
-    static L4::Uart_16550 _uart(25459200);
-    unsigned long uart_addr;
-    switch (2) {
-      case 0: uart_addr = 0x70006000;
-      case 2: uart_addr = 0x70006200;
-    };
-    static L4::Io_register_block_mmio r(uart_addr, 2);
-    _uart.startup(&r);
-    _uart.change_mode(3, 115200);
-    set_stdio_uart(&_uart);
+    switch (PLATFORM_UART_NR)
+      {
+      case 0:
+        kuart.base_address = 0x70006000;
+        kuart.irqno        = 68;
+        break;
+      default:
+      case 2:
+        kuart.base_address = 0x70006200;
+        kuart.irqno        = 78;
+        break;
+      };
+    kuart.reg_shift    = 2;
+    kuart.base_baud    = 25459200;
+    kuart.baud         = 115200;
+
+    setup_16550_mmio_uart();
   }
 };
 }

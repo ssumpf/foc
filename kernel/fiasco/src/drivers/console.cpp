@@ -17,7 +17,7 @@ public:
     DISABLED    =     0,
     INENABLED   =     1, ///< output channel of console enabled
     OUTENABLED  =     2, ///< input channel of console enabled
-    DISABLED_INIT =   4, ///< the console remains disabled during boot
+    ENABLED     =     INENABLED | OUTENABLED ///< console fully enabled
   };
 
   enum Console_attr
@@ -77,6 +77,14 @@ public:
   virtual Mword get_attributes() const;
 
   virtual ~Console();
+
+  explicit Console(Console_state state) : _state(state) {}
+
+  void add_state(Console_state state)
+  { _state |= state; }
+
+  void del_state(Console_state state)
+  { _state &= ~state; }
 
 public:
   /**
@@ -189,7 +197,7 @@ Console::str_state() const
   static char const * const state_str[] =
     { "Disabled       ", "Output disabled",
       "Input disabled ", "Enabled        " };
-  return state_str[state() & (INENABLED|OUTENABLED)];
+  return state_str[state() & ENABLED];
 }
 
 PUBLIC

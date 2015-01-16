@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _TLS_H
 #define _TLS_H	1
@@ -121,7 +120,7 @@ typedef struct
    operation can cause a failure 'errno' must not be touched.  */
 # define TLS_INIT_TP(tcbp, secondcall) \
   ({ INTERNAL_SYSCALL_DECL (err);					\
-     long result_var;							\
+     long result_var attribute_unused;					\
      result_var = INTERNAL_SYSCALL (set_thread_area, err, 1,		\
 				    (char *) (tcbp) + TLS_TCB_OFFSET);	\
      INTERNAL_SYSCALL_ERROR_P (result_var, err)				\

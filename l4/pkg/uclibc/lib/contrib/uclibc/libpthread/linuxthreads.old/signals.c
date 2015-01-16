@@ -20,11 +20,7 @@
 #include "pthread.h"
 #include "internals.h"
 #include "spinlock.h"
-#include <ucontext.h>
 #include <bits/sigcontextinfo.h>
-
-/* mods for uClibc: __libc_sigaction is not in any standard headers */
-extern __typeof(sigaction) __libc_sigaction;
 
 int pthread_sigmask(int how, const sigset_t * newmask, sigset_t * oldmask)
 {

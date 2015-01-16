@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <sysdep.h>
 #include <pthread-errnos.h>
@@ -25,10 +24,10 @@
 
 	.text
 
-	.globl	__new_sem_post
-	.type	__new_sem_post,@function
+	.globl	sem_post
+	.type	sem_post,@function
 	.align	5
-__new_sem_post:
+sem_post:
 	mov.l	@(VALUE,r4), r2
 0:
 	mov.l	.Lmax, r1
@@ -106,5 +105,4 @@ __new_sem_post:
 .Lerrloc3:
 	.long	__errno_location@PLT-(.Lerrloc3b-.)
 #endif
-	.size	__new_sem_post,.-__new_sem_post
-	weak_alias(__new_sem_post, sem_post)
+	.size	sem_post,.-sem_post

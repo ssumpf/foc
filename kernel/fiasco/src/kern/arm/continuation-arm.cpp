@@ -61,7 +61,7 @@ public:
     dst->pc = _ip;
     dst->psr = _psr;
   }
-  
+
   void clear() { _ip = ~0UL; }
 
   void restore(Return_frame *regs)

@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <sched.h>
 #include <setjmp.h>
@@ -106,7 +105,7 @@ do_clone (struct pthread *pd, const struct pthread_attr *attr,
 		 send it the cancellation signal.  */
 	      INTERNAL_SYSCALL_DECL (err2);
 	    err_out:
-#if __ASSUME_TGKILL
+#if defined (__ASSUME_TGKILL) && __ASSUME_TGKILL
 	      (void) INTERNAL_SYSCALL (tgkill, err2, 3,
 				       THREAD_GETMEM (THREAD_SELF, pid),
 				       pd->tid, SIGCANCEL);

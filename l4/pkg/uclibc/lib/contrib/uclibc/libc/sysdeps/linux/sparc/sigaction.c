@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.
 
        Ported to uClibc from glibc: 090520:
                Jan Buchholz, KIP, Uni Heidelberg <jan.buchholz@kip.uni-heidelberg.de>
@@ -30,7 +29,7 @@
 #include <bits/kernel_sigaction.h>
 
 
-_syscall5(int, rt_sigaction, int, a, int, b, int, c, int, d, int, e);
+_syscall5(int, rt_sigaction, int, a, int, b, int, c, int, d, int, e)
 static void __rt_sigreturn_stub(void);
 static void __sigreturn_stub(void);
 
@@ -65,10 +64,17 @@ int __libc_sigaction(int sig, const struct sigaction *act, struct sigaction *oac
 	return ret;
 }
 
+
 #ifndef LIBC_SIGACTION
+# ifndef __UCLIBC_HAS_THREADS__
+strong_alias(__libc_sigaction,sigaction)
+libc_hidden_def(sigaction)
+# else
 weak_alias(__libc_sigaction,sigaction)
 libc_hidden_weak(sigaction)
+# endif
 #endif
+
 
 static void
 __rt_sigreturn_stub(void)

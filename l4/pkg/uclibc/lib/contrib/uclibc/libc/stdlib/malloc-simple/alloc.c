@@ -17,6 +17,7 @@
 #include <sys/mman.h>
 #include <malloc.h>
 
+extern int weak_function __libc_free_aligned(void *ptr) attribute_hidden;
 
 #ifdef L_malloc
 void *malloc(size_t size)
@@ -36,7 +37,7 @@ void *malloc(size_t size)
 #ifdef __ARCH_USE_MMU__
 # define MMAP_FLAGS MAP_PRIVATE | MAP_ANONYMOUS
 #else
-# define MMAP_FLAGS MAP_SHARED | MAP_ANONYMOUS | MAP_UNINITIALIZE
+# define MMAP_FLAGS MAP_SHARED | MAP_ANONYMOUS | MAP_UNINITIALIZED
 #endif
 
 	result = mmap((void *) 0, size + sizeof(size_t), PROT_READ | PROT_WRITE,
@@ -63,7 +64,7 @@ void * calloc(size_t nmemb, size_t lsize)
 	result = malloc(size);
 
 #ifndef __ARCH_USE_MMU__
-	/* mmap'd with MAP_UNINITIALIZE, we have to blank memory ourselves */
+	/* mmap'd with MAP_UNINITIALIZED, we have to blank memory ourselves */
 	if (result != NULL) {
 		memset(result, 0, size);
 	}
@@ -95,7 +96,6 @@ void *realloc(void *ptr, size_t size)
 #endif
 
 #ifdef L_free
-extern int weak_function __libc_free_aligned(void *ptr);
 void free(void *ptr)
 {
 	if (unlikely(ptr == NULL))
@@ -123,7 +123,7 @@ struct alignlist
 	__ptr_t aligned;	/* The address that memaligned returned.  */
 	__ptr_t exact;	/* The address that malloc returned.  */
 };
-struct alignlist *_aligned_blocks;
+static struct alignlist *_aligned_blocks;
 
 /* Return memory to the heap. */
 int __libc_free_aligned(void *ptr)
@@ -182,4 +182,5 @@ DONE:
 
 	return result;
 }
+libc_hidden_def(memalign)
 #endif

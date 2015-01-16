@@ -234,3 +234,15 @@ TFoo::baz (T* t)
 {
 }
 
+template<typename FOO,
+         typename = typename cxx::enable_if<!cxx::is_same<SPACE, Mem_space>::value>::type>
+void
+template_with_dfl_arg1()
+{}
+
+template<typename FOO,
+         typename = typename cxx::enable_if<!cxx::is_same<SPACE, Mem_space>::value>::type,
+         typename BAR>
+void
+template_with_dfl_arg2()
+{}

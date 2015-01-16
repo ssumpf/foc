@@ -40,7 +40,7 @@ Jdb::leave_trap_handler(Cpu_number)
 
 IMPLEMENT inline
 bool
-Jdb::handle_conditional_breakpoint(Cpu_number)
+Jdb::handle_conditional_breakpoint(Cpu_number, Jdb_entry_frame *)
 { return false; }
 
 IMPLEMENT
@@ -56,8 +56,8 @@ bool
 Jdb::handle_debug_traps(Cpu_number cpu)
 {
   Jdb_entry_frame *ef = entry_frame.cpu(cpu);
-  snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::first())), "%s",
-           (char const *)ef->r[2]);
+  error_buffer.cpu(cpu).clear();
+  error_buffer.cpu(cpu).printf("%s", (char const *)ef->r[2]);
 
   return true;
 }
@@ -231,18 +231,11 @@ Jdb::leave_getchar()
 
 PUBLIC static
 void
-Jdb::write_tsc_s(Signed64 /*tsc*/, char * /*buf*/, int /*maxlen*/, bool /*sign*/)
+Jdb::write_tsc_s(String_buffer *, Signed64 /*tsc*/, bool /*sign*/)
 {}
 
 PUBLIC static
 void
-Jdb::write_tsc(Signed64 /*tsc*/, char * /*buf*/, int /*maxlen*/, bool /*sign*/)
+Jdb::write_tsc(String_buffer *, Signed64 /*tsc*/, bool /*sign*/)
 {}
 
-PROTECTED static inline
-template< typename T >
-void
-Jdb::set_monitored_address(T *dest, T val)
-{
-  *dest = val;
-}

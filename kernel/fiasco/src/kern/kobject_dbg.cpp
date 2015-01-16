@@ -1,9 +1,3 @@
-INTERFACE:
-
-class Kobject_dbg
-{
-};
-
 //----------------------------------------------------------------------------
 INTERFACE[debug]:
 
@@ -12,9 +6,7 @@ INTERFACE[debug]:
 #include <cxx/dlist>
 #include <cxx/hlist>
 
-class Kobject;
-
-EXTENSION class Kobject_dbg : public cxx::D_list_item
+class Kobject_dbg : public cxx::D_list_item
 {
   friend class Jdb_kobject;
   friend class Jdb_kobject_list;
@@ -55,6 +47,14 @@ private:
   static unsigned long _next_dbg_id;
 };
 
+//----------------------------------------------------------------------------
+INTERFACE[!debug]:
+
+class Kobject_dbg
+{
+public:
+  typedef unsigned long Iterator;
+};
 
 //----------------------------------------------------------------------------
 IMPLEMENTATION[debug]:
@@ -150,7 +150,7 @@ Kobject_dbg::dbg_id(void const *)
 { return ~0UL; }
 
 PUBLIC static inline
-Kobject_dbg *
+Kobject_dbg::Iterator
 Kobject_dbg::pointer_to_obj(void const *)
 { return 0; }
 
@@ -165,7 +165,7 @@ Kobject_dbg::is_kobj(void const *)
 { return false; }
 
 PUBLIC static
-Kobject_dbg *
+Kobject_dbg::Iterator
 Kobject_dbg::id_to_obj(unsigned long)
 { return 0; }
 

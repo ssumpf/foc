@@ -59,9 +59,9 @@ Timer_tick::setup(Cpu_number cpu)
   _timer_ticks.cpu(cpu).construct(cpu == Cpu_number::boot_cpu()
                                   ? Sys_cpu : App_cpu);
 
-  if (Platform::is_5250())
+  if (Platform::is_5250() || Platform::is_5410())
     {
-      assert(cpu < Cpu_number(2));
+      assert(cpu < Cpu_number(Platform::is_5410() ? 4 : 2));
       irq = 152 + pcpu;
       r = allocate_irq(_timer_ticks.cpu(cpu), irq);
     }
@@ -117,3 +117,11 @@ Timer_tick::ack()
   _timer->acknowledge();
   Irq_base::ack();
 }
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [debug && arm && exynos_mct]:
+
+IMPLEMENT
+Timer_tick *
+Timer_tick::boot_cpu_timer_tick()
+{ return _timer_ticks.cpu(Cpu_number::boot_cpu()); }

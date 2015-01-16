@@ -12,7 +12,7 @@ Kip_init::setup_user_virtual(Kip *kinfo)
   // start at 64k because on some distributions (like Ubuntu 8.04) it's
   // not allowed to map below a certain treshold
   kinfo->add_mem_region(Mem_desc(Boot_info::min_mappable_address(),
-                                 Mem_layout::User_max - 1,
+                                 Mem_layout::User_max,
                                  Mem_desc::Conventional, true));
 }
 

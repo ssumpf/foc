@@ -293,10 +293,9 @@ Domain name in a message can be represented as either:
    - a sequence of labels ending with a pointer
  */
 
-#define __FORCE_GLIBC
-#include <features.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdio_ext.h>
 #include <signal.h>
 #include <errno.h>
 #include <sys/poll.h>
@@ -316,6 +315,7 @@ Domain name in a message can be represented as either:
 #include <sys/utsname.h>
 #include <sys/un.h>
 #include <sys/stat.h>
+#include <sys/param.h>
 #include <bits/uClibc_mutex.h>
 #include "internal/parse_config.h"
 
@@ -337,7 +337,9 @@ Domain name in a message can be represented as either:
 #define MAX_RECURSE    5
 #define MAXALIASES  (4)
 #define BUFSZ       (80) /* one line */
-#define SBUFSIZE    (BUFSZ + 1 + (sizeof(char *) * MAXALIASES))
+
+#define NS_TYPE_ELT					0x40 /*%< EDNS0 extended label type */
+#define DNS_LABELTYPE_BITSTRING		0x41
 
 #undef DEBUG
 /* #define DEBUG */
@@ -347,9 +349,6 @@ Domain name in a message can be represented as either:
 #else
 #define DPRINTF(X,args...)
 #endif
-
-#undef ARRAY_SIZE
-#define ARRAY_SIZE(v) (sizeof(v) / sizeof((v)[0]))
 
 /* Make sure the incoming char * buffer is aligned enough to handle our random
  * structures.  This define is the same as we use for malloc alignment (which
@@ -406,7 +405,7 @@ typedef union sockaddr46_t {
 } sockaddr46_t;
 
 
-__UCLIBC_MUTEX_EXTERN(__resolv_lock);
+__UCLIBC_MUTEX_EXTERN(__resolv_lock) attribute_hidden;
 
 /* Protected by __resolv_lock */
 extern void (*__res_sync)(void) attribute_hidden;
@@ -566,7 +565,7 @@ extern void __close_nameservers(void) attribute_hidden;
 
 #ifdef L_encodeh
 
-int attribute_hidden __encode_header(struct resolv_header *h, unsigned char *dest, int maxlen)
+int __encode_header(struct resolv_header *h, unsigned char *dest, int maxlen)
 {
 	if (maxlen < HFIXEDSZ)
 		return -1;
@@ -590,12 +589,12 @@ int attribute_hidden __encode_header(struct resolv_header *h, unsigned char *des
 
 	return HFIXEDSZ;
 }
-#endif
+#endif /* L_encodeh */
 
 
 #ifdef L_decodeh
 
-void attribute_hidden __decode_header(unsigned char *data,
+void __decode_header(unsigned char *data,
 		struct resolv_header *h)
 {
 	h->id = (data[0] << 8) | data[1];
@@ -611,7 +610,7 @@ void attribute_hidden __decode_header(unsigned char *data,
 	h->nscount = (data[8] << 8) | data[9];
 	h->arcount = (data[10] << 8) | data[11];
 }
-#endif
+#endif /* L_decodeh */
 
 
 #ifdef L_encoded
@@ -619,7 +618,7 @@ void attribute_hidden __decode_header(unsigned char *data,
 /* Encode a dotted string into nameserver transport-level encoding.
    This routine is fairly dumb, and doesn't attempt to compress
    the data */
-int attribute_hidden __encode_dotted(const char *dotted, unsigned char *dest, int maxlen)
+int __encode_dotted(const char *dotted, unsigned char *dest, int maxlen)
 {
 	unsigned used = 0;
 
@@ -650,14 +649,14 @@ int attribute_hidden __encode_dotted(const char *dotted, unsigned char *dest, in
 
 	return used;
 }
-#endif
+#endif /* L_encoded */
 
 
 #ifdef L_decoded
 
 /* Decode a dotted string from nameserver transport-level encoding.
    This routine understands compressed data. */
-int attribute_hidden __decode_dotted(const unsigned char *packet,
+int __decode_dotted(const unsigned char *packet,
 		int offset,
 		int packet_len,
 		char *dest,
@@ -717,12 +716,12 @@ int attribute_hidden __decode_dotted(const unsigned char *packet,
 
 	return total;
 }
-#endif
+#endif /* L_decoded */
 
 
 #ifdef L_encodeq
 
-int attribute_hidden __encode_question(const struct resolv_question *q,
+int __encode_question(const struct resolv_question *q,
 		unsigned char *dest,
 		int maxlen)
 {
@@ -745,12 +744,12 @@ int attribute_hidden __encode_question(const struct resolv_question *q,
 
 	return i + 4;
 }
-#endif
+#endif /* L_encodeq */
 
 
 #ifdef L_encodea
 
-int attribute_hidden __encode_answer(struct resolv_answer *a, unsigned char *dest, int maxlen)
+int __encode_answer(struct resolv_answer *a, unsigned char *dest, int maxlen)
 {
 	int i;
 
@@ -778,7 +777,7 @@ int attribute_hidden __encode_answer(struct resolv_answer *a, unsigned char *des
 
 	return i + RRFIXEDSZ + a->rdlength;
 }
-#endif
+#endif /* L_encodea */
 
 
 #ifdef CURRENTLY_UNUSED
@@ -844,7 +843,7 @@ int __encode_packet(struct resolv_header *h,
 
 	return total;
 }
-#endif
+#endif /* L_encodep */
 
 
 #ifdef L_decodep
@@ -855,7 +854,7 @@ int __decode_packet(unsigned char *data, struct resolv_header *h)
 	__decode_header(data, h);
 	return HFIXEDSZ;
 }
-#endif
+#endif /* L_decodep */
 
 
 #ifdef L_formquery
@@ -864,7 +863,7 @@ int __form_query(int id,
 		const char *name,
 		int type,
 		unsigned char *packet,
-		int maxlen);
+		int maxlen) attribute_hidden;
 int __form_query(int id,
 		const char *name,
 		int type,
@@ -893,7 +892,7 @@ int __form_query(int id,
 
 	return i + j;
 }
-#endif
+#endif /* L_formquery */
 #endif /* CURRENTLY_UNUSED */
 
 
@@ -956,7 +955,7 @@ static char *skip_and_NUL_space(char *p)
 }
 
 /* Must be called under __resolv_lock. */
-void attribute_hidden __open_nameservers(void)
+void __open_nameservers(void)
 {
 	static uint32_t resolv_conf_mtime;
 
@@ -1116,13 +1115,13 @@ void attribute_hidden __open_nameservers(void)
 	if (__res_sync)
 		__res_sync();
 }
-#endif
+#endif /* L_opennameservers */
 
 
 #ifdef L_closenameservers
 
 /* Must be called under __resolv_lock. */
-void attribute_hidden __close_nameservers(void)
+void __close_nameservers(void)
 {
 	if (__nameserver != (void*) &__local_nameserver)
 		free(__nameserver);
@@ -1134,7 +1133,7 @@ void attribute_hidden __close_nameservers(void)
 	__searchdomain = NULL;
 	/*__searchdomains = 0; - already is */
 }
-#endif
+#endif /* L_closenameservers */
 
 
 #ifdef L_dnslookup
@@ -1230,7 +1229,7 @@ static int __decode_answer(const unsigned char *message, /* packet */
  *      appended. (why the filed is called "dotted" I have no idea)
  *      This is a malloced string. May be NULL because strdup failed.
  */
-int attribute_hidden __dns_lookup(const char *name,
+int __dns_lookup(const char *name,
 		int type,
 		unsigned char **outpacket,
 		struct resolv_answer *a)
@@ -1400,7 +1399,7 @@ int attribute_hidden __dns_lookup(const char *name,
 			goto try_next_server;
 		}
 		reply_timeout--;
-#else
+#else /* !USE_SELECT */
 		reply_timeout = __resolv_timeout * 1000;
  wait_again:
 		fds.fd = fd;
@@ -1413,7 +1412,7 @@ int attribute_hidden __dns_lookup(const char *name,
 		}
 /*TODO: better timeout accounting?*/
 		reply_timeout -= 1000;
-#endif
+#endif /* USE_SELECT */
 
 /* vda: a bogus response seen in real world (caused SEGV in uclibc):
  * "ping www.google.com" sending AAAA query and getting
@@ -1461,7 +1460,7 @@ int attribute_hidden __dns_lookup(const char *name,
 		/* bug 660 says we treat negative response as an error
 		 * and retry, which is, eh, an error. :)
 		 * We were incurring long delays because of this. */
-		if (h.rcode == NXDOMAIN) {
+		if (h.rcode == NXDOMAIN || h.rcode == SERVFAIL) {
 			/* if possible, try next search domain */
 			if (!ends_with_dot) {
 				DPRINTF("variant:%d sdomains:%d\n", variant, sdomains);
@@ -1472,9 +1471,11 @@ int attribute_hidden __dns_lookup(const char *name,
 				}
 				/* no more search domains to try */
 			}
-			/* dont loop, this is "no such host" situation */
-			h_errno = HOST_NOT_FOUND;
-			goto fail1;
+			if (h.rcode != SERVFAIL) {
+				/* dont loop, this is "no such host" situation */
+				h_errno = HOST_NOT_FOUND;
+				goto fail1;
+			}
 		}
 		/* Insert other non-fatal errors here, which do not warrant
 		 * switching to next nameserver */
@@ -1503,6 +1504,7 @@ int attribute_hidden __dns_lookup(const char *name,
 		DPRINTF("Decoding answer at pos %d\n", pos);
 
 		first_answer = 1;
+		a->dotted = NULL;
 		for (j = 0; j < h.ancount; j++) {
 			i = __decode_answer(packet, pos, packet_len, &ma);
 			if (i < 0) {
@@ -1519,6 +1521,7 @@ int attribute_hidden __dns_lookup(const char *name,
 				ma.buf = a->buf;
 				ma.buflen = a->buflen;
 				ma.add_count = a->add_count;
+				free(a->dotted);
 				memcpy(a, &ma, sizeof(ma));
 				if (a->atype != T_SIG && (NULL == a->buf || (type != T_A && type != T_AAAA)))
 					break;
@@ -1571,28 +1574,28 @@ int attribute_hidden __dns_lookup(const char *name,
 	free(packet);
 	return -1;
 }
-#endif
+#endif /* L_dnslookup */
 
 
 #ifdef L_read_etc_hosts_r
 
 parser_t * __open_etc_hosts(void)
 {
-	parser_t * parser;
-	if ((parser = config_open("/etc/hosts")) == NULL) {
+	parser_t *parser;
+	parser = config_open("/etc/hosts");
 #ifdef FALLBACK_TO_CONFIG_RESOLVCONF
+	if (parser == NULL)
 		parser = config_open("/etc/config/hosts");
 #endif
-	}
 	return parser;
 }
 
-#define MINTOKENS 2 //dotted ip address + canonical name
+#define MINTOKENS 2 /* ip address + canonical name */
 #define MAXTOKENS (MINTOKENS + MAXALIASES)
 #define HALISTOFF (sizeof(char*) * MAXTOKENS)
 #define INADDROFF (HALISTOFF + 2 * sizeof(char*))
 
-int attribute_hidden __read_etc_hosts_r(
+int __read_etc_hosts_r(
 		parser_t * parser,
 		const char *name,
 		int type,
@@ -1602,8 +1605,6 @@ int attribute_hidden __read_etc_hosts_r(
 		struct hostent **result,
 		int *h_errnop)
 {
-	char **alias;
-	char **host_aliases;
 	char **tok = NULL;
 	struct in_addr *h_addr0 = NULL;
 	const size_t aliaslen = INADDROFF +
@@ -1637,7 +1638,7 @@ int attribute_hidden __read_etc_hosts_r(
 	*h_errnop = HOST_NOT_FOUND;
 	/* <ip>[[:space:]][<aliases>] */
 	while (config_read(parser, &tok, MAXTOKENS, MINTOKENS, "# \t", PARSE_NORMAL)) {
-		result_buf->h_aliases = alias = host_aliases = tok+1;
+		result_buf->h_aliases = tok+1;
 		if (action == GETHOSTENT) {
 			/* Return whatever the next entry happens to be. */
 			break;
@@ -1646,8 +1647,11 @@ int attribute_hidden __read_etc_hosts_r(
 			if (strcmp(name, *tok) != 0)
 				continue;
 		} else { /* GET_HOSTS_BYNAME */
-			while (*alias) {
-				if (strcasecmp(name, *(alias++)) == 0)
+			int aliases = 0;
+			char **alias = tok + 1;
+			while (aliases < MAXALIASES) {
+				char *tmp = *(alias+aliases++);
+				if (tmp && strcasecmp(name, tmp) == 0)
 					goto found;
 			}
 			continue;
@@ -1700,12 +1704,12 @@ found:
 	return ret;
 #undef in6
 }
-#endif
+#endif /* L_read_etc_hosts_r */
 
 
 #ifdef L_get_hosts_byname_r
 
-int attribute_hidden __get_hosts_byname_r(const char *name,
+int __get_hosts_byname_r(const char *name,
 		int type,
 		struct hostent *result_buf,
 		char *buf,
@@ -1716,12 +1720,12 @@ int attribute_hidden __get_hosts_byname_r(const char *name,
 	return __read_etc_hosts_r(NULL, name, type, GET_HOSTS_BYNAME,
 	                          result_buf, buf, buflen, result, h_errnop);
 }
-#endif
+#endif /* L_get_hosts_byname_r */
 
 
 #ifdef L_get_hosts_byaddr_r
 
-int attribute_hidden __get_hosts_byaddr_r(const char *addr,
+int __get_hosts_byaddr_r(const char *addr,
 		int len,
 		int type,
 		struct hostent *result_buf,
@@ -1758,7 +1762,7 @@ int attribute_hidden __get_hosts_byaddr_r(const char *addr,
 	return __read_etc_hosts_r(NULL, ipaddr, type, GET_HOSTS_BYADDR,
 				result_buf, buf, buflen, result, h_errnop);
 }
-#endif
+#endif /* L_get_hosts_byaddr_r */
 
 
 #ifdef L_getnameinfo
@@ -1772,7 +1776,7 @@ int getnameinfo(const struct sockaddr *sa,
 		unsigned flags)
 {
 	int serrno = errno;
-	unsigned ok;
+	bool ok = 0;
 	struct hostent *hoste = NULL;
 	char domain[256];
 
@@ -1782,16 +1786,15 @@ int getnameinfo(const struct sockaddr *sa,
 	if (sa == NULL || addrlen < sizeof(sa_family_t))
 		return EAI_FAMILY;
 
-	ok = sa->sa_family;
-	if (ok == AF_LOCAL) /* valid */;
+	if (sa->sa_family == AF_LOCAL) /* valid */;
 #ifdef __UCLIBC_HAS_IPV4__
-	else if (ok == AF_INET) {
+	else if (sa->sa_family == AF_INET) {
 		if (addrlen < sizeof(struct sockaddr_in))
 			return EAI_FAMILY;
 	}
 #endif
 #ifdef __UCLIBC_HAS_IPV6__
-	else if (ok == AF_INET6) {
+	else if (sa->sa_family == AF_INET6) {
 		if (addrlen < sizeof(struct sockaddr_in6))
 			return EAI_FAMILY;
 	}
@@ -1799,7 +1802,6 @@ int getnameinfo(const struct sockaddr *sa,
 	else
 		return EAI_FAMILY;
 
-	ok = 0;
 	if (host != NULL && hostlen > 0)
 		switch (sa->sa_family) {
 		case AF_INET:
@@ -1823,21 +1825,18 @@ int getnameinfo(const struct sockaddr *sa,
 
 				if (hoste) {
 					char *c;
-#undef min
-#define min(x,y) (((x) > (y)) ? (y) : (x))
 					if ((flags & NI_NOFQDN)
 					 && (getdomainname(domain, sizeof(domain)) == 0)
 					 && (c = strstr(hoste->h_name, domain)) != NULL
 					 && (c != hoste->h_name) && (*(--c) == '.')
 					) {
 						strncpy(host, hoste->h_name,
-							min(hostlen, (size_t) (c - hoste->h_name)));
-						host[min(hostlen - 1, (size_t) (c - hoste->h_name))] = '\0';
+							MIN(hostlen, (size_t) (c - hoste->h_name)));
+						host[MIN(hostlen - 1, (size_t) (c - hoste->h_name))] = '\0';
 					} else {
 						strncpy(host, hoste->h_name, hostlen);
 					}
 					ok = 1;
-#undef min
 				}
 			}
 
@@ -1961,7 +1960,7 @@ DONE:
 	return 0;
 }
 libc_hidden_def(getnameinfo)
-#endif
+#endif /* L_getnameinfo */
 
 
 #ifdef L_gethostbyname_r
@@ -2101,7 +2100,7 @@ int gethostbyname_r(const char *name,
 	/* talk to DNS servers */
 	a.buf = buf;
 	/* take into account that at least one address will be there,
-	 * we'll need space of one in_addr + two addr_list[] elems */
+	 * we'll need space for one in_addr + two addr_list[] elems */
 	a.buflen = buflen - ((sizeof(addr_list[0]) * 2 + sizeof(struct in_addr)));
 	a.add_count = 0;
 	packet_len = __dns_lookup(name, T_A, &packet, &a);
@@ -2166,6 +2165,7 @@ int gethostbyname_r(const char *name,
 	}
 
 	*h_errnop = HOST_NOT_FOUND;
+	__set_h_errno(HOST_NOT_FOUND);
 	i = TRY_AGAIN;
 
  free_and_ret:
@@ -2175,7 +2175,7 @@ int gethostbyname_r(const char *name,
 }
 libc_hidden_def(gethostbyname_r)
 link_warning(gethostbyname_r, "gethostbyname_r is obsolescent, use getnameinfo() instead.");
-#endif
+#endif /* L_gethostbyname_r */
 
 
 #ifdef L_gethostbyname2_r
@@ -2332,7 +2332,7 @@ int gethostbyname2_r(const char *name,
 #endif /* __UCLIBC_HAS_IPV6__ */
 }
 libc_hidden_def(gethostbyname2_r)
-#endif
+#endif /* L_gethostbyname2_r */
 
 
 #ifdef L_gethostbyaddr_r
@@ -2493,7 +2493,7 @@ int gethostbyaddr_r(const void *addr, socklen_t addrlen,
 }
 libc_hidden_def(gethostbyaddr_r)
 link_warning(gethostbyaddr_r, "gethostbyaddr_r is obsolescent, use getaddrinfo() instead.");
-#endif
+#endif /* L_gethostbyaddr_r */
 
 
 #ifdef L_gethostent_r
@@ -2550,7 +2550,7 @@ DONE:
 	return ret;
 }
 libc_hidden_def(gethostent_r)
-#endif
+#endif /* L_gethostent_r */
 
 
 #ifdef L_gethostent
@@ -2570,7 +2570,7 @@ struct hostent *gethostent(void)
 	gethostent_r(&hoste, buf, sizeof(buf), &host, &h_errno);
 	return host;
 }
-#endif
+#endif /* L_gethostent */
 
 
 #ifdef L_gethostbyname2
@@ -2591,7 +2591,7 @@ struct hostent *gethostbyname2(const char *name, int family)
 #endif
 }
 libc_hidden_def(gethostbyname2)
-#endif
+#endif /* L_gethostbyname2 */
 
 
 #ifdef L_gethostbyname
@@ -2613,7 +2613,7 @@ struct hostent *gethostbyname(const char *name)
 }
 libc_hidden_def(gethostbyname)
 link_warning(gethostbyname, "gethostbyname is obsolescent, use getnameinfo() instead.");
-#endif
+#endif /* L_gethostbyname */
 
 
 #ifdef L_gethostbyaddr
@@ -2635,7 +2635,7 @@ struct hostent *gethostbyaddr(const void *addr, socklen_t len, int type)
 }
 libc_hidden_def(gethostbyaddr)
 link_warning(gethostbyaddr, "gethostbyaddr is obsolescent, use getaddrinfo() instead.");
-#endif
+#endif /* L_gethostbyaddr */
 
 
 #ifdef L_res_comp
@@ -2656,6 +2656,22 @@ int dn_expand(const u_char *msg, const u_char *eom, const u_char *src,
 		dst[0] = '\0';
 	return n;
 }
+libc_hidden_def(dn_expand)
+
+/*
+ * Pack domain name 'exp_dn' in presentation form into 'comp_dn'.
+ * Return the size of the compressed name or -1.
+ * 'length' is the size of the array pointed to by 'comp_dn'.
+ */
+int
+dn_comp(const char *src, u_char *dst, int dstsiz,
+		u_char **dnptrs, u_char **lastdnptr)
+{
+	return ns_name_compress(src, dst, (size_t) dstsiz,
+			(const u_char **) dnptrs,
+			(const u_char **) lastdnptr);
+}
+libc_hidden_def(dn_comp)
 #endif /* L_res_comp */
 
 
@@ -2721,8 +2737,6 @@ libc_hidden_def(ns_name_uncompress)
  */
 int ns_name_ntop(const u_char *src, char *dst, size_t dstsiz)
 {
-	static const char digits[] = "0123456789";
-
 	const u_char *cp;
 	char *dn, *eom;
 	u_char c;
@@ -2764,9 +2778,10 @@ int ns_name_ntop(const u_char *src, char *dst, size_t dstsiz)
 					return -1;
 				}
 				*dn++ = '\\';
-				*dn++ = digits[c / 100];
-				*dn++ = digits[(c % 100) / 10];
-				*dn++ = digits[c % 10];
+				*dn++ = "0123456789"[c / 100];
+				c = c % 100;
+				*dn++ = "0123456789"[c / 10];
+				*dn++ = "0123456789"[c % 10];
 			} else {
 				if (dn >= eom) {
 					__set_errno(EMSGSIZE);
@@ -2791,6 +2806,241 @@ int ns_name_ntop(const u_char *src, char *dst, size_t dstsiz)
 	return (dn - dst);
 }
 libc_hidden_def(ns_name_ntop)
+
+static int encode_bitstring(const char **bp, const char *end,
+							unsigned char **labelp,
+							unsigned char ** dst,
+							unsigned const char *eom)
+{
+	int afterslash = 0;
+	const char *cp = *bp;
+	unsigned char *tp;
+	const char *beg_blen;
+	int value = 0, count = 0, tbcount = 0, blen = 0;
+
+	beg_blen = NULL;
+
+	/* a bitstring must contain at least 2 characters */
+	if (end - cp < 2)
+		return EINVAL;
+
+	/* XXX: currently, only hex strings are supported */
+	if (*cp++ != 'x')
+		return EINVAL;
+	if (!isxdigit((unsigned char) *cp)) /*%< reject '\[x/BLEN]' */
+		return EINVAL;
+
+	for (tp = *dst + 1; cp < end && tp < eom; cp++) {
+		unsigned char c = *cp;
+
+		switch (c) {
+		case ']':       /*%< end of the bitstring */
+			if (afterslash) {
+				char *end_blen;
+				if (beg_blen == NULL)
+					return EINVAL;
+				blen = (int)strtol(beg_blen, &end_blen, 10);
+				if (*end_blen != ']')
+					return EINVAL;
+			}
+			if (count)
+				*tp++ = ((value << 4) & 0xff);
+			cp++;   /*%< skip ']' */
+			goto done;
+		case '/':
+			afterslash = 1;
+			break;
+		default:
+			if (afterslash) {
+				if (!__isdigit_char(c))
+					return EINVAL;
+				if (beg_blen == NULL) {
+					if (c == '0') {
+						/* blen never begings with 0 */
+						return EINVAL;
+					}
+					beg_blen = cp;
+				}
+			} else {
+				if (!__isdigit_char(c)) {
+					c = c | 0x20; /* lowercase */
+					c = c - 'a';
+					if (c > 5) /* not a-f? */
+						return EINVAL;
+					c += 10 + '0';
+				}
+				value <<= 4;
+				value += (c - '0');
+				count += 4;
+				tbcount += 4;
+				if (tbcount > 256)
+					return EINVAL;
+				if (count == 8) {
+					*tp++ = value;
+					count = 0;
+				}
+			}
+			break;
+		}
+	}
+  done:
+	if (cp >= end || tp >= eom)
+		return EMSGSIZE;
+
+	/*
+	 * bit length validation:
+	 * If a <length> is present, the number of digits in the <bit-data>
+	 * MUST be just sufficient to contain the number of bits specified
+	 * by the <length>. If there are insignificant bits in a final
+	 * hexadecimal or octal digit, they MUST be zero.
+	 * RFC2673, Section 3.2.
+	 */
+	if (blen > 0) {
+		int traillen;
+
+		if (((blen + 3) & ~3) != tbcount)
+			return EINVAL;
+		traillen = tbcount - blen; /*%< between 0 and 3 */
+		if (((value << (8 - traillen)) & 0xff) != 0)
+			return EINVAL;
+	}
+	else
+		blen = tbcount;
+	if (blen == 256)
+		blen = 0;
+
+	/* encode the type and the significant bit fields */
+	**labelp = DNS_LABELTYPE_BITSTRING;
+	**dst = blen;
+
+	*bp = cp;
+	*dst = tp;
+
+	return 0;
+}
+
+int ns_name_pton(const char *src, u_char *dst, size_t dstsiz)
+{
+	static const char digits[] = "0123456789";
+	u_char *label, *bp, *eom;
+	int c, n, escaped, e = 0;
+	char *cp;
+
+	escaped = 0;
+	bp = dst;
+	eom = dst + dstsiz;
+	label = bp++;
+
+	while ((c = *src++) != 0) {
+		if (escaped) {
+			if (c == '[') { /*%< start a bit string label */
+				cp = strchr(src, ']');
+				if (cp == NULL) {
+					errno = EINVAL; /*%< ??? */
+					return -1;
+				}
+				e = encode_bitstring(&src, cp + 2,
+							 &label, &bp, eom);
+				if (e != 0) {
+					errno = e;
+					return -1;
+				}
+				escaped = 0;
+				label = bp++;
+				c = *src++;
+				if (c == '\0')
+					goto done;
+				if (c != '.') {
+					errno = EINVAL;
+					return -1;
+				}
+				continue;
+			}
+			cp = strchr(digits, c);
+			if (cp != NULL) {
+				n = (cp - digits) * 100;
+				c = *src++;
+				if (c == '\0')
+					goto ret_EMSGSIZE;
+				cp = strchr(digits, c);
+				if (cp == NULL)
+					goto ret_EMSGSIZE;
+				n += (cp - digits) * 10;
+				c = *src++;
+				if (c == '\0')
+					goto ret_EMSGSIZE;
+				cp = strchr(digits, c);
+				if (cp == NULL)
+					goto ret_EMSGSIZE;
+				n += (cp - digits);
+				if (n > 255)
+					goto ret_EMSGSIZE;
+				c = n;
+			}
+			escaped = 0;
+		} else if (c == '\\') {
+			escaped = 1;
+			continue;
+		} else if (c == '.') {
+			c = (bp - label - 1);
+			if ((c & NS_CMPRSFLGS) != 0) {  /*%< Label too big. */
+				goto ret_EMSGSIZE;
+			}
+			if (label >= eom) {
+				goto ret_EMSGSIZE;
+			}
+			*label = c;
+			/* Fully qualified ? */
+			if (*src == '\0') {
+				if (c != 0) {
+					if (bp >= eom) {
+						goto ret_EMSGSIZE;
+					}
+					*bp++ = '\0';
+				}
+				if ((bp - dst) > MAXCDNAME) {
+					goto ret_EMSGSIZE;
+				}
+
+				return 1;
+			}
+			if (c == 0 || *src == '.') {
+				goto ret_EMSGSIZE;
+			}
+			label = bp++;
+			continue;
+		}
+		if (bp >= eom) {
+			goto ret_EMSGSIZE;
+		}
+		*bp++ = (u_char)c;
+	}
+	c = (bp - label - 1);
+	if ((c & NS_CMPRSFLGS) != 0) {	  /*%< Label too big. */
+		goto ret_EMSGSIZE;
+	}
+ done:
+	if (label >= eom) {
+		goto ret_EMSGSIZE;
+	}
+	*label = c;
+	if (c != 0) {
+		if (bp >= eom) {
+			goto ret_EMSGSIZE;
+		}
+		*bp++ = 0;
+	}
+	if ((bp - dst) > MAXCDNAME) {   /*%< src too big */
+		goto ret_EMSGSIZE;
+	}
+
+	return 0;
+
+ ret_EMSGSIZE:
+	errno = EMSGSIZE;
+	return -1;
+}
+libc_hidden_def(ns_name_pton)
 
 /*
  * ns_name_unpack(msg, eom, src, dst, dstsiz)
@@ -2866,6 +3116,278 @@ int ns_name_unpack(const u_char *msg, const u_char *eom, const u_char *src,
 	return len;
 }
 libc_hidden_def(ns_name_unpack)
+
+static int labellen(const unsigned char *lp)
+{
+	unsigned bitlen;
+	unsigned char l = *lp;
+
+	if ((l & NS_CMPRSFLGS) == NS_CMPRSFLGS) {
+		/* should be avoided by the caller */
+		return -1;
+	}
+
+	if ((l & NS_CMPRSFLGS) == NS_TYPE_ELT) {
+		if (l == DNS_LABELTYPE_BITSTRING) {
+			bitlen = lp[1];
+			if (bitlen == 0)
+				bitlen = 256;
+			return ((bitlen + 7 ) / 8 + 1);
+		}
+
+		return -1;    /*%< unknwon ELT */
+	}
+
+	return l;
+}
+
+static int mklower(int ch)
+{
+	if (ch >= 0x41 && ch <= 0x5A)
+		return (ch + 0x20);
+
+	return ch;
+}
+
+static int dn_find(const unsigned char *domain,
+				   const unsigned char *msg,
+				   const unsigned char * const *dnptrs,
+				   const unsigned char * const *lastdnptr)
+{
+	const unsigned char *dn, *cp, *sp;
+	const unsigned char * const *cpp;
+	u_int n;
+
+	for (cpp = dnptrs; cpp < lastdnptr; cpp++) {
+		sp = *cpp;
+		/*
+		 * terminate search on:
+		 * root label
+		 * compression pointer
+		 * unusable offset
+		 */
+		while (*sp != 0 && (*sp & NS_CMPRSFLGS) == 0 &&
+				(sp - msg) < 0x4000) {
+			dn = domain;
+			cp = sp;
+
+			while ((n = *cp++) != 0) {
+				/*
+				 * check for indirection
+				 */
+				switch (n & NS_CMPRSFLGS) {
+				case 0:	 /*%< normal case, n == len */
+					n = labellen(cp - 1); /*%< XXX */
+					if (n != *dn++)
+						goto next;
+
+					for (; n > 0; n--)
+						if (mklower(*dn++) !=
+						    mklower(*cp++))
+							goto next;
+					/* Is next root for both ? */
+					if (*dn == '\0' && *cp == '\0')
+						return (sp - msg);
+					if (*dn)
+						continue;
+					goto next;
+				case NS_CMPRSFLGS:      /*%< indirection */
+					cp = msg + (((n & 0x3f) << 8) | *cp);
+					break;
+
+				default:	/*%< illegal type */
+					errno = EMSGSIZE;
+					return -1;
+				}
+			}
+next:
+			sp += *sp + 1;
+		}
+	}
+
+	errno = ENOENT;
+	return -1;
+}
+
+int ns_name_pack(const unsigned char *src,
+				 unsigned char *dst, int dstsiz,
+				 const unsigned char **dnptrs,
+				 const unsigned char **lastdnptr)
+{
+	unsigned char *dstp;
+	const unsigned char **cpp, **lpp, *eob, *msg;
+	const unsigned char *srcp;
+	int n, l, first = 1;
+
+	srcp = src;
+	dstp = dst;
+	eob = dstp + dstsiz;
+	lpp = cpp = NULL;
+
+	if (dnptrs != NULL) {
+		msg = *dnptrs++;
+		if (msg != NULL) {
+			for (cpp = dnptrs; *cpp != NULL; cpp++)
+				continue;
+
+			lpp = cpp;      /*%< end of list to search */
+		}
+	} else {
+		msg = NULL;
+	}
+
+	/* make sure the domain we are about to add is legal */
+	l = 0;
+	do {
+		int l0;
+
+		n = *srcp;
+		if ((n & NS_CMPRSFLGS) == NS_CMPRSFLGS) {
+			errno = EMSGSIZE;
+			return -1;
+		}
+
+		l0 = labellen(srcp);
+		if (l0 < 0) {
+			errno = EINVAL;
+			return -1;
+		}
+
+		l += l0 + 1;
+		if (l > MAXCDNAME) {
+			errno = EMSGSIZE;
+			return -1;
+		}
+
+		srcp += l0 + 1;
+	} while (n != 0);
+
+	/* from here on we need to reset compression pointer array on error */
+	srcp = src;
+
+	do {
+		/* Look to see if we can use pointers. */
+		n = *srcp;
+
+		if (n != 0 && msg != NULL) {
+			l = dn_find(srcp, msg, (const unsigned char * const *) dnptrs,
+						(const unsigned char * const *) lpp);
+			if (l >= 0) {
+				if (dstp + 1 >= eob) {
+					goto cleanup;
+				}
+
+				*dstp++ = ((u_int32_t)l >> 8) | NS_CMPRSFLGS;
+				*dstp++ = l % 256;
+				return (dstp - dst);
+			}
+
+			/* Not found, save it. */
+			if (lastdnptr != NULL && cpp < lastdnptr - 1 &&
+				(dstp - msg) < 0x4000 && first) {
+				*cpp++ = dstp;
+				*cpp = NULL;
+				first = 0;
+			}
+		}
+
+		/* copy label to buffer */
+		if ((n & NS_CMPRSFLGS) == NS_CMPRSFLGS) {
+			/* Should not happen. */
+			goto cleanup;
+		}
+
+		n = labellen(srcp);
+		if (dstp + 1 + n >= eob) {
+			goto cleanup;
+		}
+
+		memcpy(dstp, srcp, (size_t)(n + 1));
+		srcp += n + 1;
+		dstp += n + 1;
+	} while (n != 0);
+
+	if (dstp > eob) {
+cleanup:
+		if (msg != NULL)
+			*lpp = NULL;
+
+			errno = EMSGSIZE;
+			return -1;
+	}
+
+	return dstp - dst;
+}
+libc_hidden_def(ns_name_pack)
+
+int ns_name_compress(const char *src,
+					 unsigned char *dst, size_t dstsiz,
+					 const unsigned char **dnptrs,
+					 const unsigned char **lastdnptr)
+{
+	unsigned char tmp[NS_MAXCDNAME];
+
+	if (ns_name_pton(src, tmp, sizeof(tmp)) == -1)
+		return -1;
+
+	return ns_name_pack(tmp, dst, dstsiz, dnptrs, lastdnptr);
+}
+libc_hidden_def(ns_name_compress)
+
+int ns_name_skip(const unsigned char **ptrptr,
+				 const unsigned char *eom)
+{
+	const unsigned char *cp;
+	u_int n;
+	int l;
+
+	cp = *ptrptr;
+	while (cp < eom && (n = *cp++) != 0) {
+		/* Check for indirection. */
+		switch (n & NS_CMPRSFLGS) {
+		case 0:		 /*%< normal case, n == len */
+			cp += n;
+			continue;
+		case NS_TYPE_ELT: /*%< EDNS0 extended label */
+			l = labellen(cp - 1);
+			if (l < 0) {
+				errno = EMSGSIZE; /*%< XXX */
+				return -1;
+			}
+			cp += l;
+			continue;
+		case NS_CMPRSFLGS:      /*%< indirection */
+			cp++;
+			break;
+		default:		/*%< illegal type */
+			errno = EMSGSIZE;
+			return -1;
+		}
+
+		break;
+	}
+
+	if (cp > eom) {
+		errno = EMSGSIZE;
+		return -1;
+	}
+
+	*ptrptr = cp;
+
+	return 0;
+}
+libc_hidden_def(ns_name_skip)
+
+int dn_skipname(const unsigned char *ptr, const unsigned char *eom)
+{
+	const unsigned char *saveptr = ptr;
+
+	if (ns_name_skip(&ptr, eom) == -1)
+		return -1;
+
+	return ptr - saveptr;
+}
+libc_hidden_def(dn_skipname)
 #endif /* L_ns_name */
 
 
@@ -2906,27 +3428,39 @@ static void res_sync_func(void)
 	 */
 }
 
-/* Our res_init never fails (always returns 0) */
-int res_init(void)
+/* has to be called under __resolv_lock */
+static int
+__res_vinit(res_state rp, int preinit)
 {
-	struct __res_state *rp = &(_res);
-	int i;
-	int n;
+	int i, n, options, retrans, retry, ndots;
 #ifdef __UCLIBC_HAS_IPV6__
 	int m = 0;
 #endif
 
-	__UCLIBC_MUTEX_LOCK(__resolv_lock);
 	__close_nameservers();
 	__open_nameservers();
 
-	__res_sync = res_sync_func;
+	if (preinit) {
+		options = rp->options;
+		retrans = rp->retrans;
+		retry = rp->retry;
+		ndots = rp->ndots;
+	}
 
 	memset(rp, 0, sizeof(*rp));
-	rp->options = RES_INIT;
-	rp->retrans = RES_TIMEOUT;
-	rp->retry = RES_DFLRETRY;
-	rp->ndots = 1;
+
+	if (!preinit) {
+		rp->options = RES_DEFAULT;
+		rp->retrans = RES_TIMEOUT;
+		rp->retry = RES_DFLRETRY;
+		rp->ndots = 1;
+	} else {
+		rp->options = options;
+		rp->retrans = retrans;
+		rp->retry = retry;
+		rp->ndots = ndots;
+	}
+
 #ifdef __UCLIBC_HAS_COMPAT_RES_STATE__
 	/* Was: "rp->id = random();" but:
 	 * - random() pulls in largish static buffers
@@ -2964,7 +3498,7 @@ int res_init(void)
 		if (__nameserver[i].sa.sa_family == AF_INET6
 		 && m < ARRAY_SIZE(rp->_u._ext.nsaddrs)
 		) {
-			struct sockaddr_in6 *sa6 = malloc(sizeof(sa6));
+			struct sockaddr_in6 *sa6 = malloc(sizeof(*sa6));
 			if (sa6) {
 				*sa6 = __nameserver[i].sa6; /* struct copy */
 				rp->_u._ext.nsaddrs[m] = sa6;
@@ -2981,7 +3515,7 @@ int res_init(void)
 
 #else /* IPv6 only */
 	while (m < ARRAY_SIZE(rp->_u._ext.nsaddrs) && i < __nameservers) {
-		struct sockaddr_in6 *sa6 = malloc(sizeof(sa6));
+		struct sockaddr_in6 *sa6 = malloc(sizeof(*sa6));
 		if (sa6) {
 			*sa6 = __nameserver[i].sa6; /* struct copy */
 			rp->_u._ext.nsaddrs[m] = sa6;
@@ -2992,31 +3526,110 @@ int res_init(void)
 	rp->_u._ext.nscount = m;
 #endif
 
+	rp->options |= RES_INIT;
+
+	return 0;
+}
+
+static unsigned int
+res_randomid(void)
+{
+	return 0xffff & getpid();
+}
+
+/* Our res_init never fails (always returns 0) */
+int
+res_init(void)
+{
+	/*
+	 * These three fields used to be statically initialized.  This made
+	 * it hard to use this code in a shared library.  It is necessary,
+	 * now that we're doing dynamic initialization here, that we preserve
+	 * the old semantics: if an application modifies one of these three
+	 * fields of _res before res_init() is called, res_init() will not
+	 * alter them.  Of course, if an application is setting them to
+	 * _zero_ before calling res_init(), hoping to override what used
+	 * to be the static default, we can't detect it and unexpected results
+	 * will follow.  Zero for any of these fields would make no sense,
+	 * so one can safely assume that the applications were already getting
+	 * unexpected results.
+	 *
+	 * _res.options is tricky since some apps were known to diddle the bits
+	 * before res_init() was first called. We can't replicate that semantic
+	 * with dynamic initialization (they may have turned bits off that are
+	 * set in RES_DEFAULT).  Our solution is to declare such applications
+	 * "broken".  They could fool us by setting RES_INIT but none do (yet).
+	 */
+
+	__UCLIBC_MUTEX_LOCK(__resolv_lock);
+
+	if (!_res.retrans)
+		_res.retrans = RES_TIMEOUT;
+	if (!_res.retry)
+		_res.retry = 4;
+	if (!(_res.options & RES_INIT))
+		_res.options = RES_DEFAULT;
+
+	/*
+	 * This one used to initialize implicitly to zero, so unless the app
+	 * has set it to something in particular, we can randomize it now.
+	 */
+	if (!_res.id)
+		_res.id = res_randomid();
+
+	__res_sync = NULL;
+	__res_vinit(&_res, 1);
+	__res_sync = res_sync_func;
+
 	__UCLIBC_MUTEX_UNLOCK(__resolv_lock);
+
 	return 0;
 }
 libc_hidden_def(res_init)
 
-#ifdef __UCLIBC_HAS_BSD_RES_CLOSE__
-void res_close(void)
+static void
+__res_iclose(res_state statp)
 {
+	struct __res_state * rp = statp;
 	__UCLIBC_MUTEX_LOCK(__resolv_lock);
+	if (rp == NULL)
+		rp = __res_state();
 	__close_nameservers();
 	__res_sync = NULL;
 #ifdef __UCLIBC_HAS_IPV6__
 	{
-		char *p1 = (char*) &(_res.nsaddr_list[0]);
-		int m = 0;
+		char *p1 = (char*) &(rp->nsaddr_list[0]);
+		unsigned int m = 0;
 		/* free nsaddrs[m] if they do not point to nsaddr_list[x] */
-		while (m < ARRAY_SIZE(_res._u._ext.nsaddrs)) {
-			char *p2 = (char*)(_res._u._ext.nsaddrs[m]);
-			if (p2 < p1 || (p2 - p1) > sizeof(_res.nsaddr_list))
+		while (m < ARRAY_SIZE(rp->_u._ext.nsaddrs)) {
+			char *p2 = (char*)(rp->_u._ext.nsaddrs[m++]);
+			if (p2 < p1 || (p2 - p1) > (signed)sizeof(rp->nsaddr_list))
 				free(p2);
 		}
 	}
 #endif
-	memset(&_res, 0, sizeof(_res));
+	memset(rp, 0, sizeof(struct __res_state));
 	__UCLIBC_MUTEX_UNLOCK(__resolv_lock);
+}
+
+/*
+ * This routine is for closing the socket if a virtual circuit is used and
+ * the program wants to close it.  This provides support for endhostent()
+ * which expects to close the socket.
+ *
+ * This routine is not expected to be user visible.
+ */
+
+void
+res_nclose(res_state statp)
+{
+	__res_iclose(statp);
+}
+
+#ifdef __UCLIBC_HAS_BSD_RES_CLOSE__
+void res_close(void)
+{
+	__res_iclose(NULL);
 }
 #endif
 
@@ -3036,18 +3649,44 @@ struct __res_state _res __attribute__((section (".bss"))) attribute_hidden;
 # if defined __UCLIBC_HAS_TLS__
 #  undef __resp
 __thread struct __res_state *__resp = &_res;
-/*
- * FIXME: Add usage of hidden attribute for this when used in the shared
- *        library. It currently crashes the linker when doing section
- *        relocations.
- */
 extern __thread struct __res_state *__libc_resp
-       __attribute__ ((alias ("__resp"))) attribute_hidden;
+       __attribute__ ((alias ("__resp"))) attribute_hidden attribute_tls_model_ie;
 # else
 #  undef __resp
 struct __res_state *__resp = &_res;
 # endif
-#endif
+#endif /* !__UCLIBC_HAS_THREADS__ */
+
+/*
+ * Set up default settings.  If the configuration file exist, the values
+ * there will have precedence.  Otherwise, the server address is set to
+ * INADDR_ANY and the default domain name comes from the gethostname().
+ *
+ * An interrim version of this code (BIND 4.9, pre-4.4BSD) used 127.0.0.1
+ * rather than INADDR_ANY ("0.0.0.0") as the default name server address
+ * since it was noted that INADDR_ANY actually meant ``the first interface
+ * you "ifconfig"'d at boot time'' and if this was a SLIP or PPP interface,
+ * it had to be "up" in order for you to reach your own name server.  It
+ * was later decided that since the recommended practice is to always
+ * install local static routes through 127.0.0.1 for all your network
+ * interfaces, that we could solve this problem without a code change.
+ *
+ * The configuration file should always be used, since it is the only way
+ * to specify a default domain.  If you are running a server on your local
+ * machine, you should say "nameserver 0.0.0.0" or "nameserver 127.0.0.1"
+ * in the configuration file.
+ *
+ * Return 0 if completes successfully, -1 on error
+ */
+int
+res_ninit(res_state statp)
+{
+	int ret;
+	__UCLIBC_MUTEX_LOCK(__resolv_lock);
+	ret = __res_vinit(statp, 0);
+	__UCLIBC_MUTEX_UNLOCK(__resolv_lock);
+	return ret;
+}
 
 #endif /* L_res_init */
 
@@ -3071,7 +3710,7 @@ __res_state (void)
 }
 # endif
 
-#endif
+#endif /* L_res_state */
 
 
 #ifdef L_res_query
@@ -3099,11 +3738,10 @@ int res_query(const char *dname, int class, int type,
 
 	free(a.dotted);
 
-	if (a.atype == type) { /* CNAME */
-		if (i > anslen)
-			i = anslen;
-		memcpy(answer, packet, i);
-	}
+	if (i > anslen)
+		i = anslen;
+	memcpy(answer, packet, i);
+
 	free(packet);
 	return i;
 }
@@ -3324,9 +3962,347 @@ int res_querydomain(const char *name, const char *domain, int class, int type,
 	return res_query(longname, class, type, answer, anslen);
 }
 libc_hidden_def(res_querydomain)
+#endif /* L_res_query */
+
+#ifdef L_ns_netint
+unsigned int ns_get16(const unsigned char *src)
+{
+	unsigned int dst;
+	NS_GET16(dst, src);
+	return dst;
+}
+
+unsigned long ns_get32(const unsigned char *src)
+{
+	unsigned long dst;
+	NS_GET32(dst, src);
+	return dst;
+}
+
+void ns_put16(unsigned int src, unsigned char *dst)
+{
+	NS_PUT16(src, dst);
+}
+
+void ns_put32(unsigned long src, unsigned char *dst)
+{
+	NS_PUT32(src, dst);
+}
+#endif /* L_ns_netint */
+
+#ifdef L_ns_parse
+/* These need to be in the same order as the nres.h:ns_flag enum. */
+struct _ns_flagdata { unsigned short mask, shift; };
+static const struct _ns_flagdata _ns_flagdata[16] = {
+	{ 0x8000, 15 },         /*%< qr. */
+	{ 0x7800, 11 },         /*%< opcode. */
+	{ 0x0400, 10 },         /*%< aa. */
+	{ 0x0200, 9 },          /*%< tc. */
+	{ 0x0100, 8 },          /*%< rd. */
+	{ 0x0080, 7 },          /*%< ra. */
+	{ 0x0040, 6 },          /*%< z. */
+	{ 0x0020, 5 },          /*%< ad. */
+	{ 0x0010, 4 },          /*%< cd. */
+	{ 0x000f, 0 },          /*%< rcode. */
+	{ 0x0000, 0 },          /*%< expansion (1/6). */
+	{ 0x0000, 0 },          /*%< expansion (2/6). */
+	{ 0x0000, 0 },          /*%< expansion (3/6). */
+	{ 0x0000, 0 },          /*%< expansion (4/6). */
+	{ 0x0000, 0 },          /*%< expansion (5/6). */
+	{ 0x0000, 0 },          /*%< expansion (6/6). */
+};
+
+static void setsection(ns_msg *msg, ns_sect sect)
+{
+	msg->_sect = sect;
+	if (sect == ns_s_max) {
+		msg->_rrnum = -1;
+		msg->_ptr = NULL;
+	} else {
+		msg->_rrnum = 0;
+		msg->_ptr = msg->_sections[(int)sect];
+	}
+}
+
+int ns_skiprr(const unsigned char *ptr,
+			  const unsigned char *eom,
+			  ns_sect section, int count)
+{
+	const u_char *optr = ptr;
+
+	for (; count > 0; count--) {
+		int b, rdlength;
+
+		b = dn_skipname(ptr, eom);
+		if (b < 0) {
+			errno = EMSGSIZE;
+			return -1;
+		}
+
+		ptr += b/*Name*/ + NS_INT16SZ/*Type*/ + NS_INT16SZ/*Class*/;
+		if (section != ns_s_qd) {
+			if (ptr + NS_INT32SZ + NS_INT16SZ > eom) {
+				errno = EMSGSIZE;
+				return -1;
+			}
+
+			ptr += NS_INT32SZ/*TTL*/;
+			NS_GET16(rdlength, ptr);
+			ptr += rdlength/*RData*/;
+		}
+	}
+
+	if (ptr > eom) {
+		errno = EMSGSIZE;
+		return -1;
+	}
+
+	return ptr - optr;
+}
+libc_hidden_def(ns_skiprr)
+
+int
+ns_initparse(const unsigned char *msg, int msglen, ns_msg *handle)
+{
+	const u_char *eom = msg + msglen;
+	int i;
+
+	handle->_msg = msg;
+	handle->_eom = eom;
+	if (msg + NS_INT16SZ > eom) {
+		errno = EMSGSIZE;
+		return -1;
+	}
+
+	NS_GET16(handle->_id, msg);
+	if (msg + NS_INT16SZ > eom) {
+		errno = EMSGSIZE;
+		return -1;
+	}
+
+	NS_GET16(handle->_flags, msg);
+	for (i = 0; i < ns_s_max; i++) {
+		if (msg + NS_INT16SZ > eom) {
+			errno = EMSGSIZE;
+			return -1;
+		}
+
+		NS_GET16(handle->_counts[i], msg);
+	}
+	for (i = 0; i < ns_s_max; i++)
+		if (handle->_counts[i] == 0)
+			handle->_sections[i] = NULL;
+		else {
+			int b = ns_skiprr(msg, eom, (ns_sect)i,
+					  handle->_counts[i]);
+
+			if (b < 0)
+				return -1;
+			handle->_sections[i] = msg;
+			msg += b;
+		}
+
+	if (msg != eom) {
+		errno = EMSGSIZE;
+		return -1;
+	}
+
+	setsection(handle, ns_s_max);
+	return 0;
+}
+
+int
+ns_parserr(ns_msg *handle, ns_sect section, int rrnum, ns_rr *rr)
+{
+	int b;
+	int tmp;
+
+	/* Make section right. */
+	tmp = section;
+	if (tmp < 0 || section >= ns_s_max) {
+		errno = ENODEV;
+		return -1;
+	}
+
+	if (section != handle->_sect)
+		setsection(handle, section);
+
+	/* Make rrnum right. */
+	if (rrnum == -1)
+		rrnum = handle->_rrnum;
+	if (rrnum < 0 || rrnum >= handle->_counts[(int)section]) {
+		errno = ENODEV;
+		return -1;
+	}
+	if (rrnum < handle->_rrnum)
+		setsection(handle, section);
+	if (rrnum > handle->_rrnum) {
+		b = ns_skiprr(handle->_ptr, handle->_eom, section,
+			      rrnum - handle->_rrnum);
+
+		if (b < 0)
+			return -1;
+		handle->_ptr += b;
+		handle->_rrnum = rrnum;
+	}
+
+	/* Do the parse. */
+	b = dn_expand(handle->_msg, handle->_eom,
+		      handle->_ptr, rr->name, NS_MAXDNAME);
+	if (b < 0)
+		return -1;
+	handle->_ptr += b;
+	if (handle->_ptr + NS_INT16SZ + NS_INT16SZ > handle->_eom) {
+		errno = EMSGSIZE;
+		return -1;
+	}
+	NS_GET16(rr->type, handle->_ptr);
+	NS_GET16(rr->rr_class, handle->_ptr);
+	if (section == ns_s_qd) {
+		rr->ttl = 0;
+		rr->rdlength = 0;
+		rr->rdata = NULL;
+	} else {
+		if (handle->_ptr + NS_INT32SZ + NS_INT16SZ > handle->_eom) {
+			errno = EMSGSIZE;
+			return -1;
+		}
+		NS_GET32(rr->ttl, handle->_ptr);
+		NS_GET16(rr->rdlength, handle->_ptr);
+		if (handle->_ptr + rr->rdlength > handle->_eom) {
+			errno = EMSGSIZE;
+			return -1;
+		}
+		rr->rdata = handle->_ptr;
+		handle->_ptr += rr->rdlength;
+	}
+	if (++handle->_rrnum > handle->_counts[(int)section])
+		setsection(handle, (ns_sect)((int)section + 1));
+
+	return 0;
+}
+
+int ns_msg_getflag(ns_msg handle, int flag)
+{
+	return ((handle)._flags & _ns_flagdata[flag].mask) >> _ns_flagdata[flag].shift;
+}
+#endif /* L_ns_parse */
+
+#ifdef L_res_data
+int res_mkquery(int op, const char *dname, int class, int type,
+				const unsigned char *data, int datalen,
+				const unsigned char *newrr_in,
+				unsigned char *buf, int buflen)
+{
+	HEADER *hp;
+	unsigned char *cp, *ep;
+	unsigned char *dnptrs[20], **dpp, **lastdnptr;
+	uint32_t _res_options;
+	int n;
+
+	if (!buf || buflen < HFIXEDSZ) {
+		h_errno = NETDB_INTERNAL;
+		return -1;
+	}
+
+ again:
+	__UCLIBC_MUTEX_LOCK(__resolv_lock);
+	_res_options = _res.options;
+	__UCLIBC_MUTEX_UNLOCK(__resolv_lock);
+	if (!(_res_options & RES_INIT)) {
+		res_init(); /* our res_init never fails */
+		goto again;
+	}
+
+#ifdef DEBUG
+	if (_res_options & RES_DEBUG)
+		printf(";; res_mkquery(%d, %s, %d, %d)\n",
+			   op, dname && *dname ? dname : "<null>", class, type);
 #endif
 
+	memset(buf, 0, HFIXEDSZ);
+	hp = (HEADER *) buf;
+	hp->id = getpid() & 0xffff;
+	hp->opcode = op;
+	hp->rd = (_res_options & RES_RECURSE) != 0U;
+	hp->rcode = NOERROR;
+
+	cp = buf + HFIXEDSZ;
+	ep = buf + buflen;
+	dpp = dnptrs;
+	*dpp++ = buf;
+	*dpp++ = NULL;
+	lastdnptr = dnptrs + sizeof dnptrs / sizeof dnptrs[0];
+
+	/*
+	 * perform opcode specific processing
+	 */
+	switch (op) {
+	case QUERY:
+	case NS_NOTIFY_OP:
+		if (ep - cp < QFIXEDSZ)
+			return -1;
+
+		n = dn_comp(dname, cp, ep - cp - QFIXEDSZ, dnptrs, lastdnptr);
+		if (n < 0)
+			return -1;
+
+		cp += n;
+		NS_PUT16(type, cp);
+		NS_PUT16(class, cp);
+		hp->qdcount = htons(1);
+
+		if (op == QUERY || data == NULL)
+			break;
+
+		/*
+		 * Make an additional record for completion domain.
+		 */
+		if ((ep - cp) < RRFIXEDSZ)
+			return -1;
+
+		n = dn_comp((const char *)data, cp, ep - cp - RRFIXEDSZ,
+					 dnptrs, lastdnptr);
+		if (n < 0)
+			return -1;
+
+		cp += n;
+		NS_PUT16(T_NULL, cp);
+		NS_PUT16(class, cp);
+		NS_PUT32(0, cp);
+		NS_PUT16(0, cp);
+		hp->arcount = htons(1);
+
+		break;
+
+	case IQUERY:
+		/*
+		 * Initialize answer section
+		 */
+		if (ep - cp < 1 + RRFIXEDSZ + datalen)
+			return -1;
+
+		*cp++ = '\0';   /*%< no domain name */
+		NS_PUT16(type, cp);
+		NS_PUT16(class, cp);
+		NS_PUT32(0, cp);
+		NS_PUT16(datalen, cp);
+
+		if (datalen) {
+			memcpy(cp, data, (size_t)datalen);
+			cp += datalen;
+		}
+
+		hp->ancount = htons(1);
+		break;
+
+	default:
+		return -1;
+	}
+
+	return cp - buf;
+}
+#endif /* L_res_data */
+
 /* Unimplemented: */
-/* res_mkquery */
 /* res_send */
-/* dn_comp */

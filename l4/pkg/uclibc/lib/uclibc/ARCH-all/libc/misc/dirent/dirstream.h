@@ -13,8 +13,7 @@ Library General Public License for more details.
 
 You should have received a copy of the GNU Library General Public
 License along with the GNU C Library; see the file COPYING.LIB.  If
-not, write to the, 1992 Free Software Foundation, Inc., 675 Mass Ave,
-Cambridge, MA 02139, USA.  */
+not, see <http://www.gnu.org/licenses/>.  */
 
 /*
  *	POSIX Standard: 5.1.2 Directory Operations	<dirent.h>
@@ -28,18 +27,6 @@ Cambridge, MA 02139, USA.  */
 #include <sys/types.h>
 
 #include <bits/uClibc_mutex.h>
-
-/* For now, syscall readdir () only supports one entry at a time. It
- * will be changed in the future.
-#define NUMENT		3
-*/
-#ifndef NUMENT
-#define NUMENT		1
-#endif
-
-#define SINGLE_READDIR	11
-#define MULTI_READDIR	12
-#define NEW_READDIR	13
 
 /* Directory stream type.  */
 struct __dirstream {
@@ -64,15 +51,5 @@ struct __dirstream {
   /* lock */
   __UCLIBC_MUTEX(dd_lock);
 };				/* stream data from opendir() */
-
-
-#ifdef ARCH_amd64
-extern ssize_t __getdents(int fd, char *buf, size_t count);
-#else
-extern ssize_t __getdents(int fd, char *buf, size_t count) attribute_hidden;
-#endif
-#ifdef __UCLIBC_HAS_LFS__
-extern ssize_t __getdents64 (int fd, char *buf, size_t count) /* l4: in libc_be: attribute_hidden */;
-#endif
 
 #endif /* dirent.h  */

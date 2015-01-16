@@ -12,8 +12,14 @@ public:
     Shared       = 0x4,
     Kernel_tmp   = 0x7,
 
+    Info         = 0xd,
     Bootloader   = 0xe,
     Arch         = 0xf,
+  };
+
+  enum Ext_type_info
+  {
+    Info_acpi_rsdp = 0
   };
 
 private:
@@ -65,28 +71,28 @@ Mem_desc::Mem_desc(Address start, Address end, Mem_type t, bool v = false,
   _h(end)
 {}
 
-PUBLIC inline
+PUBLIC inline ALWAYS_INLINE
 Address Mem_desc::start() const
 { return _l & ~0x3ffUL; }
 
-PUBLIC inline
+PUBLIC inline ALWAYS_INLINE
 Address Mem_desc::end() const
 { return _h | 0x3ffUL; }
 
-PUBLIC inline
+PUBLIC inline ALWAYS_INLINE
 void
 Mem_desc::type(Mem_type t)
 { _l = (_l & ~0x0f) | (t & 0x0f); }
 
-PUBLIC inline
+PUBLIC inline ALWAYS_INLINE
 Mem_desc::Mem_type Mem_desc::type() const
 { return (Mem_type)(_l & 0x0f); }
 
 PUBLIC inline
 unsigned Mem_desc::ext_type() const
-{ return _l & 0x0f0; }
+{ return (_l >> 4) & 0x0f; }
 
-PUBLIC inline
+PUBLIC inline ALWAYS_INLINE
 unsigned Mem_desc::is_virtual() const
 { return _l & 0x200; }
 
@@ -96,11 +102,11 @@ bool Mem_desc::contains(unsigned long addr)
   return start() <= addr && end() >= addr;
 }
 
-PUBLIC inline
+PUBLIC inline ALWAYS_INLINE
 bool Mem_desc::valid() const
 { return type() && start() < end(); }
 
-PUBLIC inline
+PUBLIC inline ALWAYS_INLINE
 Mem_desc *Kip::mem_descs()
 { return (Mem_desc*)(((Address)this) + (_mem_info >> (MWORD_BITS/2))); }
 
@@ -108,7 +114,7 @@ PUBLIC inline
 Mem_desc const *Kip::mem_descs() const
 { return (Mem_desc const *)(((Address)this) + (_mem_info >> (MWORD_BITS/2))); }
 
-PUBLIC inline
+PUBLIC inline ALWAYS_INLINE
 unsigned Kip::num_mem_descs() const
 { return _mem_info & ((1UL << (MWORD_BITS/2))-1); }
 
@@ -141,8 +147,9 @@ Mem_desc *Kip::add_mem_region(Mem_desc const &md)
 
 Kip *Kip::global_kip;
 
-PUBLIC static
-void Kip::init_global_kip(Kip *kip)
+PUBLIC static inline ALWAYS_INLINE NEEDS["config.h"]
+void
+Kip::init_global_kip(Kip *kip)
 {
   global_kip = kip;
 

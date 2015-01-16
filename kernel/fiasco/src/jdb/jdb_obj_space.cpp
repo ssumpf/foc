@@ -89,7 +89,8 @@ PUBLIC
 void
 Jdb_obj_space::print_statline(unsigned long row, unsigned long col)
 {
-  static char buf[128];
+  static String_buf<128> buf;
+  buf.clear();
   unsigned rights;
 
   Kobject_iface *o = item(index(row,col), &rights);
@@ -100,9 +101,10 @@ Jdb_obj_space::print_statline(unsigned long row, unsigned long col)
       return;
     }
 
-  unsigned len = Jdb_kobject::obj_description(buf, sizeof(buf), true, o->dbg_info());
+  Jdb_kobject::obj_description(&buf, true, o->dbg_info());
   Jdb::printf_statline("objs", "<Space>=mode",
-		       "%lx: %-*s", cxx::int_value<Cap_index>(index(row,col)), len, buf);
+		       "%lxr%x: %-*s",
+                       cxx::int_value<Cap_index>(index(row,col)), rights, buf.length(), buf.begin());
 }
 
 PUBLIC
@@ -116,17 +118,15 @@ Jdb_obj_space::print_entry(Cap_index entry)
     printf("       --       ");
   else
     {
-      char r = '-';
       switch (_mode)
 	{
 	case Name:
-	  switch (rights)
-	    {
-	    case 0x3: r = '*'; break;
-	    case 0x2:  r = 'w'; break;
-	    case 0x1:  r = 'x'; break;
-	    }
-	  printf("%05lx%c %-*s", o->dbg_info()->dbg_id(), r, 9, Jdb_kobject::kobject_type(o));
+          printf("%05lx%c%c%c %-*s",
+                 o->dbg_info()->dbg_id(),
+                 rights & 8 ? 'D' : '-',
+                 rights & 2 ? 'S' : '-',
+                 rights & 1 ? 'W' : '-',
+                 7, Jdb_kobject::kobject_type(o));
 	  break;
 	case Raw:
 	default:
@@ -225,13 +225,13 @@ PUBLIC
 Kobject_iface *
 Jdb_obj_space::item(Cap_index entry, unsigned *rights)
 {
-  Obj_space::Capability *c = _task->jdb_lookup_cap(entry);
+  Obj_space::Entry *c = _task->jdb_lookup_cap(entry);
 
   if (!c)
     return 0;
 
   Kobject_iface *o = c->obj();
-  *rights = c->rights();
+  *rights = cxx::int_value<Obj::Attr>(c->rights());
 
   return o;
 }

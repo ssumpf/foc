@@ -5,10 +5,9 @@ class Trap_state;
 EXTENSION class Thread
 {
 public:
-  static void init_per_cpu(Cpu_number cpu);
+  static void init_per_cpu(Cpu_number cpu, bool resume);
 private:
   bool _in_exception;
-
 };
 
 // ------------------------------------------------------------------------
@@ -54,16 +53,19 @@ Thread::fast_return_to_user(Mword ip, Mword sp, Vcpu_state *arg)
 {
   extern char __iret[];
   Entry_frame *r = regs();
-  assert_kdb((r->psr & Proc::Status_mode_mask) == Proc::Status_mode_user);
+  assert_kdb(r->check_valid_user_psr());
 
   r->ip(ip);
   r->sp(sp); // user-sp is in lazy user state and thus handled by
              // fill_user_state()
   fill_user_state();
-
-  load_tpidruro();
+  //load_tpidruro();
 
   r->psr &= ~Proc::Status_thumb;
+
+  // extended vCPU runs the host code in ARM system mode
+  if (Proc::Is_hyp && (state() & Thread_ext_vcpu_enabled))
+    r->psr_set_mode(Proc::PSR_m_svc);
 
     {
       register Vcpu_state *r0 asm("r0") = arg;
@@ -80,7 +82,7 @@ Thread::fast_return_to_user(Mword ip, Mword sp, Vcpu_state *arg)
 
 IMPLEMENT_DEFAULT inline
 void
-Thread::init_per_cpu(Cpu_number)
+Thread::init_per_cpu(Cpu_number, bool)
 {}
 
 
@@ -98,15 +100,17 @@ Thread::user_invoke()
   Trap_state *ts = nonull_static_cast<Trap_state*>
     (nonull_static_cast<Return_frame*>(current()->regs()));
 
+  assert (((Mword)ts & 7) == 4); // Return_frame has 5 words
+
   static_assert(sizeof(ts->r[0]) == sizeof(Mword), "Size mismatch");
   Mem::memset_mwords(&ts->r[0], 0, sizeof(ts->r) / sizeof(ts->r[0]));
 
   if (current()->space()->is_sigma0())
-    ts->r[0] = Mem_space::kernel_space()->virt_to_phys((Address)Kip::k());
+    ts->r[0] = Kmem_space::kdir()->virt_to_phys((Address)Kip::k());
 
   ts->psr |= Proc::Status_always_mask;
 
-  extern char __return_from_exception;
+  extern char __return_from_user_invoke;
 
   asm volatile
     ("  mov sp, %[stack_p]    \n"    // set stack pointer to regs structure
@@ -114,7 +118,7 @@ Thread::user_invoke()
      :
      :
      [stack_p] "r" (ts),
-     [rfe]     "r" (&__return_from_exception)
+     [rfe]     "r" (&__return_from_user_invoke)
      );
 
   panic("should never be reached");
@@ -138,31 +142,27 @@ bool Thread::handle_sigma0_page_fault( Address pfa )
       != Mem_space::Insert_err_nomem);
 }
 
-PUBLIC static
-bool
-Thread::no_copro_handler(Unsigned32, Trap_state *)
-{ return false; }
 
-typedef bool (*Coproc_insn_handler)(Unsigned32 opcode, Trap_state *ts);
-static Coproc_insn_handler handle_copro_fault[16] =
-  {
-    Thread::no_copro_handler,
-    Thread::no_copro_handler,
-    Thread::no_copro_handler,
-    Thread::no_copro_handler,
-    Thread::no_copro_handler,
-    Thread::no_copro_handler,
-    Thread::no_copro_handler,
-    Thread::no_copro_handler,
-    Thread::no_copro_handler,
-    Thread::no_copro_handler,
-    Thread::no_copro_handler,
-    Thread::no_copro_handler,
-    Thread::no_copro_handler,
-    Thread::no_copro_handler,
-    Thread::no_copro_handler,
-    Thread::no_copro_handler,
-  };
+PUBLIC static inline
+bool
+Thread::check_for_kernel_mem_access_pf(Trap_state *ts, Thread *t)
+{
+  if (EXPECT_FALSE(t->is_kernel_mem_op_hit_and_clear()))
+    {
+      Mword pc = t->exception_triggered() ? t->_exc_cont.ip() : ts->pc;
+
+      pc -= (ts->psr & Proc::Status_thumb) ? 2 : 4;
+
+      if (t->exception_triggered())
+        t->_exc_cont.ip(pc);
+      else
+        ts->pc = pc;
+
+      return true;
+    }
+
+  return false;
+}
 
 
 extern "C" {
@@ -179,13 +179,6 @@ extern "C" {
   Mword pagefault_entry(const Mword pfa, Mword error_code,
                         const Mword pc, Return_frame *ret_frame)
   {
-#if 0 // Double PF detect
-    static unsigned long last_pfa = ~0UL;
-    LOG_MSG_3VAL(current(),"PF", pfa, error_code, pc);
-    if (last_pfa == pfa || pfa == 0)
-      kdb_ke("DBF");
-    last_pfa = pfa;
-#endif
     if (EXPECT_FALSE(PF::is_alignment_error(error_code)))
       {
 	printf("KERNEL%d: alignment error at %08lx (PC: %08lx, SP: %08lx, FSR: %lx, PSR: %lx)\n",
@@ -194,15 +187,25 @@ extern "C" {
         return false;
       }
 
+    if (EXPECT_FALSE(Thread::is_debug_exception(error_code, true)))
+      return 0;
+
     Thread *t = current_thread();
 
     // Pagefault in user mode
     if (PF::is_usermode_error(error_code))
       {
+        // PFs in the kern_lib_page are always write PFs due to rollbacks and
+        // insn decoding
+        if (EXPECT_FALSE((pc & Kmem::Kern_lib_base) == Kmem::Kern_lib_base))
+          error_code |= (1UL << 6);
+
 	if (t->vcpu_pagefault(pfa, error_code, pc))
 	  return 1;
 	t->state_del(Thread_cancel);
         Proc::sti();
+
+        return t->handle_page_fault(pfa, error_code, pc, ret_frame);
       }
     // or interrupts were enabled
     else if (!(ret_frame->psr & Proc::Status_preempt_disabled))
@@ -212,7 +215,7 @@ extern "C" {
     else
       {
 	// page fault in kernel memory region, not present, but mapping exists
-	if (Kmem::is_kmem_page_fault (pfa, error_code))
+	if (Kmem::is_kmem_page_fault(pfa, error_code))
 	  {
 	    // We've interrupted a context in the kernel with disabled interrupts,
 	    // the page fault address is in the kernel region, the error code is
@@ -221,7 +224,7 @@ extern "C" {
 	    // just not in the currently active page directory)
 	    // Remain cli'd !!!
 	  }
-	else if (!Kmem::is_kmem_page_fault (pfa, error_code))
+	else if (!Kmem::is_kmem_page_fault(pfa, error_code))
 	  {
 	    // No error -- just enable interrupts.
 	    Proc::sti();
@@ -232,23 +235,18 @@ extern "C" {
 	    if (!Thread::log_page_fault())
 	      printf("*P[%lx,%lx,%lx] ", pfa, error_code, pc);
 
-	    kdb_ke ("page fault in cli mode");
+	    kdb_ke("page fault in cli mode");
 	  }
-
       }
 
     // cache operations we carry out for user space might cause PFs, we just
     // ignore those
     if (EXPECT_FALSE(t->is_ignore_mem_op_in_progress()))
       {
+        t->set_kernel_mem_op_hit();
         ret_frame->pc += 4;
         return 1;
       }
-
-    // PFs in the kern_lib_page are always write PFs due to rollbacks and
-    // insn decoding
-    if (EXPECT_FALSE((pc & Kmem::Kern_lib_base) == Kmem::Kern_lib_base))
-      error_code |= (1UL << 11);
 
     return t->handle_page_fault(pfa, error_code, pc, ret_frame);
   }
@@ -263,7 +261,7 @@ extern "C" {
 
     if (Config::Support_arm_linux_cache_API)
       {
-	if (   ts->error_code == 0x00200000
+	if (   ts->hsr().ec() == 0x11
             && ts->r[7] == 0xf0002)
 	  {
             if (ts->r[2] == 0)
@@ -274,59 +272,29 @@ extern "C" {
 	  }
       }
 
-    if (ts->exception_is_undef_insn())
+    if (t->check_and_handle_coproc_faults(ts))
+      return;
+
+    if (Thread::is_debug_exception(ts->error_code))
       {
-	Unsigned32 opcode;
-
-	if (ts->psr & Proc::Status_thumb)
-	  {
-	    Unsigned16 v = *(Unsigned16 *)(ts->pc - 2);
-	    if ((v >> 11) <= 0x1c)
-	      goto undef_insn;
-
-	    opcode = (v << 16) | *(Unsigned16 *)ts->pc;
-	  }
-	else
-	  opcode = *(Unsigned32 *)(ts->pc - 4);
-
-        if (ts->psr & Proc::Status_thumb)
-          {
-            if (   (opcode & 0xef000000) == 0xef000000 // A6.3.18
-                || (opcode & 0xff100000) == 0xf9000000)
-              {
-                if (handle_copro_fault[10](opcode, ts))
-                  return;
-                goto undef_insn;
-              }
-          }
-        else
-          {
-            if (   (opcode & 0xfe000000) == 0xf2000000 // A5.7.1
-                || (opcode & 0xff100000) == 0xf4000000)
-              {
-                if (handle_copro_fault[10](opcode, ts))
-                  return;
-                goto undef_insn;
-              }
-          }
-
-        if ((opcode & 0x0c000000) == 0x0c000000)
-          {
-            unsigned copro = (opcode >> 8) & 0xf;
-            if (handle_copro_fault[copro](opcode, ts))
-              return;
-          }
+        Thread::handle_debug_exception(ts);
+        return;
       }
 
-undef_insn:
     // send exception IPC if requested
     if (t->send_exception(ts))
       return;
 
     t->halt();
   }
-
 };
+
+PUBLIC static inline NEEDS[Thread::call_nested_trap_handler]
+void
+Thread::handle_debug_exception(Trap_state *ts)
+{
+  call_nested_trap_handler(ts);
+}
 
 IMPLEMENT inline
 bool
@@ -348,6 +316,32 @@ Thread::pagein_tcb_request(Return_frame *regs)
 }
 
 //---------------------------------------------------------------------------
+IMPLEMENTATION [arm && !arm_lpae]:
+
+PUBLIC static inline
+Mword
+Thread::is_debug_exception(Mword error_code, bool just_type = false)
+{
+  if (just_type)
+    return (error_code & 0x4f) == 2;
+  Mword e = error_code & 0x00f0004f;
+  return e == 0x00300002 || e == 0x00400002;
+}
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [arm && arm_lpae]:
+
+PUBLIC static inline
+Mword
+Thread::is_debug_exception(Mword error_code, bool just_type = false)
+{
+  if (just_type)
+    return (error_code & 0x3f) == 0x22;
+  Mword e = error_code & 0x00f0003f;
+  return e == 0x00300022 || e == 0x00400022;
+}
+
+//---------------------------------------------------------------------------
 IMPLEMENTATION [arm]:
 
 #include "trap_state.h"
@@ -358,7 +352,7 @@ IMPLEMENTATION [arm]:
     @param id user-visible thread ID of the sender
     @param init_prio initial priority
     @param mcp thread's maximum controlled priority
-    @post state() != Thread_invalid
+    @post state() != 0
  */
 IMPLEMENT
 Thread::Thread()
@@ -367,7 +361,7 @@ Thread::Thread()
     _exc_handler(Thread_ptr::Invalid),
     _del_observer(0)
 {
-  assert (state(false) == Thread_invalid);
+  assert (state(false) == 0);
 
   inc_ref();
   _space.space(Kernel_task::kernel_task());
@@ -391,6 +385,7 @@ Thread::Thread()
   r->sp(0);
   r->ip(0);
   r->psr = Proc::Status_mode_user;
+  //r->psr = 0x1f; //Proc::Status_mode_user;
 
   state_add_dirty(Thread_dead, false);
 
@@ -406,6 +401,7 @@ IMPLEMENT inline
 void
 Thread::user_sp(Mword sp)
 { return regs()->sp(sp); }
+
 
 IMPLEMENT inline NEEDS[Thread::exception_triggered]
 Mword
@@ -427,7 +423,7 @@ Thread::user_ip(Mword ip)
     {
       Entry_frame *r = regs();
       r->ip(ip);
-      r->psr = (r->psr & ~Proc::Status_mode_mask) | Proc::Status_mode_user;
+      static_cast<Trap_state*>(static_cast<Return_frame*>(r))->sanitize_user_state();
     }
 }
 
@@ -440,12 +436,13 @@ Thread::send_exception_arch(Trap_state *)
   return 1;
 }
 
-PRIVATE static inline
+PRIVATE inline
 void
 Thread::save_fpu_state_to_utcb(Trap_state *ts, Utcb *u)
 {
   char *esu = (char *)&u->values[21];
-  Fpu::save_user_exception_state(ts, (Fpu::Exception_state_user *)esu);
+  Fpu::save_user_exception_state(state() & Thread_fpu_owner,  fpu_state(),
+                                 ts, (Fpu::Exception_state_user *)esu);
 }
 
 PRIVATE inline
@@ -487,16 +484,9 @@ Thread::copy_utcb_to_ts(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
       Mem::memcpy_mwords (ts, snd_utcb->values, s > 16 ? 16 : s);
       if (EXPECT_TRUE(s > 20))
 	{
-	  // sanitize processor mode
-	  // XXX: fix race
-	  snd_utcb->values[20] &= ~Proc::Status_mode_mask; // clear mode
-	  snd_utcb->values[20] |=   Proc::Status_mode_supervisor
-                                  | Proc::Status_interrupts_disabled;
-
-	  Continuation::User_return_frame const *s
-	    = reinterpret_cast<Continuation::User_return_frame const *>((char*)&snd_utcb->values[16]);
-
-	  rcv->_exc_cont.set(ts, s);
+          Return_frame rf = *reinterpret_cast<Return_frame const *>((char const *)&snd_utcb->values[16]);
+          rcv->sanitize_user_state(static_cast<Trap_state*>(&rf));
+	  rcv->_exc_cont.set(ts, &rf);
 	}
     }
   else
@@ -507,10 +497,8 @@ Thread::copy_utcb_to_ts(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
       if (EXPECT_TRUE(s > 20))
 	{
 	  // sanitize processor mode
-	  Mword p = snd_utcb->values[20];
-	  p &= ~(Proc::Status_mode_mask | Proc::Status_interrupts_mask); // clear mode & irqs
-	  p |=  Proc::Status_mode_user;
-	  ts->psr = p;
+	  ts->psr = snd_utcb->values[20];
+          rcv->sanitize_user_state(ts);
 	}
     }
 
@@ -558,9 +546,10 @@ Thread::copy_ts_to_utcb(L4_msg_tag const &, Thread *snd, Thread *rcv,
       }
 
     if (rcv_utcb->inherit_fpu() && (rights & L4_fpage::Rights::W()))
-      snd->transfer_fpu(rcv);
-
-    save_fpu_state_to_utcb(ts, rcv_utcb);
+      {
+        snd->save_fpu_state_to_utcb(ts, rcv_utcb);
+        snd->transfer_fpu(rcv);
+      }
   }
   return true;
 }
@@ -587,7 +576,7 @@ Thread::sys_control_arch(Utcb *)
 
 PUBLIC static inline
 bool
-Thread::condition_valid(Unsigned32 insn, Unsigned32 psr)
+Thread::condition_valid(unsigned char cond, Unsigned32 psr)
 {
   // Matrix of instruction conditions and PSR flags,
   // index into the table is the condition from insn
@@ -611,7 +600,7 @@ Thread::condition_valid(Unsigned32 insn, Unsigned32 psr)
     0xffff
   };
 
-  return (v[insn >> 28] >> (psr >> 28)) & 1;
+  return (v[cond] >> (psr >> 28)) & 1;
 }
 
 // ------------------------------------------------------------------------
@@ -649,6 +638,8 @@ void
 Thread::get_ts_tpidruro(Trap_state *ts)
 {
   _tpidruro = ts->tpidruro;
+  if (this == current_thread())
+    load_tpidruro();
 }
 
 PRIVATE inline
@@ -703,7 +694,10 @@ public:
   { Thread::handle_remote_requests_irq(); }
 
   Thread_remote_rq_irq()
-  { set_hit(&handler_wrapper<Thread_remote_rq_irq>); }
+  {
+    set_hit(&handler_wrapper<Thread_remote_rq_irq>);
+    unmask();
+  }
 
   void switch_mode(bool) {}
 };
@@ -716,7 +710,10 @@ public:
   { Thread::handle_global_remote_requests_irq(); }
 
   Thread_glbl_remote_rq_irq()
-  { set_hit(&handler_wrapper<Thread_glbl_remote_rq_irq>); }
+  {
+    set_hit(&handler_wrapper<Thread_glbl_remote_rq_irq>);
+    unmask();
+  }
 
   void switch_mode(bool) {}
 };
@@ -732,7 +729,10 @@ public:
   }
 
   Thread_debug_ipi()
-  { set_hit(&handler_wrapper<Thread_debug_ipi>); }
+  {
+    set_hit(&handler_wrapper<Thread_debug_ipi>);
+    unmask();
+  }
 
   void switch_mode(bool) {}
 };
@@ -778,16 +778,73 @@ public:
 
 static Arm_ipis _arm_ipis;
 
+//-----------------------------------------------------------------------------
+IMPLEMENTATION [arm && !fpu]:
+
+PUBLIC inline
+bool
+Thread::check_and_handle_coproc_faults(Trap_state *)
+{
+  return false;
+}
+
 
 //-----------------------------------------------------------------------------
 IMPLEMENTATION [arm && fpu]:
+
+PUBLIC inline
+bool
+Thread::check_and_handle_coproc_faults(Trap_state *ts)
+{
+  if (!ts->exception_is_undef_insn())
+    return false;
+
+  Unsigned32 opcode;
+
+  if (ts->psr & Proc::Status_thumb)
+    {
+      Unsigned16 v = Thread::peek_user((Unsigned16 *)(ts->pc - 2), this);
+
+      if (EXPECT_FALSE(Thread::check_for_kernel_mem_access_pf(ts, this)))
+        return true;
+
+      if ((v >> 11) <= 0x1c)
+        return false;
+
+      opcode = (v << 16) | Thread::peek_user((Unsigned16 *)ts->pc, this);
+    }
+  else
+    opcode = Thread::peek_user((Unsigned32 *)(ts->pc - 4), this);
+
+  if (EXPECT_FALSE(Thread::check_for_kernel_mem_access_pf(ts, this)))
+    return true;
+
+  if (ts->psr & Proc::Status_thumb)
+    {
+      if (   (opcode & 0xef000000) == 0xef000000 // A6.3.18
+          || (opcode & 0xff100000) == 0xf9000000)
+        return Thread::handle_fpu_trap(opcode, ts);
+    }
+  else
+    {
+      if (   (opcode & 0xfe000000) == 0xf2000000 // A5.7.1
+          || (opcode & 0xff100000) == 0xf4000000)
+        return Thread::handle_fpu_trap(opcode, ts);
+    }
+
+  if ((opcode & 0x0c000e00) == 0x0c000a00)
+    return Thread::handle_fpu_trap(opcode, ts);
+
+  return false;
+}
 
 PUBLIC static
 bool
 Thread::handle_fpu_trap(Unsigned32 opcode, Trap_state *ts)
 {
-  if (!condition_valid(opcode, ts->psr))
+  if (!condition_valid(opcode >> 28, ts->psr))
     {
+      // FPU insns are 32bit, even for thumb
       if (ts->psr & Proc::Status_thumb)
         ts->pc += 2;
       return true;
@@ -798,6 +855,8 @@ Thread::handle_fpu_trap(Unsigned32 opcode, Trap_state *ts)
       assert(Fpu::fpu.current().owner() == current());
       if (Fpu::is_emu_insn(opcode))
         return Fpu::emulate_insns(opcode, ts);
+
+      ts->hsr().ec() = 0; // tag fpu undef insn
     }
   else if (current_thread()->switchin_fpu())
     {
@@ -806,20 +865,29 @@ Thread::handle_fpu_trap(Unsigned32 opcode, Trap_state *ts)
       ts->pc -= (ts->psr & Proc::Status_thumb) ? 2 : 4;
       return true;
     }
-
-  ts->error_code |= 0x01000000; // tag fpu undef insn
-  if (Fpu::exc_pending())
-    ts->error_code |= 0x02000000; // fpinst and fpinst2 in utcb will be valid
+  else
+    {
+      ts->hsr().ec() = 0x07;
+      ts->hsr().cond() = opcode >> 28;
+      ts->hsr().cv() = 1;
+      ts->hsr().cpt_cpnr() = 10;
+    }
 
   return false;
 }
 
-PUBLIC static
-void
-Thread::init_fpu_trap_handling()
+
+//-----------------------------------------------------------------------------
+IMPLEMENTATION [arm && !hyp]:
+
+PUBLIC static inline template<typename T>
+T Thread::peek_user(T const *adr, Context *c)
 {
-  handle_copro_fault[10] = Thread::handle_fpu_trap;
-  handle_copro_fault[11] = Thread::handle_fpu_trap;
+  T v;
+  c->set_ignore_mem_op_in_progress(true);
+  v = *adr;
+  c->set_ignore_mem_op_in_progress(false);
+  return v;
 }
 
-STATIC_INITIALIZEX(Thread, init_fpu_trap_handling);
+

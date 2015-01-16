@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Define the machine-dependent type `jmp_buf'.  FRV version. */
 
@@ -35,7 +34,6 @@
 #define __SETJMP_FP	(__SETJMP_SP+1)
 
 
-#ifndef _ASM
 typedef struct
 /* Demand 64-bit alignment such that we can use std/ldd in
    setjmp/longjmp.  */
@@ -48,11 +46,5 @@ __attribute__((__aligned__(8)))
     unsigned long __sp;				/* stack pointer */
     unsigned long __fp;				/* frame pointer */
   } __jmp_buf[1];
-#endif
-
-/* Test if longjmp to JMPBUF would unwind the frame
-   containing a local variable at ADDRESS.  */
-#define _JMPBUF_UNWINDS(jmpbuf, address) \
-  ((void *) (address) < (void *) (jmpbuf)->__sp)
 
 #endif	/* bits/setjmp.h */

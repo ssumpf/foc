@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 51 Franklin Street - Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef XTENSA_CONFIG_H
 #define XTENSA_CONFIG_H
@@ -43,11 +42,5 @@
 
 #undef XCHAL_NUM_AREGS
 #define XCHAL_NUM_AREGS			64
-
-/* Set a default page size.  This is currently needed when bootstrapping
-   the runtime linker.  See comments in dl-machine.h where this is used.  */
-
-#undef XCHAL_MMU_MIN_PTE_PAGE_SIZE
-#define XCHAL_MMU_MIN_PTE_PAGE_SIZE	12
 
 #endif /* !XTENSA_CONFIG_H */

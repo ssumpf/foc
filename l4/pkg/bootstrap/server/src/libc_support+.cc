@@ -91,7 +91,7 @@ static void call_ctors(Ctor **start, Ctor **end)
       (*start)();
 }
 
-static void
+void
 ctor_init()
 {
   extern Ctor *__CTORS_BEGIN[];
@@ -106,86 +106,6 @@ ctor_init()
   call_ctors(__init_array_start, __init_array_end);
 }
 
-
-static inline void clear_bss()
-{
-  extern char _bss_start[], _bss_end[];
-  extern int crt0_stack_low, crt0_stack_high;
-  memset(_bss_start, 0, (char *)&crt0_stack_low - _bss_start);
-  memset((char *)&crt0_stack_high, 0, _bss_end - (char *)&crt0_stack_high);
-}
-
-extern "C"
-void startup(unsigned long p1, unsigned long p2,
-             unsigned long p3, unsigned long p4);
-
-#ifdef ARCH_arm
-
-extern "C" int __aeabi_unwind_cpp_pr0(void);
-extern "C" int __aeabi_unwind_cpp_pr1(void);
-enum { _URC_FAILURE  = 9 };
-extern "C" int __aeabi_unwind_cpp_pr0(void) { return _URC_FAILURE; }
-extern "C" int __aeabi_unwind_cpp_pr1(void) { return _URC_FAILURE; }
-
-extern "C" void __main();
-void __main()
-{
-  unsigned long r;
-
-  asm volatile("mrc p15, 0, %0, c1, c0, 0" : "=r" (r) : : "memory");
-  r &= ~1UL;
-  r |= 2; // alignment check on
-  asm volatile("mcr p15, 0, %0, c1, c0, 0" : : "r" (r) : "memory");
-
-  clear_bss();
-  ctor_init();
-  Platform_base::iterate_platforms();
-
-  startup(0, 0, 0, 0);
-  while(1)
-    ;
-}
-#endif
-
-#ifdef ARCH_ppc32
-#include <l4/drivers/of.h>
-extern "C" void __main(unsigned long p1, unsigned long p2, unsigned long p3);
-void __main(unsigned long, unsigned long, unsigned long p3)
-{
-  clear_bss();
-  ctor_init();
-  L4_drivers::Of::set_prom(p3); //p3 is OF prom pointer
-  Platform_base::iterate_platforms();
-
-  printf("PPC platform initialized\n");
-  startup(0, 0, 0, 0);
-  while(1)
-    ;
-}
-#endif
-
-#if defined(ARCH_x86) || defined(ARCH_amd64)
-extern l4util_mb_info_t *x86_bootloader_mbi;
-extern "C" void __main(unsigned long p1, unsigned long p2, unsigned long p3, unsigned long p4);
-void __main(unsigned long p1, unsigned long p2, unsigned long p3, unsigned long p4)
-{
-  ctor_init();
-  x86_bootloader_mbi = (l4util_mb_info_t *)p1;
-  Platform_base::iterate_platforms();
-  startup(p1, p2, p3, p4);
-}
-#endif
-
-#if defined(ARCH_sparc)
-extern "C" void __main();
-void __main()
-{
-  clear_bss();
-  ctor_init();
-  Platform_base::iterate_platforms();
-  startup(0, 0, 0, 0);
-}
-#endif
 
 void exit(int c) throw()
 {

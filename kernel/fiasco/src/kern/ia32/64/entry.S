@@ -319,6 +319,7 @@ INTERRUPT(0x28,int8)
 	GATE_ENTRY(int,entry_##name,ACC_PL_U | ACC_INTR_GATE) 	;\
 	.p2align 4		 	     	 		;\
 entry_##name:				      	 		;\
+	sub	$16, %rsp					;\
 	push	%rax						;\
 	mov	$(syscall_table+8*(int-0x30)), %rax		;\
 	jmp	all_syscalls
@@ -329,6 +330,8 @@ all_syscalls:
 	cld
 	SAVE_STATE
 	ESP_TO_TCB_AT %rbx
+	testl	$Thread_alien_or_vcpu_user, OFS__THREAD__STATE (%rbx)
+	jnz	alien_sys_call
 	RESET_THREAD_CANCEL_AT %rbx
 
 	call	*(%rax)
@@ -336,22 +339,21 @@ in_syscall:
 ret_from_syscall:
 	RESTORE_STATE
 	pop	%rax
+	add	$16, %rsp
 	iretq
 
-#ifdef CONFIG_ASSEMBLER_IPC_SHORTCUT
-GATE_ENTRY(0x30,entry_sys_ipc,ACC_PL_U | ACC_INTR_GATE);
-#else
 GATE_ENTRY(0x30,entry_sys_ipc_c,ACC_PL_U | ACC_INTR_GATE);
-#endif
 
-#if defined (CONFIG_JDB_LOGGING) || !defined(CONFIG_ASSEMBLER_IPC_SHORTCUT)
         .p2align 4
 	.globl	entry_sys_ipc_c
 entry_sys_ipc_c:
 	cld
+	sub	$16, %rsp
 	push	%rax
 	SAVE_STATE
 	ESP_TO_TCB_AT %rbx
+	testl	$Thread_alien_or_vcpu_user, OFS__THREAD__STATE (%rbx)
+	jnz	alien_sys_ipc_c
 	RESET_THREAD_CANCEL_AT %rbx
 
 
@@ -359,10 +361,10 @@ entry_sys_ipc_c:
 in_sc_ipc1:
 	RESTORE_STATE
 	pop	%rax
+	add	$16, %rsp
 	iretq
 
 	.globl	in_sc_ipc1
-#endif
 
 #ifdef CONFIG_JDB
 	/* The slow variant of sys_ipc_entry is used when logging IPC */
@@ -371,15 +373,19 @@ in_sc_ipc1:
 
 entry_sys_ipc_log:
 	cld
+	sub	$16, %rsp
 	push	%rax
 	SAVE_STATE
 	ESP_TO_TCB_AT %rbx
+	testl	$Thread_alien_or_vcpu_user, OFS__THREAD__STATE (%rbx)
+	jnz	alien_sys_ipc_log
 	RESET_THREAD_CANCEL_AT %rbx
 	call	*syscall_table
 
 in_slow_ipc4:
 	RESTORE_STATE
 	pop	%rax
+	add	$16, %rsp
 	iretq
 
 	.globl	in_slow_ipc4
@@ -411,6 +417,17 @@ GATE_ENTRY(APIC_IRQ_BASE - 1, entry_ipi_remote_request, ACC_PL_K | ACC_INTR_GATE
 
 GATE_INITTAB_END
 
+alien_sys_ipc_c:
+	ALIEN_SYSCALL syscall="call sys_ipc_wrapper" trap_target=_slowtraps
+
+#if defined (CONFIG_JDB)
+alien_sys_ipc_log:
+	ALIEN_SYSCALL syscall="call *syscall_table" trap_target=_slowtraps
+#endif
+
+alien_sys_call:
+	ALIEN_SYSCALL syscall="call *(%rax)" trap_target=_slowtraps
+
 	.p2align
 	.globl	leave_by_trigger_exception
 leave_by_trigger_exception:
@@ -425,7 +442,6 @@ leave_by_trigger_exception:
 	.p2align
 	.globl	leave_by_vcpu_upcall
 leave_by_vcpu_upcall:
-	cli
 	sub	$40,%rsp		/* clean up stack from previous
 					 * CPL0-CPL0 iret */
 	SAVE_SCRATCH
@@ -437,6 +453,8 @@ leave_by_vcpu_upcall:
 	add $(VAL__SIZEOF_TRAP_STATE - 40), %rcx
 	mov SCRATCH_REGISTER_SIZE(%rsp),  %rdx
 	mov %rdx, (%rcx)                            /* RIP */
+	mov 8 + SCRATCH_REGISTER_SIZE(%rsp),  %rdx
+	mov %rdx, 8(%rcx)                            /* CS */
 	mov 16 + SCRATCH_REGISTER_SIZE(%rsp),  %rdx
 	mov %rdx, 16(%rcx)                          /* RFLAGS */
 	mov 24 + SCRATCH_REGISTER_SIZE(%rsp), %rdx
@@ -476,24 +494,13 @@ leave_by_vcpu_upcall:
 	push %r15
 
 	/*add SCRATCH_REGISTER_SIZE, %esp*/
-#if 0
-#ifdef CONFIG_PF_UX
-# define REG_GS CPU_GS
-#else
-# define REG_GS %gs
-#endif
-
-	pushq	%fs		/* we save the segment regs in the trap   */
-	pushq	REG_GS		/* state, but we do not restore them.  We */
-	pushq	%ds		/* rather reload them using               */
-	pushq	%es		/* RESET_{KERNEL,USER}_SEGMENTS           */
-#endif
 	mov %rdx, %rsp
 	mov -VAL__SIZEOF_TRAP_STATE + 40 + OFS__VCPU_STATE__ENTRY_SP(%rcx), %rax
 	mov %rax, 24(%rsp)
 	mov -VAL__SIZEOF_TRAP_STATE + 40 + OFS__VCPU_STATE__ENTRY_IP(%rcx), %rax
 	mov %rax, 0(%rsp)
 	movq $EFLAGS_IF, 16(%rsp)
+        movq $(GDT_CODE_USER | SEL_PL_U), 8(%rsp)
 	iretq
 
 	.p2align
@@ -508,5 +515,7 @@ vcpu_resume:
 #endif
 	restore_all_regs
 	add $(2*8), %rsp
+	andq	$0x7f, 8(%rsp)			// if entered using syscall
+	orq	$EFLAGS_IF, 16(%rsp)		// if entered using syscall
 	iretq
 

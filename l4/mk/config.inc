@@ -91,6 +91,10 @@ menuconfig config: $(DIRS_FOR_CONFIG)
 		! $(DROPSCONF_CONFIG) -nt $(DROPSCONF_CONFIG_MK) || \
 		$(MAKE) $(DROPSCONF_CONFIG_MK)
 
+textconfig: $(DIRS_FOR_CONFIG)
+	$(VERBOSE)+$(kconfig_call) config silentoldconfig
+	@$(MAKE) $(DROPSCONF_CONFIG_MK)
+
 oldconfig xconfig gconfig nconfig randconfig allyesconfig allnoconfig: $(DIRS_FOR_CONFIG)
 	$(VERBOSE)+$(kconfig_call) $@ silentoldconfig
 	@$(MAKE) $(DROPSCONF_CONFIG_MK)

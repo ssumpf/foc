@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _MIPS_BITS_ATOMIC_H
 #define _MIPS_BITS_ATOMIC_H 1
@@ -49,6 +48,32 @@ typedef uintmax_t uatomic_max_t;
 # define MIPS_SYNC	sync
 #endif
 
+/* Certain revisions of the R10000 Processor need an LL/SC Workaround
+   enabled.  Revisions before 3.0 misbehave on atomic operations, and
+   Revs 2.6 and lower deadlock after several seconds due to other errata.
+
+   To quote the R10K Errata:
+      Workaround: The basic idea is to inhibit the four instructions
+      from simultaneously becoming active in R10000. Padding all
+      ll/sc sequences with nops or changing the looping branch in the
+      routines to a branch likely (which is always predicted taken
+      by R10000) will work. The nops should go after the loop, and the
+      number of them should be 28. This number could be decremented for
+      each additional instruction in the ll/sc loop such as the lock
+      modifier(s) between the ll and sc, the looping branch and its
+      delay slot. For typical short routines with one ll/sc loop, any
+      instructions after the loop could also count as a decrement. The
+      nop workaround pollutes the cache more but would be a few cycles
+      faster if all the code is in the cache and the looping branch
+      is predicted not taken.  */
+
+
+#ifdef _MIPS_ARCH_R10000
+#define R10K_BEQZ_INSN "beqzl"
+#else
+#define R10K_BEQZ_INSN "beqz"
+#endif
+
 #define MIPS_SYNC_STR_2(X) #X
 #define MIPS_SYNC_STR_1(X) MIPS_SYNC_STR_2(X)
 #define MIPS_SYNC_STR MIPS_SYNC_STR_1(MIPS_SYNC)
@@ -58,10 +83,10 @@ typedef uintmax_t uatomic_max_t;
    in which values are returned.  */
 
 #define __arch_compare_and_exchange_xxx_8_int(mem, newval, oldval, rel, acq) \
-  (abort (), __prev = __cmp = 0)
+  (abort (), __prev = 0, __cmp = 0)
 
 #define __arch_compare_and_exchange_xxx_16_int(mem, newval, oldval, rel, acq) \
-  (abort (), __prev = __cmp = 0)
+  (abort (), __prev = 0, __cmp = 0)
 
 #define __arch_compare_and_exchange_xxx_32_int(mem, newval, oldval, rel, acq) \
      __asm__ __volatile__ (						      \
@@ -69,23 +94,23 @@ typedef uintmax_t uatomic_max_t;
      MIPS_PUSH_MIPS2							      \
      rel	"\n"							      \
      "1:\t"								      \
-     "ll	%0,%4\n\t"						      \
+     "ll	%0,%5\n\t"						      \
      "move	%1,$0\n\t"						      \
-     "bne	%0,%2,2f\n\t"						      \
-     "move	%1,%3\n\t"						      \
-     "sc	%1,%4\n\t"						      \
-     "beqz	%1,1b\n"						      \
+     "bne	%0,%3,2f\n\t"						      \
+     "move	%1,%4\n\t"						      \
+     "sc	%1,%2\n\t"						      \
+     R10K_BEQZ_INSN"	%1,1b\n"					      \
      acq	"\n\t"							      \
      ".set	pop\n"							      \
      "2:\n\t"								      \
-	      : "=&r" (__prev), "=&r" (__cmp)				      \
+	      : "=&r" (__prev), "=&r" (__cmp), "=m" (*mem)		      \
 	      : "r" (oldval), "r" (newval), "m" (*mem)			      \
 	      : "memory")
 
 #if _MIPS_SIM == _ABIO32
 /* We can't do an atomic 64-bit operation in O32.  */
 #define __arch_compare_and_exchange_xxx_64_int(mem, newval, oldval, rel, acq) \
-  (abort (), __prev = __cmp = 0)
+  (abort (), __prev = 0, __cmp = 0)
 #else
 #define __arch_compare_and_exchange_xxx_64_int(mem, newval, oldval, rel, acq) \
      __asm__ __volatile__ ("\n"						      \
@@ -93,16 +118,16 @@ typedef uintmax_t uatomic_max_t;
      MIPS_PUSH_MIPS2							      \
      rel	"\n"							      \
      "1:\t"								      \
-     "lld	%0,%4\n\t"						      \
+     "lld	%0,%5\n\t"						      \
      "move	%1,$0\n\t"						      \
-     "bne	%0,%2,2f\n\t"						      \
-     "move	%1,%3\n\t"						      \
-     "scd	%1,%4\n\t"						      \
-     "beqz	%1,1b\n"						      \
+     "bne	%0,%3,2f\n\t"						      \
+     "move	%1,%4\n\t"						      \
+     "scd	%1,%2\n\t"						      \
+     R10K_BEQZ_INSN"	%1,1b\n"					      \
      acq	"\n\t"							      \
      ".set	pop\n"							      \
      "2:\n\t"								      \
-	      : "=&r" (__prev), "=&r" (__cmp)				      \
+	      : "=&r" (__prev), "=&r" (__cmp), "=m" (*mem)		      \
 	      : "r" (oldval), "r" (newval), "m" (*mem)			      \
 	      : "memory")
 #endif
@@ -110,22 +135,22 @@ typedef uintmax_t uatomic_max_t;
 /* For all "bool" routines, we return FALSE if exchange succesful.  */
 
 #define __arch_compare_and_exchange_bool_8_int(mem, new, old, rel, acq)	\
-({ __typeof (*mem) __prev; int __cmp;					\
+({ __typeof (*mem) __prev attribute_unused; int __cmp;		\
    __arch_compare_and_exchange_xxx_8_int(mem, new, old, rel, acq);	\
    !__cmp; })
 
 #define __arch_compare_and_exchange_bool_16_int(mem, new, old, rel, acq) \
-({ __typeof (*mem) __prev; int __cmp;					\
+({ __typeof (*mem) __prev attribute_unused; int __cmp;		\
    __arch_compare_and_exchange_xxx_16_int(mem, new, old, rel, acq);	\
    !__cmp; })
 
 #define __arch_compare_and_exchange_bool_32_int(mem, new, old, rel, acq) \
-({ __typeof (*mem) __prev; int __cmp;					\
+({ __typeof (*mem) __prev attribute_unused; int __cmp;		\
    __arch_compare_and_exchange_xxx_32_int(mem, new, old, rel, acq);	\
    !__cmp; })
 
 #define __arch_compare_and_exchange_bool_64_int(mem, new, old, rel, acq) \
-({ __typeof (*mem) __prev; int __cmp;					\
+({ __typeof (*mem) __prev attribute_unused; int __cmp;		\
    __arch_compare_and_exchange_xxx_64_int(mem, new, old, rel, acq);	\
    !__cmp; })
 
@@ -133,22 +158,22 @@ typedef uintmax_t uatomic_max_t;
    successful or not.  */
 
 #define __arch_compare_and_exchange_val_8_int(mem, new, old, rel, acq)	\
-({ __typeof (*mem) __prev; int __cmp;					\
+({ __typeof (*mem) __prev attribute_unused; int __cmp attribute_unused;	\
    __arch_compare_and_exchange_xxx_8_int(mem, new, old, rel, acq);	\
    (__typeof (*mem))__prev; })
 
 #define __arch_compare_and_exchange_val_16_int(mem, new, old, rel, acq) \
-({ __typeof (*mem) __prev; int __cmp;					\
+({ __typeof (*mem) __prev attribute_unused; int __cmp attribute_unused;	\
    __arch_compare_and_exchange_xxx_16_int(mem, new, old, rel, acq);	\
    (__typeof (*mem))__prev; })
 
 #define __arch_compare_and_exchange_val_32_int(mem, new, old, rel, acq) \
-({ __typeof (*mem) __prev; int __cmp;					\
+({ __typeof (*mem) __prev attribute_unused; int __cmp attribute_unused;	\
    __arch_compare_and_exchange_xxx_32_int(mem, new, old, rel, acq);	\
    (__typeof (*mem))__prev; })
 
 #define __arch_compare_and_exchange_val_64_int(mem, new, old, rel, acq) \
-({ __typeof (*mem) __prev; int __cmp;					\
+({ __typeof (*mem) __prev attribute_unused; int __cmp attribute_unused;	\
    __arch_compare_and_exchange_xxx_64_int(mem, new, old, rel, acq);	\
    (__typeof (*mem))__prev; })
 
@@ -189,14 +214,14 @@ typedef uintmax_t uatomic_max_t;
      MIPS_PUSH_MIPS2							      \
      rel	"\n"							      \
      "1:\t"								      \
-     "ll	%0,%3\n\t"						      \
-     "move	%1,%2\n\t"						      \
-     "sc	%1,%3\n\t"						      \
-     "beqz	%1,1b\n"						      \
+     "ll	%0,%4\n\t"						      \
+     "move	%1,%3\n\t"						      \
+     "sc	%1,%2\n\t"						      \
+     R10K_BEQZ_INSN"	%1,1b\n"					      \
      acq	"\n\t"							      \
      ".set	pop\n"							      \
      "2:\n\t"								      \
-	      : "=&r" (__prev), "=&r" (__cmp)				      \
+	      : "=&r" (__prev), "=&r" (__cmp), "=m" (*mem)		      \
 	      : "r" (newval), "m" (*mem)				      \
 	      : "memory");						      \
   __prev; })
@@ -213,14 +238,14 @@ typedef uintmax_t uatomic_max_t;
      MIPS_PUSH_MIPS2							      \
      rel	"\n"							      \
      "1:\n"								      \
-     "lld	%0,%3\n\t"						      \
-     "move	%1,%2\n\t"						      \
-     "scd	%1,%3\n\t"						      \
-     "beqz	%1,1b\n"						      \
+     "lld	%0,%4\n\t"						      \
+     "move	%1,%3\n\t"						      \
+     "scd	%1,%2\n\t"						      \
+     R10K_BEQZ_INSN"	%1,1b\n"					      \
      acq	"\n\t"							      \
      ".set	pop\n"							      \
      "2:\n\t"								      \
-	      : "=&r" (__prev), "=&r" (__cmp)				      \
+	      : "=&r" (__prev), "=&r" (__cmp), "=m" (*mem)		      \
 	      : "r" (newval), "m" (*mem)				      \
 	      : "memory");						      \
   __prev; })
@@ -248,14 +273,14 @@ typedef uintmax_t uatomic_max_t;
      MIPS_PUSH_MIPS2							      \
      rel	"\n"							      \
      "1:\t"								      \
-     "ll	%0,%3\n\t"						      \
-     "addu	%1,%0,%2\n\t"						      \
-     "sc	%1,%3\n\t"						      \
-     "beqz	%1,1b\n"						      \
+     "ll	%0,%4\n\t"						      \
+     "addu	%1,%0,%3\n\t"						      \
+     "sc	%1,%2\n\t"						      \
+     R10K_BEQZ_INSN"	%1,1b\n"					      \
      acq	"\n\t"							      \
      ".set	pop\n"							      \
      "2:\n\t"								      \
-	      : "=&r" (__prev), "=&r" (__cmp)				      \
+	      : "=&r" (__prev), "=&r" (__cmp), "=m" (*mem)		      \
 	      : "r" (value), "m" (*mem)					      \
 	      : "memory");						      \
   __prev; })
@@ -272,14 +297,14 @@ typedef uintmax_t uatomic_max_t;
      MIPS_PUSH_MIPS2							      \
      rel	"\n"							      \
      "1:\t"								      \
-     "lld	%0,%3\n\t"						      \
-     "daddu	%1,%0,%2\n\t"						      \
-     "scd	%1,%3\n\t"						      \
-     "beqz	%1,1b\n"						      \
+     "lld	%0,%4\n\t"						      \
+     "daddu	%1,%0,%3\n\t"						      \
+     "scd	%1,%2\n\t"						      \
+     R10K_BEQZ_INSN"	%1,1b\n"					      \
      acq	"\n\t"							      \
      ".set	pop\n"							      \
      "2:\n\t"								      \
-	      : "=&r" (__prev), "=&r" (__cmp)				      \
+	      : "=&r" (__prev), "=&r" (__cmp), "=m" (*mem)		      \
 	      : "r" (value), "m" (*mem)					      \
 	      : "memory");						      \
   __prev; })

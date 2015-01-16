@@ -1,10 +1,12 @@
 INTERFACE:
 
+#include "string_buffer.h"
+
 EXTENSION class Jdb_bp
 {
 private:
   static int		test_log_only();
-  static int		test_break(char *errbuf, size_t bufsize);
+  static int		test_break(String_buffer *buf);
 };
 
 
@@ -162,7 +164,7 @@ Jdb_bp::test_log_only()
 /** @return 1 if breakpoint occured */
 IMPLEMENT
 int
-Jdb_bp::test_break(char *errbuf, size_t bufsize)
+Jdb_bp::test_break(String_buffer *buf)
 {
   Space *t = Jdb::get_thread(Cpu_number::boot_cpu())->space();
   Mword dr6  = read_debug_register(6, t);
@@ -170,7 +172,7 @@ Jdb_bp::test_break(char *errbuf, size_t bufsize)
   if (!(dr6 & 0x000000f))
     return 0;
 
-  test_break(dr6, errbuf, bufsize);
+  test_break(buf, dr6);
   write_debug_register(6, dr6 & ~0x0000000f, t);
   return 1;
 }

@@ -54,7 +54,7 @@ Fpu::restore_state(Fpu_state *s)
 /**
  * Disable FPU. Does nothing here.
  */
-IMPLEMENT inline
+PUBLIC static inline
 void
 Fpu::disable()
 {}
@@ -62,7 +62,7 @@ Fpu::disable()
 /**
  * Enable FPU. Does nothing here.
  */
-IMPLEMENT inline
+PUBLIC static inline
 void
 Fpu::enable()
 {}

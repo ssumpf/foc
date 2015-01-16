@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <assert.h>
 #include <stdlib.h>
@@ -58,9 +57,15 @@ fresetlockfiles (void)
 #endif
 }
 
-extern __typeof(fork) __libc_fork;
 pid_t
-__libc_fork (void)
+#if defined __arm__ && defined __thumb__ && __GNUC_PREREQ (4,6)
+/* GCC PR target/53735
+ * In thumb1 we run out of registers when compiling with Os so relax that
+ * to have more registers available for spilling by using O2 here.
+ */
+attribute_optimize("O2")
+#endif
+fork (void)
 {
   pid_t pid;
   struct used_handler
@@ -223,7 +228,4 @@ __libc_fork (void)
 
   return pid;
 }
-weak_alias(__libc_fork,__fork)
-libc_hidden_proto(fork)
-weak_alias(__libc_fork,fork)
-libc_hidden_weak(fork)
+libc_hidden_def(fork)

@@ -12,17 +12,14 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
-#define __FORCE_GLIBC
-#include <features.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netipx/ipx.h>
 #include <sys/un.h>
 #if 0
+#include <netipx/ipx.h>
 #include <netash/ash.h>
 #include <netatalk/at.h>
 #include <netax25/ax25.h>
@@ -52,10 +49,14 @@ int __libc_sa_len (sa_family_t af)
 #endif
     case AF_INET:
       return sizeof (struct sockaddr_in);
+#ifdef __UCLIBC_HAS_IPV6__
     case AF_INET6:
       return sizeof (struct sockaddr_in6);
+#endif
+#if 0
     case AF_IPX:
       return sizeof (struct sockaddr_ipx);
+#endif
     case AF_LOCAL:
       return sizeof (struct sockaddr_un);
     }

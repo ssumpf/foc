@@ -31,6 +31,7 @@ class Sched_context;
 class Syscall_frame;
 class Trap_state;
 class Tb_entry_formatter;
+class String_buffer;
 
 struct Tb_log_table_entry
 {
@@ -49,8 +50,8 @@ class Tb_entry
 protected:
   Mword		_number;	///< event number
   Address	_ip;		///< instruction pointer
-  Context const *_ctx;		///< Context
   Unsigned64	_tsc;		///< time stamp counter
+  Context const *_ctx;		///< Context
   Unsigned32	_pmc1;		///< performance counter value 1
   Unsigned32	_pmc2;		///< performance counter value 2
   Unsigned32	_kclock;	///< lower 32 bits of kernel clock
@@ -101,7 +102,7 @@ static_assert(sizeof(Tb_entry_union) == Tb_entry::Tb_entry_size,
 
 struct Tb_entry_empty : public Tb_entry
 {
-  unsigned print(int, char *) const { return 0; }
+  void print(String_buffer *) const {}
 };
 
 class Tb_entry_formatter
@@ -109,7 +110,7 @@ class Tb_entry_formatter
 public:
   typedef Tb_entry::Group_order Group_order;
 
-  virtual unsigned print(Tb_entry const *e, int max, char *buf) const = 0;
+  virtual void print(String_buffer *, Tb_entry const *e) const = 0;
   virtual Group_order has_partner(Tb_entry const *e) const = 0;
   virtual Group_order is_pair(Tb_entry const *e, Tb_entry const *n) const = 0;
   virtual Mword partner(Tb_entry const *e) const = 0;
@@ -134,8 +135,8 @@ public:
   typedef T const *Const_ptr;
   typedef T *Ptr;
 
-  unsigned print(Tb_entry const *e, int max, char *buf) const
-  { return static_cast<Const_ptr>(e)->print(max, buf); }
+  void print(String_buffer *buf, Tb_entry const *e) const
+  { static_cast<Const_ptr>(e)->print(buf); }
 
   Group_order has_partner(Tb_entry const *e) const
   { return static_cast<Const_ptr>(e)->has_partner(); }
@@ -171,7 +172,7 @@ private:
   L4_timeout_pair _timeout;	///< timeout
 public:
   Tb_entry_ipc() : _timeout(0) {}
-  unsigned print(int max, char *buf) const;
+  void print(String_buffer *buf) const;
 };
 
 /** logged ipc result. */
@@ -186,7 +187,7 @@ private:
   Unsigned8	_have_snd;	///< ipc had send part
   Unsigned8	_is_np;		///< next period bit set
 public:
-  unsigned print(int max, char *buf) const;
+  void print(String_buffer *buf) const;
 };
 
 /** logged ipc for user level tracing with Vampir. */
@@ -200,20 +201,9 @@ private:
   Unsigned8	_snd_desc;
   Unsigned8	_rcv_desc;
 public:
-  unsigned print(int max, char *buf) const;
+  void print(String_buffer *buf) const;
 };
 
-#if 0
-/** logged short-cut ipc failed. */
-class Tb_entry_ipc_sfl : public Tb_entry_base
-{
-private:
-  Global_id	_from;	///< short ipc rcv descriptor
-  L4_timeout_pair	_timeout;	///< ipc timeout
-  Global_id	_dst;		///< partner
-  Unsigned8	_is_irq, _snd_lst, _dst_ok, _dst_lck, _preempt;
-};
-#endif
 
 /** logged pagefault. */
 class Tb_entry_pf : public Tb_entry
@@ -223,7 +213,7 @@ private:
   Mword	_error;		///< pagefault error code
   Space	*_space;
 public:
-  unsigned print(int max, char *buf) const;
+  void print(String_buffer *buf) const;
 };
 
 /** pagefault result. */
@@ -234,7 +224,7 @@ private:
   L4_error	_err;
   L4_error	_ret;
 public:
-  unsigned print(int max, char *buf) const;
+  void print(String_buffer *buf) const;
 };
 
 
@@ -245,14 +235,14 @@ class Tb_entry_ke_t : public BASE
 protected:
   union Msg
   {
-    char msg[BASE::Tb_entry_size - sizeof(BASE)];
+    char msg[BASE::Tb_entry_size - sizeof(BASE) - 4];
     struct Ptr
     {
       char tag[2];
       char const *ptr;
     } mptr;
   } _msg;
-} __attribute__((__packed__));
+}; // __attribute__((__packed__));
 
 typedef Tb_entry_ke_t<Tb_entry, Tbuf_ke> Tb_entry_ke;
 
@@ -260,7 +250,7 @@ class Tb_entry_ke_reg_b : public Tb_entry
 {
 public:
   Mword v[3];
-} __attribute__((__packed__));
+}; // __attribute__((__packed__));
 
 class Tb_entry_ke_reg : public Tb_entry_ke_t<Tb_entry_ke_reg_b, Tbuf_ke_reg>
 {
@@ -275,7 +265,7 @@ private:
   Mword	_value;		///< value at address
   int		_mode;		///< breakpoint mode
 public:
-  unsigned print(int max, char *buf) const;
+  void print(String_buffer *buf) const;
 };
 
 /** logged binary kernel event. */

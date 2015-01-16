@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _BITS_SYSCALLS_H
 #define _BITS_SYSCALLS_H
@@ -27,25 +26,28 @@
 #ifndef __ASSEMBLER__
 
 #define INLINE_SYSCALL_NCS(name, nr, args...)	\
-({						\
+(__extension__					\
+ ({						\
 	long _sc_ret, _sc_err;			\
 	inline_syscall##nr(name, args);		\
-	if (__builtin_expect (_sc_err, 0))	\
+	if (unlikely (_sc_err))			\
 	  {					\
 	    __set_errno (_sc_ret);		\
 	    _sc_ret = -1L;			\
 	  }					\
 	_sc_ret;				\
-})
+  })						\
+)
 
 #define INTERNAL_SYSCALL_NCS(name, err_out, nr, args...) \
-({							\
+(__extension__ \
+ ({							\
 	long _sc_ret, _sc_err;				\
 	inline_syscall##nr(name, args);			\
 	err_out = _sc_err;				\
 	_sc_ret;					\
-})
-
+  }) \
+)
 #define INTERNAL_SYSCALL_DECL(err)		long int err
 #define INTERNAL_SYSCALL_ERROR_P(val, err)	err
 #define INTERNAL_SYSCALL_ERRNO(val, err)	val

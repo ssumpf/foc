@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _LOWLEVELLOCK_H
 #define _LOWLEVELLOCK_H	1
@@ -98,7 +97,7 @@ extern int __lll_unlock_wake_private (int *__futex) attribute_hidden;
 extern int __lll_unlock_wake (int *__futex, int private) attribute_hidden;
 
 #define lll_trylock(futex) \
-  ({ unsigned char __result; \
+  ({ unsigned char __ret; \
      __asm__ __volatile__ ("\
 	.align 2\n\
 	mova 1f,r0\n\
@@ -112,15 +111,15 @@ extern int __lll_unlock_wake (int *__futex, int private) attribute_hidden;
      1: mov r1,r15\n\
 	mov #-1,%0\n\
 	negc %0,%0"\
-	: "=r" (__result) \
+	: "=r" (__ret) \
 	: "r" (&(futex)), \
 	  "r" (LLL_LOCK_INITIALIZER_LOCKED), \
 	  "r" (LLL_LOCK_INITIALIZER) \
 	: "r0", "r1", "r2", "t", "memory"); \
-     __result; })
+     __ret; })
 
 #define lll_robust_trylock(futex, id)	\
-  ({ unsigned char __result; \
+  ({ unsigned char __ret; \
      __asm__ __volatile__ ("\
 	.align 2\n\
 	mova 1f,r0\n\
@@ -134,15 +133,15 @@ extern int __lll_unlock_wake (int *__futex, int private) attribute_hidden;
      1: mov r1,r15\n\
 	mov #-1,%0\n\
 	negc %0,%0"\
-	: "=r" (__result) \
+	: "=r" (__ret) \
 	: "r" (&(futex)), \
 	  "r" (id), \
 	  "r" (LLL_LOCK_INITIALIZER) \
 	: "r0", "r1", "r2", "t", "memory"); \
-     __result; })
+     __ret; })
 
 #define lll_cond_trylock(futex) \
-  ({ unsigned char __result; \
+  ({ unsigned char __ret; \
      __asm__ __volatile__ ("\
 	.align 2\n\
 	mova 1f,r0\n\
@@ -156,15 +155,15 @@ extern int __lll_unlock_wake (int *__futex, int private) attribute_hidden;
      1: mov r1,r15\n\
 	mov #-1,%0\n\
 	negc %0,%0"\
-	: "=r" (__result) \
+	: "=r" (__ret) \
 	: "r" (&(futex)), \
 	  "r" (LLL_LOCK_INITIALIZER_WAITERS), \
 	  "r" (LLL_LOCK_INITIALIZER) \
 	: "r0", "r1", "r2", "t", "memory"); \
-     __result; })
+     __ret; })
 
 #define lll_lock(futex, private) \
-  (void) ({ int __result, *__futex = &(futex); \
+  (void) ({ int __ret, *__futex = &(futex); \
 	    __asm__ __volatile__ ("\
 		.align 2\n\
 		mova 1f,r0\n\
@@ -176,20 +175,20 @@ extern int __lll_unlock_wake (int *__futex, int private) attribute_hidden;
 		bf 1f\n\
 		mov.l %1,@%2\n\
 	     1: mov r1,r15"\
-		: "=&r" (__result) : "r" (1), "r" (__futex) \
+		: "=&r" (__ret) : "r" (1), "r" (__futex) \
 		: "r0", "r1", "t", "memory"); \
-	    if (__result) \
+	    if (__ret) \
 	      { \
 		if (__builtin_constant_p (private) \
 		    && (private) == LLL_PRIVATE) \
-		  __lll_lock_wait_private (__result, __futex); \
+		  __lll_lock_wait_private (__ret, __futex); \
 	        else \
-		  __lll_lock_wait (__result, __futex, (private));	\
+		  __lll_lock_wait (__ret, __futex, (private));	\
 	      } \
     })
 
 #define lll_robust_lock(futex, id, private) \
-  ({ int __result, *__futex = &(futex); \
+  ({ int __ret, *__futex = &(futex); \
      __asm__ __volatile__ ("\
 	.align 2\n\
 	mova 1f,r0\n\
@@ -201,16 +200,16 @@ extern int __lll_unlock_wake (int *__futex, int private) attribute_hidden;
 	bf 1f\n\
 	mov.l %1,@%2\n\
       1: mov r1,r15"\
-	: "=&r" (__result) : "r" (id), "r" (__futex) \
+	: "=&r" (__ret) : "r" (id), "r" (__futex) \
 	: "r0", "r1", "t", "memory"); \
-     if (__result) \
-       __result = __lll_robust_lock_wait (__result, __futex, private); \
-     __result; })
+     if (__ret) \
+       __ret = __lll_robust_lock_wait (__ret, __futex, private); \
+     __ret; })
 
 /* Special version of lll_mutex_lock which causes the unlock function to
    always wakeup waiters.  */
 #define lll_cond_lock(futex, private) \
-  (void) ({ int __result, *__futex = &(futex); \
+  (void) ({ int __ret, *__futex = &(futex); \
 	    __asm__ __volatile__ ("\
 		.align 2\n\
 		mova 1f,r0\n\
@@ -222,13 +221,13 @@ extern int __lll_unlock_wake (int *__futex, int private) attribute_hidden;
 		bf 1f\n\
 		mov.l %1,@%2\n\
 	     1: mov r1,r15"\
-		: "=&r" (__result) : "r" (2), "r" (__futex) \
+		: "=&r" (__ret) : "r" (2), "r" (__futex) \
 		: "r0", "r1", "t", "memory"); \
-	    if (__result) \
-	      __lll_lock_wait (__result, __futex, private); })
+	    if (__ret) \
+	      __lll_lock_wait (__ret, __futex, private); })
 
 #define lll_robust_cond_lock(futex, id, private) \
-  ({ int __result, *__futex = &(futex); \
+  ({ int __ret, *__futex = &(futex); \
      __asm__ __volatile__ ("\
 	.align 2\n\
 	mova 1f,r0\n\
@@ -240,14 +239,14 @@ extern int __lll_unlock_wake (int *__futex, int private) attribute_hidden;
 	bf 1f\n\
 	mov.l %1,@%2\n\
      1: mov r1,r15"\
-	: "=&r" (__result) : "r" (id | FUTEX_WAITERS), "r" (__futex) \
+	: "=&r" (__ret) : "r" (id | FUTEX_WAITERS), "r" (__futex) \
 	: "r0", "r1", "t", "memory"); \
-      if (__result) \
-	__result = __lll_robust_lock_wait (__result, __futex, private); \
-      __result; })
+      if (__ret) \
+	__ret = __lll_robust_lock_wait (__ret, __futex, private); \
+      __ret; })
 
 #define lll_timedlock(futex, timeout, private) \
-  ({ int __result, *__futex = &(futex); \
+  ({ int __ret, *__futex = &(futex); \
      __asm__ __volatile__ ("\
 	.align 2\n\
 	mova 1f,r0\n\
@@ -259,14 +258,14 @@ extern int __lll_unlock_wake (int *__futex, int private) attribute_hidden;
 	bf 1f\n\
 	mov.l %1,@%2\n\
      1: mov r1,r15"\
-	: "=&r" (__result) : "r" (1), "r" (__futex) \
+	: "=&r" (__ret) : "r" (1), "r" (__futex) \
 	: "r0", "r1", "t", "memory"); \
-    if (__result) \
-      __result = __lll_timedlock_wait (__result, __futex, timeout, private); \
-    __result; })
+    if (__ret) \
+      __ret = __lll_timedlock_wait (__ret, __futex, timeout, private); \
+    __ret; })
 
 #define lll_robust_timedlock(futex, timeout, id, private) \
-  ({ int __result, *__futex = &(futex); \
+  ({ int __ret, *__futex = &(futex); \
      __asm__ __volatile__ ("\
 	.align 2\n\
 	mova 1f,r0\n\
@@ -278,15 +277,15 @@ extern int __lll_unlock_wake (int *__futex, int private) attribute_hidden;
 	bf 1f\n\
 	mov.l %1,@%2\n\
      1: mov r1,r15"\
-	: "=&r" (__result) : "r" (id), "r" (__futex) \
+	: "=&r" (__ret) : "r" (id), "r" (__futex) \
 	: "r0", "r1", "t", "memory"); \
-    if (__result) \
-      __result = __lll_robust_timedlock_wait (__result, __futex, \
+    if (__ret) \
+      __ret = __lll_robust_timedlock_wait (__ret, __futex, \
 					      timeout, private); \
-    __result; })
+    __ret; })
 
 #define lll_unlock(futex, private) \
-  (void) ({ int __result, *__futex = &(futex); \
+  (void) ({ int __ret, *__futex = &(futex); \
 	    __asm__ __volatile__ ("\
 		.align 2\n\
 		mova 1f,r0\n\
@@ -296,9 +295,9 @@ extern int __lll_unlock_wake (int *__futex, int private) attribute_hidden;
 		add #-1,%0\n\
 		mov.l %0,@%1\n\
 	     1: mov r1,r15"\
-		: "=&r" (__result) : "r" (__futex) \
+		: "=&r" (__ret) : "r" (__futex) \
 		: "r0", "r1", "memory"); \
-	    if (__result) \
+	    if (__ret) \
 	      { \
 		if (__builtin_constant_p (private) \
 		    && (private) == LLL_PRIVATE) \
@@ -309,7 +308,7 @@ extern int __lll_unlock_wake (int *__futex, int private) attribute_hidden;
     })
 
 #define lll_robust_unlock(futex, private) \
-  (void) ({ int __result, *__futex = &(futex); \
+  (void) ({ int __ret, *__futex = &(futex); \
 	    __asm__ __volatile__ ("\
 		.align 2\n\
 		mova 1f,r0\n\
@@ -319,9 +318,9 @@ extern int __lll_unlock_wake (int *__futex, int private) attribute_hidden;
 		and %2,%0\n\
 		mov.l %0,@%1\n\
 	     1: mov r1,r15"\
-		: "=&r" (__result) : "r" (__futex), "r" (FUTEX_WAITERS) \
+		: "=&r" (__ret) : "r" (__futex), "r" (FUTEX_WAITERS) \
 		: "r0", "r1", "memory");	\
-	    if (__result) \
+	    if (__ret) \
 	      __lll_unlock_wake (__futex, private); })
 
 #define lll_robust_dead(futex, private)		       \
@@ -396,24 +395,24 @@ extern int __lll_unlock_wake (int *__futex, int private) attribute_hidden;
 
 #define lll_wait_tid(tid) \
   do {									      \
-    __typeof (tid) *__tid = &(tid);					      \
-    while (*__tid != 0)							      \
-      lll_futex_wait (__tid, *__tid, LLL_SHARED);			      \
+    __typeof (tid) __tid;						      \
+    while ((__tid = (tid)) != 0)						      \
+      lll_futex_wait (&(tid), __tid, LLL_SHARED);			      \
   } while (0)
 
 extern int __lll_timedwait_tid (int *tid, const struct timespec *abstime)
      attribute_hidden;
 #define lll_timedwait_tid(tid, abstime) \
   ({									      \
-    int __result = 0;							      \
+    int __ret = 0;							      \
     if (tid != 0)							      \
       {									      \
 	if (abstime->tv_nsec < 0 || abstime->tv_nsec >= 1000000000)	      \
-	  __result = EINVAL;						      \
+	  __ret = EINVAL;						      \
 	else								      \
-	  __result = __lll_timedwait_tid (&tid, abstime);		      \
+	  __ret = __lll_timedwait_tid (&tid, abstime);		      \
       }									      \
-    __result; })
+    __ret; })
 
 #endif  /* !__ASSEMBLER__ */
 

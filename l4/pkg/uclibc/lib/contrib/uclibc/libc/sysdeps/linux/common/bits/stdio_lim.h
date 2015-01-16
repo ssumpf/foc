@@ -12,16 +12,17 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #if !defined _STDIO_H && !defined __need_FOPEN_MAX && !defined __need_IOV_MAX
 # error "Never include <bits/stdio_lim.h> directly; use <stdio.h> instead."
 #endif
 
 #ifdef _STDIO_H
-# define L_tmpnam 20
+# ifdef __UCLIBC_SUSV4_LEGACY__
+#  define L_tmpnam 20
+# endif
 # define TMP_MAX 238328
 # define FILENAME_MAX 4095
 

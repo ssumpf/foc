@@ -1,11 +1,9 @@
 [UTEST] *** Create tasks ***
 [UTEST] *** Manipulate mappings ***
 [UTEST] s0 [0x10000] -> server [0x1000]
-[UTEST] space=s0 vaddr=0x0 size=0x400
 [UTEST]  space=server vaddr=0x1 size=0x1 parent=s0 p.vaddr=0x10
 [UTEST] 
 [UTEST] s0 [0/superpage] -> server [0] -> should map many 4K pages and overmap previous mapping
-[UTEST] space=s0 vaddr=0x0 size=0x400
 [UTEST]  space=server vaddr=0x0 size=0x1 parent=s0 p.vaddr=0x0
 [UTEST]  space=server vaddr=0x1 size=0x1 parent=s0 p.vaddr=0x1
 [UTEST]  space=server vaddr=0x2 size=0x1 parent=s0 p.vaddr=0x2
@@ -1031,11 +1029,9 @@
 [UTEST]  space=server vaddr=0x3fe size=0x1 parent=s0 p.vaddr=0x3fe
 [UTEST]  space=server vaddr=0x3ff size=0x1 parent=s0 p.vaddr=0x3ff
 [UTEST] 
-[UTEST] space=s0 vaddr=0x0 size=0x400
 [UTEST]  space=server vaddr=0x10 size=0x1 parent=s0 p.vaddr=0x10
 [UTEST] 
 [UTEST] Partially unmap superpage s0 [0/superpage]
-[UTEST] space=s0 vaddr=0x0 size=0x400
 [UTEST]  space=server vaddr=0x0 size=0x1 parent=s0 p.vaddr=0x0
 [UTEST]  space=server vaddr=0x1 size=0x1 parent=s0 p.vaddr=0x1
 [UTEST]  space=server vaddr=0x2 size=0x1 parent=s0 p.vaddr=0x2
@@ -1805,10 +1801,8 @@
 [UTEST]  space=server vaddr=0x3fe size=0x1 parent=s0 p.vaddr=0x3fe
 [UTEST]  space=server vaddr=0x3ff size=0x1 parent=s0 p.vaddr=0x3ff
 [UTEST] 
-[UTEST] space=s0 vaddr=0x400 size=0x400
 [UTEST]  space=server vaddr=0x800 size=0x400 parent=s0 p.vaddr=0x400
 [UTEST] 
-[UTEST] space=s0 vaddr=0x400 size=0x400
 [UTEST]  space=server vaddr=0x800 size=0x400 parent=s0 p.vaddr=0x400
 [UTEST]  space=client vaddr=0x8 size=0x1 parent=server p.vaddr=0x801
 [UTEST] 

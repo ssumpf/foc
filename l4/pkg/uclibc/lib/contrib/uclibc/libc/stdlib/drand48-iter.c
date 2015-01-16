@@ -13,23 +13,22 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <errno.h>
 #include <stdlib.h>
 #include <limits.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <sys/types.h>
 
 /* Global state for non-reentrant functions.  */
-struct drand48_data __libc_drand48_data attribute_hidden;
+struct drand48_data __libc_drand48_data;
 
 #ifdef __UCLIBC_MJN3_ONLY__
 #warning turn int __drand48_iterate into void
 #endif /* __UCLIBC_MJN3_ONLY__ */
-int __drand48_iterate (unsigned short int xsubi[3], struct drand48_data *buffer) attribute_hidden;
 int __drand48_iterate (unsigned short int xsubi[3], struct drand48_data *buffer)
 {
   uint64_t X;

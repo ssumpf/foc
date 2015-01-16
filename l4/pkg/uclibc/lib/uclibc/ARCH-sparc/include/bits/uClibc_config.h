@@ -2,15 +2,8 @@
 # error Never include <bits/uClibc_config.h> directly; use <features.h> instead
 #endif
 
-#ifndef libc_hidden_proto
-#define libc_hidden_proto(x)
-#endif
-#ifndef libm_hidden_proto
-#define libm_hidden_proto(x)
-#endif
-#ifndef librt_hidden_proto
-#define librt_hidden_proto(x)
-#endif
+// L4 added
+#include <bits/l4-libc-symbols.h>
 
 #define __UCLIBC_MAJOR__ 0
 #define __UCLIBC_MINOR__ 9
@@ -64,6 +57,15 @@
 #undef __CONFIG_CYRIXIII__
 #undef __CONFIG_NEHEMIAH__
 #define __TARGET_SUBARCH__ ""
+#ifdef __sparc_v7__
+#define __CONFIG_SPARC_V7__
+#endif
+#ifdef __sparc_v8__
+#define __CONFIG_SPARC_V8__
+#endif
+#ifdef __sparc_v9__
+#define __CONFIG_SPARC_V9__
+#endif
 
 /* Using ELF file format */
 #define __ARCH_LITTLE_ENDIAN__ 1

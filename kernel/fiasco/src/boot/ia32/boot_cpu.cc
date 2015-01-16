@@ -472,9 +472,6 @@ base_paging_init(void)
 
   dbf_tss.cr3 = base_pdir_pa;
 
-  // Turn on paging
-  paging_enable(base_pdir_pa);
-
   // map in the Kernel image (superpage) of physical memory to 0xf0000000
   pdir_map_range(base_pdir_pa, /*virt*/Mem_layout::Kernel_image,
                  Mem_layout::Kernel_image_phys,
@@ -483,14 +480,17 @@ base_paging_init(void)
 		 INTEL_PDE_VALID | INTEL_PDE_WRITE | INTEL_PDE_USER);
 
   // Adapter memory is already contrained in the kernel-image mapping
-  if (Mem_layout::Adap_in_kernel_image)
-    return;
+  if (!Mem_layout::Adap_in_kernel_image)
+    {
+      // map in the adapter memory (superpage) of physical memory to ...
+      pdir_map_range(base_pdir_pa, /*virt*/Mem_layout::Adap_image,
+                     /*phys*/Mem_layout::Adap_image_phys,
+                     /*size*/Config::SUPERPAGE_SIZE,
+                     INTEL_PDE_VALID | INTEL_PDE_WRITE | INTEL_PDE_USER);
+    }
 
-  // map in the adapter memory (superpage) of physical memory to ...
-  pdir_map_range(base_pdir_pa, /*virt*/Mem_layout::Adap_image,
-                 /*phys*/Mem_layout::Adap_image_phys,
-		 /*size*/Config::SUPERPAGE_SIZE,
-		 INTEL_PDE_VALID | INTEL_PDE_WRITE | INTEL_PDE_USER);
+  // Turn on paging
+  paging_enable(base_pdir_pa);
 }
 
 void

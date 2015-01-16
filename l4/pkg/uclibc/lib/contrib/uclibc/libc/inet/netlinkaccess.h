@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _NETLINKACCESS_H
 #define _NETLINKACCESS_H 1
@@ -22,15 +21,8 @@
 #include <features.h>
 #include <stdint.h>
 #include <unistd.h>
-#include <sys/types.h>
-
 #if defined __ASSUME_NETLINK_SUPPORT || defined __UCLIBC_USE_NETLINK__
-#define _LINUX_TYPES_H
-typedef uint8_t __u8;
-typedef uint16_t __u16;
-typedef uint32_t __u32;
-typedef uint64_t __u64;
-typedef int32_t __s32;
+#include <asm/types.h>
 #include <linux/rtnetlink.h>
 #include <linux/netlink.h>
 

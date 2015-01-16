@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <sysdep.h>
 #include <pthread-errnos.h>
@@ -163,7 +162,7 @@ __lll_timedlock_wait:
 	cfi_startproc
 # ifndef __ASSUME_FUTEX_CLOCK_REALTIME
 #  ifdef __PIC__
-	cmpl	$0, __have_futex_clock_realtime(%rip)
+	cmpl	$0, __have_futex_clock_realtime@GOTOFF(%rip)
 #  else
 	cmpl	$0, __have_futex_clock_realtime
 #  endif

@@ -3,8 +3,6 @@
 	.globl	_boot_start
 _boot_start:
 	leal	_stack,%esp
-	movl	%eax,%edx		/* mbinfo_flag */
-	movl	%ebx,%eax		/* mbinfo */
 	pushl	$0			/* no return address */
 	jmp	bootstrap
 

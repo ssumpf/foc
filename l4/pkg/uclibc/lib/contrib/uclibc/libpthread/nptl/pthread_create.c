@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <errno.h>
 #include <stdbool.h>
@@ -25,7 +24,6 @@
 #include <hp-timing.h>
 #include <ldsodefs.h>
 #include <atomic.h>
-#include <libc-internal.h>
 #include <resolv.h>
 #include <bits/kernel-features.h>
 
@@ -233,7 +231,7 @@ start_thread (void *arg)
   HP_TIMING_NOW (now);
   THREAD_SETMEM (pd, cpuclock_offset, now);
 #endif
-#if defined __UCLIBC_HAS_IPV4__ || defined __UCLIBC_HAS_IPV6__
+#if defined __UCLIBC_HAS_RESOLVER_SUPPORT__
   /* Initialize resolver state pointer.  */
   __resp = &pd->res;
 #endif
@@ -379,11 +377,11 @@ start_thread (void *arg)
   /* Mark the memory of the stack as usable to the kernel.  We free
      everything except for the space used for the TCB itself.  */
   size_t pagesize_m1 = __getpagesize () - 1;
-#ifdef _STACK_GROWS_DOWN
   char *sp = CURRENT_STACK_FRAME;
+#ifdef _STACK_GROWS_DOWN
   size_t freesize = (sp - (char *) pd->stackblock) & ~pagesize_m1;
 #else
-# error "to do"
+  size_t freesize = ((char *) pd->stackblock - sp) & ~pagesize_m1;
 #endif
   assert (freesize < pd->stackblock_size);
   if (freesize > PTHREAD_STACK_MIN)

@@ -51,7 +51,12 @@ define SRC_libc/sysdeps/linux_sparc__with_soft_fp
 endef
 
 ifeq ($(GCCIS_sparc_leon),)
-  SRC_libc/sysdeps/linux_sparc := $(SRC_libc/sysdeps/linux_sparc__with_soft_fp)
+  define SRC_libc/sysdeps/linux_sparc
+    udiv
+    umul
+    urem
+  endef
+  SRC_libc/sysdeps/linux_sparc += $(SRC_libc/sysdeps/linux_sparc__with_soft_fp)
 endif
 
 define SRC_libc/termios
@@ -72,7 +77,6 @@ define SRC_libc/stdlib
   __fp_range_check
   __strtofpmax
   __uc_malloc
-  _stdlib_mb_cur_max
   _stdlib_strto_l
   _stdlib_strto_ll
   _strtod
@@ -107,6 +111,7 @@ define SRC_libc/stdlib
   on_exit
   posix_memalign
   qsort
+  qsort_r
   rand
   rand_r
   random
@@ -143,6 +148,7 @@ define SRC_libc/stdlib/malloc-simple
 endef
 
 define SRC_libc/stdlib_wchar
+  _stdlib_mb_cur_max
   wcstombs
   mblen
   mbstowcs
@@ -226,6 +232,10 @@ define SRC_libc/string_wchar
   wcslcpy
   wcsncmp
   wcsspn
+  wmemchr
+  wmemcmp
+  wmemmove
+  wmemset
 endef
 
 SRC_libc/string_arm := _memcpy
@@ -235,6 +245,7 @@ define SRC_libc/misc
   ctype/ctype
   ctype/isalnum
   ctype/isalpha
+  ctype/isascii
   ctype/isblank
   ctype/iscntrl
   ctype/isdigit
@@ -269,6 +280,7 @@ define SRC_libc/misc
   fnmatch/fnmatch
   glob/glob
   internals/errno
+  internals/h_errno
   internals/__errno_location
   internals/__h_errno_location
   internals/__uClibc_main
@@ -335,12 +347,14 @@ endef
 SRC_libc/misc_libuc_c_minimal.a = $(SRC_libc/misc_libuc_c.a)
 
 define SRC_libc/misc_wchar
+  time/wcsftime
   wchar/btowc
   wchar/mbrlen
   wchar/mbrtowc
   wchar/mbsnrtowcs
   wchar/mbsrtowcs
   wchar/wchar
+  wchar/wctob
   wchar/wcrtomb
   wchar/wcsnrtombs
   wchar/wcsrtombs
@@ -418,6 +432,7 @@ define SRC_libc/stdio
   funlockfile
   fwrite
   fwrite.__DO_UNLOCKED
+  getchar
   getdelim
   getline
   perror
@@ -443,6 +458,7 @@ define SRC_libc/stdio
   setlinebuf
   snprintf
   sprintf
+  tmpfile
   ungetc
   vasprintf
   vdprintf
@@ -469,9 +485,14 @@ endef
 
 define SRC_libc/stdio_wchar
   _wfwrite
+  fputwc
+  fputwc.__DO_UNLOCKED
+  fgetwc
+  fgetwc.__DO_UNLOCKED
   fputws
   fputws.__DO_UNLOCKED
   fwprintf
+  ungetwc
   swprintf
   _vfwprintf_internal
   vfwprintf
@@ -580,6 +601,7 @@ endef
 
 define SRC_libm
   carg
+  cexp
   e_acos
   e_acosh
   e_asin

@@ -39,8 +39,8 @@ public:
 
   static int (*bp_test_log_only)();
   static int (*bp_test_sstep)();
-  static int (*bp_test_break)(char *errbuf, size_t bufsize);
-  static int (*bp_test_other)(char *errbuf, size_t bufsize);
+  static int (*bp_test_break)(String_buffer *buf);
+  static int (*bp_test_other)(String_buffer *buf);
 
 private:
 
@@ -159,8 +159,8 @@ DEFINE_PER_CPU Per_cpu<int> Jdb::jdb_irqs_disabled;
 
 int  (*Jdb::bp_test_log_only)();
 int  (*Jdb::bp_test_sstep)();
-int  (*Jdb::bp_test_break)(char *errbuf, size_t bufsize);
-int  (*Jdb::bp_test_other)(char *errbuf, size_t bufsize);
+int  (*Jdb::bp_test_break)(String_buffer *buf);
+int  (*Jdb::bp_test_other)(String_buffer *buf);
 
 // available from the jdb_dump module
 int jdb_dump_addr_task (Address addr, Space *task, int level)
@@ -203,18 +203,9 @@ Jdb::connected()
   return _connected;
 }
 
-PROTECTED static inline
-template< typename T >
-void
-Jdb::set_monitored_address(T *dest, T val)
-{
-  *dest = val;
-}
-
-PROTECTED static inline
-template< typename T >
+IMPLEMENT inline template< typename T >
 T
-Jdb::monitor_address(Cpu_number current_cpu, T *addr)
+Jdb::monitor_address(Cpu_number current_cpu, T volatile const *addr)
 {
   if (!*addr && Cpu::cpus.cpu(current_cpu).has_monitor_mwait())
     {
@@ -662,6 +653,7 @@ Jdb::handle_single_step(Cpu_number cpu)
   analyze_code(cpu);
 
   Cpu const &ccpu = Cpu::cpus.cpu(cpu);
+  error_buffer.cpu(cpu).clear();
 
   // special single_step ('j' command): go until branch/return
   if (ss_state.cpu(cpu) != SS_NONE)
@@ -701,12 +693,12 @@ Jdb::handle_single_step(Cpu_number cpu)
 	{
 	  // condition met
 	  ss_state.cpu(cpu) = SS_NONE;
-	  snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::boot_cpu())), "%s", "Branch/Call");
+	  error_buffer.cpu(cpu).printf("%s", "Branch/Call");
 	}
     }
   else // (ss_state == SS_NONE)
     // regular single_step
-    snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::boot_cpu())), "%s", "Singlestep");
+    error_buffer.cpu(cpu).printf("%s", "Singlestep");
 
   return really_break;
 }
@@ -715,19 +707,20 @@ Jdb::handle_single_step(Cpu_number cpu)
 static inline NOEXPORT int
 Jdb::handle_trap1(Cpu_number cpu)
 {
-  // FIXME: currently only on bot cpu
+  // FIXME: currently only on boot cpu
   if (cpu != Cpu_number::boot_cpu())
     return 0;
 
   if (bp_test_sstep && bp_test_sstep())
     return handle_single_step(cpu);
 
+  error_buffer.cpu(cpu).clear();
   if (bp_test_break
-      && bp_test_break(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::boot_cpu()))))
+      && bp_test_break(&error_buffer.cpu(cpu)))
     return 1;
 
   if (bp_test_other
-      && bp_test_other(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::boot_cpu()))))
+      && bp_test_other(&error_buffer.cpu(cpu)))
     return 1;
 
   return 0;
@@ -742,7 +735,8 @@ Jdb::handle_trap3(Cpu_number cpu)
   Unsigned8 op;
   Unsigned8 len;
 
-  snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::boot_cpu())), "%s", "INT 3");
+  error_buffer.cpu(cpu).clear();
+  error_buffer.cpu(cpu).printf("%s", "INT 3");
   if (   !peek((Unsigned8*)entry_frame->ip(), task, op)
       || !peek((Unsigned8*)(entry_frame->ip()+1), task, len)
       || op != 0xeb)
@@ -781,8 +775,8 @@ Jdb::handle_trap3(Cpu_number cpu)
 		ctrl[i] = tmp;
 	    }
 	  ctrl[i] = '\0';
-	  snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::boot_cpu())),
-	      "invalid ctrl sequence \"%s\"", ctrl);
+          error_buffer.cpu(cpu).clear();
+	  error_buffer.cpu(cpu).printf("invalid ctrl sequence \"%s\"", ctrl);
 	}
     }
   // enter_kdebugger("...");
@@ -790,13 +784,11 @@ Jdb::handle_trap3(Cpu_number cpu)
     {
       unsigned i;
       len = len < 47 ? len : 47;
-      len =   len < sizeof(error_buffer.cpu(Cpu_number::boot_cpu()))-1
-            ? len
-            : sizeof(error_buffer.cpu(Cpu_number::boot_cpu()))-1;
 
+      error_buffer.cpu(cpu).clear();
       for(i=0; i<len && peek(msg+i, task, buffer[0]); i++)
-	error_buffer.cpu(cpu)[i] = buffer[0];
-      error_buffer.cpu(cpu)[i]='\0';
+        error_buffer.cpu(cpu).append(buffer[0]);
+      error_buffer.cpu(cpu).terminate();
     }
 
   return 1;
@@ -806,13 +798,11 @@ Jdb::handle_trap3(Cpu_number cpu)
 static inline NOEXPORT int
 Jdb::handle_trapX(Cpu_number cpu)
 {
-  unsigned pos = snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::boot_cpu())), "%s",
-			  Cpu::exception_string(entry_frame.cpu(cpu)->_trapno)) + 1;
-  if (   pos < sizeof(error_buffer.cpu(Cpu_number::boot_cpu()))
-      && entry_frame.cpu(cpu)->_trapno >= 10
+  error_buffer.cpu(cpu).clear();
+  error_buffer.cpu(cpu).printf("%s", Cpu::exception_string(entry_frame.cpu(cpu)->_trapno));
+  if (   entry_frame.cpu(cpu)->_trapno >= 10
       && entry_frame.cpu(cpu)->_trapno <= 14)
-    snprintf(error_buffer.cpu(cpu)+pos, sizeof(error_buffer.cpu(Cpu_number::boot_cpu()))-pos,
-             "(ERR=" L4_PTR_FMT ")", entry_frame.cpu(cpu)->_err);
+    error_buffer.cpu(cpu).printf("(ERR=" L4_PTR_FMT ")", entry_frame.cpu(cpu)->_err);
 
   return 1;
 }
@@ -901,8 +891,8 @@ Jdb::leave_trap_handler(Cpu_number cpu)
 
 IMPLEMENT
 bool
-Jdb::handle_conditional_breakpoint(Cpu_number cpu)
-{ return entry_frame.cpu(cpu)->_trapno == 1 && bp_test_log_only && bp_test_log_only(); }
+Jdb::handle_conditional_breakpoint(Cpu_number, Jdb_entry_frame *e)
+{ return e->_trapno == 1 && bp_test_log_only && bp_test_log_only(); }
 
 IMPLEMENT
 void

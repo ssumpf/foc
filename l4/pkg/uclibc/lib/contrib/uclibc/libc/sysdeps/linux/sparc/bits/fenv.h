@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _FENV_H
 # error "Never use <bits/fenv.h> directly; include <fenv.h> instead."
@@ -68,11 +67,11 @@ typedef unsigned long int fexcept_t;
 typedef unsigned long int fenv_t;
 
 /* If the default argument is used we use this value.  */
-#define FE_DFL_ENV	((__const fenv_t *) -1)
+#define FE_DFL_ENV	((const fenv_t *) -1)
 
 #ifdef __USE_GNU
 /* Floating-point environment where none of the exception is masked.  */
-# define FE_NOMASK_ENV	((__const fenv_t *) -2)
+# define FE_NOMASK_ENV	((const fenv_t *) -2)
 #endif
 
 /* For internal use only: access the fp state register.  */

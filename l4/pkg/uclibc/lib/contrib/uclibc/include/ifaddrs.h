@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _IFADDRS_H
 #define _IFADDRS_H	1
@@ -65,9 +64,11 @@ struct ifaddrs
    The storage returned in *IFAP is allocated dynamically and can
    only be properly freed by passing it to `freeifaddrs'.  */
 extern int getifaddrs (struct ifaddrs **__ifap) __THROW;
+libc_hidden_proto(getifaddrs)
 
 /* Reclaim the storage allocated by a previous `getifaddrs' call.  */
 extern void freeifaddrs (struct ifaddrs *__ifa)  __THROW;
+libc_hidden_proto(freeifaddrs)
 
 __END_DECLS
 

@@ -38,6 +38,8 @@ typedef struct l4_vcpu_regs_t
   l4_umword_t flags;
 } l4_vcpu_regs_t;
 
+typedef struct l4_vcpu_arch_state_t {} l4_vcpu_arch_state_t;
+
 /**
  * \brief vCPU message registers.
  * \ingroup l4_vcpu_api

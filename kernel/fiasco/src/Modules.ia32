@@ -1,18 +1,15 @@
 # -*- makefile -*-
+# vi:se ft=make:
 
 include $(srcdir)/Modules.generic
 
 SUBSYSTEMS = JABI ABI DRIVERS KERNEL CRT0 BOOT LIBK \
 	     CHECKSUM CXXLIB MINILIBC LIBKERN TCBOFFSET VERSION GBLCFG
 
-ifeq ("$(CONFIG_GSTABS)","y")      
-  SUBSYSTEMS		+= LINES
-endif
-
 PREPROCESS_PARTS 	+= arch $(CONFIG_ABI) 32bit iofp         \
 			   $(CONFIG_XARCH) apic abs-timeout-hack \
 			   i8259 pc i8254 fpu                    \
-			   abs_syscalls auto_map_kip io
+			   abs_syscalls auto_map_kip io realmode libuart
 
 PREPROCESS_PARTS-$(CONFIG_MP)                += mp
 PREPROCESS_PARTS-$(CONFIG_LIST_ALLOC_SANITY) += list_alloc_debug
@@ -55,6 +52,12 @@ JABI			:= libjabi.a
 VPATH			+= jabi/$(CONFIG_XARCH) jabi
 INTERFACES_JABI		:= jdb_ktrace
 
+VPATH_LIBUART  := $(srcdir)/lib/uart
+PRIVATE_INCDIR += lib/uart
+SUBSYSTEMS += LIBUART
+LIBUART			:= uart/libuart.a
+OBJECTS_LIBUART = uart_pxa.o
+
 #
 # DRIVERS subsystem
 #
@@ -83,10 +86,10 @@ KERNEL			:= fiasco.image
 VPATH			+= kern/$(CONFIG_XARCH) kern/ia32/32 kern/ia32 kern
 PRIVATE_INCDIR		+= kern/$(CONFIG_XARCH) kern/ia32/32 kern/ia32 kern
 
-INTERFACES_KERNEL	+= __main acpi irq_chip_ia32 irq_chip_pic io_apic \
-			   irq_msi boot_console           \
-			   io_space apic pit checksum x86desc gdt idt tss \
-			   timer_irq dirq
+INTERFACES_KERNEL	+= __main acpi acpi_fadt irq_chip_ia32 irq_chip_pic \
+			   io_apic boot_console \
+			   irq_msi io_space apic pit checksum \
+			   x86desc gdt idt tss timer_irq dirq
 
 INTERFACES_KERNEL-$(CONFIG_CPU_VIRT) += svm vmx vm vm_svm vm_vmx vm_vmx_ept
 
@@ -105,7 +108,7 @@ fpu_IMPL		:= fpu fpu-ia32-ux fpu-ia32
 ipi_IMPL		:= ipi ipi-ia32
 kdb_ke_IMPL		:= kdb_ke kdb_ke-ia32
 kernel_thread_IMPL	:= kernel_thread kernel_thread-std kernel_thread-ia32
-kernel_uart_IMPL	:= kernel_uart kernel_uart-16550
+kernel_uart_IMPL	:= kernel_uart kernel_uart-libuart
 kip_init_IMPL		:= kip_init-ia32
 kmem_IMPL		:= kmem-ia32 kmem-ia32-32
 kmem_alloc_IMPL		:= kmem_alloc kmem_alloc-ia32
@@ -119,6 +122,7 @@ paging_IMPL		:= paging-ia32-32 paging-ia32 paging
 perf_cnt_IMPL		:= perf_cnt perf_cnt-ia32
 pic_IMPL		:= pic pic-i8259
 pit_IMPL		:= pit-i8254
+platform_control_IMPL	+= platform_control-acpi_sleep platform_control-ia32
 pmem_alloc_IMPL		:= pmem_alloc pmem_alloc-ia32-ux
 rtc_IMPL		:= rtc-ia32
 sched_context_IMPL	:= sched_context-wfq sched_context-fixed_prio \
@@ -158,7 +162,7 @@ ifeq ("$(CONFIG_SCHED_APIC)","y")
 endif
 ifeq ("$(CONFIG_SCHED_HPET)","y")
   timer_IMPL		+= timer-hpet
-  timer_tick_IMPL	+= timer_tick-single-vector timer_tick-ia32
+  timer_tick_IMPL       += timer_tick-single-vector timer_tick-ia32
   INTERFACES_KERNEL     += hpet
 endif
 
@@ -172,7 +176,7 @@ INTERFACES_JDB		+= jdb jdb_util jdb_prompt_ext jdb_symbol jdb_lines \
 			   jdb_module jdb_core jdb_io_ports \
 			   jdb_kern_info jdb_prompt_module jdb_tbuf_output \
 			   jdb_input jdb_dump jdb_ptab jdb_misc jdb_mapdb \
-			   jdb_tcb jdb_attach_irq \
+			   jdb_tcb jdb_attach_irq jdb_input_task \
 			   jdb_trace_set jdb_counters jdb_table kern_cnt  \
 			   jdb_exit_module \
 			   jdb_tbuf_show jdb_console_buffer \
@@ -180,13 +184,14 @@ INTERFACES_JDB		+= jdb jdb_util jdb_prompt_ext jdb_symbol jdb_lines \
 			   jdb_handler_queue jdb_halt_thread \
 			   jdb_kern_info_kmem_alloc \
 			   jdb_kern_info_kip jdb_kern_info_config \
+			   jdb_kern_info_data \
 			   loadcnt jdb_utcb jdb_thread_list \
 			   jdb_entry_frame jdb_kobject jdb_space jdb_io_apic \
 			   jdb_trap_state jdb_ipi jdb_kobject_names \
 			   jdb_rcupdate jdb_bt jdb_ipc_gate jdb_obj_space \
 			   jdb_log jdb_factory jdb_iomap \
                            jdb_thread jdb_scheduler jdb_sender_list \
-			   jdb_regex jdb_disasm
+			   jdb_regex jdb_disasm jdb_report
 
 CXXSRC_JDB := tb_entry_output.cc
 
@@ -217,6 +222,7 @@ CXXSRC_KERNEL		:= kernel_panic.cc libc_backend_lock.cc
 ASSRC_KERNEL		:= entry.S entry-native.S sys_call_page-asm.S
 
 ASSRC_KERNEL-$(CONFIG_MP)               += tramp-mp.S entry-mp.S
+ASSRC_KERNEL-y                          += tramp-realmode.S tramp-acpi.S
 ASSRC_KERNEL-$(CONFIG_CPU_VIRT)         += vm_svm_asm.S vm_vmx_asm.S
 ASSRC_KERNEL                            += $(ASSRC_KERNEL-y)
 
@@ -278,12 +284,6 @@ CXXSRC_TCBOFFSET	:= tcboffset.cc dump_tcboffsets.cc
 # SYMBOLS subsystem
 #
 SYMBOLS			:= Symbols
-
-#
-# LINES subsystem
-#
-LINES			:= Lines
-PROG_LINES		:= genlines
 
 #
 # CHECKSUM subsystem

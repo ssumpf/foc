@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _BITS_SYSCALLS_H
 #define _BITS_SYSCALLS_H
@@ -141,6 +140,7 @@
 # define INTERNAL_SYSCALL_DECL(err) long int err
 
 # define INTERNAL_SYSCALL_NCS(name, err, nr, args...)			\
+(__extension__ \
   ({									\
     register long int r0  __asm__ ("r0");				\
     register long int r3  __asm__ ("r3");				\
@@ -164,10 +164,10 @@
        : "cr0", "ctr", "memory");					\
     err = r0;								\
     (int) r3;								\
-  })
-
+  }) \
+)
 # define INTERNAL_SYSCALL_ERROR_P(val, err) \
-  ((void) (val), __builtin_expect ((err) & (1 << 28), 0))
+  ((void) (val), unlikely ((err) & (1 << 28)))
 
 # define INTERNAL_SYSCALL_ERRNO(val, err)     (val)
 

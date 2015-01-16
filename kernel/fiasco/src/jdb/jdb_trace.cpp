@@ -10,7 +10,7 @@ typedef struct
 
 class Jdb_ipc_trace
 {
-private:
+public:
   static int         _other_thread;
   static Mword       _gthread;
   static int         _other_task;
@@ -34,24 +34,6 @@ private:
   static Addr_range  _addr;
   static int         _log;
   static int         _log_to_buf;
-  friend class Jdb_set_trace;
-};
-
-class Jdb_unmap_trace
-{
-private:
-  static int         _other_thread;
-  static Mword       _gthread;
-  static Addr_range  _addr;
-  static int         _log;
-  static int         _log_to_buf;
-  friend class Jdb_set_trace;
-};
-
-class Jdb_nextper_trace
-{
-private:
-  static int         _log;
   friend class Jdb_set_trace;
 };
 
@@ -85,13 +67,7 @@ Addr_range  Jdb_pf_trace::_addr;
 int         Jdb_pf_trace::_log;
 int         Jdb_pf_trace::_log_to_buf;
 
-int         Jdb_unmap_trace::_other_thread;
-Mword       Jdb_unmap_trace::_gthread;
-Addr_range  Jdb_unmap_trace::_addr;
-int         Jdb_unmap_trace::_log;
-int         Jdb_unmap_trace::_log_to_buf;
 
-int         Jdb_nextper_trace::_log;
 
 PUBLIC static inline int Jdb_ipc_trace::log()        { return _log; }
 PUBLIC static inline int Jdb_ipc_trace::log_buf()    { return _log_to_buf; }
@@ -223,72 +199,3 @@ Jdb_pf_trace::clear_restriction()
   _addr.hi      = 0;
 }
 
-PUBLIC static inline int Jdb_unmap_trace::log() { return _log; }
-PUBLIC static inline int Jdb_unmap_trace::log_buf() { return _log_to_buf; }
-
-PUBLIC static inline
-int
-Jdb_unmap_trace::check_restriction(Mword id, Address addr)
-{
-  return (   (((_gthread == 0)
-	      || ((_other_thread) ^ (_gthread == id))))
-	  && (!(_addr.lo | _addr.hi)
-	      || (_addr.lo <= _addr.hi && addr >= _addr.lo && addr <= _addr.hi)
-	      || (_addr.lo >  _addr.hi && addr <  _addr.hi && addr >  _addr.lo)
-	      ));
-}
-
-PUBLIC static
-void
-Jdb_unmap_trace::show()
-{
-  if (_log)
-    {
-      printf("UNMAP logging%s enabled",
-	      _log_to_buf ? " to tracebuffer" : "");
-      if (_gthread != 0)
-	{
-    	  printf(", restricted to thread%s %lx",
-		 _other_thread ? "s !=" : "",
-		 _gthread);
-	}
-      if (_addr.lo | _addr.hi)
-	{
-     	  if (_gthread != 0)
-	    putstr(" and ");
-	  else
-    	    putstr(", restricted to ");
-	  if (_addr.lo <= _addr.hi)
-	    printf(L4_PTR_FMT " <= addr <= " L4_PTR_FMT,
-		   _addr.lo, _addr.hi);
-	  else
-    	    printf("addr < " L4_PTR_FMT " || addr > " L4_PTR_FMT
-		   , _addr.hi, _addr.lo);
-	}
-    }
-  else
-    putstr("UNMAP logging disabled");
-  putchar('\n');
-}
-
-PUBLIC static 
-void 
-Jdb_unmap_trace::clear_restriction()
-{
-  _other_thread = 0;
-  _gthread      = 0;
-  _addr.lo      = 0;
-  _addr.hi      = 0;
-}
-
-PUBLIC static inline int Jdb_nextper_trace::log() { return _log; }
-
-PUBLIC static
-void
-Jdb_nextper_trace::show()
-{
-  if (_log)
-    puts("Next period logging to tracebuffer enabled");
-  else
-    puts("Next period logging to tracebuffer disabled");
-}

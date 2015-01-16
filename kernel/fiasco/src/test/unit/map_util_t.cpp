@@ -157,7 +157,7 @@ int main()
 
   assert (ms(server)->v_lookup(to_vaddr(0x1000), &phys, &order, &page_attribs) 
 	  == false);
-  Reap_list reap;
+  Kobject::Reap_list reap;
   fpage_map(sigma0,
 	    Test_fpage::mem(0x10000, Config::PAGE_SHIFT, L4_fpage::Rights::URWX()),
 	    server,
@@ -414,13 +414,6 @@ std::ostream &operator << (std::ostream &s, Mapdb::Pfn v)
 }
 
 static
-std::ostream &operator << (std::ostream &s, Mapping::Page v)
-{
-  s << cxx::int_value<Mapping::Page>(v);
-  return s;
-}
-
-static
 std::ostream &operator << (std::ostream &s, Space const &sp)
 {
   Test_space const *t = static_cast<Test_space const *>(&sp);
@@ -439,7 +432,13 @@ static void print_node(Mapping* node, const Mapdb::Frame& frame,
 
   Mapdb::Order size = Mapdb::shift(frame, node);
 
-  for (Mapdb::Iterator i (frame, node, to_pfn(va_begin), to_pfn(va_end)); node;)
+  cout << "space="  << *node->space()
+       << " vaddr=0x" << node->pfn(size)
+       << " size=0x" << (Mapdb::Pfn(1) << size)
+       << endl;
+
+  Mapdb::foreach_mapping(frame, node, to_pfn(va_begin), to_pfn(va_end),
+    [](Mapping *node, Mapdb::Order order)
     {
       cout << "[UTEST] ";
       for (int d = node->depth(); d != 0; d--)
@@ -447,24 +446,17 @@ static void print_node(Mapping* node, const Mapdb::Frame& frame,
 
       cout << setbase(16)
 	   << "space="  << *node->space()
-	   << " vaddr=0x" << (node->page() << size)
-	   << " size=0x" << (Mapdb::Pfn(1) << size);
+	   << " vaddr=0x" << node->pfn(order)
+	   << " size=0x" << (Mapdb::Pfn(1) << order);
 
       if (Mapping* p = node->parent())
 	{
 	  cout << " parent=" << *p->space()
-	       << " p.vaddr=0x" << (p->page() << size);
+	       << " p.vaddr=0x" << p->pfn(order);
 	}
 
       cout << endl;
-
-      node = i;
-      if (node)
-	{
-	  size = i.order();
-	  ++i;
-	}
-    }
+    });
   cout << "[UTEST] " << endl;
 }
 

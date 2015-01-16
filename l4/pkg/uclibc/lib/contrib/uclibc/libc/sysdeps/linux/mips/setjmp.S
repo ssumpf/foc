@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <sys/regdef.h>
 #include <sys/asm.h>
@@ -53,6 +52,7 @@ __sigsetjmp:
 	PTR_LA	t9, __sigsetjmp_aux
 #if _MIPS_SIM != _MIPS_SIM_ABI32
 	.cpreturn
+	move 	a4, gp
 #endif
 	jr	t9
 #else

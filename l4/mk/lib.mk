@@ -38,6 +38,11 @@ ifneq ($(filter-out lib host,$(MODE)),)
 $(error MODE=$(MODE) not possible when building libraries)
 endif
 
+# removed 2014/02
+ifneq ($(BUILD_PIC),)
+$(error BUILD_PIC=$(BUILD_PIC) is obsolete, use <xxx>.p.a as extra TARGET instead)
+endif
+
 # all libraries are built using the wraped utcb-getter
 CPPFLAGS          += -DL4SYS_USE_UTCB_WRAP=1
 
@@ -50,16 +55,16 @@ ifneq ($(SYSTEM),) # if we are a system, really build
 
 TARGET_LIB        := $(TARGET) $(TARGET_$(OSYSTEM))
 TARGET_SHARED     := $(filter     %.so,$(TARGET_LIB))
-TARGET_STANDARD   := $(filter-out %.so,$(TARGET_LIB))
+TARGET_PIC        := $(filter     %.p.a,$(TARGET_LIB))
+
+TARGET_STANDARD   := $(filter-out $(TARGET_SHARED) $(TARGET_PIC), $(TARGET_LIB))
 
 TARGET_PROFILE  := $(patsubst %.a,%.pr.a,\
 			$(filter $(BUILD_PROFILE),$(TARGET_STANDARD)))
 TARGET_PROFILE_SHARED := $(filter %.so,$(TARGET_PROFILE))
-TARGET_PIC      := $(patsubst %.a,%.p.a,\
-			$(filter $(BUILD_PIC),$(TARGET_STANDARD)))
 TARGET_PROFILE_PIC := $(patsubst %.a,%.p.a,\
 			$(filter $(BUILD_PIC),$(TARGET_PROFILE)))
-TARGET	+= $(TARGET_$(OSYSTEM)) $(TARGET_PIC)
+TARGET	+= $(TARGET_$(OSYSTEM))
 TARGET	+= $(TARGET_PROFILE) $(TARGET_PROFILE_SHARED) $(TARGET_PROFILE_PIC)
 
 # define some variables different for lib.mk and prog.mk
@@ -88,18 +93,30 @@ PC_LIBS     ?= $(patsubst lib%.so,-l%,$(TARGET_SHARED) \
 
 PC_FILENAME  ?= $(PKGNAME)
 PC_FILENAMES ?= $(PC_FILENAME)
-
 PC_FILES     := $(foreach pcfile,$(PC_FILENAMES),$(OBJ_BASE)/pc/$(pcfile).pc)
 
 # 1: basename
 # 2: pcfilename
 get_cont = $(if $($(1)_$(2)),$($(1)_$(2)),$($(1)))
 
+# Ths must contain all the contents of all possible PC files as used in
+# below generate_pcfile
+PC_FILES_CONTENTS := $(strip $(foreach pcfile,$(PC_FILENAMES),\
+  $(call get_cont,CONTRIB_INCDIR,$(pcfile)) \
+  $(call get_cont,PC_LIBS,$(pcfile)) \
+  $(call get_cont,REQUIRES_LIBS,$(pcfile)) \
+  $(call get_cont,PC_CFLAGS,$(pcfile))))
+
+ifneq ($(PC_FILES_CONTENTS),)
+
+# when adding something to generate_pcfile it must also be added to the
+# PC_FILES_CONTENTS above, otherwise PC files may not be generated
 $(OBJ_BASE)/pc/%.pc: $(GENERAL_D_LOC)
-	$(VERBOSE)$(call generate_pcfile,$*,$@,$(call get_cont,CONTRIB_INCDIR,$*),$(call get_cont,PC_LIBS,$*),$(call get_cont,REQUIRES_LIBS,$*))
+	$(VERBOSE)$(call generate_pcfile,$*,$@,$(call get_cont,CONTRIB_INCDIR,$*),$(call get_cont,PC_LIBS,$*),$(call get_cont,REQUIRES_LIBS,$*),$(call get_cont,PC_CFLAGS,$*))
 
 all:: $(PC_FILES)
 
+endif
 endif
 
 DEPS	+= $(foreach file,$(TARGET), $(dir $(file)).$(notdir $(file)).d)

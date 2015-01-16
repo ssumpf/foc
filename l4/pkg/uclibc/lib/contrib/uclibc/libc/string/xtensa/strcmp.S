@@ -13,11 +13,10 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 51 Franklin Street - Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
-#include "../../sysdeps/linux/xtensa/sysdep.h"
+#include <sysdep.h>
 #include <bits/xtensa-config.h>
 #include <features.h>
 
@@ -35,13 +34,14 @@
 
 #define MASK4 0x40404040
 
+	.text
+	.align 4
+	.literal_position
 	.literal .Lmask0, MASK0
 	.literal .Lmask1, MASK1
 	.literal .Lmask2, MASK2
 	.literal .Lmask3, MASK3
 	.literal .Lmask4, MASK4
-
-	.text
 ENTRY (strcmp)
 	/* a2 = s1, a3 = s2 */
 

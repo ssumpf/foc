@@ -80,7 +80,7 @@ Task::resume_vcpu(Context *ctxt, Vcpu_state *vcpu, bool user_mode)
 
   assert_kdb(cpu_lock.test());
 
-  ts.sanitize_user_state();
+  ctxt->sanitize_user_state(&ts);
 
   // FIXME: UX is currently broken
   /* UX:ctxt->vcpu_resume_user_arch(); */
@@ -89,6 +89,8 @@ Task::resume_vcpu(Context *ctxt, Vcpu_state *vcpu, bool user_mode)
       ctxt->state_add_dirty(Thread_vcpu_user);
       vcpu->state |= Vcpu_state::F_traps | Vcpu_state::F_exceptions
                      | Vcpu_state::F_debug_exc;
+
+      ctxt->vcpu_pv_switch_to_user(vcpu, true);
     }
 
   ctxt->space_ref()->user_mode(user_mode);
@@ -323,7 +325,8 @@ Task::create(Ram_quota *quota, L4_fpage const &utcb_area)
   if (!a->initialize())
     return 0;
 
-  a->sync_kernel();
+  if (a->sync_kernel() < 0)
+    return 0;
 
   if (utcb_area.is_valid())
     {
@@ -388,7 +391,7 @@ Task::sys_map(L4_fpage::Rights rights, Syscall_frame *f, Utcb *utcb)
   L4_fpage sfp(utcb->values[2]);
   sfp.mask_rights(mask);
 
-  ::Reap_list rl;
+  Kobject::Reap_list rl;
   L4_error ret;
 
     {
@@ -423,7 +426,7 @@ PRIVATE inline NOEXPORT
 L4_msg_tag
 Task::sys_unmap(Syscall_frame *f, Utcb *utcb)
 {
-  ::Reap_list rl;
+  Kobject::Reap_list rl;
   unsigned words = f->tag().words();
 
   LOG_TRACE("Task unmap", "unm", ::current(), Log_unmap,
@@ -593,21 +596,23 @@ private:
     Mword id;
     Mword mask;
     Mword fpage;
-    unsigned print(int max, char *buf) const;
-  } __attribute__((packed));
+    void print(String_buffer *buf) const;
+  };
 
 };
 
 // ---------------------------------------------------------------------------
 IMPLEMENTATION [debug]:
 
+#include "string_buffer.h"
+
 IMPLEMENT
-unsigned
-Task::Log_unmap::print(int max, char *buf) const
+void
+Task::Log_unmap::print(String_buffer *buf) const
 {
   L4_fpage fp(fpage);
-  return snprintf(buf, max, "task=[U:%lx] mask=%lx fpage=[%u/%u]%lx",
-                  id, mask, (unsigned)fp.order(), (unsigned)fp.type(), fpage);
+  buf->printf("task=[U:%lx] mask=%lx fpage=[%u/%u]%lx",
+              id, mask, (unsigned)fp.order(), (unsigned)fp.type(), fpage);
 }
 
 // ---------------------------------------------------------------------------

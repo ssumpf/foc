@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Summary:
 
@@ -180,6 +179,7 @@ struct obstack		/* control current object in current chunk */
 /* Declare the external functions we use; they are in obstack.c.  */
 
 extern void _obstack_newchunk (struct obstack *, int);
+libc_hidden_proto(_obstack_newchunk)
 extern int _obstack_begin (struct obstack *, int, int,
 			    void *(*) (long), void (*) (void *));
 extern int _obstack_begin_1 (struct obstack *, int, int,

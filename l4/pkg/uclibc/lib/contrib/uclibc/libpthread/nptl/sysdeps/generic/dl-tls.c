@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #if defined SHARED || defined NOT_IN_libc
 # error in buildsystem: This file is for libc.a
@@ -66,6 +65,7 @@ oom (void)
 # endif
 
 
+void *_dl_memalign(size_t alignment, size_t bytes);
 void *_dl_memalign(size_t alignment, size_t bytes)
 {
 	return _dl_malloc(bytes);
@@ -836,6 +836,7 @@ __tls_get_addr (GET_ADDR_ARGS)
 
 
 
+void _dl_add_to_slotinfo (struct link_map  *l);
 void
 _dl_add_to_slotinfo (struct link_map  *l)
 {

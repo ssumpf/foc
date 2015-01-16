@@ -31,12 +31,10 @@ IMPLEMENTATION [debug && serial && !ux]:
 #include "globals.h"
 #include "kernel_console.h"
 #include "keycodes.h"
-#include "uart.h"
 
 static Vkey::Echo_type vkey_echo;
 static char     vkey_buffer[256];
 static unsigned vkey_tail, vkey_head;
-static Console *uart = Kconsole::console()->find_console(Console::UART);
 
 PUBLIC static
 void
@@ -100,9 +98,6 @@ PUBLIC static
 int
 Vkey::check_()
 {
-  if (!uart)
-    return 1;
-
   int  ret = 1;
   bool hit = false;
 
@@ -111,7 +106,7 @@ Vkey::check_()
 
   while (1)
     {
-      int c = uart->getchar(false);
+      int c = Kconsole::console()->getchar(false);
 
       if (c == -1)
 	break;
@@ -145,10 +140,6 @@ Vkey::check_()
 
   if (hit)
     trigger();
-
-  // Hmmm, we assume that a console with the UART flag set is of type Uart
-  if (Config::serial_esc == Config::SERIAL_ESC_IRQ)
-    static_cast<Uart*>(uart)->enable_rcv_irq();
 
   // reenable debug stuff (undo debugctl_disable)
   Cpu::cpus.cpu(current_cpu()).debugctl_enable();

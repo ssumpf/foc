@@ -46,8 +46,32 @@ platform_reset(void)
       DEVICE_PRM  = Mem_layout::Prm_phys_base + 0x1b00,
       PRM_RSTCTRL = DEVICE_PRM + 0,
     };
+  Address p = Kmem::mmio_remap(PRM_RSTCTRL);
 
-  Io::write<Mword>(1, Kmem::mmio_remap(PRM_RSTCTRL));
+  Io::set<Mword>(1, p);
+  Io::read<Mword>(p);
+
+  for (;;)
+    ;
+}
+
+IMPLEMENTATION [arm && omap5]: //------------------------------------------
+
+#include "io.h"
+#include "kmem.h"
+
+void __attribute__ ((noreturn))
+platform_reset(void)
+{
+  enum
+    {
+      DEVICE_PRM  = Mem_layout::Prm_phys_base + 0x1c00,
+      PRM_RSTCTRL = DEVICE_PRM + 0,
+    };
+  Address p = Kmem::mmio_remap(PRM_RSTCTRL);
+
+  Io::set<Mword>(1, p);
+  Io::read<Mword>(p);
 
   for (;;)
     ;

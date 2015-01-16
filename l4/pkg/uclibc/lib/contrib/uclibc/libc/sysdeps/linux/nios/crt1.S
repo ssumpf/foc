@@ -14,8 +14,7 @@ Library General Public License for more details.
 
 You should have received a copy of the GNU Library General Public
 License along with the GNU C Library; see the file COPYING.LIB.  If
-not, write to the Free Software Foundation, Inc., 675 Mass Ave,
-Cambridge, MA 02139, USA.  */
+not, see <http://www.gnu.org/licenses/>.  */
 
 #include <features.h>
 #include <asm/unistd.h>
@@ -29,9 +28,6 @@ Cambridge, MA 02139, USA.  */
     .weak   _fini
     .type   main,@function
     .type   __uClibc_main,@function
-    .type   __h_errno_location, @function
-    .type   _stdio_init, @function
-    .type   _stdio_term, @function
 
 	.text
 

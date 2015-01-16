@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _PTHREAD_FUNCTIONS_H
 #define _PTHREAD_FUNCTIONS_H	1
@@ -72,10 +71,12 @@ struct pthread_functions
   void (*ptr_pthread_cleanup_upto) (__jmp_buf target,
 				    char *targetframe);
   pthread_descr (*ptr_pthread_thread_self) (void);
+#if !defined __UCLIBC_HAS_TLS__ && defined __UCLIBC_HAS_RPC__
   int (*ptr_pthread_internal_tsd_set) (int key, const void *pointer);
   void * (*ptr_pthread_internal_tsd_get) (int key);
   void ** __attribute__ ((__const__))
     (*ptr_pthread_internal_tsd_address) (int key);
+#endif
   int (*ptr_pthread_sigaction) (int sig, const struct sigaction * act,
 				struct sigaction *oact);
   int (*ptr_pthread_sigwait) (const sigset_t *set, int *sig);
@@ -94,5 +95,7 @@ struct pthread_functions
 
 /* Variable in libc.so.  */
 extern struct pthread_functions __libc_pthread_functions attribute_hidden;
+
+extern int * __libc_pthread_init (const struct pthread_functions *functions);
 
 #endif	/* pthread-functions.h */

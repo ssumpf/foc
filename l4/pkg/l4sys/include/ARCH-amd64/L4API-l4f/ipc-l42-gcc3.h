@@ -31,23 +31,23 @@ l4_ipc_call(l4_cap_idx_t dest, l4_utcb_t *utcb,
             l4_timeout_t timeout) L4_NOTHROW
 {
   l4_umword_t dummy1, dummy2, dummy3;
+  register l4_umword_t to __asm__("r8") = timeout.raw;
   l4_msgtag_t rtag;
   (void)utcb;
   __asm__ __volatile__
-    (L4_ENTER_KERNEL
+    ("syscall"
      :
      "=d" (dummy3),
      "=D" (dummy1),
-     "=c" (timeout),
      "=S" (dummy2),
      "=a" (rtag.raw)
      :
      "S" (0),
-     "c" (timeout),
+     "r" (to),
      "d" (dest | L4_SYSF_CALL),
      "a" (snd_tag.raw)
      :
-     "memory", "cc"
+     "memory", "cc", "rcx", "r11", "r15"
      );
   return rtag;
 }
@@ -58,24 +58,24 @@ l4_ipc_reply_and_wait(l4_utcb_t *utcb, l4_msgtag_t tag,
                       l4_umword_t *label,
                       l4_timeout_t timeout) L4_NOTHROW
 {
-  l4_umword_t dummy, dummy1, dummy2;
+  l4_umword_t dummy, dummy2;
+  register l4_umword_t to __asm__("r8") = timeout.raw;
   l4_msgtag_t rtag;
   (void)utcb;
   __asm__ __volatile__
-    (L4_ENTER_KERNEL
+    ("syscall"
      :
      "=d" (dummy2),
      "=S" (*label),
-     "=c" (dummy1),
      "=D" (dummy),
      "=a" (rtag.raw)
      :
      "S" (0),
-     "c" (timeout),
+     "r" (to),
      "a" (tag.raw),
      "d" (L4_INVALID_CAP | L4_SYSF_REPLY_AND_WAIT)
      :
-     "memory", "cc"
+     "memory", "cc", "rcx", "r11", "r15"
      );
   return rtag;
 }
@@ -87,24 +87,24 @@ l4_ipc_send_and_wait(l4_cap_idx_t dest, l4_utcb_t *utcb,
                      l4_umword_t *label,
                      l4_timeout_t timeout) L4_NOTHROW
 {
-  l4_umword_t dummy, dummy1, dummy2;
+  l4_umword_t dummy, dummy2;
+  register l4_umword_t to __asm__("r8") = timeout.raw;
   l4_msgtag_t rtag;
   (void)utcb;
   __asm__ __volatile__
-    (L4_ENTER_KERNEL
+    ("syscall"
      :
      "=d" (dummy2),
      "=S" (*label),
-     "=c" (dummy1),
      "=D" (dummy),
      "=a" (rtag.raw)
      :
      "S" (0),
-     "c" (timeout),
+     "r" (to),
      "a" (tag.raw),
      "d" (dest | L4_SYSF_SEND_AND_WAIT)
      :
-     "memory", "cc"
+     "memory", "cc", "rcx", "r11", "r15"
      );
   return rtag;
 }
@@ -116,23 +116,24 @@ l4_ipc_send(l4_cap_idx_t dest, l4_utcb_t *utcb,
             l4_timeout_t timeout) L4_NOTHROW
 {
   l4_umword_t dummy1, dummy4, dummy5;
+  register l4_umword_t to __asm__("r8") = timeout.raw;
   l4_msgtag_t rtag;
   (void)utcb;
 
   __asm__ __volatile__
-    (L4_ENTER_KERNEL
+    ("syscall"
      :
      "=d" (dummy1),
      "=a" (rtag.raw),
-     "=c" (timeout.raw),
      "=S" (dummy4),
      "=D" (dummy5)
      :
      "S" (0),
-     "c" (timeout),
+     "r" (to),
      "d" (dest | L4_SYSF_SEND),
      "a" (tag.raw)
-     : "memory" , "cc"
+     :
+     "memory", "cc", "rcx", "r11", "r15"
      );
   return rtag;
 }
@@ -142,25 +143,25 @@ L4_INLINE l4_msgtag_t
 l4_ipc_wait(l4_utcb_t *utcb, l4_umword_t *label,
             l4_timeout_t timeout) L4_NOTHROW
 {
-  l4_umword_t dummy, dummy2, dummy1;
+  l4_umword_t dummy2, dummy1;
+  register l4_umword_t to __asm__("r8") = timeout.raw;
   l4_msgtag_t rtag;
   (void)utcb;
 
   __asm__ __volatile__
-    (L4_ENTER_KERNEL
+    ("syscall"
      :
      "=d" (dummy1),
      "=S" (*label),
-     "=c" (dummy),
      "=D" (dummy2),
      "=a" (rtag.raw)
      :
-     "c" (timeout),
+     "r" (to),
      "d" (L4_INVALID_CAP | L4_SYSF_WAIT),
      "a" (0),
      "S" (0)
      :
-     "memory", "cc"
+     "memory", "cc", "rcx", "r11", "r15"
      );
   return rtag;
 }
@@ -202,24 +203,24 @@ L4_INLINE l4_msgtag_t
 l4_ipc_receive(l4_cap_idx_t rcv, l4_utcb_t *utcb,
                l4_timeout_t timeout) L4_NOTHROW
 {
-  l4_umword_t dummy, dummy1, dummy2;
+  l4_umword_t dummy1, dummy2;
+  register l4_umword_t to __asm__("r8") = timeout.raw;
   l4_msgtag_t rtag;
   (void)utcb;
 
   __asm__ __volatile__
-    (L4_ENTER_KERNEL
+    ("syscall"
      :
      "=d" (dummy2),
      "=S" (dummy1),
-     "=c" (dummy),
      "=a" (rtag.raw)
      :
-     "c" (timeout),
+     "r" (to),
      "S" (0),
      "a" (0),
      "d" (rcv | L4_SYSF_RECV)
      :
-     "memory", "cc"
+     "memory", "cc", "rcx", "r11", "r15"
      );
   return rtag;
 }
@@ -232,24 +233,24 @@ l4_ipc(l4_cap_idx_t dest, l4_utcb_t *utcb,
        l4_umword_t *rlabel,
        l4_timeout_t timeout) L4_NOTHROW
 {
-  l4_umword_t dummy, dummy1, dummy2;
+  l4_umword_t dummy, dummy2;
+  register l4_umword_t to __asm__("r8") = timeout.raw;
   l4_msgtag_t rtag;
   (void)utcb;
   __asm__ __volatile__
-    (L4_ENTER_KERNEL
+    ("syscall"
      :
      "=d" (dummy2),
      "=S" (*rlabel),
-     "=c" (dummy1),
      "=D" (dummy),
      "=a" (rtag.raw)
      :
      "S" (slabel),
-     "c" (timeout),
+     "r" (to),
      "a" (tag.raw),
      "d" (dest | flags)
      :
-     "memory", "cc"
+     "memory", "cc", "rcx", "r11", "r15"
      );
   return rtag;
 }

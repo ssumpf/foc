@@ -15,9 +15,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <features.h>
 #include <fcntl.h>
@@ -51,6 +50,7 @@ lckpwdf (void)
   struct sigaction new_act;		/* New signal action.  */
   struct flock fl;			/* Information struct for locking.  */
   int result;
+  int rv = -1;
 
   if (lock_fd != -1)
     /* Still locked by own process.  */
@@ -111,11 +111,13 @@ lckpwdf (void)
   if (result < 0) {
     close(lock_fd);
     lock_fd = -1;
+    goto DONE;
   }
+  rv = 0;
 
 DONE:
   __UCLIBC_MUTEX_UNLOCK(mylock);
-  return 0; /* TODO: return result? */
+  return rv;
 }
 
 

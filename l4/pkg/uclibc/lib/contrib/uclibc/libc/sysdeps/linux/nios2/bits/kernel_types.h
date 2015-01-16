@@ -4,8 +4,8 @@
  * our private content, and not the kernel header, will win.
  *  -Erik
  */
-#ifndef __ARCH_NIOS2_POSIX_TYPES_H
-#define __ARCH_NIOS2_POSIX_TYPES_H
+#ifndef _ASM_NIOS2_POSIX_TYPES_H
+#define _ASM_NIOS2_POSIX_TYPES_H
 
 typedef unsigned long	__kernel_dev_t;
 typedef unsigned long	__kernel_ino_t;
@@ -31,6 +31,8 @@ typedef unsigned int	__kernel_gid32_t;
 typedef unsigned short	__kernel_old_uid_t;
 typedef unsigned short	__kernel_old_gid_t;
 typedef unsigned short	__kernel_old_dev_t;
+typedef long		__kernel_long_t;
+typedef unsigned long	__kernel_ulong_t;
 typedef long long	__kernel_loff_t;
 
 typedef struct {
@@ -41,4 +43,4 @@ typedef struct {
 #endif
 } __kernel_fsid_t;
 
-#endif /* __ARCH_NIOS2_POSIX_TYPES_H */
+#endif /* _ASM_NIOS2_POSIX_TYPES_H */

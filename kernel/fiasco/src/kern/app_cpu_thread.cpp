@@ -5,7 +5,7 @@ INTERFACE [mp]:
 class App_cpu_thread : public Kernel_thread
 {
 private:
-  void bootstrap() asm ("call_ap_bootstrap") FIASCO_FASTCALL;
+  void bootstrap(Mword resume) asm ("call_ap_bootstrap") FIASCO_FASTCALL;
 };
 
 IMPLEMENTATION [mp]:
@@ -41,7 +41,8 @@ App_cpu_thread::may_be_create(Cpu_number cpu, bool cpu_never_seen_before)
   Kernel_thread *t = new (Ram_quota::root) App_cpu_thread;
   assert (t);
 
-  set_cpu_of(t, cpu);
+  t->set_home_cpu(cpu);
+  t->set_current_cpu(cpu);
   check(t->bind(Kernel_task::kernel_task(), User<Utcb>::Ptr(0)));
   return t;
 }
@@ -50,41 +51,52 @@ App_cpu_thread::may_be_create(Cpu_number cpu, bool cpu_never_seen_before)
 // the kernel bootstrap routine
 IMPLEMENT
 void
-App_cpu_thread::bootstrap()
+App_cpu_thread::bootstrap(Mword resume)
 {
   extern Spin_lock<Mword> _tramp_mp_spinlock;
 
   state_change_dirty(0, Thread_ready);		// Set myself ready
 
 
-  Fpu::init(cpu(true));
+  Fpu::init(current_cpu(), resume);
 
   // initialize the current_mem_space function to point to the kernel space
   Kernel_task::kernel_task()->make_current();
 
   Mem_unit::tlb_flush();
 
+  Cpu::cpus.current().set_present(1);
   Cpu::cpus.current().set_online(1);
 
   _tramp_mp_spinlock.set(1);
 
-  kernel_context(cpu(true), this);
-  Sched_context::rq.current().set_idle(this->sched());
-  Rcu::leave_idle(cpu(true));
+  if (!resume)
+    {
+      kernel_context(current_cpu(), this);
+      Sched_context::rq.current().set_idle(this->sched());
 
-  Timer_tick::setup(cpu(true));
-  Timer_tick::enable(cpu(true));
-  enable_tlb(cpu(true));
-  // Setup initial timeslice
-  Sched_context::rq.current().set_current_sched(sched());
+      Timer_tick::setup(current_cpu());
+    }
 
-  Per_cpu_data::run_late_ctors(cpu(true));
+  Rcu::leave_idle(current_cpu());
+  enable_tlb(current_cpu());
+
+  if (!resume)
+    // Setup initial timeslice
+    Sched_context::rq.current().set_current_sched(sched());
+
+  if (!resume)
+    Per_cpu_data::run_late_ctors(current_cpu());
 
   Scheduler::scheduler.trigger_hotplug_event();
-
+  Timer_tick::enable(current_cpu());
   cpu_lock.clear();
 
-  printf("CPU[%u]: goes to idle loop\n", cxx::int_value<Cpu_number>(cpu(true)));
+  if (!resume)
+    {
+      Cpu::cpus.current().print_infos();
+      printf("CPU[%u]: goes to idle loop\n", cxx::int_value<Cpu_number>(current_cpu()));
+    }
 
   for (;;)
     idle_op();

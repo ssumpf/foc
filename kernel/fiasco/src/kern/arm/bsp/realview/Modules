@@ -17,14 +17,22 @@ MPCORE_PHYS_BASE-$(CONFIG_PF_REALVIEW_VEXPRESS_A15) := 0x2c000000
 MPCORE_PHYS_BASE        := $(if $(MPCORE_PHYS_BASE-y),$(MPCORE_PHYS_BASE-y),0x1f000000)
 
 timer_IMPL            += timer-arm-realview
-ifeq ($(CONFIG_ARM_MPCORE)$(CONFIG_ARM_CORTEX_A9),)
-  PREPROCESS_PARTS    += sp804
-else
+ifneq ($(CONFIG_ARM_MPCORE)$(CONFIG_ARM_CORTEX_A9),)
   PREPROCESS_PARTS    += mptimer
   timer_IMPL          += timer-arm-mptimer timer-arm-mptimer-realview
+  INTERFACES_KERNEL   += timer_sp804
+else
+  ifneq ($(CONFIG_ARM_CORTEX_A15),)
+    PREPROCESS_PARTS  += arm_generic_timer
+    INTERFACES_KERNEL += generic_timer
+    timer_IMPL        += timer-arm-generic
+  else
+    PREPROCESS_PARTS  += sp804
+    INTERFACES_KERNEL += timer_sp804
+  endif
 endif
 
-INTERFACES_KERNEL     += gic platform board_check-arm-realview timer_sp804
+INTERFACES_KERNEL     += gic platform board_check-arm-realview
 
 timer_tick_IMPL       += timer_tick-single-vector
 uart_IMPL             += uart-arm-realview

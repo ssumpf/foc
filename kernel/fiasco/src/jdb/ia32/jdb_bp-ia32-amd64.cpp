@@ -1,11 +1,13 @@
 INTERFACE[ia32,amd64]:
 
+#include "string_buffer.h"
+
 EXTENSION class Jdb_bp
 {
 private:
   static int		test_sstep();
-  static int		test_break(char *errbuf, size_t bufsize);
-  static int		test_other(char *errbuf, size_t bufsize);
+  static int		test_break(String_buffer *buf);
+  static int		test_other(String_buffer *buf);
   static int		test_log_only();
   static Mword		dr7;
 };
@@ -56,7 +58,7 @@ Jdb_bp::global_breakpoints()
   return 1;
 }
 
-static 
+static
 int
 Jdb_bp::set_debug_address_register(int num, Mword addr, Mword len,
 				   Breakpoint::Mode mode, Space *)
@@ -115,13 +117,13 @@ Jdb_bp::test_sstep()
 /** @return 1 if breakpoint occured */
 IMPLEMENT
 int
-Jdb_bp::test_break(char *errbuf, size_t bufsize)
+Jdb_bp::test_break(String_buffer *buf)
 {
   Mword dr6 = read_debug_register(6);
   if (!(dr6 & Val_test))
     return 0;
 
-  int ret = test_break(dr6, errbuf, bufsize);
+  int ret = test_break(buf, dr6);
   write_debug_register(6, dr6 & ~Val_test);
   return ret;
 }
@@ -129,18 +131,18 @@ Jdb_bp::test_break(char *errbuf, size_t bufsize)
 /** @return 1 if other debug exception occured */
 IMPLEMENT
 int
-Jdb_bp::test_other(char *errbuf, size_t bufsize)
+Jdb_bp::test_other(String_buffer *buf)
 {
   Mword dr6 = read_debug_register(6);
   if (!(dr6 & Val_test_other))
     return 0;
 
-  snprintf(errbuf, bufsize, "unknown trap 1 (dr6=" L4_PTR_FMT ")", dr6);
+  buf->printf("unknown trap 1 (dr6=" L4_PTR_FMT ")", dr6);
   write_debug_register(6, Val_leave);
   return 1;
 }
 
-/** @return 0 if only breakpoints were logged and jdb should not be entered */
+/** @return 1 if only breakpoints were logged and jdb should not be entered */
 IMPLEMENT
 int
 Jdb_bp::test_log_only()
@@ -172,4 +174,3 @@ Jdb_bp::init_arch()
   Jdb::bp_test_sstep    = test_sstep;
   Jdb::bp_test_other    = test_other;
 }
-

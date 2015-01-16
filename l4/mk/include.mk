@@ -13,8 +13,13 @@
 #   config			- do nothing, may be overwritten
 
 
+ifeq ($(SYSTEM_HEADERS),)
 INSTALLDIR_INC		?= $(DROPS_STDDIR)/include
 INSTALLDIR_INC_LOCAL	?= $(OBJ_BASE)/include
+else
+INSTALLDIR_INC		?= $(DROPS_STDDIR)/include/sys
+INSTALLDIR_INC_LOCAL	?= $(OBJ_BASE)/include/sys
+endif
 
 INSTALLDIR		= $(INSTALLDIR_INC)
 INSTALLDIR_LOCAL	= $(INSTALLDIR_INC_LOCAL)

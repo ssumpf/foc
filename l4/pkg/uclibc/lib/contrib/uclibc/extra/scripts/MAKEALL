@@ -33,7 +33,10 @@ setconfig()
 get_arches()
 {
 	case $1 in
+		hppa) echo hppa hppa2.0 hppa1.1 hppa1.0;;
+		i386) echo i386 i486 i586 i686;;
 		sh) echo sh4 sh2 sh3 sh1 sh;;
+		sparc) echo sparc sparc64;;
 		*)  echo $1;;
 	esac
 }
@@ -42,9 +45,9 @@ find_compiler()
 {
 	local t a v o l
 	for a in $(get_arches $1) ; do
-		for v in unknown pc gentoo "" ; do
-			for o in linux uclinux "" ; do
-				for l in uclibc "" ; do
+		for l in uclibc gnu gnueabi "" ; do
+			for v in unknown pc gentoo "" ; do
+				for o in linux uclinux "" ; do
 					t="${a}${v:+-${v}}${o:+-${o}}${l:+-${l}}"
 					if ${t}-gcc --help > /dev/null 2>&1 ; then
 						echo ${t}-
@@ -77,13 +80,11 @@ pass=""
 fail=""
 skip=""
 for a in "$@" ; do
-	if [ -n "${CROSS_COMPILE}" ] ; then
-		CROSS=${CROSS_COMPILE}
-	else
-		CROSS=$(find_compiler ${a})
+	if [ -z "${CROSS_COMPILE}" ] ; then
+		CROSS_COMPILE=$(find_compiler ${a})
 	fi
 
-	if [ -z "${CROSS}" ] ; then
+	if [ -z "${CROSS_COMPILE}" ] ; then
 		mark_arch skip $a
 		echo " ### SKIP: ${a}: could not find compiler"
 		continue
@@ -93,17 +94,17 @@ for a in "$@" ; do
 	(
 	set -e
 
-	echo " ### Building target ${a} (${CROSS})"
+	echo " ### Building target ${a} (${CROSS_COMPILE})"
 
 	do_make distclean
 	do_make ARCH=$a defconfig
 	do_make oldconfig
 
-	setconfig CROSS_COMPILER_PREFIX ${CROSS}
+	setconfig CROSS_COMPILER_PREFIX ${CROSS_COMPILE}
 
-	header_path=${KERNEL_HEADERS:-$(echo '#include <linux/version.h>' | ${CROSS}cpp 2>/dev/null | grep -o '[^"]*linux/version.h')} || :
+	header_path=${KERNEL_HEADERS:-$(echo '#include <linux/version.h>' | ${CROSS_COMPILE}cpp 2>/dev/null | grep -o '[^"]*linux/version.h')} || :
 	if [ -z "${header_path}" ] ; then
-		for p in /usr/${CROSS%-}/usr/include ; do
+		for p in /usr/${CROSS_COMPILE%-}/usr/include ; do
 			if [ -e ${p}/linux/version.h ] ; then
 				header_path=${p}
 				break
@@ -129,6 +130,8 @@ for a in "$@" ; do
 	else
 		mark_arch pass $a
 	fi
+
+	unset CROSS_COMPILE
 done
 
 if [ -n "${skip}" ] ; then

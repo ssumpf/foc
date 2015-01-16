@@ -655,7 +655,7 @@ static int pthread_handle_create(pthread_t *thread, const pthread_attr_t *attr,
   int saved_errno = 0;
 
 #ifdef USE_TLS
-  new_thread = (_pthread_descr_struct*)_dl_allocate_tls (NULL);
+  new_thread = (pthread*)_dl_allocate_tls (NULL);
   if (new_thread == NULL)
     return EAGAIN;
 # if defined(TLS_DTV_AT_TP)
@@ -714,12 +714,10 @@ static int pthread_handle_create(pthread_t *thread, const pthread_attr_t *attr,
   /* Initialize the thread descriptor.  Elements which have to be
      initialized to zero already have this value.  */
 #if !defined USE_TLS || !TLS_DTV_AT_TP
-  new_thread->p_header.data.tcb = new_thread;
-  new_thread->p_header.data.self = new_thread;
+  new_thread->header.tcb = new_thread;
+  new_thread->header.self = new_thread;
 #endif
-#if TLS_MULTIPLE_THREADS_IN_TCB || !defined USE_TLS || !TLS_DTV_AT_TP
-  new_thread->p_multiple_threads = 1;
-#endif
+  new_thread->header.multiple_threads = 1;
   new_thread->p_tid = new_thread_id;
   new_thread->p_lock = handle_to_lock(new_utcb);
   new_thread->p_cancelstate = PTHREAD_CANCEL_ENABLE;

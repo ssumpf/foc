@@ -29,7 +29,7 @@ config IA32
 
 config AMD64
 	bool "AMD64 processor family"
-	select CONTEXT_4K
+	select CONTEXT_8K
 
 config ARM
 	bool "ARM processor family"
@@ -230,6 +230,12 @@ config IA32_CORE2
 	help
 	  Choose this if you have an Intel Core 2.
 
+config IA32_CORE_I
+        bool "Intel Core-i"
+	depends on IA32
+	help
+	  Choose this if you want to optimize for Core-i class CPUs.
+
 config IA32_ATOM
 	bool "Intel Atom"
 	depends on IA32
@@ -273,6 +279,12 @@ config AMD64_CORE2
 	help
 	  Choose this if you have an Intel Core 2.
 
+config AMD64_CORE_I
+        bool "Intel Core-i"
+	depends on AMD64
+	help
+	  Choose this if you want to optimize for Core-i class CPUs.
+
 config AMD64_ATOM
 	bool "Intel Atom"
 	depends on AMD64
@@ -300,12 +312,12 @@ config LEON3
 endchoice
 
 config CPU_VIRT
-	bool "Enable CPU virtualization (SVM and VT)"
-	depends on PF_PC
+	bool "Virtualization"
+	depends on PF_PC || (ARM_EM_NS && ARM_LPAE)
 	help
-	  Support virtualization extensions that comes with x86 CPUs,
-	  including nested paging. This feature allows you to run a virtual
-	  machine monitor (VMM) on top of Fiasco.
+	  Support virtualization extensions provided by CPUs, including
+	  nested paging. This feature allows you to run a virtual machine
+	  monitor (VMM) on top of Fiasco.
 
 config ARM_ALIGNMENT_CHECK
 	bool "Enable alignment check"
@@ -339,10 +351,22 @@ config ARM_EM_TZ
 
 endchoice
 
-config ARM_SECMONIF_MC
-	bool
+choice
+	prompt "Secure Monitor Interface"
 	depends on ARM_EM_NS
-	default y
+config ARM_SECMONIF_NONE
+        bool "None"
+        help
+          Running on a minimal secure monitor that does not require
+          any interaction. (e.g., u-boot for KVM)
+
+config ARM_SECMONIF_MC
+	bool "Mobicore"
+
+config ARM_SECMONIF_TL
+	bool "TL"
+
+endchoice
 
 config ARM_ENABLE_SWP
 	bool "Enable the deprecated 'swp' instruction"
@@ -437,8 +461,9 @@ config REGPARM3
 	  passes the first three arguments of a function call in registers.
 
 config FPU
-	bool "Enable FPU co-processor"
+	bool "Enable FPU co-processor" if !CPU_VIRT
 	depends on ARM
+	default y
 	help
 	  Enable this if your platform has hardware floating point support.
 
@@ -480,9 +505,16 @@ config MP_MAX_CPUS
 #	  Use the assembler IPC shortcut to get even better short IPC
 #	  performance in the common case.
 
+config CONTEXT_8K
+	bool #"TCB size of 8k"
+	default n
+	help
+	  Use this option to use 8K kernel stacks. Only disable this option
+	  when you know what you're doing.
+
 config CONTEXT_4K
 	bool #"TCB size of 4k"
-	default y
+	default y if !CONTEXT_8K
 	help
 	  Use this option to use 4K kernel stacks. Only disable this option
 	  when you know what you're doing.
@@ -504,7 +536,7 @@ config ONE_SHOT
 
 config SYNC_TSC
 	bool "Use time-stamp counter for KIP and scheduling accounting"
-	depends on PF_PC && IA32
+	depends on PF_PC && (IA32 || AMD64)
 	help
 	  Synchronize the internal kernel clock with the CPU time stamp
 	  counter.
@@ -694,7 +726,6 @@ config JDB_GZIP
 
 config JDB_ACCOUNTING
 	bool "JDB accounting"
-	depends on IA32
 	help
 	  Enable accounting information about IPCs, context switches, page
 	  faults, and other events. The counters are accessible from
@@ -842,6 +873,7 @@ config IA32_TARGET
 	default "AMD K6" if IA32_K6
 	default "AMD Athlon" if IA32_K7
 	default "Intel Core2" if IA32_CORE2 || AMD64_CORE2
+	default "Intel Core-i" if IA32_CORE_I || AMD64_CORE_I
 	default "Intel Atom" if IA32_ATOM || AMD64_ATOM
 	default "AMD Opteron" if IA32_K8 || AMD64_K8 || AMD64_K10 || IA32_K10
 

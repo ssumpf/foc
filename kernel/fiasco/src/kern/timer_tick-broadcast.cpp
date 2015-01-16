@@ -58,3 +58,11 @@ Timer_tick::ack()
   Irq_base::ack();
   Ipi::bcast(Ipi::Timer, Cpu_number::boot_cpu());
 }
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [debug]:
+
+IMPLEMENT
+Timer_tick *
+Timer_tick::boot_cpu_timer_tick()
+{ return _glbl_timer; }

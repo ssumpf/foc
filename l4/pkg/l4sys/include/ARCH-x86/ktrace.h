@@ -140,7 +140,7 @@ fiasco_tbuf_log(const char *text);
  * \return Pointer to trace-buffer entry
  */
 L4_INLINE l4_umword_t
-fiasco_tbuf_log_3val(const char *text, unsigned v1, unsigned v2, unsigned v3);
+fiasco_tbuf_log_3val(const char *text, l4_umword_t v1, l4_umword_t v2, l4_umword_t v3);
 
 /**
  * Create new trace-buffer entry with binary data.
@@ -210,7 +210,7 @@ fiasco_tbuf_log(const char *text)
 }
 
 L4_INLINE l4_umword_t
-fiasco_tbuf_log_3val(const char *text, unsigned v1, unsigned v2, unsigned v3)
+fiasco_tbuf_log_3val(const char *text, l4_umword_t v1, l4_umword_t v2, l4_umword_t v3)
 {
   l4_umword_t offset;
   asm volatile("int $3; cmpb $29, %%al"

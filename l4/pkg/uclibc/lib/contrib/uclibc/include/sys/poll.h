@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef	_SYS_POLL_H
 #define	_SYS_POLL_H	1
@@ -66,9 +65,8 @@ libc_hidden_proto(poll)
    This function is a cancellation point and therefore not marked with
    __THROW.  */
 extern int ppoll (struct pollfd *__fds, nfds_t __nfds,
-		  __const struct timespec *__timeout,
-		  __const __sigset_t *__ss);
-libc_hidden_proto(ppoll)
+		  const struct timespec *__timeout,
+		  const __sigset_t *__ss);
 #endif
 
 __END_DECLS

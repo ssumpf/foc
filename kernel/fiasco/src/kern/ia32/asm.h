@@ -53,15 +53,6 @@
 	.previous
 1:
 
-	// test if we are locked
-	cmpl	$0, OFS__THREAD__THREAD_LOCK__SWITCH_LOCK__LOCK_OWNER (%ebx)
-	jne	1f
-	.text	1
-1:	kdb_ke_asm("Before IRET: Thread is locked")
-	jmp	1f
-	.previous
-1:
-
 	popl	%edx
 	popl	%ebx
 2:

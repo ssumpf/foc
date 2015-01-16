@@ -30,7 +30,7 @@
 #include <bits/sigcontextinfo.h>
 #include <bits/pthreadtypes.h>
 
-#ifdef USE_TLS
+#ifdef __UCLIBC_HAS_TLS__
 #include <tls.h>
 #endif
 #include "descr.h"
@@ -200,19 +200,17 @@ static __inline__ int nonexisting_handle(pthread_handle h, pthread_t id)
 
 /* The page size we can get from the system.  This should likely not be
    changed by the machine file but, you never know.  */
-#ifndef PAGE_SIZE
-#define PAGE_SIZE  (sysconf (_SC_PAGE_SIZE))
-#endif
+#define __PAGE_SIZE  (sysconf (_SC_PAGESIZE))
 
-/* The initial size of the thread stack.  Must be a multiple of PAGE_SIZE.  */
+/* The initial size of the thread stack.  Must be a multiple of __PAGE_SIZE.  */
 #ifndef INITIAL_STACK_SIZE
-#define INITIAL_STACK_SIZE  (4 * PAGE_SIZE)
+#define INITIAL_STACK_SIZE  (4 * __PAGE_SIZE)
 #endif
 
 /* Size of the thread manager stack. The "- 32" avoids wasting space
    with some malloc() implementations. */
 #ifndef THREAD_MANAGER_STACK_SIZE
-#define THREAD_MANAGER_STACK_SIZE  (2 * PAGE_SIZE - 32)
+#define THREAD_MANAGER_STACK_SIZE  (2 * __PAGE_SIZE - 32)
 #endif
 
 /* The base of the "array" of thread stacks.  The array will grow down from
@@ -285,7 +283,7 @@ extern void __pthread_destroy_specifics (void);
 extern void __pthread_perform_cleanup (char *currentframe);
 extern void __pthread_init_max_stacksize (void);
 extern int __pthread_initialize_manager (void);
-extern void __pthread_message (const char * fmt, ...);
+extern void __pthread_message (const char * fmt, ...) attribute_hidden;
 extern int __pthread_manager (void *reqfd);
 extern int __pthread_manager_event (void *reqfd);
 extern void __pthread_manager_sighandler (int sig);
@@ -347,7 +345,7 @@ extern int __pthread_mutexattr_gettype (const pthread_mutexattr_t *__attr,
 					int *__kind);
 extern void __pthread_kill_other_threads_np (void);
 extern int __pthread_mutex_init (pthread_mutex_t *__mutex,
-				 __const pthread_mutexattr_t *__mutex_attr);
+				 const pthread_mutexattr_t *__mutex_attr);
 extern int __pthread_mutex_destroy (pthread_mutex_t *__mutex);
 extern int __pthread_mutex_lock (pthread_mutex_t *__mutex);
 extern int __pthread_mutex_trylock (pthread_mutex_t *__mutex);
@@ -393,14 +391,14 @@ extern void __pthread_wait_for_restart_signal(pthread_descr self);
 extern void __pthread_sigsuspend (const sigset_t *mask) attribute_hidden;
 
 extern int __pthread_rwlock_timedrdlock (pthread_rwlock_t *__restrict __rwlock,
-					 __const struct timespec *__restrict
+					 const struct timespec *__restrict
 					 __abstime);
 extern int __pthread_rwlock_timedwrlock (pthread_rwlock_t *__restrict __rwlock,
-					 __const struct timespec *__restrict
+					 const struct timespec *__restrict
 					 __abstime);
 extern int __pthread_rwlockattr_destroy (pthread_rwlockattr_t *__attr);
 
-extern int __pthread_barrierattr_getpshared (__const pthread_barrierattr_t *
+extern int __pthread_barrierattr_getpshared (const pthread_barrierattr_t *
 					     __restrict __attr,
 					     int *__restrict __pshared);
 
@@ -440,10 +438,12 @@ extern void __linuxthreads_reap_event (void);
 extern void __pthread_initialize (void);
 
 /* TSD.  */
+#if !defined __UCLIBC_HAS_TLS__ && defined __UCLIBC_HAS_RPC__
 extern int __pthread_internal_tsd_set (int key, const void * pointer);
 extern void * __pthread_internal_tsd_get (int key);
 extern void ** __attribute__ ((__const__))
   __pthread_internal_tsd_address (int key);
+#endif
 
 /* Sighandler wrappers.  */
 extern void __pthread_sighandler(int signo, SIGCONTEXT ctx);
@@ -508,8 +508,6 @@ extern pid_t __pthread_fork (struct fork_block *b) attribute_hidden;
 # define LIBC_CANCEL_HANDLED()	/* Nothing.  */
 #endif
 
-extern int * __libc_pthread_init (const struct pthread_functions *functions);
-
 #if !defined NOT_IN_libc && !defined FLOATING_STACKS
 # ifdef SHARED
 #  define thread_self() \
@@ -520,7 +518,7 @@ weak_extern (__pthread_thread_self)
 # endif
 #endif
 
-#ifndef USE_TLS
+#ifndef __UCLIBC_HAS_TLS__
 # define __manager_thread (&__pthread_manager_thread)
 #else
 # define __manager_thread __pthread_manager_threadp

@@ -2,10 +2,11 @@ IMPLEMENTATION:
 
 #include "thread_object.h"
 #include "thread_state.h"
+#include "std_macros.h"
 
-extern "C"
-void  __attribute__((flatten))
-sys_ipc_wrapper()
+extern "C" void sys_ipc_wrapper();
+
+IMPLEMENT void FIASCO_FLATTEN sys_ipc_wrapper()
 {
   assert_kdb (!(current()->state() & Thread_drq_ready));
 
@@ -38,7 +39,9 @@ IMPLEMENTATION [debug]:
 
 extern "C" void sys_invoke_debug(Kobject_iface *o, Syscall_frame *f) __attribute__((weak));
 
-extern "C" void  __attribute__((flatten)) sys_invoke_debug_wrapper()
+extern "C" void sys_invoke_debug_wrapper();
+
+IMPLEMENT void FIASCO_FLATTEN sys_invoke_debug_wrapper()
 {
   Thread *curr = current_thread();
   Syscall_frame *f = curr->regs();

@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <endian.h>
 #include <errno.h>
@@ -100,8 +99,10 @@ __pthread_cond_timedwait (
       {
 #ifdef __NR_clock_gettime
 	INTERNAL_SYSCALL_DECL (err);
-	int ret;
-	ret = INTERNAL_SYSCALL (clock_gettime, err, 2,
+# ifndef __ASSUME_POSIX_TIMERS
+	int ret =
+# endif
+	INTERNAL_SYSCALL (clock_gettime, err, 2,
 				(cond->__data.__nwaiters
 				 & ((1 << COND_NWAITERS_SHIFT) - 1)),
 				&rt);

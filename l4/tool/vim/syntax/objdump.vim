@@ -17,7 +17,7 @@ syn case match
 syn match  objdumpInsn               /^\s*[0-9a-fA-F]\+:.*/
 syn match  objdumpLabelFunc          /^[0-9a-fA-F]\+\s<.\+>:$/
 syn match  objdumpLabelCode          /^\w.\+():$/
-syn match  objdumpPath               /^\/.\+:[0-9]\+$/
+syn match  objdumpPath               /^\/.\+:[0-9]\+\( (discriminator [0-9]\+)\)\?$/
 
 hi def link objdumpInsn      Type
 hi def link objdumpLabelFunc Comment

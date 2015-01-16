@@ -1,0 +1,73 @@
+// vi:ft=cpp
+/**
+ * \file
+ * \brief Platform control object.
+ */
+/*
+ * (c) 2014 Steffen Liebergeld <steffen.liebergeld@kernkonzept.com>
+ *          Adam Lackorzynski <adam@os.inf.tu-dresden.de>,
+ *          Alexander Warg <warg@os.inf.tu-dresden.de>
+ *     economic rights: Technische Universität Dresden (Germany)
+ *
+ * This file is part of TUD:OS and distributed under the terms of the
+ * GNU General Public License 2.
+ * Please see the COPYING-GPL-2 file for details.
+ *
+ * As a special exception, you may use this file as part of a free software
+ * library without restriction.  Specifically, if other files instantiate
+ * templates or use macros or inline functions from this file, or you compile
+ * this file and link it with other files to produce an executable, this
+ * file does not by itself cause the resulting executable to be covered by
+ * the GNU General Public License.  This exception does not however
+ * invalidate any other reasons why the executable file might be covered by
+ * the GNU General Public License.
+ */
+
+#pragma once
+
+#include <l4/sys/capability>
+#include <l4/sys/platform_control.h>
+
+namespace L4 {
+
+/**
+ * \ingroup l4_platform_control_api
+ * \brief L4 interface for controlling platform-wide properties.
+ *
+ * <c>\#include <l4/sys/platform_control></c>
+ */
+class L4_EXPORT Platform_control
+: public Kobject_t<Platform_control, Kobject, L4_PROTO_PLATFORM_CTL>
+{
+  L4_KOBJECT(Platform_control)
+
+public:
+  /// Opcodes for platform-control object.
+  enum Opcode
+  {
+    Suspend  = L4_PLATFORM_CTL_SYS_SUSPEND_OP, ///< Opcode for suspend to RAM
+    Shutdown = L4_PLATFORM_CTL_SYS_SHUTDOWN_OP ///< Opcode for shudoen / reboot
+  };
+
+  /**
+   * \brief Enter suspend to RAM.
+   * \param extras  some extra platform-specific information needed to enter
+   *                suspend to RAM.
+   * \param utcb    the UTCB to use for the message.
+   */
+  l4_msgtag_t system_suspend(l4_umword_t extras = 0,
+                             l4_utcb_t *utcb = l4_utcb()) throw()
+  { return l4_platform_ctl_system_suspend_u(cap(), extras, utcb); }
+
+  /**
+   * \brief Shutdown/Reboot the system.
+   * \param reboot 1 for reboot, 0 for power of
+   * \param utcb   the UTCB to use for the message
+   */
+  l4_msgtag_t system_shutdown(l4_umword_t reboot = 0,
+                              l4_utcb_t *utcb = l4_utcb()) throw()
+  { return l4_platform_ctl_system_shutdown_u(cap(), reboot, utcb); }
+};
+
+}
+

@@ -77,16 +77,10 @@ typedef struct l4_utcb_t l4_utcb_t;
  * \headerfile l4/sys/utcb.h
  * \ingroup l4_utcb_mr_api
  */
-typedef struct l4_msg_regs_t
+typedef union l4_msg_regs_t
 {
-#if defined(__STRICT_ANSI__) && (__STDC_VERSION__ < 201112L)
   l4_umword_t mr[L4_UTCB_GENERIC_DATA_SIZE]; /**< Message registers */
-#else
-  union {
-    l4_umword_t mr[L4_UTCB_GENERIC_DATA_SIZE]; /**< Message registers */
-    l4_uint64_t mr64[L4_UTCB_GENERIC_DATA_SIZE / (sizeof(l4_uint64_t)/sizeof(l4_umword_t))]; /**< Message registers 64bit alias*/
-  };
-#endif
+  l4_uint64_t mr64[L4_UTCB_GENERIC_DATA_SIZE / (sizeof(l4_uint64_t)/sizeof(l4_umword_t))]; /**< Message registers 64bit alias*/
 } l4_msg_regs_t;
 
 /**

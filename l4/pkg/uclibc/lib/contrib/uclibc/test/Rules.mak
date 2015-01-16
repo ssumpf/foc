@@ -8,18 +8,34 @@
 .SUFFIXES:
 
 top_builddir ?= ../
+abs_top_builddir ?= $(shell cd $(top_builddir); pwd)/
 
 TESTDIR=$(top_builddir)test/
 
-include $(top_builddir)/Rules.mak
-ifndef TEST_INSTALLED_UCLIBC
+include $(top_srcdir)Rules.mak
+ifeq ($(filter $(clean_targets) CLEAN_%,$(MAKECMDGOALS)),)
+ifeq ($(HAVE_DOT_CONFIG),)
+$(error no HAVE_DOT_CONFIG, failed to read .config)
+endif
+endif
+
 ifdef UCLIBC_LDSO
 ifeq (,$(findstring /,$(UCLIBC_LDSO)))
-UCLIBC_LDSO := $(top_builddir)lib/$(UCLIBC_LDSO)
+UCLIBC_LDSO := $(UCLIBC_LDSO)
+else
+UCLIBC_LDSO := $(notdir $(UCLIBC_LDSO))
 endif
 else
-UCLIBC_LDSO := $(firstword $(wildcard $(top_builddir)lib/ld*))
+UCLIBC_LDSO := $(notdir $(firstword $(wildcard $(top_builddir)lib/ld*)))
 endif
+ifndef TEST_INSTALLED_UCLIBC
+ifeq ($(LDSO_SAFE_RUNPATH),y)
+UCLIBC_PATH := $(abs_top_builddir)lib
+else
+UCLIBC_PATH := $(top_builddir)lib
+endif
+else
+UCLIBC_PATH := $(RUNTIME_PREFIX)$(MULTILIB_DIR)
 endif
 #--------------------------------------------------------
 # Ensure consistent sort order, 'gcc -print-search-dirs' behavior, etc.
@@ -57,7 +73,7 @@ endif
 endif
 
 XCOMMON_CFLAGS := -I$(top_builddir)test -D_GNU_SOURCE
-XWARNINGS      += $(call check_gcc,-Wstrict-prototypes,)
+XWARNINGS      += $(CFLAG_-Wstrict-prototypes)
 CFLAGS         := -nostdinc -I$(top_builddir)$(LOCAL_INSTALL_PATH)/usr/include
 CFLAGS         += $(XCOMMON_CFLAGS) $(KERNEL_INCLUDES) $(CC_INC)
 CFLAGS         += $(OPTIMIZATION) $(CPU_CFLAGS) $(XWARNINGS)
@@ -81,20 +97,19 @@ ifneq ($(HAVE_SHARED),y)
 	LDFLAGS       += -Wl,-static -static-libgcc
 endif
 
-LDFLAGS += -B$(top_builddir)lib -Wl,-rpath,$(top_builddir)lib -Wl,-rpath-link,$(top_builddir)lib
-UCLIBC_LDSO_ABSPATH=$(shell pwd)
-ifdef TEST_INSTALLED_UCLIBC
-LDFLAGS += -Wl,-rpath,./
-UCLIBC_LDSO_ABSPATH=$(RUNTIME_PREFIX)$(MULTILIB_DIR)
+ifndef TEST_INSTALLED_UCLIBC
+LDFLAGS += -B$(UCLIBC_PATH) -Wl,-rpath,$(UCLIBC_PATH):$(shell pwd) -Wl,-rpath-link,$(UCLIBC_PATH):$(shell pwd)
+else
+LDFLAGS += -Wl,-rpath,$(shell pwd)
 endif
 
 ifeq ($(findstring -static,$(LDFLAGS)),)
-LDFLAGS += -Wl,--dynamic-linker,$(UCLIBC_LDSO_ABSPATH)/$(UCLIBC_LDSO)
+LDFLAGS += -Wl,--dynamic-linker,$(UCLIBC_PATH)/$(UCLIBC_LDSO)
 endif
 
 ifeq ($(LDSO_GNU_HASH_SUPPORT),y)
 # Check for binutils support is done on root Rules.mak
-LDFLAGS += -Wl,${LDFLAGS_GNUHASH}
+LDFLAGS += $(CFLAG_-Wl--hash-style=gnu)
 endif
 
 

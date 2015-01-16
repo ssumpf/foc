@@ -252,7 +252,7 @@ l4util_bsr(l4_umword_t word)
 {
   l4_umword_t tmp;
 
-  if (EXPECT_FALSE(word == 0))
+  if (L4_UNLIKELY(word == 0))
     return -1;
 
   __asm__ __volatile__
@@ -274,7 +274,7 @@ l4util_bsf(l4_umword_t word)
 {
   l4_umword_t tmp;
 
-  if (EXPECT_FALSE(word == 0))
+  if (L4_UNLIKELY(word == 0))
     return -1;
 
   __asm__ __volatile__

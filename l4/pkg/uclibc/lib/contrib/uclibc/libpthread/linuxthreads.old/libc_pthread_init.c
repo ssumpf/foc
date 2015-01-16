@@ -13,27 +13,12 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
-#include <features.h>
 #include <locale.h>
-#include <stdlib.h>
 #include <string.h>
-
-/* see comment in forward.c */
-#define GCC_RENAME_BUG 1
-#ifdef GCC_RENAME_BUG
-# include <ctype.h>
-# include <signal.h>
-# include <unistd.h>
-# include <sys/time.h>
-# include <sys/wait.h>
-#endif
-
-#include "internals.h"
-#include "sysdeps/pthread/pthread-functions.h"
+#include <linuxthreads.old/sysdeps/pthread/pthread-functions.h>
 
 
 int __libc_multiple_threads attribute_hidden __attribute__((nocommon));
@@ -48,7 +33,7 @@ int * __libc_pthread_init (const struct pthread_functions *functions)
 	  sizeof (__libc_pthread_functions));
 #endif
 
-#if ! defined USE___THREAD && defined __UCLIBC_HAS_XLOCALE__
+#if !defined __UCLIBC_HAS_TLS__ && defined __UCLIBC_HAS_XLOCALE__
   /* Initialize thread-locale current locale to point to the global one.
      With __thread support, the variable's initializer takes care of this.  */
   uselocale (LC_GLOBAL_LOCALE);

@@ -585,7 +585,11 @@ private:
 
 public:
   Order granularity() const
-  { return Order((_w >> 24) & (MWORD_BITS-1)) ; }
+  {
+    Mword g = (_w >> 24) & 0xff;
+    if (g > 24) g = 24; // limit granularity to 2**24
+    return Order(g);
+  }
 
   Cpu_number offset() const
   { return cxx::mask_lsb(Cpu_number(_w & 0x00ffffff), granularity()); }
@@ -755,7 +759,18 @@ public:
   };
 
   /// The message registers (MRs).
-  Mword           values[Max_words];
+  union
+  {
+    Mword         values[Max_words];
+    Unsigned64    val64[Max_words / (sizeof(Unsigned64) / sizeof(Mword))];
+  } __attribute__((packed));
+
+  static unsigned val64_idx(unsigned validx)
+  { return validx / (sizeof(Unsigned64) / sizeof(Mword)); }
+
+  static unsigned val_idx(unsigned val64_idx)
+  { return val64_idx * (sizeof(Unsigned64) / sizeof(Mword)); }
+
   Mword           utcb_addr;
 
   /// The buffer descriptor register (BDR).

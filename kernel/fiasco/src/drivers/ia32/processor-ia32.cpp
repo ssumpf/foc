@@ -88,5 +88,6 @@ Proc::Status Proc::interrupts()
 IMPLEMENT static inline
 void Proc::irq_chance()
 {
-  asm volatile ("nop; nop;" : : : "memory");
+  asm volatile ("nop");
+  pause();
 }

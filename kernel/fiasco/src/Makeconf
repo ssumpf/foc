@@ -29,6 +29,7 @@ ECHO_E		:= bash --norc -c 'echo -e "$$0" "$$@"'
 CP		:= cp
 GREP		:= GREP_OPTIONS= grep
 AWKP		?= gawk --posix
+CCACHE		?= ccache
 CFLAGS		:=
 CXXFLAGS	:= -std=c++0x
 OPT_CFLAGS	:= -O2
@@ -85,8 +86,8 @@ endif
 
 CPP			:= $(SYSTEM_TARGET)cpp$(CCXX_SUFFIX)
 
-CC			:= $(CCXX_WRAP) $(SYSTEM_TARGET)$(CC)$(CCXX_SUFFIX)
-CXX			:= $(CCXX_WRAP) $(SYSTEM_TARGET)$(CXX)$(CCXX_SUFFIX)
+CC			:= $(CCXX_WRAP) $(call $(USE_CCACHE),$(CCACHE)) $(SYSTEM_TARGET)$(CC)$(CCXX_SUFFIX)
+CXX			:= $(CCXX_WRAP) $(call $(USE_CCACHE),$(CCACHE)) $(SYSTEM_TARGET)$(CXX)$(CCXX_SUFFIX)
 
 CC_TYPE                 := $(if $(findstring clang,$(shell $(CXX) --version)),clang,gcc)
 CCVER_MAJOR		:= $(shell $(CXX) -dumpversion | cut -d . -f 1)
@@ -99,7 +100,9 @@ L4STD_INCDIR    	?= -nostdinc
 L4STD_INCDIR_LAST	?= -I$(wildcard $(dir $(LIBGCC))/include \
 			                $(dir $(LIBGCC))/../include)
 KERNEL_LDFLAGS		+= -gc-sections
-SHARED_FLAGS-gcc        += -fno-defer-pop -freg-struct-return
+SHARED_FLAGS-gcc        += -fno-defer-pop
+# gcc #57845
+SHARED_FLAGS-gcc        += $(if $(filter sparc,$(CONFIG_XARCH)),,-freg-struct-return)
 # prevent a possible gcc 4.4 flaw from hitting us
 SHARED_FLAGS-gcc        += $(if $(filter 4.4,$(CCVER_MAJOR).$(CCVER_MINOR)),-fno-strict-aliasing)
 SHARED_FLAGS		+= -g -Wall -W

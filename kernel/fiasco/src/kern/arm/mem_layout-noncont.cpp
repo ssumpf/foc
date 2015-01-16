@@ -17,6 +17,7 @@ private:
 };
 
 
+//------------------------------------------------------------------------
 IMPLEMENTATION [noncont_mem]:
 
 #include <config.h>
@@ -38,6 +39,7 @@ Mem_layout::pmem_to_phys(void const *addr)
 {
   return pmem_to_phys(Address(addr));
 }
+
 unsigned short Mem_layout::__ph_to_pm[1<<(32-Config::SUPERPAGE_SHIFT)];
 
 IMPLEMENT inline NEEDS[<config.h>]
@@ -67,4 +69,31 @@ Mem_layout::add_pmem(Address phys, Address virt, unsigned long size)
     }
 }
 
+
+//------------------------------------------------------------------------
+IMPLEMENTATION [!noncont_mem]:
+
+#include <cstdio>
+
+
+PUBLIC static
+Address
+Mem_layout::pmem_to_phys(Address addr)
+{
+  printf("Mem_layout::pmem_to_phys(Address addr=%lx) is not implemented\n",
+         addr);
+  return 0;
+}
+
+PUBLIC static inline
+Address
+Mem_layout::pmem_to_phys(void const *addr)
+{
+  return pmem_to_phys(Address(addr));
+}
+
+PUBLIC static inline
+Address
+Mem_layout::phys_to_pmem(Address phys)
+{ return phys; }
 

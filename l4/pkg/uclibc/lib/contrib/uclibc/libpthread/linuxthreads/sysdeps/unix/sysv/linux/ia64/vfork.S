@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 
 #include <sysdep-cancel.h>
@@ -38,7 +37,7 @@ ENTRY(__vfork)
 #endif
 	ld8 r14 = [r14];;
 	cmp.ne p6, p7 = 0, r14
-(p6)	br.cond.spnt.few HIDDEN_JUMPTARGET (__fork);;
+(p6)	br.cond.spnt.few HIDDEN_JUMPTARGET (fork);;
 	alloc r2=ar.pfs,0,0,2,0
 	mov out0=CLONE_VM+CLONE_VFORK+SIGCHLD
 	mov out1=0		/* Standard sp value.			*/

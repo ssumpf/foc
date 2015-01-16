@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _MALLOC_H
 #define _MALLOC_H 1
@@ -124,9 +123,12 @@ extern void free __MALLOC_P ((__malloc_ptr_t __ptr));
 
 /* Allocate SIZE bytes allocated to ALIGNMENT bytes.  */
 extern __malloc_ptr_t memalign __MALLOC_P ((size_t __alignment, size_t __size));
+libc_hidden_proto(memalign)
 
+#ifdef __UCLIBC_SUSV2_LEGACY__
 /* Allocate SIZE bytes on a page boundary.  */
 extern __malloc_ptr_t valloc __MALLOC_P ((size_t __size)) __attribute_malloc__;
+#endif
 
 #ifdef __MALLOC_STANDARD__
 

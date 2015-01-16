@@ -1,2 +1,5 @@
-SYSTEM_TARGET			?= sparc-elf-
-LD_EMULATION_CHOICE             := sparcleon
+# -*- makefile -*-
+# vi:se ft=make:
+
+SYSTEM_TARGET			?= sparc-linux-
+LD_EMULATION_CHOICE             := elf32_sparc

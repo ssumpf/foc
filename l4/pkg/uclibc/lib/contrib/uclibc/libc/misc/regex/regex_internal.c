@@ -14,13 +14,12 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 static void re_string_construct_common (const char *str, int len,
 					re_string_t *pstr,
-					RE_TRANSLATE_TYPE trans, int icase,
+					__RE_TRANSLATE_TYPE trans, int icase,
 					const re_dfa_t *dfa) internal_function;
 static re_dfastate_t *create_ci_newstate (const re_dfa_t *dfa,
 					  const re_node_set *nodes,
@@ -38,7 +37,7 @@ static re_dfastate_t *create_cd_newstate (const re_dfa_t *dfa,
 static reg_errcode_t
 internal_function
 re_string_allocate (re_string_t *pstr, const char *str, int len, int init_len,
-		    RE_TRANSLATE_TYPE trans, int icase, const re_dfa_t *dfa)
+		    __RE_TRANSLATE_TYPE trans, int icase, const re_dfa_t *dfa)
 {
   reg_errcode_t ret;
   int init_buf_len;
@@ -66,7 +65,7 @@ re_string_allocate (re_string_t *pstr, const char *str, int len, int init_len,
 static reg_errcode_t
 internal_function
 re_string_construct (re_string_t *pstr, const char *str, int len,
-		     RE_TRANSLATE_TYPE trans, int icase, const re_dfa_t *dfa)
+		     __RE_TRANSLATE_TYPE trans, int icase, const re_dfa_t *dfa)
 {
   reg_errcode_t ret;
   memset (pstr, '\0', sizeof (re_string_t));
@@ -162,7 +161,7 @@ re_string_realloc_buffers (re_string_t *pstr, int new_buf_len)
 static void
 internal_function
 re_string_construct_common (const char *str, int len, re_string_t *pstr,
-			    RE_TRANSLATE_TYPE trans, int icase,
+			    __RE_TRANSLATE_TYPE trans, int icase,
 			    const re_dfa_t *dfa)
 {
   pstr->raw_mbs = (const unsigned char *) str;
@@ -627,7 +626,7 @@ re_string_reconstruct (re_string_t *pstr, int idx, int eflags)
 
 	      if (pstr->is_utf8)
 		{
-		  const unsigned char *raw, *p, *q, *end;
+		  const unsigned char *raw, *p, *end;
 
 		  /* Special case UTF-8.  Multi-byte chars start with any
 		     byte other than 0x80 - 0xbf.  */
@@ -654,13 +653,11 @@ re_string_reconstruct (re_string_t *pstr, int idx, int eflags)
 			  unsigned char buf[6];
 			  size_t mbclen;
 
-			  q = p;
 			  if (BE (pstr->trans != NULL, 0))
 			    {
 			      int i = mlen < 6 ? mlen : 6;
 			      while (--i >= 0)
 				buf[i] = pstr->trans[p[i]];
-			      q = buf;
 			    }
 			  /* XXX Don't use mbrtowc, we know which conversion
 			     to use (UTF-8 -> UCS4).  */

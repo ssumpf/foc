@@ -1,5 +1,7 @@
 INTERFACE:
 
+#include "string_buffer.h"
+
 class Jdb_list
 {
 public:
@@ -7,7 +9,7 @@ public:
   virtual void next_mode() {}
   virtual void next_sort() {}
   virtual void *get_head() const = 0;
-  virtual int show_item(char *buffer, int max, void *item) const = 0;
+  virtual void show_item(String_buffer *buffer, void *item) const = 0;
   virtual char const *show_head() const = 0;
   virtual int seek(int cnt, void **item) = 0;
   virtual bool enter_item(void * /*item*/) const { return true; }
@@ -17,9 +19,10 @@ public:
   virtual void *get_valid(void *a) { return a; }
 
 private:
+  typedef String_buf<256> Line_buf;
   void *_start, *_last;
   void *_current;
-
+  char _filter_str[20];
 };
 
 
@@ -32,6 +35,8 @@ IMPLEMENTATION:
 
 #include "jdb.h"
 #include "jdb_core.h"
+#include "jdb_input.h"
+#include "jdb_regex.h"
 #include "jdb_screen.h"
 #include "kernel_console.h"
 #include "keycodes.h"
@@ -43,7 +48,9 @@ IMPLEMENTATION:
 PUBLIC
 Jdb_list::Jdb_list()
   : _start(0), _current(0)
-{}
+{
+  _filter_str[0] = 0;
+}
 
 // set _t_start element of list
 PUBLIC
@@ -57,15 +64,15 @@ Jdb_list::set_start(void *start)
 PUBLIC inline
 bool
 Jdb_list::line_back()
-{ return seek(-1, &_start); }
+{ return filtered_seek(-1, &_start); }
 
 // _t_start++ if possible
 PUBLIC inline
 bool
 Jdb_list::line_forw()
 {
-  if (seek(1, &_last))
-    return seek(1, &_start);
+  if (filtered_seek(1, &_last))
+    return filtered_seek(1, &_start);
   else
     return false;
 }
@@ -81,16 +88,16 @@ Jdb_list::line_forw()
 PUBLIC
 bool
 Jdb_list::page_back()
-{ return seek(-Jdb_screen::height()+2, &_start); }
+{ return filtered_seek(-Jdb_screen::height()+2, &_start); }
 
 // _t_start += 24 if possible
 PUBLIC
 bool
 Jdb_list::page_forw()
 {
-  int fwd = seek(Jdb_screen::height()-2, &_last);
+  int fwd = filtered_seek(Jdb_screen::height()-2, &_last);
   if (fwd)
-    return seek(fwd, &_start);
+    return filtered_seek(fwd, &_start);
   return false;
 }
 
@@ -106,13 +113,13 @@ Jdb_list::page_forw()
 PUBLIC
 bool
 Jdb_list::goto_home()
-{ return seek(-99999, &_start); }
+{ return filtered_seek(-99999, &_start); }
 
 // _t_start = last element of list
 PUBLIC
 bool
 Jdb_list::goto_end()
-{ return seek(99999, &_start); }
+{ return filtered_seek(99999, &_start); }
 #if 0
   Thread *t = _t_start;
   iter(+9999, &_t_start);
@@ -121,54 +128,134 @@ Jdb_list::goto_end()
 }
 #endif
 
-// search index of t_search starting from _t_start
-PUBLIC
+// search index of search starting from _start
+PRIVATE
 int
 Jdb_list::lookup_in_visible_area(void *search)
 {
   unsigned i;
   void *t;
 
-  for (i=0, t = _start; i < Jdb_screen::height()-3; ++i)
+  for (i = 0, t = _start; i < Jdb_screen::height() - 3; ++i)
     {
       if (t == search)
-	return i;
+        return i;
 
-      seek(1, &t);
+      filtered_seek(1, &t);
     }
 
   return -1;
 }
 
 // get y'th element of thread list starting from _t_start
-PUBLIC
+PRIVATE
 void *
 Jdb_list::index(int y)
 {
   void *t = _start;
 
-  seek(y, &t);
+  filtered_seek(y, &t);
   return t;
 }
 
-
-PUBLIC
+PRIVATE
 void
-Jdb_list::show_line(void *i)
+Jdb_list::handle_string_filter_input()
 {
-  static char buffer[256];
-  Kconsole::console()->getchar_chance();
-  int pos = 0;
+  Jdb::printf_statline("filter", 0, "%s=%s",
+                       Jdb_regex::avail() ? "Regexp" : "Search",
+                       _filter_str);
+
+  Jdb::cursor(Jdb_screen::height(), 16 + strlen(_filter_str));
+  if (!Jdb_input::get_string(_filter_str, sizeof(_filter_str)) ||
+      !_filter_str[0])
+    return;
+
+
+  if (Jdb_regex::avail() && !Jdb_regex::start(_filter_str))
+    {
+      _filter_str[0] = 0;
+      Jdb::printf_statline("search", 0, "Error in regexp");
+      Jdb::getchar();
+    }
+}
+
+PRIVATE
+Jdb_list::Line_buf *
+Jdb_list::render_visible(void *i)
+{
+  static Line_buf buffer;
+  buffer.clear();
   void *p = i;
   while ((p = parent(p)))
+    buffer.append(' ');
+
+  show_item(&buffer, i);
+  if (_filter_str[0])
     {
-      buffer[pos] = ' ';
-      ++pos;
+      buffer.terminate();
+      if (Jdb_regex::avail())
+        {
+          if (!Jdb_regex::find(buffer.begin(), 0, 0))
+            i = 0;
+        }
+      else if (!strstr(buffer.begin(), _filter_str))
+        i = 0;
     }
 
-  pos += show_item(buffer + pos, sizeof(buffer) - pos, i);
   if (i)
-    printf("%.*s\033[K\n", min((int)Jdb_screen::width(), pos), buffer);
+    return &buffer;
+
+  return 0;
+}
+
+PRIVATE
+void
+Jdb_list::show_line(Jdb_list::Line_buf *b)
+{
+  Kconsole::console()->getchar_chance();
+
+  printf("%.*s\033[K\n",
+         min((int)Jdb_screen::width(), b->length()), b->begin());
+}
+
+PRIVATE
+void *
+Jdb_list::get_visible(void *i)
+{
+  if (render_visible(i))
+    return i;
+
+  filtered_seek(1, &i);
+
+  return i;
+}
+
+PRIVATE
+int
+Jdb_list::filtered_seek(int cnt, void **item, Jdb_list::Line_buf **buf = 0)
+{
+  if (cnt == 0)
+    return 0;
+
+  int c = 0;
+  int d = cnt < 0 ? -1 : 1;
+  for (;;)
+    {
+      int i;
+
+      if ((i = seek(d, item)) == 0)
+        return c;
+
+      if (Line_buf *b = render_visible(*item))
+        {
+          if (buf)
+            *buf = b;
+          c += d;
+          if (cnt == c)
+            return c;
+        }
+    }
 }
 
 // show complete page using show callback function
@@ -178,24 +265,34 @@ Jdb_list::page_show()
 {
   void *t = _start;
   unsigned i = 0;
+
+  if (Jdb_regex::avail() && _filter_str[0])
+    assert(Jdb_regex::start(_filter_str));
+
+  if (!t)
+    return 0;
+
+  Line_buf *b = render_visible(t);
+
   for (i = 0; i < Jdb_screen::height()-3; ++i)
     {
       if (!t)
-	break;
-      else
-	_last = t;
+        break;
+      _last = t;
 
-      show_line(t);
+      if (b)
+        show_line(b);
 
-      if (!seek(1,&t))
-	return i;
+      if (!filtered_seek(1, &t, &b))
+        return i;
     }
 
   return i - 1;
 }
 
+#if 0
 // show complete list using show callback function
-PUBLIC
+PRIVATE
 int
 Jdb_list::complete_show()
 {
@@ -212,7 +309,6 @@ Jdb_list::complete_show()
   return i;
 }
 
-#if 0
 PUBLIC
 Jdb_module::Action_code
 Jdb_thread_list::action(int cmd, void *&argbuf, char const *&fmt, int &)
@@ -280,7 +376,6 @@ Jdb_list::show_header()
   printf("%.*s\033[K\n", Jdb_screen::width(), show_head());
 }
 
-
 PUBLIC
 void
 Jdb_list::do_list()
@@ -306,6 +401,7 @@ Jdb_list::do_list()
 
   for (;;)
     {
+      _start = get_visible(_start);
       // set y to position of t_current in current displayed list
       y = lookup_in_visible_area(_current);
       if (y == -1)
@@ -324,8 +420,9 @@ Jdb_list::do_list()
             putstr("\033[K\n");
 
 	  Jdb::printf_statline("Objs",
-			       "<Space>=mode <Tab>=link <CR>=select",
-			       "%-15s", get_mode_str());
+                               "<Space>=mode <Tab>=link <CR>=select /=filter",
+                               _filter_str[0] ? "%s (%s)" : "%s",
+                               get_mode_str(), _filter_str);
 
 	  // key event loop
 	  for (bool redraw=false; !redraw; )
@@ -381,6 +478,12 @@ Jdb_list::do_list()
 		  redraw = true;
 		  resync = true;
 		  break;
+                case '/':
+                  handle_string_filter_input();
+                  _current = get_visible(_current);
+                  redraw = true;
+                  resync = true;
+                  break;
 		case KEY_TAB: // go to associated object
 		  _current = index(y);
 		  t = follow_link(_current);

@@ -113,25 +113,24 @@ Jdb_kern_info_host::show()
       if (!task)
 	continue;
 
-      char buf[64];
+      String_buf<64> buf;
 
-      Jdb_kobject::obj_description(buf, sizeof(buf), true, *i);
-      buf[sizeof(buf) - 1] = 0;
-      printf("%s, host-pid=%d\n", buf, task->pid());
+      Jdb_kobject::obj_description(&buf, true, *i);
+      printf("%s, host-pid=%d\n", buf.c_str(), task->pid());
 
-      snprintf(buf, sizeof(buf), "/proc/%d/maps", task->pid());
-      buf[sizeof(buf) - 1] = 0;
-      int fd = open(buf, O_RDONLY);
+      buf.reset();
+      buf.printf("/proc/%d/maps", task->pid());
+      int fd = open(buf.c_str(), O_RDONLY);
       if (fd >= 0)
 	{
 	  int r;
 	  do
 	    {
-	      r = read(fd, buf, sizeof(buf));
+	      r = read(fd, buf.remaining_buffer(), buf.space());
 	      if (r > 0)
-		printf("%.*s", r, buf);
+		printf("%.*s", r, buf.begin());
 	    }
-	  while (r == sizeof(buf));
+	  while (r == buf.space());
 	  close(fd);
 	}
 

@@ -7,6 +7,7 @@ __asm__("" \
 "	.section .text..SHmedia32,\"ax\"\n"				\
 "	.globl _start\n"						\
 "	.type _start, @function\n"					\
+"	.hidden _start\n"						\
 "	.align 5\n"							\
 "_start:\n"								\
 "	! Set r12 to point to GOT\n"					\
@@ -48,7 +49,7 @@ __asm__("" \
 #include <elf.h>
 
 #define PERFORM_BOOTSTRAP_RELOC(RELP,REL,SYMBOL,LOAD,SYMTAB)		\
-	const unsigned int r_type = ELF32_R_TYPE((RELP)->r_info);	\
+	const unsigned int r_type = ELF_R_TYPE((RELP)->r_info);	\
 	int lsb = !!((SYMTAB)->st_other & STO_SH5_ISA32);		\
 									\
 	switch (r_type)	{						\

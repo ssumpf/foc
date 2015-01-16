@@ -50,6 +50,10 @@ all_objs: $(ar_objs)
 endif
 $(shared_objs) $(ar_objs): | $(sub_headers)
 
+define objects_with_syms
+	$(foreach o,$(2),$(if $(shell $(NM) $(1) $(o) | grep .),$(o)))
+endef
+
 headers-y: $(headers-y)
 	@true
 
@@ -58,7 +62,7 @@ SHELL_SET_X := set +x
 define rel_srcdir
 	$(shell $(CONFIG_SHELL) $(top_srcdir)/extra/scripts/relative_path.sh $(@D) .)
 endef
-ifneq ($(findstring -s,$(MAKEFLAGS)),)
+ifneq ($(findstring s,$(MAKEFLAGS)),)
 export MAKE_IS_SILENT := y
 SECHO := -@false
 DISP := sil
@@ -233,17 +237,17 @@ cmd_compile.c = $(CC) -c $< -o $@ $(CFLAGS) \
 	$(CFLAGS-$(notdir $<)) \
 	$(CFLAGS-$(notdir $@)) \
 	$(CFLAGS_gen.dep)
-cmd_compile.i = $(cmd_compile.c:-c=-E -dD $(EXTRA_CPPFLAGS))
+cmd_compile.i = $(cmd_compile.c:-c=-E -dD) $(UCLIBC_EXTRA_CPPFLAGS)
 cmd_compile.s = $(cmd_compile.c:-c=-S)
 cmd_compile.u = $(CC) $^ $(DEPS-$(notdir $@)) -o $@ $(CFLAGS) $(CFLAGS-$(notdir $(^D))) $(CFLAGS-$(notdir $@)) $(CFLAGS_gen.dep)
 cmd_compile.S = $(filter-out -std=gnu99, $(cmd_compile.c)) -D__ASSEMBLER__ $(ASFLAGS) $(ARCH_ASFLAGS) $(ASFLAGS-$(suffix $@)) $(ASFLAGS-$(notdir $<)) $(ASFLAGS-$(notdir $@))
 cmd_compile.m = $(cmd_compile.c) -DL_$(patsubst %$(suffix $(notdir $@)),%,$(notdir $@))
-cmd_compile.mi= $(cmd_compile.m:-c=-E -dD $(EXTRA_CPPFLAGS))
+cmd_compile.mi= $(cmd_compile.m:-c=-E -dD) $(UCLIBC_EXTRA_CPPFLAGS)
 
 cmd_compile-m = $(CC) $^ -c -o $@ $(CFLAGS) $(CFLAGS-$(suffix $@)) $(CFLAGS-$(notdir $(@D))) $(CFLAGS-$(notdir $@)) $(sort $(foreach d,$(^:$(top_srcdir)=),$(collect_multi_flags)))
 cmd_strip     = $(STRIPTOOL) $(STRIP_FLAGS) $^
 cmd_t_strip   = $(STRIPTOOL) $(STRIP_FLAGS) $@
-cmd_ar        = $(AR) $(ARFLAGS) $@ $^
+cmd_ar        = $(AR) $(ARFLAGS) $@ $(call objects_with_syms,,$^)
 
 define do_ln
 	@$(disp_ln)
@@ -294,11 +298,21 @@ endef
 cmd_hcompile.u = $(HOSTCC) $(filter-out $(PHONY),$^) $(DEPS-$(notdir $@)) -o $@ $(BUILD_LDFLAGS) $(BUILD_LDFLAGS-$(notdir $(^D))) $(BUILD_LDFLAGS-$(notdir $@)) $(BUILD_CFLAGS) $(BUILD_CFLAGS-$(notdir $(^D))) $(BUILD_CFLAGS-$(notdir $@))
 cmd_hcompile.o = $(HOSTCC) $(filter-out $(PHONY),$<) $(DEPS-$(notdir $@)) -c -o $@ $(BUILD_CFLAGS) $(BUILD_CFLAGS-$(notdir $(^D))) $(BUILD_CFLAGS-$(notdir $@))
 
+define create-lds
+	$(Q)$(RM) $@.lds
+	$(Q)$(CC) -nostdlib -nostartfiles -shared -Wl,-z,combreloc \
+	-Wl,-z,relro -Wl,--hash-style=gnu -Wl,-z,defs \
+	-Wl,--verbose 2>&1 | LC_ALL=C \
+	sed -e '/^=========/,/^=========/!d;/^=========/d' \
+	-e 's/\. = .* + SIZEOF_HEADERS;/& $(SYMBOL_PREFIX)_begin = . - SIZEOF_HEADERS;/' > $@.lds
+endef
+
 define link.so
 	$(Q)$(RM) $@ $@.$(2) $(dir $@)$(1)
 	@$(disp_ld)
-	$(Q)$(CC) $(LDFLAGS-$(notdir $@)) -Wl,-soname=$(notdir $@).$(2) \
-		$(NOSTDLIB_CFLAGS) -o $(dir $@)$(1) $(START_FILE-$(notdir $@)) \
+	$(Q)$(CC) $(LDFLAGS-$(notdir $@)) $(LDFLAGS-y-$(@F)) \
+		-Wl,-soname=$(notdir $@).$(2) \
+		$(CFLAG_-nostdlib) -o $(dir $@)$(1) $(START_FILE-$(notdir $@)) \
 		-Wl,--whole-archive $(firstword $^) -Wl,--no-whole-archive \
 		$(LIBS-$(notdir $@)) $(LIBGCC) $(END_FILE-$(notdir $@))
 	$(Q)$(LN) -sf $(1) $@.$(2)
@@ -323,7 +337,7 @@ LINK_FLAT_CRTS := $(top_builddir)lib/Scrt1.o $(top_builddir)lib/crti.o \
 define link-flat.so
 	$(Q)$(RM) $(1) $@
 	@$(disp_ld)
-	$(Q)$(CC) $(LDFLAGS-$(notdir $@)) $(NOSTDLIB_CFLAGS) -o $(1) \
+	$(Q)$(CC) $(LDFLAGS-$(notdir $@)) $(CFLAG_-nostdlib) -o $(1) \
 		-Wl,-elf2flt -Wl,-shared-lib-id,$(2) $(top_builddir)lib/Scrt1.o \
 		$(top_builddir)/lib/crti.o -Wl,--whole-archive $(firstword $^) \
 		$(LIBGCC) -Wl,--no-whole-archive $(LIBS-$(notdir $@)) $(LIBGCC) \
@@ -335,7 +349,7 @@ define linkm.so
 	$(do_strip)
 	@$(disp_ld)
 	$(Q)$(CC) $(LDFLAGS-$(notdir $@)) -Wl,-soname=$(notdir $@).$(2) \
-		$(NOSTDLIB_CFLAGS) -o $(dir $@)$(1) $(START_FILE-$(notdir $@)) \
+		$(CFLAG_-nostdlib) -o $(dir $@)$(1) $(START_FILE-$(notdir $@)) \
 		$^ \
 		$(LIBS-$(notdir $@)) $(LIBGCC) $(END_FILE-$(notdir $@))
 	$(Q)$(LN) -sf $(1) $@.$(2)
@@ -365,6 +379,7 @@ $(top_builddir)lib/interp.c: | $(top_builddir)lib
 	$(Q)echo "#include <features.h>" >> $@.tmp
 	$(Q)echo "const char __dl_ldso__[] attribute_hidden __attribute__ ((weak)) __attribute__ ((section " \
 		"(\".interp\"))) =\""$(RUNTIME_PREFIX)$(MULTILIB_DIR)/$(UCLIBC_LDSO)"\";" >> $@.tmp
+	$(Q)$(SED) -i -e 's://:/:g' $@.tmp
 	$(Q)mv $@.tmp $@
 
 $(interp): $(top_builddir)lib/interp.c | $(sub_headers)
@@ -454,6 +469,8 @@ files.dep := $(libc-a-y) $(libc-so-y) $(libc-nonshared-y) \
 	$(libm-a-y) $(libm-so-y) \
 	$(libpthread-a-y) $(libpthread-so-y) $(libpthread-nonshared-y) \
 	$(libthread_db-a-y) $(libthread_db-so-y) $(libpthread-generated-y) \
+	$(START_FILE-libpthread.so) $(END_FILE-libpthread.so) \
+	$(PTHREAD_INITFINI:.c=.s) \
 	$(librt-a-y) $(librt-so-y)  $(libresolv-a-y) $(libresolv-so-y) \
 	$(libcrypt-a-y) $(libcrypt-so-y) $(libutil-a-y) $(libutil-so-y) \
 	$(libnsl-a-y) $(libnsl-so-y) $(ldso-y) $(libdl-a-y) $(libdl-so-y) \

@@ -8,6 +8,5 @@ public:
     Reset_phys_base   = 0xf1000000,
     Timer_phys_base   = 0xf1000000,
     Pic_phys_base     = 0xf1000000,
-    Uart_phys_base    = 0xf1012000,
   };
 };

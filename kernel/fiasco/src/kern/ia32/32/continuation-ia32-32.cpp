@@ -42,7 +42,8 @@ public:
   {
     save(regs);
     regs->ip(Mword(cont_func));
-    regs->flags(regs->flags() & ~EFLAGS_TF); // do not singlestep inkernel code
+    // interrupts must stay off, do not singlestep in kernel code
+    regs->flags(regs->flags() & ~(EFLAGS_TF | EFLAGS_IF));
     regs->cs(Gdt::gdt_code_kernel | Gdt::Selector_kernel);
     // LOG_MSG_3VAL(current(), "act", regs->ip(), regs->flags(), regs->cs());
   }

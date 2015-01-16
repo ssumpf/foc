@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _BITS_SETJMP_H
 #define _BITS_SETJMP_H	1
@@ -26,13 +25,19 @@
 
 #include <sgidefs.h>
 
+#if _MIPS_SIM == _MIPS_SIM_ABI32
+#define ptrsize void *
+#else
+#define ptrsize long long
+#endif
+
 typedef struct
   {
     /* Program counter.  */
-    void * __pc;
+    ptrsize __pc;
 
     /* Stack pointer.  */
-    void * __sp;
+    ptrsize __sp;
 
     /* Callee-saved registers s0 through s7.  */
 #if _MIPS_SIM == _MIPS_SIM_ABI32
@@ -42,10 +47,10 @@ typedef struct
 #endif
 
     /* The frame pointer.  */
-    void * __fp;
+    ptrsize __fp;
 
     /* The global pointer.  */
-    void * __gp;
+    ptrsize __gp;
 
     /* Floating point status register.  */
     int __fpc_csr;
@@ -57,16 +62,5 @@ typedef struct
     double __fpregs[6];
 #endif /* N32 || O32 */
   } __jmp_buf[1];
-
-#ifdef __USE_MISC
-/* Offset to the program counter in `jmp_buf'.  */
-# define JB_PC	0
-#endif
-
-
-/* Test if longjmp to JMPBUF would unwind the frame
-   containing a local variable at ADDRESS.  */
-#define _JMPBUF_UNWINDS(jmpbuf, address) \
-  ((void *) (address) < (void *) (jmpbuf)[0].__sp)
 
 #endif	/* bits/setjmp.h */

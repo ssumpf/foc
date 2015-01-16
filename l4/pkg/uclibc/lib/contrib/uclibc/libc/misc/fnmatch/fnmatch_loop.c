@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Match STRING against the filename pattern PATTERN, returning zero if
    it matches, nonzero if not.  */
@@ -508,7 +507,7 @@ FCT (const CHAR *pattern, const CHAR *string, const CHAR *string_end,
 				    if (symb_table[2 * elem] == hash
 					&& (c1
 					    == extra[symb_table[2 * elem + 1]])
-					&& __memcmp (str,
+					&& memcmp (str,
 						   &extra[symb_table[2 * elem
 								     + 1]
 							  + 1], c1) == 0)
@@ -729,7 +728,7 @@ FCT (const CHAR *pattern, const CHAR *string, const CHAR *string_end,
 					if (symb_table[2 * elem] == hash
 					    && (c1
 						== extra[symb_table[2 * elem + 1]])
-					    && __memcmp (str,
+					    && memcmp (str,
 						       &extra[symb_table[2 * elem + 1]
 							      + 1], c1) == 0)
 					  {

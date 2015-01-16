@@ -13,8 +13,7 @@
 
    You should have received a copy of the GNU Library General Public
    License along with the GNU C Library; see the file COPYING.LIB.  If not,
-   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.
+   see <http://www.gnu.org/licenses/>.
 
    Totally hacked up for uClibc by Erik Andersen <andersen@codepoet.org>
    */
@@ -26,9 +25,6 @@
 #include <bits/kernel_sigaction.h>
 
 #define SA_RESTORER	0x04000000
-
-extern __typeof(sigaction) __libc_sigaction;
-
 
 #if defined __NR_rt_sigaction
 
@@ -95,8 +91,13 @@ int __libc_sigaction(int sig, const struct sigaction *act, struct sigaction *oac
 
 
 #ifndef LIBC_SIGACTION
+# ifndef __UCLIBC_HAS_THREADS__
+strong_alias(__libc_sigaction,sigaction)
+libc_hidden_def(sigaction)
+# else
 weak_alias(__libc_sigaction,sigaction)
 libc_hidden_weak(sigaction)
+# endif
 #endif
 
 
@@ -109,16 +110,16 @@ libc_hidden_weak(sigaction)
    appropriate GDB maintainer.  */
 
 #define RESTORE(name, syscall) RESTORE2(name, syscall)
-#define RESTORE2(name, syscall) \
+
+#ifdef __NR_rt_sigaction
+/* The return code for realtime-signals.  */
+# define RESTORE2(name, syscall) \
 __asm__	(						\
 	".text\n"					\
 	"__" #name ":\n"				\
 	"	movl	$" #syscall ", %eax\n"		\
 	"	int	$0x80\n"			\
 );
-
-#ifdef __NR_rt_sigaction
-/* The return code for realtime-signals.  */
 RESTORE(restore_rt, __NR_rt_sigreturn)
 #endif
 
@@ -133,6 +134,5 @@ __asm__ (						\
 	"	movl	$" #syscall ", %eax\n"		\
 	"	int	$0x80\n"			\
 );
-
 RESTORE(restore, __NR_sigreturn)
 #endif

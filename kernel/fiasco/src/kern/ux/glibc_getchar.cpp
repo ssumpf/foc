@@ -8,7 +8,10 @@ IMPLEMENTATION:
 #include "static_init.h"
 
 class Glibc_getchar : public Console
-{};
+{
+public:
+  Glibc_getchar() : Console(ENABLED) {}
+};
 
 PUBLIC
 int

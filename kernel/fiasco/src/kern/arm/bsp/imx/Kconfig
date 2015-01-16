@@ -45,6 +45,24 @@ config PF_IMX_6
 
 endchoice
 
+choice
+        prompt "UART"
+        default PF_IMX_UART_NR_2
+        depends on PF_IMX_6
+
+config PF_IMX_UART_NR_1
+        bool "Use UART 1"
+
+config PF_IMX_UART_NR_2
+        bool "Use UART 2"
+
+endchoice
+
+config PF_IMX_UART_NR
+        int
+        default 1 if PF_IMX_UART_NR_1
+        default 2 if PF_IMX_UART_NR_2
+
 config PF_IMX_RAM_PHYS_BASE
 	hex
 	default 0xc0000000 if PF_IMX_21

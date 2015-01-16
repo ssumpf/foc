@@ -5,11 +5,15 @@
  * GNU Lesser General Public License version 2.1 or later.
  */
 
-#ifndef _LINUX_STRING_H_
-#define _LINUX_STRING_H_
+#ifndef _DL_STRING_H
+#define _DL_STRING_H
 
-#include <dl-sysdep.h> /* for do_rem */
 #include <features.h>
+
+#define __need_NULL
+#include <stddef.h>
+
+#include <dl-defs.h> /* for do_rem by dl-sysdep.h */
 
 /* provide some sane defaults */
 #ifndef do_rem
@@ -19,25 +23,7 @@
 # define do_div_10(result, remain) ((result) /= 10)
 #endif
 
-static size_t _dl_strlen(const char *str);
-static char *_dl_strcat(char *dst, const char *src);
-static char *_dl_strcpy(char *dst, const char *src);
-static int _dl_strcmp(const char *s1, const char *s2);
-static int _dl_strncmp(const char *s1, const char *s2, size_t len);
-static char *_dl_strchr(const char *str, int c);
-static char *_dl_strrchr(const char *str, int c);
-static char *_dl_strstr(const char *s1, const char *s2);
-static void *_dl_memcpy(void *dst, const void *src, size_t len);
-static int _dl_memcmp(const void *s1, const void *s2, size_t len);
-static void *_dl_memset(void *str, int c, size_t len);
-static char *_dl_get_last_path_component(char *path);
-static char *_dl_simple_ltoa(char *local, unsigned long i);
-static char *_dl_simple_ltoahex(char *local, unsigned long i);
-
-#ifndef NULL
-#define NULL ((void *) 0)
-#endif
-
+#ifdef IS_IN_rtld
 static __always_inline size_t _dl_strlen(const char *str)
 {
 	register const char *ptr = (char *) str-1;
@@ -81,22 +67,6 @@ static __always_inline int _dl_strcmp(const char *s1, const char *s2)
 			return c1 - c2;
 	} while (c1 == c2);
 
-	return c1 - c2;
-}
-
-static __always_inline int _dl_strncmp(const char *s1, const char *s2, size_t len)
-{
-	register unsigned char c1 = '\0';
-	register unsigned char c2 = '\0';
-
-	s1--;s2--;
-	while (len > 0) {
-		c1 = (unsigned char) *++s1;
-		c2 = (unsigned char) *++s2;
-		if (c1 == '\0' || c1 != c2)
-			return c1 - c2;
-		len--;
-	}
 	return c1 - c2;
 }
 
@@ -172,7 +142,7 @@ static __always_inline int _dl_memcmp(const void *s1, const void *s2, size_t len
 	return 0;
 }
 
-#if defined(powerpc)
+#if defined(__powerpc__)
 /* Will generate smaller and faster code due to loop unrolling.*/
 static __always_inline void * _dl_memset(void *to, int c, size_t n)
 {
@@ -228,7 +198,19 @@ static __always_inline char * _dl_get_last_path_component(char *path)
 		;/* empty */
 	return ptr == path ? ptr : ptr+1;
 }
+#else /* IS_IN_rtld */
+# include <string.h>
+# define _dl_strlen strlen
+# define _dl_strcat strcat
+# define _dl_strcpy strcpy
+# define _dl_strcmp strcmp
+# define _dl_strrchr strrchr
+# define _dl_memcpy memcpy
+# define _dl_memcmp memcmp
+# define _dl_memset memset
+#endif /* IS_IN_rtld */
 
+#if defined IS_IN_rtld || defined __SUPPORT_LD_DEBUG__
 /* Early on, we can't call printf, so use this to print out
  * numbers using the SEND_STDERR() macro.  Avoid using mod
  * or using long division */
@@ -246,7 +228,9 @@ static __always_inline char * _dl_simple_ltoa(char *local, unsigned long i)
 	} while (i > 0);
 	return p;
 }
+#endif
 
+#ifdef IS_IN_rtld
 static __always_inline char * _dl_simple_ltoahex(char *local, unsigned long i)
 {
 	/* 16 digits plus a leading "0x" plus a null terminator,
@@ -266,9 +250,6 @@ static __always_inline char * _dl_simple_ltoahex(char *local, unsigned long i)
 	return p;
 }
 
-
-
-
 /* The following macros may be used in dl-startup.c to debug
  * ldso before ldso has fixed itself up to make function calls */
 
@@ -285,8 +266,8 @@ static __always_inline char * _dl_simple_ltoahex(char *local, unsigned long i)
 /* On some arches constant strings are referenced through the GOT.
  * This requires that load_addr must already be defined... */
 #if defined(mc68000)  || defined(__arm__) || defined(__thumb__) || \
-    defined(__mips__) || defined(__sh__)  || defined(__powerpc__) || \
-    defined(__avr32__) || defined(__xtensa__) || defined(__sparc__)
+    defined(__sh__) || defined(__powerpc__) || \
+    defined(__avr32__) || defined(__xtensa__) || defined(__sparc__) || defined(__microblaze__)
 # define CONSTANT_STRING_GOT_FIXUP(X) \
 	if ((X) < (const char *) load_addr) (X) += load_addr
 # define NO_EARLY_SEND_STDERR
@@ -362,4 +343,6 @@ static __always_inline char * _dl_simple_ltoahex(char *local, unsigned long i)
 # define SEND_ADDRESS_STDERR_DEBUG(X, add_a_newline)
 #endif
 
-#endif
+#endif /* IS_IN_rtld */
+
+#endif /* _DL_STRING_H */

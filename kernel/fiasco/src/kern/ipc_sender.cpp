@@ -100,7 +100,8 @@ Ipc_sender_base::handle_shortcut(Syscall_frame *dst_regs,
       // XXX We must own the kernel lock for this optimization!
       //
 
-      Mword *esp = reinterpret_cast<Mword*>(dst_regs);
+      Mword *esp = reinterpret_cast<Mword*>
+        (nonull_static_cast<Entry_frame*>(dst_regs));
 
       // set return address of irq_thread
       *--esp = reinterpret_cast<Mword>(fast_ret_from_irq);
@@ -113,7 +114,7 @@ Ipc_sender_base::handle_shortcut(Syscall_frame *dst_regs,
       // kernel-unlock is done in switch_exec() (on switchee's side).
 
       // no shortcut if profiling: switch to the interrupt thread
-      current()->switch_to_locked (receiver);
+      current()->switch_to_locked(receiver);
       return true;
     }
   return false;
@@ -123,8 +124,8 @@ Ipc_sender_base::handle_shortcut(Syscall_frame *dst_regs,
 PROTECTED template< typename Derived >
 inline  NEEDS["config.h","globals.h", "thread_state.h",
               Ipc_sender_base::handle_shortcut]
-void
-Ipc_sender<Derived>::send_msg(Receiver *receiver)
+bool
+Ipc_sender<Derived>::send_msg(Receiver *receiver, bool might_switch)
 {
   set_wait_queue(receiver->sender_list());
 
@@ -157,16 +158,15 @@ Ipc_sender<Derived>::send_msg(Receiver *receiver)
       // in case a timeout was set
       receiver->reset_timeout();
 
-      if (s == Receiver::Rs_ipc_receive)
-	{
-	  if (handle_shortcut(dst_regs, receiver))
-	    return;
-	}
+      auto &rq = Sched_context::rq.current();
+      if (   might_switch && s == Receiver::Rs_ipc_receive
+          && handle_shortcut(dst_regs, receiver))
+        return false;
+
       // we don't need to manipulate the state in a safe way
       // because we are still running with interrupts turned off
       receiver->state_add_dirty(Thread_ready);
-      Sched_context::rq.current().deblock(receiver->sched());
-      return;
+      return rq.deblock(receiver->sched(), current()->sched(), false);
     }
 
   if (Config::Irq_shortcut)
@@ -175,5 +175,6 @@ Ipc_sender<Derived>::send_msg(Receiver *receiver)
       sender_enqueue(receiver->sender_list(), 255);
       receiver->vcpu_set_irq_pending();
     }
+  return false;
 }
 

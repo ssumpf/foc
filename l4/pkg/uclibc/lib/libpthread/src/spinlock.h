@@ -14,7 +14,6 @@
 
 #include <bits/initspin.h>
 
-
 /* There are 2 compare and swap synchronization primitives with
    different semantics:
 

@@ -21,6 +21,7 @@
 #include "panic.h"
 #include "processor.h"
 #include "reset.h"
+#include "mem_unit.h"
 
 struct check_sum
 {
@@ -52,11 +53,11 @@ check_overlap (const char *str,
           start1, end1, str, start2, end2);
 }
 
-typedef void (*Start)(void *, unsigned, unsigned) FIASCO_FASTCALL;
+typedef void (*Start)(unsigned) FIASCO_FASTCALL;
 
 extern "C" FIASCO_FASTCALL
 void
-bootstrap (void *, unsigned int flag)
+bootstrap()
 {
   extern Kip my_kernel_info_page;
   Start start;
@@ -91,6 +92,8 @@ bootstrap (void *, unsigned int flag)
 
   base_map_physical_memory_for_kernel();
 
+  Mem_unit::tlb_flush();
+
   start = (Start)_start;
 
   Address phys_start = (Address)_start - Mem_layout::Kernel_image + Mem_layout::Kernel_image_phys;
@@ -103,5 +106,5 @@ bootstrap (void *, unsigned int flag)
   if (Checksum::get_checksum_rw() != check_sum.checksum_rw)
     panic("Read-write (data) checksum does not match.");
 
-  start (0, flag, check_sum.checksum_ro);
+  start(check_sum.checksum_ro);
 }

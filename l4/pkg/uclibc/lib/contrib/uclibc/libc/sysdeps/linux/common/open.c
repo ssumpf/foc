@@ -8,15 +8,22 @@
  */
 
 #include <sys/syscall.h>
-#include <stdlib.h>
-#include <stdarg.h>
 #include <fcntl.h>
-#include <string.h>
-#include <sys/param.h>
+#include <stdarg.h>
+#include <cancel.h>
 
-#define __NR___syscall_open __NR_open
-static __inline__ _syscall3(int, __syscall_open, const char *, file,
-		int, flags, __kernel_mode_t, mode)
+#if defined __NR_open
+# define __NR___syscall_open __NR_open
+static __always_inline _syscall3(int, __syscall_open, const char *, file,
+				 int, flags, __kernel_mode_t, mode)
+strong_alias_untyped(__syscall_open,__NC(open))
+
+# define __NR___open2_nocancel __NR_open
+_syscall2(int, __NC(open2), const char *, file, int, flags)
+#else
+int __open2_nocancel(const char *, int) __nonnull ((1)) attribute_hidden;
+int __open_nocancel(const char *, int, mode_t) __nonnull ((1)) attribute_hidden;
+#endif
 
 int open(const char *file, int oflag, ...)
 {
@@ -29,11 +36,27 @@ int open(const char *file, int oflag, ...)
 		va_end(arg);
 	}
 
-	return __syscall_open(file, oflag, mode);
+	if (SINGLE_THREAD_P)
+#if defined(__NR_open)
+		return __NC(open)(file, oflag, mode);
+#elif defined(__NR_openat)
+		return openat(AT_FDCWD, file, oflag, mode);
+#endif
+
+#ifdef __NEW_THREADS
+	int oldtype = LIBC_CANCEL_ASYNC ();
+# if defined(__NR_open)
+	int result = __NC(open)(file, oflag, mode);
+# else
+	int result = openat(AT_FDCWD, file, oflag, mode);
+# endif
+	LIBC_CANCEL_RESET (oldtype);
+	return result;
+#endif
 }
-#ifndef __LINUXTHREADS_OLD__
-libc_hidden_def(open)
-#else
-libc_hidden_weak(open)
-strong_alias(open,__libc_open)
+lt_strong_alias(open)
+lt_libc_hidden(open)
+#if !defined(__NR_open)
+strong_alias_untyped(open,__open2_nocancel)
+strong_alias_untyped(open,__open_nocancel)
 #endif

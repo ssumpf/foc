@@ -35,6 +35,9 @@
 #include "semaphore.h"
 #include "debug.h" /* PDEBUG, added by StS */
 
+#ifndef THREAD_STACK_OFFSET
+#define THREAD_STACK_OFFSET 0
+#endif
 
 /* poll() is not supported in kernel <= 2.0, therefore is __NR_poll is
  * not available, we assume an old Linux kernel is in use and we will
@@ -229,7 +232,7 @@ int attribute_noreturn __pthread_manager(void *arg)
         break;
       case REQ_POST:
         PDEBUG("got REQ_POST\n");
-        __new_sem_post(request.req_args.post);
+        sem_post(request.req_args.post);
         break;
       case REQ_DEBUG:
         PDEBUG("got REQ_DEBUG\n");
@@ -476,6 +479,7 @@ static int pthread_handle_create(pthread_t *thread, const pthread_attr_t *attr,
   int pid;
   pthread_descr new_thread;
   char * new_thread_bottom;
+  char * new_thread_top;
   pthread_t new_thread_id;
   char *guardaddr = NULL;
   size_t guardsize = 0;
@@ -561,7 +565,7 @@ static int pthread_handle_create(pthread_t *thread, const pthread_attr_t *attr,
   /* Do the cloning.  We have to use two different functions depending
      on whether we are debugging or not.  */
   pid = 0;     /* Note that the thread never can have PID zero.  */
-
+  new_thread_top = ((char *)new_thread - THREAD_STACK_OFFSET);
 
   /* ******************************************************** */
   /*  This code was moved from below to cope with running threads
@@ -588,12 +592,12 @@ static int pthread_handle_create(pthread_t *thread, const pthread_attr_t *attr,
 
 	  /* We have to report this event.  */
 #ifdef __ia64__
-	  pid = __clone2(pthread_start_thread_event, (void **) new_thread,
-			(char *)new_thread - new_thread_bottom,
+	  pid = __clone2(pthread_start_thread_event, new_thread_top,
+			new_thread_top - new_thread_bottom,
 			CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND |
 			__pthread_sig_cancel, new_thread);
 #else
-	  pid = clone(pthread_start_thread_event, (void **) new_thread,
+	  pid = clone(pthread_start_thread_event, new_thread_top,
 			CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND |
 			__pthread_sig_cancel, new_thread);
 #endif
@@ -626,12 +630,12 @@ static int pthread_handle_create(pthread_t *thread, const pthread_attr_t *attr,
     {
       PDEBUG("cloning new_thread = %p\n", new_thread);
 #ifdef __ia64__
-      pid = __clone2(pthread_start_thread, (void **) new_thread,
-			(char *)new_thread - new_thread_bottom,
+      pid = __clone2(pthread_start_thread, new_thread_top,
+		    new_thread_top - new_thread_bottom,
 		    CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND |
 		    __pthread_sig_cancel, new_thread);
 #else
-      pid = clone(pthread_start_thread, (void **) new_thread,
+      pid = clone(pthread_start_thread, new_thread_top,
 		    CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND |
 		    __pthread_sig_cancel, new_thread);
 #endif
@@ -662,7 +666,7 @@ static int pthread_handle_create(pthread_t *thread, const pthread_attr_t *attr,
     __pthread_handles[sseg].h_descr = NULL;
     __pthread_handles[sseg].h_bottom = NULL;
     __pthread_handles_num--;
-    return errno;
+    return saved_errno;
   }
   PDEBUG("new thread pid = %d\n", pid);
 
@@ -700,12 +704,16 @@ static void pthread_free(pthread_descr th)
 {
   pthread_handle handle;
   pthread_readlock_info *iter, *next;
+#ifndef __ARCH_USE_MMU__
   char *h_bottom_save;
+#endif
 
   /* Make the handle invalid */
   handle =  thread_handle(th->p_tid);
   __pthread_lock(&handle->h_lock, NULL);
+#ifndef __ARCH_USE_MMU__
   h_bottom_save = handle->h_bottom;
+#endif
   handle->h_descr = NULL;
   handle->h_bottom = (char *)(-1L);
   __pthread_unlock(&handle->h_lock);
@@ -733,20 +741,18 @@ static void pthread_free(pthread_descr th)
 
   /* If initial thread, nothing to free */
   if (th == &__pthread_initial_thread) return;
-#ifdef __ARCH_USE_MMU__
   if (!th->p_userstack)
     {
+#ifdef __ARCH_USE_MMU__
       /* Free the stack and thread descriptor area */
       if (th->p_guardsize != 0)
 	munmap(th->p_guardaddr, th->p_guardsize);
       munmap((caddr_t) ((char *)(th+1) - STACK_SIZE), STACK_SIZE);
-    }
 #else
-  /* For non-MMU systems we always malloc the stack, so free it here. -StS */
-  if (!th->p_userstack) {
+      /* For non-MMU systems we always malloc the stack, so free it here. -StS */
       free(h_bottom_save);
-  }
 #endif /* __ARCH_USE_MMU__ */
+    }
 }
 
 /* Handle threads that have exited */

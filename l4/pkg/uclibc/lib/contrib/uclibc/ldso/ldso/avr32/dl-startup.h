@@ -12,6 +12,7 @@
 __asm__("	.text\n"
 	"	.global	_start\n"
 	"	.type	_start,@function\n"
+	"	.hidden	_start\n"
 	"_start:\n"
 	/* All arguments are on the stack initially */
 	"	mov	r12, sp\n"
@@ -75,7 +76,7 @@ void PERFORM_BOOTSTRAP_RELOC(ELF_RELOC *rpnt, unsigned long *reloc_addr,
 			     unsigned long symbol_addr,
 			     unsigned long load_addr, Elf32_Sym *symtab)
 {
-	switch(ELF32_R_TYPE(rpnt->r_info)) {
+	switch(ELF_R_TYPE(rpnt->r_info)) {
 	case R_AVR32_NONE:
 		break;
 	case R_AVR32_GLOB_DAT:
@@ -91,7 +92,7 @@ void PERFORM_BOOTSTRAP_RELOC(ELF_RELOC *rpnt, unsigned long *reloc_addr,
 		break;
 	default:
 		SEND_STDERR("BOOTSTRAP_RELOC: unhandled reloc_type ");
-		SEND_NUMBER_STDERR(ELF32_R_TYPE(rpnt->r_info), 1);
+		SEND_NUMBER_STDERR(ELF_R_TYPE(rpnt->r_info), 1);
 		SEND_STDERR("REL, SYMBOL, LOAD: ");
 		SEND_ADDRESS_STDERR(reloc_addr, 0);
 		SEND_STDERR(", ");

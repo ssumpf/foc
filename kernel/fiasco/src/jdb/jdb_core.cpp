@@ -100,6 +100,7 @@ public:
 
   static char esc_prompt[];
 
+  static void (*wait_for_input)();
 
 public:
   static bool short_mode;
@@ -148,11 +149,13 @@ IMPLEMENTATION:
 #include "keycodes.h"
 #include "jdb_prompt_ext.h"
 #include "jdb_screen.h"
+#include "processor.h"
 
 bool Jdb_core::short_mode = true;
 int  Jdb_core::next_char  = -1;
 char Jdb_core::esc_prompt[32] = JDB_ANSI_COLOR(green);
 Jdb_core::Input_fmt *Jdb_core::_fmt_list[26]; 
+void (*Jdb_core::wait_for_input)();
 
 PUBLIC static
 bool
@@ -349,7 +352,7 @@ Jdb_core::complete_cmd(char const *prefix, bool &multi_match)
 }
 
 IMPLEMENT
-int Jdb_core::getchar( void )
+int Jdb_core::getchar()
 {
   if (next_char != -1)
     {
@@ -357,8 +360,20 @@ int Jdb_core::getchar( void )
       next_char = -1;
       return c;
     }
-  
-  return Kconsole::console()->getchar();
+
+  int c;
+
+  while (1)
+    {
+      c = Kconsole::console()->getchar(false);
+      if (c != -1)
+        return c;
+
+      if (wait_for_input)
+        wait_for_input();
+      else
+        Proc::pause();
+    }
 }
 
 PUBLIC static
@@ -384,7 +399,7 @@ Jdb_core::cmd_getchar(char const *&str)
   return *(str++);
 }
 
-PRIVATE static inline
+PUBLIC static inline NEEDS[<cstdio>]
 void
 Jdb_core::cmd_putchar(int c)
 { if (short_mode) putchar(c); }
@@ -423,7 +438,8 @@ int Jdb_core::exec_cmd(Cmd const cmd, char const *str, int push_next_char = -1)
 	while(*f && *f!='%')
 	  ++f;
 
-	putnstr( f1, (f-f1) );
+        if (short_mode)
+	  putnstr( f1, (f-f1) );
 
 	if(*(f++))
 	  {
@@ -753,7 +769,7 @@ Jdb_core::new_line( unsigned &line )
   if (line++ > Jdb_screen::height()-3)
     {
       putstr("--- CR: line, SPACE: page, ESC: abort ---");
-      int a = Kconsole::console()->getchar();
+      int a = getchar();
       putstr("\r\033[K");
 
       switch (a)

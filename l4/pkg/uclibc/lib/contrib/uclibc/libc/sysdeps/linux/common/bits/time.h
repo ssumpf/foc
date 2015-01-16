@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /*
  * Never include this file directly; use <time.h> instead.
@@ -54,6 +53,12 @@
 #   define CLOCK_PROCESS_CPUTIME_ID	2
 /* Thread-specific CPU-time clock.  */
 #   define CLOCK_THREAD_CPUTIME_ID	3
+/* Monotonic system-wide clock, not adjusted for frequency scaling.  */
+#   define CLOCK_MONOTONIC_RAW		4
+/* Identifier for system-wide realtime clock, updated only on ticks.  */
+#   define CLOCK_REALTIME_COARSE	5
+/* Monotonic system-wide clock, updated only on ticks.  */
+#   define CLOCK_MONOTONIC_COARSE	6
 
 /* Flag to indicate time is absolute.  */
 #   define TIMER_ABSTIME		1

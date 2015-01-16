@@ -166,7 +166,7 @@ public:
 };
 
 //---------------------------------------------------------------------------
-INTERFACE [!ux]:
+INTERFACE [!ux && !64bit]:
 
 EXTENSION class Config
 {
@@ -176,6 +176,20 @@ public:
   enum
   {
     kernel_mem_max      = 60 << 20
+  };
+};
+
+//---------------------------------------------------------------------------
+INTERFACE [!ux && 64bit]:
+
+EXTENSION class Config
+{
+public:
+  // 32MB RAM => 2.5MB kmem, 128MB RAM => 16MB kmem, >=512MB RAM => 60MB kmem
+  static const unsigned kernel_mem_per_cent = 6;
+  enum
+  {
+    kernel_mem_max      = 1024 << 20
   };
 };
 

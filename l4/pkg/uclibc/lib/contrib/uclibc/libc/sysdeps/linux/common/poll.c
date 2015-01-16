@@ -13,40 +13,20 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <sys/syscall.h>
 #include <sys/poll.h>
 #include <bits/kernel-features.h>
-
-#ifdef __UCLIBC_HAS_THREADS_NATIVE__
-#include <sysdep-cancel.h>
-#else
-#define SINGLE_THREAD_P 1
-#endif
-
-libc_hidden_proto(poll)
+#include <cancel.h>
 
 #if defined __ASSUME_POLL_SYSCALL && defined __NR_poll
 
-#define __NR___syscall_poll __NR_poll
-static inline _syscall3(int, __syscall_poll, struct pollfd *, fds,
-			unsigned long int, nfds, int, timeout);
+#define __NR___poll_nocancel __NR_poll
+static _syscall3(int, __NC(poll), struct pollfd *, fds,
+		 unsigned long int, nfds, int, timeout)
 
-int poll(struct pollfd *fds, nfds_t nfds, int timeout)
-{
-    if (SINGLE_THREAD_P)
-	return __syscall_poll(fds, nfds, timeout);
-
-#ifdef __UCLIBC_HAS_THREADS_NATIVE__
-    int oldtype = LIBC_CANCEL_ASYNC ();
-    int result = __syscall_poll(fds, nfds, timeout);
-    LIBC_CANCEL_RESET (oldtype);
-    return result;
-#endif
-}
 #else /* !__NR_poll */
 
 #include <alloca.h>
@@ -56,9 +36,7 @@ int poll(struct pollfd *fds, nfds_t nfds, int timeout)
 #include <sys/time.h>
 #include <sys/param.h>
 #include <unistd.h>
-
-libc_hidden_proto(getdtablesize)
-libc_hidden_proto(select)
+#include <sys/select.h>
 
 /* uClinux 2.0 doesn't have poll, emulate it using select */
 
@@ -68,7 +46,7 @@ libc_hidden_proto(select)
    Returns the number of file descriptors with events, zero if timed out,
    or -1 for errors.  */
 
-int poll(struct pollfd *fds, nfds_t nfds, int timeout)
+int __NC(poll)(struct pollfd *fds, nfds_t nfds, int timeout)
 {
     static int max_fd_size;
     struct timeval tv;
@@ -139,7 +117,7 @@ int poll(struct pollfd *fds, nfds_t nfds, int timeout)
 
     while (1)
     {
-	ready = select (maxfd + 1, rset, wset, xset,
+	ready = __NC(select) (maxfd + 1, rset, wset, xset,
 		timeout == -1 ? NULL : &tv);
 
 	/* It might be that one or more of the file descriptors is invalid.
@@ -182,7 +160,7 @@ int poll(struct pollfd *fds, nfds_t nfds, int timeout)
 		    if (f->events & POLLPRI)
 			FD_SET (f->fd, sngl_xset);
 
-		    n = select (f->fd + 1, sngl_rset, sngl_wset, sngl_xset,
+		    n = __NC(select) (f->fd + 1, sngl_rset, sngl_wset, sngl_xset,
 			    &sngl_tv);
 		    if (n != -1)
 		    {
@@ -227,4 +205,6 @@ int poll(struct pollfd *fds, nfds_t nfds, int timeout)
 }
 
 #endif
-libc_hidden_def(poll)
+CANCELLABLE_SYSCALL(int, poll, (struct pollfd *fds, nfds_t nfds, int timeout),
+		    (fds, nfds, timeout))
+lt_libc_hidden(poll)

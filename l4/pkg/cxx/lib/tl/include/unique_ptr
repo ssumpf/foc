@@ -1,3 +1,4 @@
+// vi: ft=cpp
 #pragma once
 
 #include "type_traits"
@@ -26,8 +27,19 @@ struct default_delete<T[]>
   { delete [] p; }
 };
 
+template< typename T, typename C >
+struct unique_ptr_index_op {};
+
+template< typename T, typename C >
+struct unique_ptr_index_op<T[], C>
+{
+  typedef T &reference;
+  reference operator [] (unsigned long idx) const
+  { return static_cast<C const *>(this)->get()[idx]; }
+};
+
 template< typename T, typename T_Del = default_delete<T> >
-class unique_ptr
+class unique_ptr : public unique_ptr_index_op<T, unique_ptr<T, T_Del> >
 {
 private:
   struct _unspec;
@@ -83,14 +95,8 @@ public:
       }
   }
 
-  typename cxx::enable_if<cxx::is_array<T>::value, reference>::type
-  operator [] (unsigned long idx) const
-  { return _ptr[idx]; }
-
-
   unique_ptr(unique_ptr const &) = delete;
   unique_ptr &operator = (unique_ptr const &) = delete;
-
 
 private:
   pointer _ptr;
@@ -100,5 +106,15 @@ template< typename T >
 unique_ptr<T>
 make_unique_ptr(T *p)
 { return unique_ptr<T>(p); }
+
+template< typename T >
+typename cxx::enable_if<cxx::is_array<T>::value, unique_ptr<T>>::type
+make_unique(unsigned long size)
+{ return cxx::unique_ptr<T>(new typename cxx::remove_extent<T>::type[size]()); }
+
+template< typename T, typename... Args >
+typename cxx::enable_if<!cxx::is_array<T>::value, unique_ptr<T>>::type
+make_unique(Args &&... args)
+{ return cxx::unique_ptr<T>(new T(cxx::forward<Args>(args)...)); }
 
 }

@@ -9,9 +9,16 @@ EXTENSION class Uart
 
 IMPLEMENTATION [libuart]:
 
-IMPLEMENT inline Uart::Uart() : _regs(base()) {}
+IMPLEMENT inline Uart::Uart() : Console(DISABLED), _regs(base()) {}
 
 PUBLIC bool Uart::startup()
-{ return uart()->startup(&_regs); }
+{
+  if (uart()->startup(&_regs))
+    {
+      add_state(ENABLED);
+      return true;
+    }
+  return false;
+}
 
 

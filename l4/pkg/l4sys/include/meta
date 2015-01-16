@@ -66,10 +66,11 @@ public:
    *            \a idx must be \>= 0 and \< the return value of
    *            num_interfaces().
    * \param utcb is the utcb to use for sending the message.
-   * \return The message tag for the operation, the label (l4_msgtag_t::label())
-   *         is set to the protocol number of interface \a idx.
+   * \return System call return tag. Negative label on error,
+   *         success with value 0 in label.
    */
   l4_msgtag_t interface(int idx, l4_utcb_t *u = l4_utcb()) throw();
+
   /**
    * \brief Figure out if the object supports the given \a protocol (number).
    * \param protocol is the protocol number to check for.

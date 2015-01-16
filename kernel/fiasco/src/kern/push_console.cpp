@@ -4,6 +4,8 @@ INTERFACE:
 
 class Push_console : public Console
 {
+public:
+  Push_console() : Console(ENABLED) {}
 private:
   char _buffer[256];
   int _in;

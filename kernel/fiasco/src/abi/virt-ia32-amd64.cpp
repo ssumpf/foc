@@ -16,7 +16,10 @@ struct Vmcb_control_area
   Unsigned32 intercept_instruction0;
   Unsigned32 intercept_instruction1;
 
-  Unsigned8 _reserved0[44];
+  Unsigned8 _reserved0[40];
+
+  Unsigned16 pause_filter_threshold;
+  Unsigned16 pause_filter_count;
 
   Unsigned64 iopm_base_pa;
   Unsigned64 msrpm_base_pa;
@@ -135,7 +138,11 @@ struct Vmcb_state_save_area
   Unsigned64 lastexcpfrom;
   Unsigned64 last_excpto;
 
-  Unsigned8 _reserved6[2408];
+  // this field is _NOT_ part of AMDs hardware VMCB specification
+  // this is a software VMCB field
+  Unsigned64 xcr0;
+
+  Unsigned8 _reserved6[2400];
 } __attribute__((packed));
 
 struct Vmcb

@@ -14,11 +14,11 @@
 
    You should have received a copy of the GNU Library General Public
    License along with the GNU C Library; see the file COPYING.LIB.  If not,
-   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   see <http://www.gnu.org/licenses/>.  */
 
 #define _XOPEN_SOURCE  500
 #include <features.h>
+#include <ctype.h>
 #include <errno.h>
 #include <limits.h>
 #include <grp.h>
@@ -31,14 +31,14 @@
 #include <sys/syscall.h>
 #include <sys/sysinfo.h>
 #include <sys/types.h>
+#include <sys/param.h>
 #ifdef __UCLIBC_HAS_REGEX__
 #include <regex.h>
 #endif
 #ifdef __UCLIBC_HAS_THREADS_NATIVE__
 #include <sysdep.h>
-#include <sys/resource.h>
-
 #endif
+#include <sys/resource.h>
 #include <string.h>
 #include <dirent.h>
 #include "internal/parse_config.h"
@@ -154,9 +154,8 @@ static int nprocessors_conf(void)
 /* Get the value of the system variable NAME.  */
 long int sysconf(int name)
 {
-#ifdef __UCLIBC_HAS_THREADS_NATIVE__
-      struct rlimit rlimit;
-#endif
+  struct rlimit rlimit;
+
   switch (name)
     {
     default:
@@ -164,14 +163,13 @@ long int sysconf(int name)
       return -1;
 
     case _SC_ARG_MAX:
-#ifdef __UCLIBC_HAS_THREADS_NATIVE__
       /* Use getrlimit to get the stack limit.  */
       if (getrlimit (RLIMIT_STACK, &rlimit) == 0)
           return MAX (legacy_ARG_MAX, rlimit.rlim_cur / 4);
-#elif defined ARG_MAX
+#if defined ARG_MAX
       return ARG_MAX;
 #else
-      RETURN_NEG_1;
+      return legacy_ARG_MAX;
 #endif
 
     case _SC_CHILD_MAX:
@@ -983,23 +981,11 @@ long int sysconf(int name)
 #endif
 
     case _SC_MONOTONIC_CLOCK:
-#ifdef __NR_clock_getres
-    /* Check using the clock_getres system call.  */
-# ifdef __UCLIBC_HAS_THREADS_NATIVE__
-    {
-      struct timespec ts;
-      INTERNAL_SYSCALL_DECL (err);
-      int r;
-      r = INTERNAL_SYSCALL (clock_getres, err, 2, CLOCK_MONOTONIC, &ts);
-      return INTERNAL_SYSCALL_ERROR_P (r, err) ? -1 : _POSIX_VERSION;
-    }
-# else
+#if defined __UCLIBC_HAS_REALTIME__ && defined __NR_clock_getres
       if (clock_getres(CLOCK_MONOTONIC, NULL) >= 0)
         return _POSIX_VERSION;
-
-      RETURN_NEG_1;
-# endif
 #endif
+      RETURN_NEG_1;
 
 #ifdef __UCLIBC_HAS_THREADS_NATIVE__
     case _SC_THREAD_CPUTIME:

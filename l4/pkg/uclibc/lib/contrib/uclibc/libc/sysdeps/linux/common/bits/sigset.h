@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef	_SIGSET_H_types
 # define _SIGSET_H_types	1
@@ -153,7 +152,7 @@ typedef struct {
    checking is done in the non __ versions.  */
 
 # if !defined __USE_EXTERN_INLINES || defined __PROVIDE_OUT_OF_LINE_SIGSETFN
-extern int __sigismember (__const __sigset_t *, int);
+extern int __sigismember (const __sigset_t *, int);
 libc_hidden_proto(__sigismember)
 extern int __sigaddset (__sigset_t *, int);
 libc_hidden_proto(__sigaddset)
@@ -179,7 +178,7 @@ NAME (CONST __sigset_t *__set, int __sig)				\
 	return BODY;							\
 }
 
-__SIGSETFN (__sigismember, (__set->__val[__word] & __mask) ? 1 : 0, __const)
+__SIGSETFN (__sigismember, (__set->__val[__word] & __mask) ? 1 : 0, const)
 __SIGSETFN (__sigaddset, ((__set->__val[__word] |= __mask), 0), )
 __SIGSETFN (__sigdelset, ((__set->__val[__word] &= ~__mask), 0), )
 

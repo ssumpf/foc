@@ -81,7 +81,8 @@ Timer::ack()
   // hmmm?
   //enable();
 }
-PUBLIC static inline NEEDS["config.h", Timer::timer_to_us]
+
+PUBLIC static inline
 void
 Timer::acknowledge()
 {

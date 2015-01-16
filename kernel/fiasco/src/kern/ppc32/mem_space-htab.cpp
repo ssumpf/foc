@@ -67,7 +67,7 @@ Mem_space::vsid(Address ea)
   Dir_type *dir = _dir;
 
   //kernel space
-  if(ea >= Mem_layout::User_max)
+  if(ea > Mem_layout::User_max)
     dir = Kmem::kdir();
 
   return _vsid(ea, dir);
@@ -421,7 +421,7 @@ PRIVATE static FIASCO_INIT
 void
 Mem_space::install()
 {
-  Mword kernel_vsid = _vsid(Mem_layout::User_max, Kmem::kdir())
+  Mword kernel_vsid = _vsid(Mem_layout::User_max + 1, Kmem::kdir())
                       | Segment::Default_attribs;
 
   asm volatile( " sync              \n"

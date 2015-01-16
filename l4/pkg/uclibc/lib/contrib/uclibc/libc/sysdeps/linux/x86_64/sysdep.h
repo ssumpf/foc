@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _LINUX_X86_64_SYSDEP_H
 #define _LINUX_X86_64_SYSDEP_H 1
@@ -182,8 +181,6 @@ lose:									      \
 # undef	PSEUDO_END_ERRVAL
 # define PSEUDO_END_ERRVAL(name) \
   END (name)
-
-# define ret_ERRVAL ret
 
 # ifndef __PIC__
 #  define SYSCALL_ERROR_HANDLER	/* Nothing here; code in sysdep.S is used.  */

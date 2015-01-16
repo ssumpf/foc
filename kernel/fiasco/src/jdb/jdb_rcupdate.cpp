@@ -36,7 +36,9 @@ Jdb_rcupdate::print_batch(Rcu_batch const &b)
 PUBLIC
 Jdb_module::Action_code
 Jdb_rcupdate::action(int cmd, void *&, char const *&, int &)
-{ printf("\nRCU--------------------------\n");
+{
+  printf("\nRCU--------------------------\n");
+
   if (cmd == 0)
     {
       printf("RCU:\n  current batch=");
@@ -45,9 +47,10 @@ Jdb_rcupdate::action(int cmd, void *&, char const *&, int &)
       print_batch(Rcu::_rcu._completed); puts("");
       printf("  next_pending=%s\n"
              "  cpus=", Rcu::_rcu._next_pending?"yes":"no");
-      for (Cpu_number i = Cpu_number::first(); i < Config::max_num_cpus(); ++i)
-	printf("%s%s", Rcu::_rcu._cpus.get(i)?"1":"0", cxx::int_value<Cpu_number>(i) % 4 == 3?" ":"");
-
+      Jdb::cpu_mask_print(Rcu::_rcu._cpus);
+      puts("");
+      printf("  active cpus=");
+      Jdb::cpu_mask_print(Rcu::_rcu._active_cpus);
       puts("");
 
       for (Cpu_number i = Cpu_number::first(); i < Config::max_num_cpus(); ++i)
@@ -67,8 +70,6 @@ Jdb_rcupdate::action(int cmd, void *&, char const *&, int &)
 	  printf("    current list: h=%p \n", d->_c.front());
 	  printf("    done list:    h=%p\n", d->_d.front());
 	}
-
-      return NOTHING;
     }
   return NOTHING;
 }

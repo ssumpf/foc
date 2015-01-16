@@ -56,14 +56,15 @@ namespace L4
        */
       enum Mem_type
       {
-	Undefined    = 0x0,  //< Undefined memory
-	Conventional = 0x1,  //< Conventional memory
-	Reserved     = 0x2,  //< Reserved region, do not use this memory
-	Dedicated    = 0x3,  //< Dedicated
-	Shared       = 0x4,  //< Shared
+        Undefined    = 0x0,  //< Undefined memory
+        Conventional = 0x1,  //< Conventional memory
+        Reserved     = 0x2,  //< Reserved region, do not use this memory
+        Dedicated    = 0x3,  //< Dedicated
+        Shared       = 0x4,  //< Shared
 
-	Bootloader   = 0xe,  //< Memory belongs to the boot loader
-	Arch         = 0xf   //< Architecture specific memory
+        Info         = 0xd,  //< Info by boot loader
+        Bootloader   = 0xe,  //< Memory belongs to the boot loader
+        Arch         = 0xf   //< Architecture specific memory
       };
     private:
       unsigned long _l, _h;
@@ -82,14 +83,14 @@ namespace L4
        */
       static Mem_desc *first(void *kip) throw()
       {
-	return (Mem_desc*)((char *)kip
-	    + (memory_info(kip) >> ((sizeof(unsigned long)/2)*8)));
+        return (Mem_desc *)((char *)kip
+               + (memory_info(kip) >> ((sizeof(unsigned long) / 2) * 8)));
       }
 
       static Mem_desc const *first(void const *kip) throw()
       {
-	return (Mem_desc const*)((char const *)kip
-	    + (memory_info(kip) >> ((sizeof(unsigned long)/2)*8)));
+        return (Mem_desc const *)((char const *)kip
+               + (memory_info(kip) >> ((sizeof(unsigned long) / 2) * 8)));
       }
 
       /**
@@ -99,7 +100,8 @@ namespace L4
        */
       static unsigned long count(void const *kip) throw()
       {
-	return memory_info(kip) & ((1UL << ((sizeof(unsigned long)/2)*8)) - 1);
+        return memory_info(kip)
+               & ((1UL << ((sizeof(unsigned long) / 2) * 8)) - 1);
       }
 
       /**
@@ -109,8 +111,8 @@ namespace L4
        */
       static void count(void *kip, unsigned count) throw()
       {
-	unsigned long &mi = memory_info(kip);
-	mi = (mi & ~((1UL << ((sizeof(unsigned long)/2)*8)) - 1)) | count;
+        unsigned long &mi = memory_info(kip);
+        mi = (mi & ~((1UL << ((sizeof(unsigned long) / 2) * 8)) - 1)) | count;
       }
 
       /**
@@ -125,7 +127,7 @@ namespace L4
       Mem_desc(unsigned long start, unsigned long end,
                Mem_type t, unsigned char st = 0, bool virt = false) throw()
       : _l((start & ~0x3ffUL) | (t & 0x0f) | ((st << 4) & 0x0f0)
-           | (virt?0x0200:0x0)), _h(end | 0x3ffUL)
+           | (virt ? 0x0200 : 0x0)), _h(end | 0x3ffUL)
       {}
 
       /**
@@ -176,10 +178,10 @@ namespace L4
       void set(unsigned long start, unsigned long end,
                Mem_type t, unsigned char st = 0, bool virt = false) throw()
       {
-	_l = (start & ~0x3ffUL) | (t & 0x0f) | ((st << 4) & 0x0f0)
+        _l = (start & ~0x3ffUL) | (t & 0x0f) | ((st << 4) & 0x0f0)
              | (virt?0x0200:0x0);
 
-	_h = end | 0x3ffUL;
+        _h = end | 0x3ffUL;
       }
 
     };

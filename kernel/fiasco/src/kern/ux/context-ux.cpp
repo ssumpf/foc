@@ -39,20 +39,20 @@ Context::arch_setup_utcb_ptr()
 
 PROTECTED inline
 void
-Context::switch_gdt_user_entries(Context *to)
+Context::load_gdt_user_entries(Context *old = 0)
 {
   Mword *trampoline_page = (Mword *) Kmem::phys_to_virt(Mem_layout::Trampoline_frame);
-  Space *tos = to->vcpu_aware_space();
+  Space *tos = vcpu_aware_space();
 
   if (EXPECT_FALSE(!tos))
     return;
 
   for (int i = 0; i < 3; i++)
-    if (to == this
-	|| _gdt_user_entries[i].v[0] != to->_gdt_user_entries[i].v[0]
-        || _gdt_user_entries[i].v[1] != to->_gdt_user_entries[i].v[1])
+    if (!old || old == this
+	|| old->_gdt_user_entries[i].v[0] != _gdt_user_entries[i].v[0]
+        || old->_gdt_user_entries[i].v[1] != _gdt_user_entries[i].v[1])
       {
-        memcpy(trampoline_page + 1, &to->_gdt_user_entries[i],
+        memcpy(trampoline_page + 1, &_gdt_user_entries[i],
                sizeof(_gdt_user_entries[0]));
         Trampoline::syscall(tos->pid(), 243,
                             Mem_layout::Trampoline_page + sizeof(Mword));
@@ -60,5 +60,5 @@ Context::switch_gdt_user_entries(Context *to)
 
   // update the global UTCB pointer to make the thread find its UTCB
   // using fs:[0]
-  Mem_layout::user_utcb_ptr(current_cpu()) = to->utcb().usr();
+  Mem_layout::user_utcb_ptr(current_cpu()) = utcb().usr();
 }

@@ -12,19 +12,16 @@
  details.
 
  You should have received a copy of the GNU Library General Public License
- along with this program; if not, write to the Free Software Foundation, Inc.,
- 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
  Derived in part from the Linux-8086 C library, the GNU C Library, and several
  other sundry sources.  Files within this library are copyright by their
  respective copyright holders.
 */
 
-#include <features.h>
 #include <sys/syscall.h>
 #define _ERRNO_H
 #include <bits/errno.h>
-#include <bits/sysnum.h>
 
 /* Clone the calling process, but without copying the whole address space.
    The calling process is suspended until the new process exits or is
@@ -109,6 +106,6 @@ __vfork:
 
 .size   __vfork, .-__vfork
 weak_alias(__vfork,vfork)
-libc_hidden_weak(vfork)
+libc_hidden_def(vfork)
 
 #include "syscall_error.S"

@@ -83,7 +83,7 @@ public:
   { return Mdb_types::Pcnt(cxx::int_value<V_pfc>(V_pfc(1) << s)); }
 
   static Page_order to_order(Mdb_types::Order p)
-  { return Page_order(cxx::int_value<Mdb_types::Order>(p) + Config::PAGE_SHIFT); }
+  { return Page_order(cxx::int_value<Mdb_types::Order>(p)); }
 
   static V_pfc to_size(Page_order p)
   { return V_pfc(1) << p; }
@@ -215,7 +215,7 @@ Generic_io_space<SPACE>::v_fabricate(V_pfn address, Phys_addr *phys,
 
 IMPLEMENT template< typename SPACE >
 inline NEEDS[Generic_io_space::is_superpage]
-bool __attribute__((__flatten__))
+bool FIASCO_FLATTEN
 Generic_io_space<SPACE>::v_lookup(V_pfn virt, Phys_addr *phys,
                                   Page_order *order, Attr *attribs)
 {
@@ -247,7 +247,7 @@ Generic_io_space<SPACE>::v_lookup(V_pfn virt, Phys_addr *phys,
 
 IMPLEMENT template< typename SPACE >
 inline NEEDS [Generic_io_space::is_superpage]
-L4_fpage::Rights __attribute__((__flatten__))
+L4_fpage::Rights FIASCO_FLATTEN
 Generic_io_space<SPACE>::v_delete(V_pfn virt, Order size, Rights page_attribs)
 {
   if (!(page_attribs & L4_fpage::Rights::FULL()))
@@ -273,7 +273,7 @@ Generic_io_space<SPACE>::v_delete(V_pfn virt, Order size, Rights page_attribs)
 
 IMPLEMENT template< typename SPACE >
 inline
-typename Generic_io_space<SPACE>::Status __attribute__((__flatten__))
+typename Generic_io_space<SPACE>::Status FIASCO_FLATTEN
 Generic_io_space<SPACE>::v_insert(Phys_addr phys, V_pfn virt, Order size,
                                   Attr page_attribs)
 {

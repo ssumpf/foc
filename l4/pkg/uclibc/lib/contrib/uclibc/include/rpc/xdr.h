@@ -36,14 +36,6 @@
 #ifndef _RPC_XDR_H
 #define _RPC_XDR_H 1
 
-#ifdef _LIBC
-/* Some adjustments to make the libc source from glibc
- * compile more easily with uClibc... */
-# ifndef __FORCE_GLIBC
-#  define __FORCE_GLIBC
-# endif
-# define _(X)	X
-#endif
 #include <features.h>
 #include <sys/types.h>
 #include <rpc/types.h>
@@ -120,17 +112,21 @@ typedef struct XDR XDR;
 struct XDR
   {
     enum xdr_op x_op;		/* operation; fast additional param */
+    /* not sure whether non-const-ness is a part of the spec... if it is,
+     * enclose "const" in #ifdef _LIBC / #endif
+     * to make it effective only for libc compile */
+    const
     struct xdr_ops
       {
 	bool_t (*x_getlong) (XDR *__xdrs, long *__lp);
 	/* get a long from underlying stream */
-	bool_t (*x_putlong) (XDR *__xdrs, __const long *__lp);
+	bool_t (*x_putlong) (XDR *__xdrs, const long *__lp);
 	/* put a long to " */
 	bool_t (*x_getbytes) (XDR *__xdrs, caddr_t __addr, u_int __len);
 	/* get some bytes from " */
-	bool_t (*x_putbytes) (XDR *__xdrs, __const char *__addr, u_int __len);
+	bool_t (*x_putbytes) (XDR *__xdrs, const char *__addr, u_int __len);
 	/* put some bytes to " */
-	u_int (*x_getpostn) (__const XDR *__xdrs);
+	u_int (*x_getpostn) (const XDR *__xdrs);
 	/* returns bytes off from beginning */
 	bool_t (*x_setpostn) (XDR *__xdrs, u_int __pos);
 	/* lets you reposition the stream */
@@ -140,7 +136,7 @@ struct XDR
 	/* free privates of this xdr_stream */
 	bool_t (*x_getint32) (XDR *__xdrs, int32_t *__ip);
 	/* get a int from underlying stream */
-	bool_t (*x_putint32) (XDR *__xdrs, __const int32_t *__ip);
+	bool_t (*x_putint32) (XDR *__xdrs, const int32_t *__ip);
 	/* put a int to " */
       }
      *x_ops;
@@ -320,6 +316,8 @@ extern bool_t xdr_int32_t (XDR *__xdrs, int32_t *__ip) __THROW;
 extern bool_t xdr_uint32_t (XDR *__xdrs, uint32_t *__up) __THROW;
 extern bool_t xdr_int64_t (XDR *__xdrs, int64_t *__ip) __THROW;
 extern bool_t xdr_uint64_t (XDR *__xdrs, uint64_t *__up) __THROW;
+extern bool_t xdr_quad_t (XDR *__xdrs, quad_t *__ip) __THROW;
+extern bool_t xdr_u_quad_t (XDR *__xdrs, u_quad_t *__up) __THROW;
 extern bool_t xdr_bool (XDR *__xdrs, bool_t *__bp) __THROW;
 libc_hidden_proto(xdr_bool)
 extern bool_t xdr_enum (XDR *__xdrs, enum_t *__ep) __THROW;
@@ -336,7 +334,7 @@ libc_hidden_proto(xdr_opaque)
 extern bool_t xdr_string (XDR *__xdrs, char **__cpp, u_int __maxsize) __THROW;
 libc_hidden_proto(xdr_string)
 extern bool_t xdr_union (XDR *__xdrs, enum_t *__dscmp, char *__unp,
-			 __const struct xdr_discrim *__choices,
+			 const struct xdr_discrim *__choices,
 			 xdrproc_t dfault) __THROW;
 libc_hidden_proto(xdr_union)
 extern bool_t xdr_char (XDR *__xdrs, char *__cp) __THROW;
@@ -372,7 +370,7 @@ extern bool_t xdr_netobj (XDR *__xdrs, struct netobj *__np) __THROW;
  */
 
 /* XDR using memory buffers */
-extern void xdrmem_create (XDR *__xdrs, __const caddr_t __addr,
+extern void xdrmem_create (XDR *__xdrs, const caddr_t __addr,
 			   u_int __size, enum xdr_op __xop) __THROW;
 libc_hidden_proto(xdrmem_create)
 

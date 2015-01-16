@@ -13,11 +13,20 @@ public:
   enum : unsigned
   {
     Status_mode_user           = 0x10,
-    Status_mode_supervisor     = 0x13,
     Status_mode_mask           = 0x1f,
 
     Status_interrupts_disabled = Status_FIQ_disabled | Status_IRQ_disabled,
     Status_thumb               = 0x20,
+
+    PSR_m_usr = 0x10,
+    PSR_m_fiq = 0x11,
+    PSR_m_irq = 0x12,
+    PSR_m_svc = 0x13,
+    PSR_m_mon = 0x16,
+    PSR_m_abt = 0x17,
+    PSR_m_hyp = 0x1a,
+    PSR_m_und = 0x1b,
+    PSR_m_sys = 0x1f
   };
 
   static Cpu_phys_id cpu_id();
@@ -34,7 +43,7 @@ public:
       Sti_mask                = Status_interrupts_disabled,
       Status_preempt_disabled = Status_IRQ_disabled,
       Status_interrupts_mask  = Status_interrupts_disabled,
-      Status_always_mask      = 0,
+      Status_always_mask      = 0x10,
     };
 };
 
@@ -49,9 +58,19 @@ public:
       Sti_mask                = Status_FIQ_disabled,
       Status_preempt_disabled = Status_FIQ_disabled,
       Status_interrupts_mask  = Status_FIQ_disabled,
-      Status_always_mask      = Status_IRQ_disabled,
+      Status_always_mask      = 0x10 | Status_IRQ_disabled,
     };
 };
+
+INTERFACE[arm && !hyp]:
+
+EXTENSION class Proc
+{ public: enum : unsigned { Is_hyp = 0, Status_mode_supervisor = PSR_m_svc }; };
+
+INTERFACE[arm && hyp]:
+
+EXTENSION class Proc
+{ public: enum : unsigned { Is_hyp = 1, Status_mode_supervisor = PSR_m_hyp }; };
 
 IMPLEMENTATION[arm]:
 
@@ -75,7 +94,8 @@ void Proc::stack_pointer(Mword sp)
 IMPLEMENT static inline
 Mword Proc::program_counter()
 {
-  register Mword pc asm ("pc");
+  Mword pc;
+  asm ("mov %0, pc" : "=r" (pc));
   return pc;
 }
 
@@ -91,7 +111,7 @@ void Proc::cli()
                : "memory");
 }
 
-IMPLEMENT static inline
+IMPLEMENT static inline ALWAYS_INLINE
 void Proc::sti()
 {
   Mword v;
@@ -103,7 +123,7 @@ void Proc::sti()
                : "memory");
 }
 
-IMPLEMENT static inline
+IMPLEMENT static inline ALWAYS_INLINE
 Proc::Status Proc::cli_save()
 {
   Status ret;
@@ -125,7 +145,7 @@ Proc::Status Proc::interrupts()
   return !(ret & Sti_mask);
 }
 
-IMPLEMENT static inline
+IMPLEMENT static inline ALWAYS_INLINE
 void Proc::sti_restore(Status st)
 {
   if (!(st & Sti_mask))

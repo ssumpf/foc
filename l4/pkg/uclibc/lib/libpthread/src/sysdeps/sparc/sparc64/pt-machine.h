@@ -61,8 +61,8 @@ register char *stack_pointer __asm__ ("%sp");
 
 /* Registers %g6 and %g7 are reserved by the ABI for "system use".  The
    TLS ABI specifies %g7 as the thread pointer.  */
-struct _pthread_descr_struct;
-register struct _pthread_descr_struct *__thread_self __asm__ ("%g7");
+struct pthread;
+register struct pthread *__thread_self __asm__ ("%g7");
 
 /* Return the thread descriptor for the current thread.  */
 #define THREAD_SELF  __thread_self

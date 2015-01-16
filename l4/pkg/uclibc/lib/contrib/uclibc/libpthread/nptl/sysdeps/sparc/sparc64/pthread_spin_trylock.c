@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <errno.h>
 #include "pthreadP.h"
@@ -24,7 +23,7 @@ int
 pthread_spin_trylock (pthread_spinlock_t *lock)
 {
   int res;
-  __asm__ __volatile
+  __asm__ __volatile__
     ("ldstub [%1], %0\n"
      "membar #StoreLoad | #StoreStore"
      : "=r" (res)

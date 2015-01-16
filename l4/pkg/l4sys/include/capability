@@ -140,7 +140,7 @@ public:
    * \brief Check whether a capability selector points to a valid capability.
    *
    * \param u     UTCB of the caller
-   * \return label = 0 valid, label > 0 invalid
+   * \return label > 0 valid, label == 0 invalid
    */
   inline l4_msgtag_t validate(l4_utcb_t *u = l4_utcb()) const throw();
 
@@ -150,7 +150,7 @@ public:
    * \param u     UTCB of the caller
    * \param task  Task to check the capability in
    *
-   * \return label = 0 valid, label > 0 invalid
+   * \return label > 0 valid, label == 0 invalid
    */
   inline l4_msgtag_t validate(Cap<Task> task,
                               l4_utcb_t *u = l4_utcb()) const throw();
@@ -207,7 +207,7 @@ private:
    *        pointer.
    *
    * \attention This constructor is only useful to generate a capability
-   *            from the \a this pointer of an objected that is an L4::Kobject.
+   *            from the \a this pointer of an object that is an L4::Kobject.
    *            Do \em never use this constructor for something else!
    * \param p The \a this pointer of the Kobject or derived object
    */
@@ -257,8 +257,8 @@ public:
     if (!is_valid() || !src.is_valid())
       return *this;
 
-    l4_task_map(L4_BASE_TASK_CAP, L4_BASE_TASK_CAP, src.fpage(L4_FPAGE_RWX),
-                snd_base(L4_MAP_ITEM_GRANT));
+    l4_task_map(L4_BASE_TASK_CAP, L4_BASE_TASK_CAP, src.fpage(L4_CAP_FPAGE_RWSD),
+                snd_base(L4_MAP_ITEM_GRANT) | 0xf0);
 
     return *this;
   }
@@ -311,8 +311,8 @@ public:
     if (!is_valid() || !src.is_valid())
       return *this;
 
-    l4_task_map(L4_BASE_TASK_CAP, L4_BASE_TASK_CAP, src.fpage(L4_FPAGE_RWX),
-                snd_base(L4_MAP_ITEM_GRANT));
+    l4_task_map(L4_BASE_TASK_CAP, L4_BASE_TASK_CAP, src.fpage(L4_CAP_FPAGE_RWSD),
+                snd_base(L4_MAP_ITEM_GRANT) | 0xf0);
 
     return *this;
   }
@@ -379,6 +379,7 @@ Cap<T> cap_reinterpret_cast(Cap<F> const &c) throw()
 /*@{*/
 /**
  * \brief Disable copy of a class.
+ * \ingroup l4_cap_api
  * \param _class is the name of the class that shall not have
  *               value copy semantics.
  *
@@ -401,6 +402,7 @@ Cap<T> cap_reinterpret_cast(Cap<F> const &c) throw()
 
 /**
  * \brief Disable copy and instantiation of a class.
+ * \ingroup l4_cap_api
  * \param _class is the name of the class to be not copyable and not
  *               instantiatable.
  *
@@ -420,6 +422,7 @@ Cap<T> cap_reinterpret_cast(Cap<F> const &c) throw()
 
 /**
  * \brief Declare a kernel object class.
+ * \ingroup l4_cap_api
  * \param _class is the class name.
  *
  * The use of this macro disables copy and instantiation

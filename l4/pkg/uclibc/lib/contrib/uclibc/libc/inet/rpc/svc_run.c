@@ -31,13 +31,10 @@
  * Wait for input, call server program.
  */
 
-#define __FORCE_GLIBC
-#include <features.h>
-
 #include <errno.h>
 #include <unistd.h>
 #include <sys/poll.h>
-#include <rpc/rpc.h>
+#include "rpc_private.h"
 
 /* used by svc_[max_]pollfd */
 

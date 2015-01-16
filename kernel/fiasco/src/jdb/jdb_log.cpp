@@ -115,15 +115,13 @@ Jdb_log_list_hdl::invoke(Kobject_common *, Syscall_frame *f, Utcb *utcb)
 }
 
 PUBLIC
-int
-Jdb_log_list::show_item(char *buffer, int max, void *item) const
+void
+Jdb_log_list::show_item(String_buffer *buffer, void *item) const
 {
   Tb_log_table_entry const *e = static_cast<Tb_log_table_entry const*>(item);
   char const *sc = e->name;
   sc += strlen(e->name) + 1;
-  int pos = snprintf(buffer, max, "%s %s (%s)",
-                     *(e->patch) ? "[on ]" : "[off]",  e->name, sc);
-  return pos;
+  buffer->printf("%s %s (%s)", *(e->patch) ? "[on ]" : "[off]",  e->name, sc);
 }
 
 PRIVATE static inline

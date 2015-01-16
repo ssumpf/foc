@@ -1,5 +1,5 @@
 /* bits/types.h -- definitions of __*_t types underlying *_t types.
-   Copyright (C) 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 2002, 2003, 2004, 2005, 2007 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /*
  * Never include this file directly; use <sys/types.h> instead.
@@ -27,8 +26,6 @@
 #include <features.h>
 #include <bits/wordsize.h>
 
-#define __need_size_t
-#include <stddef.h>
 #ifdef _LIBC
 #include <bits/kernel_types.h>
 #endif
@@ -49,7 +46,7 @@ typedef unsigned int __uint32_t;
 #if __WORDSIZE == 64
 typedef signed long int __int64_t;
 typedef unsigned long int __uint64_t;
-#elif defined(__GNUC__)
+#elif defined(__GNUC__) || defined __ICC || defined __TenDRA__
 __extension__ typedef signed long long int __int64_t;
 __extension__ typedef unsigned long long int __uint64_t;
 #endif
@@ -58,7 +55,7 @@ __extension__ typedef unsigned long long int __uint64_t;
 #if __WORDSIZE == 64
 typedef long int __quad_t;
 typedef unsigned long int __u_quad_t;
-#elif defined(__GNUC__)
+#elif defined(__GNUC__) || defined __ICC || defined __TenDRA__
 __extension__ typedef long long int __quad_t;
 __extension__ typedef unsigned long long int __u_quad_t;
 #else
@@ -199,15 +196,5 @@ __STD_TYPE __U32_TYPE __socklen_t;
 
 
 #undef __STD_TYPE
-
-#ifdef _LIBC
-/* Used in `struct shmid_ds'.  */
-typedef __kernel_ipc_pid_t __ipc_pid_t;
-#endif
-
-/* Now add the thread types.  */
-#if defined __UCLIBC_HAS_THREADS__ && (defined __USE_POSIX199506 || defined __USE_UNIX98)
-# include <bits/pthreadtypes.h>
-#endif
 
 #endif /* bits/types.h */

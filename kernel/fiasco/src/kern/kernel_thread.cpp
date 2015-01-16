@@ -65,8 +65,9 @@ Kernel_thread::bootstrap()
   // we need per CPU data for our never running dummy CPU too
   // FIXME: we in fact need only the _pending_rqq lock
   Per_cpu_data_alloc::alloc(Cpu::invalid());
-
-  set_cpu_of(this, Cpu::boot_cpu()->id());
+  Per_cpu_data::run_ctors(Cpu::invalid());
+  set_current_cpu(Cpu::boot_cpu()->id());
+  _home_cpu = Cpu::boot_cpu()->id();
   Mem::barrier();
 
   state_change_dirty(0, Thread_ready);		// Set myself ready
@@ -79,15 +80,15 @@ Kernel_thread::bootstrap()
   // Setup initial timeslice
   Sched_context::rq.current().set_current_sched(sched());
 
-  Timer_tick::setup(cpu(true));
-  assert (cpu(true) == Cpu_number::boot_cpu()); // currently the boot cpu must be 0
-  Timer_tick::enable(cpu(true));
-  enable_tlb(cpu(true));
-
-  bootstrap_arch();
+  Timer_tick::setup(current_cpu());
+  assert (current_cpu() == Cpu_number::boot_cpu()); // currently the boot cpu must be 0
+  enable_tlb(current_cpu());
 
   Per_cpu_data::run_late_ctors(Cpu_number::boot_cpu());
+  Per_cpu_data::run_late_ctors(Cpu::invalid());
+  bootstrap_arch();
 
+  Timer_tick::enable(current_cpu());
   Proc::sti();
   Watchdog::enable();
   printf("Calibrating timer loop... ");
@@ -110,9 +111,9 @@ Kernel_thread::run()
 
   // No initcalls after this point!
 
-  kernel_context(cpu(), this);
+  kernel_context(home_cpu(), this);
 
-  Rcu::leave_idle(cpu());
+  Rcu::leave_idle(home_cpu());
   // init_workload cannot be an initcall, because it fires up the userland
   // applications which then have access to initcall frames as per kinfo page.
   init_workload();
@@ -160,7 +161,7 @@ Kernel_thread::idle_op()
   // this version must run with disabled IRQs and a wakup must continue directly
   // after the wait for event.
   auto guard = lock_guard(cpu_lock);
-  Cpu_number cpu = this->cpu();
+  Cpu_number cpu = home_cpu();
   ++_idle_counter.cpu(cpu);
   // 1. check for latency requirements that prevent low power modes
   // 2. check for timouts on this CPU ignore the idle thread's timeslice
@@ -172,10 +173,9 @@ Kernel_thread::idle_op()
       Rcu::enter_idle(cpu);
       Timer_tick::disable(cpu);
       disable_tlb(cpu);
-
+      Mem_unit::tlb_flush();
 
       // do everything to do to a deep sleep state:
-      //  - flush tlbs
       //  - flush caches
       //  - ...
       arch_tickless_idle(cpu);

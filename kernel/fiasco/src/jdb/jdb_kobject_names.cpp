@@ -58,13 +58,6 @@ Jdb_kobject_name::max_len()
 { return sizeof(_name); }
 
 PUBLIC
-void
-Jdb_kobject_name::name(char const *name)
-{
-  strncpy(_name, name, sizeof(_name));
-}
-
-PUBLIC
 Jdb_kobject_name::Jdb_kobject_name()
 { _name[0] = 0; }
 
@@ -106,9 +99,13 @@ Jdb_kobject_name::operator delete (void *p)
 
 PUBLIC
 void
-Jdb_kobject_name::clear_name()
+Jdb_kobject_name::name(const char *name)
 {
-  for (unsigned i = 0; i < max_len(); ++i)
+  unsigned i = 0;
+  for (; name[i] && i < max_len(); ++i)
+    _name[i] = name[i];
+
+  for (; i < max_len(); ++i)
     _name[i] = 0;
 }
 
@@ -131,16 +128,14 @@ public:
 };
 
 PUBLIC
-int
-Jdb_name_hdl::show_kobject_short(char *buf, int max, Kobject_common *o)
+void
+Jdb_name_hdl::show_kobject_short(String_buffer *buf, Kobject_common *o)
 {
   Jdb_kobject_name *ex
     = Jdb_kobject_extension::find_extension<Jdb_kobject_name>(o);
 
   if (ex)
-    return snprintf(buf, max, " {%-*.*s}", ex->max_len(), ex->max_len(), ex->name());
-
-  return 0;
+    buf->printf(" {%-*.*s}", ex->max_len(), ex->max_len(), ex->name());
 }
 
 PUBLIC
@@ -151,17 +146,23 @@ Jdb_name_hdl::invoke(Kobject_common *o, Syscall_frame *f, Utcb *utcb)
     {
     case Op_set_name:
         {
-          Jdb_kobject_name *ne = new Jdb_kobject_name();
+          bool enqueue = false;
+          Jdb_kobject_name *ne;
+          ne = Jdb_kobject_extension::find_extension<Jdb_kobject_name>(o);
           if (!ne)
             {
-              f->tag(Kobject_iface::commit_result(-L4_err::ENomem));
-              return true;
+              ne = new Jdb_kobject_name();
+              if (!ne)
+                {
+                  f->tag(Kobject_iface::commit_result(-L4_err::ENomem));
+                  return true;
+                }
+              enqueue = true;
             }
 
-          char const *name = reinterpret_cast<char const*>(&utcb->values[1]);
-          ne->clear_name();
-          strncpy(ne->name(), name, ne->max_len());
-          o->dbg_info()->_jdb_data.add(ne);
+          ne->name(reinterpret_cast<char const*>(&utcb->values[1]));
+          if (enqueue)
+            o->dbg_info()->_jdb_data.add(ne);
           f->tag(Kobject_iface::commit_result(0));
           return true;
         }

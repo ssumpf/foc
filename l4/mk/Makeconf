@@ -25,7 +25,7 @@
 ifeq ($(origin _L4DIR_MK_MAKECONF),undefined)
 _L4DIR_MK_MAKECONF=y
 
-MAKEFLAGS        += -R
+MAKEFLAGS        += --no-print-directory -Rr
 
 # the default target is all
 all::
@@ -176,9 +176,10 @@ dv               = $(if $(filter-out default undefined,$(origin $(1))),$(1)-defa
 $(call dv,AR)	 = $(SYSTEM_TARGET)ar
 $(call dv,AS)	 = $(SYSTEM_TARGET)as
 AWKP		?= gawk --posix
-$(call dv,CC)    = $(if $(USE_CCACHE),ccache )$(CC_$(BUILD_ARCH))
-$(call dv,CXX)   = $(if $(USE_CCACHE),ccache )$(CXX_$(BUILD_ARCH))
-$(call dv,FC)    = $(if $(USE_CCACHE),ccache )$(FC_$(BUILD_ARCH))
+CCACHE          ?= ccache
+$(call dv,CC)    = $(if $(USE_CCACHE),$(CCACHE) )$(CC_$(BUILD_ARCH))
+$(call dv,CXX)   = $(if $(USE_CCACHE),$(CCACHE) )$(CXX_$(BUILD_ARCH))
+$(call dv,FC)    = $(if $(USE_CCACHE),$(CCACHE) )$(FC_$(BUILD_ARCH))
 CP		?= cp
 DICE_SRCDIR	?= $(L4DIR)/../dice
 DICE_OBJDIR	?= $(DICE_SRCDIR)
@@ -239,6 +240,15 @@ findfile	= $(firstword $(wildcard $(addsuffix /$(1),$(2))) $(1)_NOT_FOUND)
 is_dir          = $(shell test -d '$(1)' && echo yes)
 define create_dir
   $(if $(wildcard $(1)),,$(VERBOSE)$(INSTALL) -d $(1))
+endef
+
+# Move $(2) to $(1) if content of both files differ
+define move_if_changed
+  $(VERBOSE)if test ! -r "$(1)" || ! cmp -s $(1) $(2); then \
+    mv $(2) $(1); \
+  else \
+    rm $(2); \
+  fi
 endef
 
 ifneq ($(PT),)
@@ -348,6 +358,7 @@ ifneq ($(INCLUDE_BOOT_CONFIG),)
   ifneq ($(CONFIG_PLATFORM_TYPE_custom),)
    PLATFORM_RAM_BASE=$(CONFIG_PLATFORM_RAM_BASE)
    PLATFORM_RAM_SIZE_MB=$(CONFIG_PLATFORM_RAM_SIZE_MB)
+   PLATFORM_UART_NR=$(CONFIG_PLATFORM_UART_NR)
   else
    ifeq ($(INCLUDE_BOOT_CONFIG),optional)
     -include $(PLATFORM_CONF_FILE)
@@ -446,14 +457,23 @@ callcc    = LC_ALL=C $(CC)  $(CCXX_FLAGS)
 callcxx   = LC_ALL=C $(CXX) $(CCXX_FLAGS)
 callfc    = LC_ALL=C $(FC)  $(CCXX_FLAGS)
 
+define get_gccversion
+  v=$$($(callcc) -dumpversion); \
+  first=$${v%%.*}; \
+  if [ $$first -ge 5 ]; then \
+    echo $$first; \
+  else \
+    echo $$v | sed -e 's/\([^.]\+\.[^.]\+\).*/\1/'; \
+  fi
+endef
+
 # the gcc specific variables: version, base dir, include dir, gcc lib, ...
 # note: determining these variables is slow, and the values should
 #       be set in .config.all. However, this is the place were
 #       they are determined on a 'make config' in $(L4DIR)
-GCCVERSION_f	= $(shell $(callcc) -dumpversion | sed -e 's/\([^.]\+\.[^.]\+\).*/\1/')
+GCCVERSION_f	= $(shell $(get_gccversion))
 GCCMAJORVERSION_f=$(shell $(callcc) -dumpversion | sed -e 's/\([^.]*\).*/\1/')
 GCCMINORVERSION_f=$(shell $(callcc) -dumpversion | sed -e 's/[^.]*\.\([^.]*\).*/\1/')
-GCCSUBVERSION_f	= $(shell $(callcc) -dumpversion | sed -e 's/.*\.\(.*\)/\1/')
 LDVERSION_f     = $(shell $(firstword $(LD)) -v | sed -e 's/.* \([0-9]\)\.\([^. ]*\).*/\1\2/')
 GCCSYSLIBDIRS_f = $(shell $(callcc) -print-search-dirs | sed '/^libraries:/{s/^libraries: =\?/-L/;s/:/ -L/g;q;};d')
 GCCDIR_f	= $(shell $(callcc) -print-search-dirs | sed -ne 's+^install: \(.*[^/][^/]*\)/+\1+p' )
@@ -463,6 +483,8 @@ GCCLIB_S_SO_f	= $(filter /%,$(shell $(callcc) -print-file-name=libgcc_s.so))
 GCCLIB_EH_f	= $(filter /%,$(shell $(callcc) -print-file-name=libgcc_eh.a))
 GCCINCDIR_f	= $(addprefix $(call GCCDIR_f),/include /include-fixed)
 GCCNOSTACKPROTOPT_f= $(call checkcc,-fno-stack-protector)
+GCCSTACKPROTOPT_f = $(call checkcc,-fstack-protector)
+GCCSTACKPROTALLOPT_f = $(call checkcc,-fstack-protector-all)
 GCCFORTRANAVAIL_f = $(shell echo | $(callfc) -dD -E - 2>&1 | grep -q __GNUC__ && echo y)
 GCCNOFPU_x86_f  = $(call checkcc,-mno-mmx) $(call checkcc,-mno-3dnow) \
                   $(call checkcc,-mno-sse) $(call checkcc,-mno-sse2)  \
@@ -498,7 +520,7 @@ ifeq ($(D),1)
 endif
 
 ifeq ($(CONFIG_RELEASE_MODE),y)
-DEFINES		+= -DL4BID_RELEASE_MODE
+DEFINES		+= -DL4BID_RELEASE_MODE -DNDEBUG
 endif
 
 ifneq ($(filter linux host,$(MODE)),)
@@ -603,17 +625,23 @@ DEPS	+= $(GENERAL_D_LOC)
 # coloring on color-capable terminals
 # enabled by setting CONFIG_BID_COLORED_PHASES to y
 ifeq ($(CONFIG_BID_COLORED_PHASES),y)
-ifeq ($(COLOR_TERMINAL),y)
-  EMPHSTART = '\033[34;1m'
-  EMPHSTOP  = '\033[0m'
-else
-  EMPHSTART =
-  EMPHSTOP  =
-endif
+  ifneq ($(BID_COLORS_TESTED),y)
+    BID_COLORS_TESTED := y
+    BID_COLORS_SUPPORTED := $(shell tput colors 1>&2 2 > /dev/null; [ $$? -eq 0 ] && echo -n 'y' || echo -n 'n')
+    export BID_COLORS_TESTED
+    export BID_COLORS_SUPPORTED
+  endif
+  ifeq ($(BID_COLORS_SUPPORTED), y)
+    EMPHSTART = '\033[34;1m'
+    EMPHSTOP  = '\033[0m'
+  else
+    EMPHSTART =
+    EMPHSTOP  =
+  endif
 endif
 
 AR_MESSAGE                 ?= echo -e "  ==> Archiving into $@"
-BUILD_MESSAGE              ?= echo -e "  ... Building $@"
+BUILD_MESSAGE              ?= echo -e "  ... Building $(if $(filter $(GENERAL_D_LOC),$@),Dependencies,$@)"
 BUILT_MESSAGE              ?= echo -e $(EMPHSTART)'  ==> "$@" built'$(EMPHSTOP)
 COMP_MESSAGE               ?= echo -e "  ... Compiling $@"
 COMP_P_MESSAGE             ?= echo -e "  ... Compiling PIC $@"
@@ -665,6 +693,7 @@ addfileheader:
 # 3: inc path (one only)
 # 4: libs
 # 5: requires_libs
+# 6: PC_CFLAGS
 generate_pcfile =                                                            \
 	mkdir -p $(dir $(2))                                                 \
 	;echo -n                                                    > $(2)   \
@@ -672,7 +701,9 @@ generate_pcfile =                                                            \
 	;echo "Name: $(1)"                                         >> $(2)   \
 	;echo "Version: 0"                                         >> $(2)   \
 	;echo "Description: L4 library"                            >> $(2)   \
-	$(if $(3),;echo "Cflags: $(addprefix -I\$${incdir}/,$(3))" >> $(2))  \
+	$(if $(3),;echo -n "Cflags: $(addprefix -I\$${incdir}/,$(3)) ">> $(2))\
+	$(if $(6),$(if $(3),,;echo -n "Cflags:" >> $(2)))                    \
+	$(if $(6),;echo " $(6)" >> $(2),;echo "" >> $(2))                    \
 	$(if $(4),;echo "Libs: $(4)"                               >> $(2))  \
 	$(if $(5),;echo "Requires: $(5)"                           >> $(2))  \
 	$(if $(BID_GEN_CONTROL),;echo "Provides: $(1)"             >> $(PKGDIR)/Control) \

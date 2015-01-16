@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* NOTE: Because of the special way this file is used by <math.h>, this
    file must NOT be protected from multiple inclusion as header files
@@ -49,7 +48,7 @@
 
 
 /* __MATHCALLX(type,function,[suffix],args,attrib) and
- * __MATHCALLI(type,function,[suffix],args) include libm_hidden_def
+ * __MATHCALLI(type,function,[suffix],args) include libm_hidden_proto
  * (for "double" versions only, xxxf and xxxl do not get this treatment).
  *
  * __MATHDECL(type,function,[suffix],args) does not.
@@ -57,7 +56,7 @@
  * (it is just a shortcut to __MATHDECL(_Mdouble_,function,[suffix],args)).
  *
  * __MATHDECL_PRIV(type,function,[suffix],args,attrib)
- * includes libm_hidden_def (always) and declares __foo, not foo.
+ * includes libm_hidden_proto (always) and declares __foo, not foo.
  */
 
 
@@ -90,7 +89,7 @@ __MATHCALLI (sinh,, (_Mdouble_ __x))
 __MATHCALLI (tanh,, (_Mdouble_ __x))
 _Mdouble_END_NAMESPACE
 
-#if 0 /*def __USE_GNU*/
+#if defined __USE_GNU
 /* Cosine and sine of X.  */
 __MATHDECL (void,sincos,,
 	    (_Mdouble_ __x, _Mdouble_ *__sinx, _Mdouble_ *__cosx))
@@ -155,7 +154,7 @@ __BEGIN_NAMESPACE_C99
 __MATHCALLI (exp2,, (_Mdouble_ __x))
 
 /* Compute base-2 logarithm of X.  */
-__MATHCALL (log2,, (_Mdouble_ __x))
+__MATHCALLI (log2,, (_Mdouble_ __x))
 __END_NAMESPACE_C99
 #endif
 
@@ -223,7 +222,7 @@ __MATHCALL (drem,, (_Mdouble_ __x, _Mdouble_ __y))
 
 
 /* Return the fractional part of X after dividing out `ilogb (X)'.  */
-__MATHCALL (significand,, (_Mdouble_ __x))
+__MATHCALLI (significand,, (_Mdouble_ __x))
 #endif /* Use misc.  */
 
 #if defined __USE_MISC || defined __USE_ISOC99
@@ -236,7 +235,7 @@ __END_NAMESPACE_C99
 #ifdef __USE_ISOC99
 __BEGIN_NAMESPACE_C99
 /* Return representation of NaN for double type.  */
-__MATHCALLX (nan,, (__const char *__tagb), (__const__))
+__MATHCALLX (nan,, (const char *__tagb), (__const__))
 __END_NAMESPACE_C99
 #endif
 
@@ -278,7 +277,7 @@ __END_NAMESPACE_C99
 
 #if defined __USE_MISC || defined __USE_XOPEN
 /* Obsolete alias for `lgamma'.  */
-__MATHCALL (gamma,, (_Mdouble_))
+__MATHCALLI (gamma,, (_Mdouble_))
 #endif
 
 #ifdef __USE_MISC
@@ -286,6 +285,8 @@ __MATHCALL (gamma,, (_Mdouble_))
    `signgam'.  The reentrant version instead takes a pointer and stores
    the value through it.  */
 __MATHCALL (lgamma,_r, (_Mdouble_, int *__signgamp))
+/* __MATHCALLI does not work here, probably due to ,_r, */
+libm_hidden_proto(lgamma_r)
 #endif
 
 
@@ -376,5 +377,5 @@ __END_NAMESPACE_C99
 #if (defined __USE_MISC || defined __USE_XOPEN_EXTENDED) \
 	&& defined __UCLIBC_SUSV3_LEGACY__
 /* Return X times (2 to the Nth power).  */
-__MATHCALL (scalb,, (_Mdouble_ __x, _Mdouble_ __n))
+__MATHCALLI (scalb,, (_Mdouble_ __x, _Mdouble_ __n))
 #endif

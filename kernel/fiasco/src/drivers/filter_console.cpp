@@ -38,6 +38,9 @@ IMPLEMENTATION:
 PUBLIC
 int Filter_console::char_avail() const
 {
+  if (!(_o->state() & INENABLED))
+    return -1;
+
   switch (state)
     {
     case NORMAL:
@@ -54,7 +57,7 @@ int Filter_console::char_avail() const
 
 PUBLIC inline explicit
 Filter_console::Filter_console(Console *o, int to = 10)
-  : _o(o), csi_timeout(to), state(NORMAL), pos(0), arg(0)
+: Console(ENABLED), _o(o), csi_timeout(to), state(NORMAL), pos(0), arg(0)
 {
   if (o->failed())
     fail();
@@ -65,6 +68,9 @@ PUBLIC
 int
 Filter_console::write(char const *str, size_t len)
 {
+  if (!(_o->state() & OUTENABLED))
+    return len;
+
   char const *start = str;
   char const *stop  = str;
 
@@ -112,6 +118,9 @@ PRIVATE inline
 int
 Filter_console::getchar_timeout(unsigned timeout)
 {
+  if (!(_o->state() & INENABLED))
+    return -1;
+
   int c;
   while ((c= _o->getchar(false)) == -1 && timeout--)
     Delay::delay(1);
@@ -123,6 +132,9 @@ PUBLIC
 int
 Filter_console::getchar(bool b = true)
 {
+  if (!(_o->state() & INENABLED))
+    return -1;
+
   unsigned loop_count = 100;
   int ch;
 

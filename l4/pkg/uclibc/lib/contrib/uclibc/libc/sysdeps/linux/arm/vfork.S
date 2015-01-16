@@ -7,6 +7,7 @@
 
 #include <features.h>
 #include <bits/arm_asm.h>
+#include <bits/arm_bx.h>
 
 #define _ERRNO_H
 #include <bits/errno.h>
@@ -104,5 +105,5 @@ __error:
 .size __vfork,.-__vfork
 
 weak_alias(__vfork,vfork)
-libc_hidden_weak(vfork)
+libc_hidden_def(vfork)
 #endif

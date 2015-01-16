@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <errno.h>
 #include <sysdep.h>
@@ -38,7 +37,7 @@ __sem_wait_cleanup (void *arg)
 
 
 int
-__new_sem_wait (sem_t *sem)
+sem_wait (sem_t *sem)
 {
   struct new_sem *isem = (struct new_sem *) sem;
   int err;
@@ -81,4 +80,3 @@ __new_sem_wait (sem_t *sem)
 
   return err;
 }
-weak_alias(__new_sem_wait, sem_wait)

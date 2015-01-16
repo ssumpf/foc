@@ -1,4 +1,4 @@
-/* Copyright (C) 2000 Free Software Foundation, Inc.
+/* Copyright (C) 2000, 2005, 2006 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Define the machine-dependent type `jmp_buf'.  HPPA version.  */
 #ifndef _BITS_SETJMP_H
@@ -29,17 +28,6 @@
    easier, and to ensure proper alignment. Naturally, user code should
    not depend on either representation. */
 
-#if defined __USE_MISC || defined _ASM
-#define JB_SP (76/4)
-#endif
-
-#ifndef	_ASM
 typedef double __jmp_buf[21];
-#endif
-
-/* Test if longjmp to JMPBUF would unwind the frame containing a local
-   variable at ADDRESS.  */
-#define _JMPBUF_UNWINDS(_jmpbuf, _address)				\
-     ((void *)(_address) > (void *)(((unsigned long *) _jmpbuf)[JB_SP]))
 
 #endif	/* bits/setjmp.h */

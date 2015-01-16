@@ -40,16 +40,16 @@ Jdb_ipc_gate::show_kobject(Kobject_common *, int)
 { return true; }
 
 PUBLIC
-int
-Jdb_ipc_gate::show_kobject_short(char *buf, int max, Kobject_common *o)
+void
+Jdb_ipc_gate::show_kobject_short(String_buffer *buf, Kobject_common *o)
 {
   Ipc_gate_obj *g = Kobject::dcast<Ipc_gate_obj*>(Kobject::from_dbg(o->dbg_info()));
   if (!g)
-    return 0;
+    return;
 
-  return snprintf(buf, max, " L=%s%08lx\033[0m D=%lx",
-                  (g->id() & 3) ? JDB_ANSI_COLOR(lightcyan) : "",
-                  g->id(), g->thread() ? g->thread()->dbg_info()->dbg_id() : 0);
+  buf->printf(" L=%s%08lx\033[0m D=%lx",
+              (g->id() & 3) ? JDB_ANSI_COLOR(lightcyan) : "",
+              g->id(), g->thread() ? g->thread()->dbg_info()->dbg_id() : 0);
 }
 
 PUBLIC

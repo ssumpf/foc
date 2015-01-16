@@ -34,20 +34,20 @@ namespace cxx {
  *
  * Basic item that can be member of a doubly linked, cyclic list.
  */
-class List_item 
+class List_item
 {
 public:
   /**
    * \brief Iterator for a list of ListItem-s.
    *
-   * The Iterator iterates til it finds the first element again.
+   * The Iterator iterates till it finds the first element again.
    */
   class Iter
   {
   public:
     Iter(List_item *c, List_item *f) throw() : _c(c), _f(f) {}
     Iter(List_item *f = 0) throw() : _c(f), _f(f) {}
-    
+
     List_item *operator * () const throw() { return _c; }
     List_item *operator -> () const throw() { return _c; }
     Iter &operator ++ () throw()
@@ -55,30 +55,30 @@ public:
       if (!_f)
 	_c = 0;
       else
-        _c = _c->get_next_item(); 
+        _c = _c->get_next_item();
 
-      if (_c == _f) 
-	_c = 0; 
-      
-      return *this; 
+      if (_c == _f)
+	_c = 0;
+
+      return *this;
     }
-    
+
     Iter operator ++ (int) throw()
     { Iter o = *this; operator ++ (); return o; }
-      
+
     Iter &operator -- () throw()
     {
       if (!_f)
 	_c = 0;
       else
-        _c = _c->get_prev_item(); 
+        _c = _c->get_prev_item();
 
-      if (_c == _f) 
-	_c = 0; 
-      
-      return *this; 
+      if (_c == _f)
+	_c = 0;
+
+      return *this;
     }
-    
+
     Iter operator -- (int) throw()
     { Iter o = *this; operator -- (); return o; }
 
@@ -101,7 +101,7 @@ public:
   private:
     List_item *_c, *_f;
   };
-  
+
   /**
    * \brief Iterator for derived classes from ListItem.
    *
@@ -119,9 +119,9 @@ public:
   class T_iter : public Iter
   {
   private:
-    static bool const P = !Conversion<const T*, const List_item *>::exists 
+    static bool const P = !Conversion<const T*, const List_item *>::exists
       || Poly;
-    
+
     static List_item *cast_to_li(T *i, Int_to_type<true>) throw()
     { return dynamic_cast<List_item*>(i); }
 
@@ -144,14 +144,14 @@ public:
     T_iter(T *f = 0) throw() : Iter(cast_to_li(f, Int_to_type<P>())) {}
     T_iter(T *c, T *f) throw()
     : Iter(cast_to_li(c, Int_to_type<P>()),
-	cast_to_li(f, Int_to_type<P>())) 
+	cast_to_li(f, Int_to_type<P>()))
     {}
-    
+
     inline T *operator * () const throw()
     { return cast_to_type(Iter::operator * (),Int_to_type<P>()); }
     inline T *operator -> () const throw()
     { return operator * (); }
-    
+
     T_iter<T, Poly> operator ++ (int) throw()
     { T_iter<T, Poly> o = *this; Iter::operator ++ (); return o; }
     T_iter<T, Poly> operator -- (int) throw()
@@ -163,19 +163,18 @@ public:
     inline T *remove_me() throw();
   };
 
-  
   List_item() throw() : _n(this), _p(this) {}
 
 protected:
   List_item(List_item const &) throw() : _n(this), _p(this) {}
-  
+
 public:
   /** Get previous item. */
   List_item *get_prev_item() const throw() { return _p; }
 
   /** Get next item. */
   List_item *get_next_item() const throw() { return _n; }
- 
+
   /** Insert item p before this item. */
   void insert_prev_item(List_item *p) throw()
   {
@@ -185,7 +184,7 @@ public:
     _p->_n = p;
     _p = pr;
   }
-  
+
   /** Insert item p after this item. */
   void insert_next_item(List_item *p) throw()
   {
@@ -206,10 +205,10 @@ public:
     _p = _n = this;
   }
 
-  /** 
+  /**
    * \brief Append item to a list.
    *
-   * Convinience function for empty-head corner case.
+   * Convenience function for empty-head corner case.
    * \param h pointer to the current list head.
    * \param p pointer to new item.
    * \return the pointer to the new head.
@@ -217,21 +216,21 @@ public:
   template< typename C, typename N >
   static inline C *push_back(C *head, N *p) throw();
 
-  /** 
+  /**
    * \brief Prepend item to a list.
    *
-   * Convinience function for empty-head corner case.
+   * Convenience function for empty-head corner case.
    * \param head pointer to the current list head.
    * \param p pointer to new item.
    * \return the pointer to the new head.
    */
   template< typename C, typename N >
   static inline C *push_front(C *head, N *p) throw();
-  
-  /** 
+
+  /**
    * \brief Remove item from a list.
    *
-   * Convinience function for remove-head corner case.
+   * Convenience function for remove-head corner case.
    * \param head pointer to the current list head.
    * \param p pointer to the item to remove.
    * \return the pointer to the new head.
@@ -341,12 +340,11 @@ private:
     E(D const &d) throw() : data(d) {}
     D data;
   };
-  
 
 public:
   class Node : private E
   {};
-  
+
   typedef Alloc<Node> Node_alloc;
 
   /**
@@ -371,7 +369,7 @@ public:
     Iter &operator ++ () throw() { ++_i; return *this; }
     Iter &operator -- () throw() { --_i; return *this; }
 
-    /** operator for testing validity (syntactiaclly equal to pointers) */
+    /** operator for testing validity (syntactically equal to pointers) */
     operator E* () const throw() { return *_i; }
   };
 
@@ -379,7 +377,7 @@ public:
 
   /** Add element at the end of the list. */
   void push_back(D const &d) throw()
-  { 
+  {
     void *n = _a.alloc();
     if (!n) return;
     _h = E::push_back(_h, new (n) E(d));
@@ -388,7 +386,7 @@ public:
 
   /** Add element at the beginning of the list. */
   void push_front(D const &d) throw()
-  { 
+  {
     void *n = _a.alloc();
     if (!n) return;
     _h = E::push_front(_h, new (n) E(d));
@@ -401,7 +399,7 @@ public:
 
   /** Get the length of the list. */
   unsigned long size() const throw() { return _l; }
- 
+
   /** Random access. Complexity is O(n). */
   D const &operator [] (unsigned long idx) const throw()
   { Iter i = _h; for (; idx && *i; ++i, --idx) ; return *i; }

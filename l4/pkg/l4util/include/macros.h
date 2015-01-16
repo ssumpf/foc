@@ -20,67 +20,7 @@
 #include <l4/sys/types.h>
 #include <l4/sys/kdebug.h>
 #include <l4/util/l4_macros.h>
-
-/*****************************************************************************
- *** generic macros
- *****************************************************************************/
-
-#ifdef ___________MOVED_TO_LOG_PKG
-
-/* print message and enter kernel debugger */
-#ifndef Panic
-
-// Don't include <stdlib.h> here, leads to trouble.
-// Don't use exit() here since we want to terminate ASAP.
-// We might be executed in context of the region manager.
-EXTERN_C_BEGIN
-void _exit(int status) __attribute__ ((__noreturn__));
-EXTERN_C_END
-
-# ifdef L4BID_RELEASE_MODE
-#  define Panic(args...) do                                      \
-                           {                                     \
-			     LOG(args);                          \
-			     LOG_flush();                        \
-			     _exit(-1);                          \
-			   }                                     \
-                         while (1)
-# else
-#  define Panic(args...) do                                      \
-                           {                                     \
-                             LOG(args);                          \
-                             LOG_flush();                        \
-                             enter_kdebug("PANIC, 'g' for exit");\
-                             _exit(-1);                          \
-                           }                                     \
-                         while (1)
-# endif
-#endif
-
-/* assertion */
-#ifndef Assert
-#  define Assert(expr) do                                        \
-                         {                                       \
-                           if (!(expr))                          \
-                             {                                   \
-                               LOG_printf(#expr "\n");           \
-                               Panic("Assertion failed");        \
-                             }                                   \
-                         }                                       \
-                       while (0)
-#endif
-
-/* enter kernel debugger */
-#ifndef Kdebug
-#  define Kdebug(args...)  do                                    \
-                             {                                   \
-                               LOG(args);                        \
-                               LOG_flush();                      \
-                               enter_kdebug("KD");               \
-                             }                                   \
-                           while (0)
-#endif
-#endif
+#include <l4/log/macros.h>
 
 /*****************************************************************************
  *** debug stuff (to be removed, use LOG* macros instead!)
@@ -97,7 +37,7 @@ EXTERN_C_END
 #  undef PANIC
 #endif
 
-#ifdef DEBUG
+#ifndef NDEBUG
 
 #define KDEBUG(args...) do                                   \
                           {                                  \
@@ -119,12 +59,12 @@ EXTERN_C_END
 #  define PANIC(args...)  do {} while (0)
 #endif
 
-#else /* !DEBUG */
+#else /* NDEBUG */
 
 #define KDEBUG(args...) do {} while (0)
 #define ASSERT(expr)    do {} while (0)
 #define PANIC(args...)  do {} while (0)
 
-#endif /* !DEBUG */
+#endif /* NDEBUG */
 
 #endif /* !_L4UTIL_MACROS_H */

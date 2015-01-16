@@ -14,15 +14,16 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
 
 #include <features.h>
+/* need errno.h before undefining _LIBC */
+#include <errno.h>
 #ifdef __UCLIBC__
 #undef _LIBC
 #define HAVE_DIRENT_H 1
@@ -32,6 +33,7 @@
 #endif
 
 #if __GNUC__
+# undef alloca
 # define alloca __builtin_alloca
 #else
 # if HAVE_ALLOCA_H
@@ -67,7 +69,6 @@ char *alloca ();
 # endif
 #endif
 
-#include <errno.h>
 #include <ftw.h>
 #include <limits.h>
 #include <search.h>
@@ -77,11 +78,7 @@ char *alloca ();
 #if HAVE_SYS_PARAM_H || defined _LIBC
 # include <sys/param.h>
 #endif
-#ifdef _LIBC
-# include <include/sys/stat.h>
-#else
-# include <sys/stat.h>
-#endif
+#include <sys/stat.h>
 
 #if !defined _LIBC && !HAVE_DECL_STPCPY && !defined stpcpy
 char *stpcpy ();
@@ -752,7 +749,7 @@ ftw_startup (const char *dir, int is_nftw, void *func, int descriptors,
 
 
 /* Entry points.  */
-#if __UCLIBC_HAS_FTW__
+#ifdef __UCLIBC_HAS_FTW__
 int
 FTW_NAME (const char *path, FTW_FUNC_T func, int descriptors)
 {
@@ -760,7 +757,7 @@ FTW_NAME (const char *path, FTW_FUNC_T func, int descriptors)
 }
 #endif
 
-#if __UCLIBC_HAS_NFTW__
+#ifdef __UCLIBC_HAS_NFTW__
 #ifndef _LIBC
 int
 NFTW_NAME (const char *path, NFTW_FUNC_T func, int descriptors, int flags)

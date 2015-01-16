@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <pthreadP.h>
 #include <errno.h>
@@ -67,7 +66,7 @@ do_sigtimedwait (const sigset_t *set, siginfo_t *info,
 
 
 /* Return any pending signal or wait for one for the given time.  */
-int attribute_hidden
+int
 __sigtimedwait (const sigset_t *set, siginfo_t *info,
 		const struct timespec *timeout)
 {

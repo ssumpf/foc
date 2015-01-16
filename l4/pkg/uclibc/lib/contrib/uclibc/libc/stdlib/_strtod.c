@@ -95,7 +95,6 @@
 
 /**********************************************************************/
 
-#define _ISOC99_SOURCE 1
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -110,10 +109,6 @@
 # include <wchar.h>
 # include <wctype.h>
 # include <bits/uClibc_uwchar.h>
-#endif
-
-#ifdef __UCLIBC_HAS_XLOCALE__
-# include <xlocale.h>
 #endif
 
 /* Handle _STRTOD_HEXADECIMAL_FLOATS via uClibc config now. */
@@ -509,7 +504,6 @@ void attribute_hidden __fp_range_check(__fpmax_t y, __fpmax_t x)
 #endif
 
 
-libc_hidden_proto(__XL_NPP(strtof))
 float __XL_NPP(strtof)(const Wchar *str, Wchar **endptr   __LOCALE_PARAM )
 {
 #if FPMAX_TYPE == 1
@@ -526,7 +520,6 @@ float __XL_NPP(strtof)(const Wchar *str, Wchar **endptr   __LOCALE_PARAM )
 	return y;
 #endif
 }
-libc_hidden_def(__XL_NPP(strtof))
 
 #endif
 #endif
@@ -544,7 +537,6 @@ libc_hidden_def(__XL_NPP(strtof))
 #define Wchar char
 #endif
 
-libc_hidden_proto(__XL_NPP(strtod))
 double __XL_NPP(strtod)(const Wchar *__restrict str,
 					Wchar **__restrict endptr   __LOCALE_PARAM )
 {
@@ -562,7 +554,9 @@ double __XL_NPP(strtod)(const Wchar *__restrict str,
 	return y;
 #endif
 }
-libc_hidden_def(__XL_NPP(strtod))
+#ifdef L_strtod
+libc_hidden_def(strtod)
+#endif
 
 #endif
 #endif
@@ -580,7 +574,6 @@ libc_hidden_def(__XL_NPP(strtod))
 #define Wchar char
 #endif
 
-libc_hidden_proto(__XL_NPP(strtold))
 long double __XL_NPP(strtold) (const Wchar *str, Wchar **endptr   __LOCALE_PARAM )
 {
 #if FPMAX_TYPE == 3
@@ -597,7 +590,6 @@ long double __XL_NPP(strtold) (const Wchar *str, Wchar **endptr   __LOCALE_PARAM
 	return y;
 #endif
 }
-libc_hidden_def(__XL_NPP(strtold))
 
 #endif
 #endif

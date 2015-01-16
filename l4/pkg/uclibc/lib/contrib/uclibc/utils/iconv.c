@@ -12,8 +12,8 @@
  *  Library General Public License for more details.
  *
  *  You should have received a copy of the GNU Library General Public
- *  License along with this library; if not, write to the Free
- *  Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  License along with this library; if not, see
+ *  <http://www.gnu.org/licenses/>.
  */
 
 /*  ATTENTION!   ATTENTION!   ATTENTION!   ATTENTION!   ATTENTION!
@@ -98,15 +98,22 @@
  * Manuel
  */
 
+/* keep libgen before string.h - and porting.h to use the
+ * XPG version of basename */
+#include <libgen.h>
 #include "porting.h"
 #include <string.h>
 #include <iconv.h>
 #include <stdarg.h>
-#include <libgen.h>
 #include <wchar.h>
 #include "wchar.c" /* for _UC_iconv_t and __iconv_codesets */
 
-extern const unsigned char __iconv_codesets[];
+#ifdef L_iconv_main
+static
+#else
+extern
+#endif
+const unsigned char __iconv_codesets[];
 
 #define IBUF BUFSIZ
 #define OBUF BUFSIZ

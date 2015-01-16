@@ -28,6 +28,7 @@ public:
 IMPLEMENTATION [arm]:
 
 #include <cstdio>
+#include "processor.h"
 
 IMPLEMENT
 void Syscall_frame::dump()
@@ -39,6 +40,13 @@ void Syscall_frame::dump()
   printf(" R8: %08lx  R9: %08lx R10: %08lx R11: %08lx\n",
          r[8], r[9], r[10], r[11]);
   printf("R12: %08lx\n", r[12]);
+}
+
+PUBLIC inline NEEDS["processor.h"]
+void
+Return_frame::psr_set_mode(unsigned char m)
+{
+  psr = (psr & ~Proc::Status_mode_mask) | m;
 }
 
 IMPLEMENT inline
@@ -105,4 +113,21 @@ IMPLEMENT inline L4_msg_tag Syscall_frame::tag() const
 IMPLEMENT inline
 void Syscall_frame::tag(L4_msg_tag const &tag)
 { r[0] = tag.raw(); }
+
+
+//------------------------------------------------------------------
+IMPLEMENTATION [arm && !hyp]:
+
+PUBLIC inline
+bool
+Return_frame::check_valid_user_psr() const
+{ return (psr & Proc::Status_mode_mask) == Proc::PSR_m_usr; }
+
+//------------------------------------------------------------------
+IMPLEMENTATION [arm && hyp]:
+
+PUBLIC inline
+bool
+Return_frame::check_valid_user_psr() const
+{ return (psr & Proc::Status_mode_mask) != Proc::PSR_m_hyp; }
 

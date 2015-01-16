@@ -26,12 +26,12 @@ IMPLEMENT inline Mword Kmem::is_io_bitmap_page_fault(Address)
 IMPLEMENT inline
 Mword
 Kmem::is_ipc_page_fault(Address addr, Mword error)
-{ return addr < mem_user_max && (error & PF_ERR_REMTADDR); }
+{ return addr <= User_max && (error & PF_ERR_REMTADDR); }
 
 IMPLEMENT inline NEEDS ["regdefs.h"]
 Mword
 Kmem::is_kmem_page_fault(Address addr, Mword error)
-{ return !(addr < mem_user_max && (error & PF_ERR_USERADDR)); }
+{ return !(addr <= User_max && (error & PF_ERR_USERADDR)); }
 
 /**
  * Compute physical address from a kernel-virtual address.

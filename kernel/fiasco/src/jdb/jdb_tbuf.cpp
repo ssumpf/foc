@@ -484,7 +484,7 @@ Jdb_tbuf::event(Mword idx, Mword *number, Unsigned32 *kclock,
   return true;
 }
 
-/** Get difference CPU cycles between event idx and event idx+1.
+/** Get difference CPU cycles between event idx and event idx+1 on the same CPU.
  * @param idx position of first event in tracebuffer
  * @retval difference in CPU cycles
  * @return 0 if something wrong, 1 if everything ok */
@@ -493,10 +493,18 @@ int
 Jdb_tbuf::diff_tsc(Mword idx, Signed64 *delta)
 {
   Tb_entry *e      = lookup(idx);
-  Tb_entry *e_prev = lookup(idx + 1);
+  Tb_entry *e_prev;
 
-  if (!e || !e_prev)
+  if (!e)
     return false;
+
+  do
+    {
+      e_prev = lookup(++idx);
+      if (!e_prev)
+        return false;
+    }
+  while (e->cpu() != e_prev->cpu());
 
   *delta = e->tsc() - e_prev->tsc();
   return true;

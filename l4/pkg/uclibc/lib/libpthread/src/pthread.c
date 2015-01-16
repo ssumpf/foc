@@ -173,7 +173,7 @@ const int __pthread_offsetof_pid = offsetof(struct _pthread_descr_struct,
                                             p_pid);
 #endif
 const int __linuxthreads_pthread_sizeof_descr
-  = sizeof(struct _pthread_descr_struct);
+  = sizeof(struct pthread);
 
 const int __linuxthreads_initial_report_events;
 
@@ -676,9 +676,7 @@ int __pthread_initialize_manager(void)
 #endif
 
   __pthread_multiple_threads = 1;
-#if TLS_MULTIPLE_THREADS_IN_TCB || !defined USE_TLS || !TLS_DTV_AT_TP
-  __pthread_main_thread->p_multiple_threads = 1;
-#endif
+  __pthread_main_thread->header.multiple_threads = 1;
   *__libc_multiple_threads_ptr = 1;
 
 #ifndef HAVE_Z_NODELETE
@@ -731,12 +729,10 @@ int __pthread_initialize_manager(void)
 
   /* Initialize the descriptor.  */
 #if !defined USE_TLS || !TLS_DTV_AT_TP
-  mgr->p_header.data.tcb = tcbp;
-  mgr->p_header.data.self = mgr;
-  mgr->p_header.data.multiple_threads = 1;
-#elif TLS_MULTIPLE_THREADS_IN_TCB
-  mgr->p_multiple_threads = 1;
+  mgr->header.tcb = tcbp;
+  mgr->header.self = mgr;
 #endif
+  mgr->header.multiple_threads = 1;
 #ifdef NOT_FOR_L4
   mgr->p_lock = &__pthread_handles[1].h_lock;
 #endif

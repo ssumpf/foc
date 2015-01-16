@@ -96,38 +96,46 @@ sub build_obj($$$)
   $c_compr->addfile(*M);
   close M;
 
-  write_to_file("$modname.extra.s",
-      ".section .rodata.module_info               \n",
-      ".align 4                                   \n",
-      "_bin_${modname}_name:                      \n",
-      ".ascii \"$_file\"; .byte 0                 \n",
-      ".align 4                                   \n",
-      "_bin_${modname}_md5sum_compr:              \n",
-      ".ascii \"".$c_compr->hexdigest."\"; .byte 0\n",
-      ".align 4                                   \n",
-      "_bin_${modname}_md5sum_uncompr:            \n",
-      ".ascii \"".$c_unc->hexdigest."\"; .byte 0  \n",
-      ".align 4                                   \n",
-      ".section .module_info                      \n",
-      ".long _binary_${modname}_start             \n",
-      ".long ", (-s "$modname.obj"), "            \n",
-      ".long $uncompressed_size                   \n",
-      ".long _bin_${modname}_name                 \n",
-      ".long _bin_${modname}_md5sum_compr         \n",
-      ".long _bin_${modname}_md5sum_uncompr       \n",
-      ($arch eq 'x86' || $arch eq 'amd64' || $arch eq 'ppc32'
-       ? #".section .module_data, \"a\", \@progbits   \n" # Not Xen
-         ".section .module_data, \"awx\", \@progbits   \n" # Xen
-       : ".section .module_data, #alloc           \n"),
-      ".p2align 12                                \n",
-      ".global _binary_${modname}_start           \n",
-      ".global _binary_${modname}_end             \n",
-      "_binary_${modname}_start:                  \n",
-      ".incbin \"$modname.obj\"                   \n",
-      "_binary_${modname}_end:                    \n",
-      );
-  system("$prog_cc $flags_cc -c -o $modname.bin $modname.extra.s");
-  unlink("$modname.extra.s", "$modname.obj", "$modname.ugz");
+  my $size = -s "$modname.obj";
+  my $md5_compr = $c_compr->hexdigest;
+  my $md5_uncompr = $c_unc->hexdigest;
+
+  my $section_attr = ($arch eq 'x86' || $arch eq 'amd64' || $arch eq 'ppc32'
+       ? #'"a", @progbits' # Not Xen
+         '\"awx\", @progbits' # Xen
+       : '#alloc' );
+
+  write_to_file("$modname.extra.c",qq|
+    struct Mi {
+      void const *start;
+      unsigned size;
+      unsigned size_uncompr;
+      char const *name;
+      char const *cmdline;
+      char const *md5sum_compr;
+      char const *md5sum_uncompr;
+    } __attribute__((packed));
+
+    extern char const _binary_${modname}_start[];
+
+    struct Mi const _binary_${modname}_info
+    __attribute__((section(".module_info"), aligned(4))) =
+    {
+      _binary_${modname}_start, $size, $uncompressed_size,
+      "$_file", "$cmdline",
+      "$md5_compr", "$md5_uncompr"
+    };
+
+    asm (".section .module_data, $section_attr           \\n"
+         ".p2align 12                                    \\n"
+         ".global _binary_${modname}_start               \\n"
+         "_binary_${modname}_start:                      \\n"
+         ".incbin \\"$modname.obj\\"                     \\n"
+         "_binary_${modname}_end:                        \\n");
+  |);
+
+  system("$prog_cc $flags_cc -c -o $modname.bin $modname.extra.c");
+  unlink("$modname.extra.c", "$modname.obj", "$modname.ugz");
 }
 
 sub build_mbi_modules_obj($@)
@@ -137,36 +145,9 @@ sub build_mbi_modules_obj($@)
   my $asm_string;
 
   # generate mbi module structures
-  $asm_string .= ".align 4                         \n".
-                 ".section .data.modules_mbi       \n".
-                 ".global _modules_mbi_start;      \n".
-                 "_modules_mbi_start:              \n";
-
-  for (my $i = 0; $i < @mods; $i++) {
-    $asm_string .= ".long 0                        \n".
-                   ".long 0                        \n".
-		   ".long _modules_mbi_cmdline_$i  \n".
-		   ".long 0                        \n";
-  }
-
-  $asm_string .= ".global _modules_mbi_end;        \n".
-                 "_modules_mbi_end:                \n";
-
-  $asm_string .= ".section .data.cmdlines          \n";
-
-  # generate cmdlines
-  for (my $i = 0; $i < @mods; $i++) {
-    $asm_string .= "_modules_mbi_cmdline_$i:                  \n".
-                   ".ascii \"$mods[$i]->{cmdline}\"; .byte 0; \n";
-  }
-
-  $asm_string .= ".global _mbi_cmdline          \n".
-                 "_mbi_cmdline:                 \n".
-                 ".ascii \"$cmdline\"; .byte 0; \n";
-
-  write_to_file("mbi_modules.s", $asm_string);
-  system("$prog_cc $flags_cc -c -o mbi_modules.bin mbi_modules.s");
-  unlink("mbi_modules.s");
+  write_to_file("mbi_modules.c", qq|char const _mbi_cmdline[] = "$cmdline";|);
+  system("$prog_cc $flags_cc -c -o mbi_modules.bin mbi_modules.c");
+  unlink("mbi_modules.c");
 
 }
 

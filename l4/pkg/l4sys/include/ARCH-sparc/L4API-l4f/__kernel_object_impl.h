@@ -31,10 +31,10 @@
 L4_INLINE l4_msgtag_t
 l4_invoke_debugger(l4_cap_idx_t obj, l4_msgtag_t tag, l4_utcb_t *utcb) L4_NOTHROW
 {
+	l4_msgtag_t t;
 	(void)obj;
 	(void)tag;
 	(void)utcb;
-	l4_msgtag_t t;
 	t.raw = ~0;
 	return t;
 }

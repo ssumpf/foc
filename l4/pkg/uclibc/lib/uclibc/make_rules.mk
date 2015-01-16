@@ -5,14 +5,14 @@ CFLAGS_amd64 += -mcmodel=medium
 
 CPPFLAGS	+= -nostdinc -include \
 		  $(CONTRIB_DIR)/include/libc-symbols.h
-CFLAGS		+= -fno-builtin
+CFLAGS		+= -fno-builtin $(GCCNOSTACKPROTOPT)
 CFLAGS          += -DUCLIBC_INTERNAL
 # CFLAGS	+= -std=iso9899:199901
 DEFINES		+= -DNDEBUG -D_LIBC -D__UCLIBC_CTOR_DTOR__
 WARNINGS	= -Wall -Wstrict-prototypes
 
 # for building the C library we access internal headers
-PRIVATE_INCDIR += $(CONTRIB_DIR)/libc/sysdeps/linux/$(BUILD_ARCH)
+PRIVATE_INCDIR += $(CONTRIB_DIR)/libc/sysdeps/linux/$(UCLIBC_ARCH)
 PRIVATE_INCDIR += $(CONTRIB_DIR)/libc/sysdeps/linux
 # here we cheat a little and allow ../ includes from internal headers
 PRIVATE_INCDIR += $(LIBC_DST_DIR)/libc $(PTHREAD_INCDIR)
@@ -33,8 +33,6 @@ vpath %.S  $(LIBC_DST_DIR)
 # libpthread support
 vpath $(PTHOBJ_PFX)/% $(LIBCSRC_DIR_ABS)/..
 
-PICFLAGS += -DSHARED=1
-
 
 # NOTE the two newlines in the define are essential!!
 define NEWLINE
@@ -51,7 +49,8 @@ endef
 add_source_file = $(if $(filter %.c,$(1)),  $(eval $(call add_source_file_x,C$(2),$(1))), \
                   $(if $(filter %.cc,$(1)), $(eval $(call add_source_file_x,CC$(2),$(1))), \
                   $(if $(filter %.S,$(1)),  $(eval $(call add_source_file_x,S$(2),$(1))), \
-                  $(error unknown source file: $(1)))))
+                  $(if $(filter %.h,$(1)),  $(eval $(call add_source_file_x,H$(2),$(1))), \
+                  $(error unknown source file: $(1))))))
 
 # generate the search path value for source files
 gen_search_path = $(LIBC_DST_DIR)/$(1)/$(UCLIBC_ARCH) \
@@ -62,6 +61,7 @@ gen_search_path = $(LIBC_DST_DIR)/$(1)/$(UCLIBC_ARCH) \
 # search for a .c, a .S, or a .cc file for the given basename
 search_source_file = $(or $(firstword $(foreach d,$(1),$(wildcard $(d)/$(2).[cS] $(d)/$(2).cc))), \
                           $(patsubst %.c,%$(suffix $(2)).c,$(firstword $(wildcard $(addsuffix /$(basename $(2)).c,$(1))))), \
+                          $(patsubst %.h,%$(suffix $(2)).h,$(firstword $(wildcard $(addsuffix /$(basename $(2)).h,$(1))))), \
                           $(error source file for $(2) not found))
 
 # arg 1: directory of the subsystem (e.g., libc/string)

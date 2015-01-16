@@ -16,9 +16,9 @@ public:
 
   enum
   {
-    Utcb_addr         = 0xffffffff8ff00000UL,    ///< % 4kB UTCB map address
-    Kip_auto_map      = 0xffffffff8fff2000UL,    ///< % 4kB
-    User_max          = 0x0000800000000000UL,
+    Utcb_addr         = 0xffff800000000000UL,    ///< % 4kB UTCB map address
+    Kip_auto_map      = 0xffff800000002000UL,    ///< % 4kB
+    User_max          = 0x00007fffffffffffUL,
     Service_page      = 0xffffffffeac00000UL,    ///< % 4MB global mappings
     Local_apic_page   = Service_page + 0x0000,   ///< % 4KB
     Kmem_tmp_page_1   = Service_page + 0x2000,   ///< % 4KB size 8KB
@@ -57,7 +57,8 @@ public:
 
     Caps_start        = 0xfffffffff0800000UL,    ///< % 4MB
     Caps_end          = 0xfffffffffc400000UL,    ///< % 4MB
-    Physmem           = 0xfffffffffc400000UL,    ///< % 4MB   kernel memory
+    Physmem           = 0xffffffff80000000UL,    ///< % 4MB   kernel memory
+    Physmem_end       = 0xffffffffe0000000UL,    ///< % 4MB   kernel memory
     Kernel_end	      = 0xffffffffffffffffUL+1,    ///< % end of address space
   };
 
@@ -131,5 +132,5 @@ PUBLIC static inline
 Mword
 Mem_layout::in_pmem(Address addr)
 {
-  return addr >= Physmem;
+  return addr >= Physmem && addr < Physmem_end;
 }

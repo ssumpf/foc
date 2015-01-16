@@ -13,14 +13,14 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _LINUX_ARM_SYSDEP_H
 #define _LINUX_ARM_SYSDEP_H 1
 
 #include <common/sysdep.h>
+#include <bits/arm_bx.h>
 
 #include <sys/syscall.h>
 /* For Linux we can use the system call table in the header file
@@ -156,6 +156,7 @@
 #define	PSEUDO_END_ERRVAL(name) \
   END (name)
 
+#undef ret_ERRVAL
 #define ret_ERRVAL PSEUDO_RET_NOERRNO
 
 #if defined NOT_IN_libc
@@ -253,7 +254,7 @@ __local_syscall_error:						\
 #undef INLINE_SYSCALL
 #define INLINE_SYSCALL(name, nr, args...)					\
   ({ unsigned int _inline_sys_result = INTERNAL_SYSCALL (name, , nr, args);	\
-     if (__builtin_expect (INTERNAL_SYSCALL_ERROR_P (_inline_sys_result, ), 0))	\
+     if (unlikely (INTERNAL_SYSCALL_ERROR_P (_inline_sys_result, )))	\
        {									\
 	 __set_errno (INTERNAL_SYSCALL_ERRNO (_inline_sys_result, ));		\
 	 _inline_sys_result = (unsigned int) -1;				\

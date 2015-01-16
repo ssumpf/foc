@@ -15,9 +15,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _LIBC_SYMBOLS_H
 #define _LIBC_SYMBOLS_H	1
@@ -196,12 +195,12 @@
 # define _strong_alias_untyped(name, aliasname) \
   extern __typeof (aliasname) aliasname __attribute__ ((alias (#name)));
 
+# ifdef HAVE_WEAK_SYMBOLS
+
 /* This comes between the return type and function name in
    a function definition to make that definition weak.  */
-# define weak_function __attribute__ ((weak))
-# define weak_const_function __attribute__ ((weak, __const__))
-
-# ifdef HAVE_WEAK_SYMBOLS
+#  define weak_function __attribute__ ((weak))
+#  define weak_const_function __attribute__ ((weak, __const__))
 
 /* Define ALIASNAME as a weak alias for NAME.
    If weak aliases are not available, this defines a strong alias.  */
@@ -214,6 +213,9 @@
 #  define _weak_extern(expr) _Pragma (#expr)
 
 # else
+
+#  define weak_function /* empty */
+#  define weak_const_function __attribute__ ((__const__))
 
 #  define weak_alias(name, aliasname) strong_alias(name, aliasname)
 #  define weak_extern(symbol) /* Nothing. */
@@ -477,7 +479,7 @@ FIXME! - ?
 # define __hidden_proto_hiddenattr(attrs...)
 #endif
 
-#if defined NOT_FOR_L4 && /*!defined STATIC &&*/ !defined __BCC__
+#if /*!defined STATIC &&*/ !defined __BCC__
 
 # ifndef __ASSEMBLER__
 #  define hidden_proto(name, attrs...) __hidden_proto(name, __GI_##name, ##attrs)

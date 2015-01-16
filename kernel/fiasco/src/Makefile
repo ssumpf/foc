@@ -188,9 +188,9 @@ KCONFIG_BSP_FILES  := $(shell find $(BSP_DIR) -name Kconfig -follow -print)
 kconfig_call = $(MAKE) -C $(tooldir)/kconfig O=$(objbase) \
 	       Kconfig=$(KCONFIG_FILE) \
 	       KCONFIG_AUTOHEADER=globalconfig.h \
-	       KCONFIG_TRISTATE=config/tristate.conf \
+	       KCONFIG_TRISTATE=include/config/tristate.conf \
 	       KCONFIG_CONFIG=globalconfig.out \
-	       KCONFIG_AUTOCONFIG=config/auto.conf \
+	       KCONFIG_AUTOCONFIG=include/config/auto.conf \
 	       KERNELVERSION=SVN MENUCONFIG_COLOR=blackbg \
 	       INCLUDE_PPC32=$(INCLUDE_PPC32) \
 	       INCLUDE_SPARC=$(INCLUDE_SPARC) \
@@ -206,15 +206,17 @@ globalconfig.h: globalconfig.out
 	+$(kconfig_call) silentoldconfig
 
 config: $(KCONFIG_FILE)
-	+$(kconfig_call) menuconfig silentoldconfig
+	+$(kconfig_call) menuconfig
+	+$(kconfig_call) silentoldconfig
 
 textconfig: $(KCONFIG_FILE)
 	+$(kconfig_call) config silentoldconfig
 
 menuconfig oldconfig xconfig gconfig nconfig randconfig allyesconfig allnoconfig: $(KCONFIG_FILE)
-	+$(kconfig_call) $@ silentoldconfig
+	+$(kconfig_call) $@
+	+$(kconfig_call) silentoldconfig
 
-listnewconfig oldnoconfig savedefconfig: $(KCONFIG_FILE)
+listnewconfig olddefconfig oldnoconfig savedefconfig: $(KCONFIG_FILE)
 	+$(kconfig_call) $@
 
 oldaskconfig: $(KCONFIG_FILE)

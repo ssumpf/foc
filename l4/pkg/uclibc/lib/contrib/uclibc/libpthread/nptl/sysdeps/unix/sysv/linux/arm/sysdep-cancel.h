@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <sysdep.h>
 #include <tcb-offsets.h>
@@ -36,7 +35,7 @@
   .type __##syscall_name##_nocancel,%function;				\
   .globl __##syscall_name##_nocancel;					\
   __##syscall_name##_nocancel:						\
-    .cfi_sections .debug_frame;						\
+    cfi_sections(.debug_frame);						\
     cfi_startproc;							\
     DO_CALL (syscall_name, args);					\
     PSEUDO_RET;								\

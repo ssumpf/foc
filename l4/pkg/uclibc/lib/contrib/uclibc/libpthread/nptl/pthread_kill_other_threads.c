@@ -13,11 +13,10 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
-#ifdef SHARED
+#if 0 /*def SHARED*/
 /* This function does not serve a useful purpose in the thread library
    implementation anymore.  It used to be necessary when then kernel
    could not shut down "processes" but this is not the case anymore.

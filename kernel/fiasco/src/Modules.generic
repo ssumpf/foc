@@ -1,4 +1,7 @@
-INTERFACES_KERNEL	:= cpu_mask rcupdate kobject_mapdb context_base \
+# -*- makefile -*-
+# vi:se ft=make:
+
+INTERFACES_KERNEL	:= cpu_mask rcupdate kobject_mapdb context_base pm \
 			   mem_region per_cpu_data startup boot_info         \
 			   queue queue_item l4_buf_iter bitmap               \
 			   mapping spin_lock mapping_tree mappable           \
@@ -6,13 +9,13 @@ INTERFACES_KERNEL	:= cpu_mask rcupdate kobject_mapdb context_base \
 			   kobject_iface kobject ready_queue_wfq             \
                            obj_space_types obj_space_phys_util \
 			   ready_queue_fp obj_space ptab_base ram_quota      \
-			   ref_ptr ref_obj mem_space space  \
+			   ref_obj mem_space space string_buffer \
 			   vlog kmem kmem_alloc slab_cache mem_layout        \
 			   kmem_slab switch_lock kip_init   \
 			   thread_lock helping_lock cpu_lock timer timeout   \
 			   ipc_timeout timeslice_timeout per_cpu_data_alloc  \
 			   vcpu kobject_helper icu_helper thread_state       \
-			   context mp_lock sender receiver mem_unit factory  \
+			   context sender receiver mem_unit factory          \
 			   lock ipc_sender thread thread_object syscalls     \
 			   kernel_thread map_util irq banner warn            \
 			   app_cpu_thread globals watchdog kernel_uart       \

@@ -3,16 +3,7 @@
 #endif
 
 // L4 added
-#ifndef libc_hidden_proto
-#define libc_hidden_proto(x)
-#endif
-#ifndef libm_hidden_proto
-#define libm_hidden_proto(x)
-#endif
-#ifndef librt_hidden_proto
-#define librt_hidden_proto(x)
-#endif
-// ...
+#include <bits/l4-libc-symbols.h>
 
 #define __UCLIBC_MAJOR__ 0
 #define __UCLIBC_MINOR__ 9

@@ -1,4 +1,4 @@
-/* Copyright (C) 1991,92,96,97,99,2000,2001 Free Software Foundation, Inc.
+/* Copyright (C) 1991,92,96,97,99,2000,2001,2009 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef	_STRINGS_H
 #define	_STRINGS_H	1
@@ -35,22 +34,22 @@ __BEGIN_DECLS
 
 # ifdef __UCLIBC_SUSV3_LEGACY__
 /* Copy N bytes of SRC to DEST (like memmove, but args reversed).  */
-extern void bcopy (__const void *__src, void *__dest, size_t __n)
+extern void bcopy (const void *__src, void *__dest, size_t __n)
      __THROW __nonnull ((1, 2));
 
 /* Set N bytes of S to 0.  */
 extern void bzero (void *__s, size_t __n) __THROW __nonnull ((1));
 
 /* Compare N bytes of S1 and S2 (same as memcmp).  */
-extern int bcmp (__const void *__s1, __const void *__s2, size_t __n)
+extern int bcmp (const void *__s1, const void *__s2, size_t __n)
      __THROW __attribute_pure__ __nonnull ((1, 2));
 
 /* Find the first occurrence of C in S (same as strchr).  */
-extern char *index (__const char *__s, int __c)
+extern char *index (const char *__s, int __c)
      __THROW __attribute_pure__ __nonnull ((1));
 
 /* Find the last occurrence of C in S (same as strrchr).  */
-extern char *rindex (__const char *__s, int __c)
+extern char *rindex (const char *__s, int __c)
      __THROW __attribute_pure__ __nonnull ((1));
 # else
 #  ifdef __UCLIBC_SUSV3_LEGACY_MACROS__
@@ -69,10 +68,11 @@ extern char *rindex (__const char *__s, int __c)
 /* Return the position of the first bit set in I, or 0 if none are set.
    The least-significant bit is position 1, the most-significant 32.  */
 extern int ffs (int __i) __THROW __attribute__ ((__const__));
+libc_hidden_proto(ffs)
 
 /* The following two functions are non-standard but necessary for non-32 bit
    platforms.  */
-#if 0 /*def	__USE_GNU*/
+# ifdef	__USE_GNU
 extern int ffsl (long int __l) __THROW __attribute__ ((__const__));
 #  ifdef __GNUC__
 __extension__ extern int ffsll (long long int __ll)
@@ -81,17 +81,39 @@ __extension__ extern int ffsll (long long int __ll)
 # endif
 
 /* Compare S1 and S2, ignoring case.  */
-extern int strcasecmp (__const char *__s1, __const char *__s2)
+extern int strcasecmp (const char *__s1, const char *__s2)
      __THROW __attribute_pure__ __nonnull ((1, 2));
+libc_hidden_proto(strcasecmp)
 
 /* Compare no more than N chars of S1 and S2, ignoring case.  */
-extern int strncasecmp (__const char *__s1, __const char *__s2, size_t __n)
+extern int strncasecmp (const char *__s1, const char *__s2, size_t __n)
      __THROW __attribute_pure__ __nonnull ((1, 2));
+libc_hidden_proto(strncasecmp)
 
+#if defined __USE_XOPEN2K8 && defined __UCLIBC_HAS_XLOCALE__
+/* The following functions are equivalent to the both above but they
+   take the locale they use for the collation as an extra argument.
+   This is not standardsized but something like will come.  */
+# include <xlocale.h>
+
+/* Again versions of a few functions which use the given locale instead
+   of the global one.  */
+extern int strcasecmp_l (const char *__s1, const char *__s2,
+			 __locale_t __loc)
+     __THROW __attribute_pure__ __nonnull ((1, 2, 3));
+libc_hidden_proto(strcasecmp_l)
+
+extern int strncasecmp_l (const char *__s1, const char *__s2,
+			  size_t __n, __locale_t __loc)
+     __THROW __attribute_pure__ __nonnull ((1, 2, 4));
+libc_hidden_proto(strncasecmp_l)
+#endif
 __END_DECLS
 
 
 #ifdef _LIBC
+/* comment is wrong and will face this, when HAS_GNU option will be added
+ * header is SuSv standard */
 #error "<strings.h> should not be included from libc."
 #endif
 

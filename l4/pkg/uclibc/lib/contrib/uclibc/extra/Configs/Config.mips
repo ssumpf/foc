@@ -11,6 +11,8 @@ config FORCE_OPTIONS_FOR_ARCH
 	bool
 	default y
 	select ARCH_ANY_ENDIAN
+	select ARCH_HAS_UCONTEXT
+	select ARCH_HAS_DEPRECATED_SYSCALLS
 
 choice
 	prompt "Target ABI"
@@ -69,5 +71,8 @@ config CONFIG_MIPS_ISA_MIPS32R2
 
 config CONFIG_MIPS_ISA_MIPS64
 	bool "MIPS64"
+
+config CONFIG_MIPS_ISA_MIPS64R2
+	bool "MIPS64r2"
 
 endchoice

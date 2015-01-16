@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _RPC_AUTH_DES_H
 #define _RPC_AUTH_DES_H	1
@@ -89,27 +88,26 @@ struct authdes_verf
 #define adv_nickname   adv_int_u
 
 /* Map a des credential into a unix cred. */
-extern int authdes_getucred (__const struct authdes_cred * __adc,
+extern int authdes_getucred (const struct authdes_cred * __adc,
 			     uid_t * __uid, gid_t * __gid,
 			     short *__grouplen, gid_t * __groups) __THROW;
 
 /* Get the public key for NAME and place it in KEY.  NAME can only be
    up to MAXNETNAMELEN bytes long and the destination buffer KEY should
    have HEXKEYBYTES + 1 bytes long to fit all characters from the key.  */
-extern int getpublickey (__const char *__name, char *__key) __THROW;
+extern int getpublickey (const char *__name, char *__key) __THROW;
 
 /* Get the secret key for NAME and place it in KEY.  PASSWD is used to
    decrypt the encrypted key stored in the database.  NAME can only be
    up to MAXNETNAMELEN bytes long and the destination buffer KEY
    should have HEXKEYBYTES + 1 bytes long to fit all characters from
    the key.  */
-extern int getsecretkey (__const char *__name, char *__key,
-			 __const char *__passwd) __THROW;
+extern int getsecretkey (const char *__name, char *__key,
+			 const char *__passwd) __THROW;
 #endif
 
 extern int rtime (struct sockaddr_in *__addrp, struct rpc_timeval *__timep,
 		  struct rpc_timeval *__timeout) __THROW;
-libc_hidden_proto(rtime)
 
 __END_DECLS
 

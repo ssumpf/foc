@@ -156,7 +156,7 @@ Switch_lock::try_lock()
   if (EXPECT_FALSE(!valid()))
     return Invalid;
 
-  bool ret = cas(&_lock_owner, (Address)0, Address(current()));
+  bool ret = set_lock_owner(current());
 
   if (ret)
     current()->inc_lock_cnt();	// Do not lose this lock if current is deleted
@@ -201,23 +201,32 @@ Switch_lock::lock_dirty()
   if ((_lock_owner & ~1UL) == Address(current()))
     return Locked;
 
-  while (test())
+  do
     {
-      assert(cpu_lock.test());
+      for (;;)
+        {
+          Mword o = access_once(&_lock_owner);
+          if (o & 1)
+            return Invalid;
 
-      // Help lock owner until lock becomes free
-      //      while (test())
-      bool tmp = current()->switch_exec_locked(lock_owner(), Context::Helping);
-      (void)tmp;
+          if (!o)
+            break;
 
-      Proc::irq_chance();
+          // Help lock owner until lock becomes free
+          //      while (test())
+          Context *c = current();
+          if (   c->switch_exec_helping((Context *)o, Context::Helping, &_lock_owner, o) == Context::Switch::Failed
+              && c->home_cpu() != current_cpu())
+            c->schedule();
 
-      if (!valid())
-	return Invalid;
+          Proc::preemption_point();
+
+          if (!valid())
+            return Invalid;
+        }
     }
-
-  set_lock_owner(current());
-
+  while (!set_lock_owner(current()));
+  Mem::mp_wmb();
   current()->inc_lock_cnt();   // Do not lose this lock if current is deleted
   return Not_locked;
 }
@@ -248,12 +257,70 @@ Switch_lock::test_and_set_dirty()
   return lock_dirty();
 }
 
+IMPLEMENTATION [!mp]:
+
 PRIVATE inline
 void NO_INSTRUMENT
+Switch_lock::clear_lock_owner()
+{
+  _lock_owner &= 1;
+}
+
+PRIVATE inline
+bool NO_INSTRUMENT
 Switch_lock::set_lock_owner(Context *o)
 {
   _lock_owner = Address(o) | (_lock_owner & 1);
+  return true;
 }
+
+
+IMPLEMENTATION [mp]:
+
+PRIVATE inline
+void NO_INSTRUMENT
+Switch_lock::clear_lock_owner()
+{
+  atomic_mp_and(&_lock_owner, 1);
+}
+
+PRIVATE inline
+bool NO_INSTRUMENT
+Switch_lock::set_lock_owner(Context *o)
+{
+  bool have_no_locks = access_once(&o->_lock_cnt) < 1;
+
+  if (have_no_locks)
+    {
+      assert_kdb (current_cpu() == o->home_cpu());
+      for (;;)
+        {
+          if (EXPECT_FALSE(access_once(&o->_running_under_lock)))
+            continue;
+          if (EXPECT_TRUE(mp_cas(&o->_running_under_lock, Mword(false), Mword(true))))
+            break;
+        }
+    }
+  else
+    assert_kdb (o->_running_under_lock);
+
+  Mem::mp_wmb();
+
+  if (EXPECT_FALSE(!mp_cas(&_lock_owner, Mword(0), Address(o))))
+    {
+      if (have_no_locks)
+        {
+          Mem::mp_wmb();
+          write_now(&o->_running_under_lock, Mword(false));
+        }
+      return false;
+    }
+
+  return true;
+}
+
+
+IMPLEMENTATION:
 
 /**
  * Clear the lock, however do not switch to a potential helper yet.
@@ -266,13 +333,14 @@ Switch_lock::set_lock_owner(Context *o)
  * @post switch_dirty() must be called in the same atomical section
  */
 PROTECTED
-inline NEEDS[Switch_lock::set_lock_owner]
+inline NEEDS[Switch_lock::clear_lock_owner]
 Switch_lock::Lock_context NO_INSTRUMENT
 Switch_lock::clear_no_switch_dirty()
 {
+  Mem::mp_wmb();
   Lock_context c;
   c.owner = lock_owner();
-  set_lock_owner(0);
+  clear_lock_owner();
   c.owner->dec_lock_cnt();
   return c;
 }
@@ -297,16 +365,17 @@ Switch_lock::switch_dirty(Lock_context const &c)
    * If someone helped us by lending its time slice to us.
    * Just switch back to the helper without changing its helping state.
    */
-  bool need_sched = false;
   if (h != c.owner)
-    need_sched = c.owner->switch_exec_locked(h, Context::Ignore_Helping);
-
+    if (   EXPECT_FALSE(h->home_cpu() != current_cpu())
+        || EXPECT_FALSE((long)c.owner->switch_exec_locked(h, Context::Ignore_Helping)))
+      c.owner->schedule();
   /*
    * Someone apparently tries to delete us. Therefore we aren't
    * allowed to continue to run and therefore let the scheduler
    * pick the next thread to execute.
    */
-  if (need_sched || (c.owner->lock_cnt() == 0 && c.owner->donatee())) 
+  if (   c.owner->lock_cnt() == 0
+      && (c.owner->home_cpu() != current_cpu() || c.owner->donatee()))
     c.owner->schedule();
 }
 
@@ -360,7 +429,7 @@ void NO_INSTRUMENT
 Switch_lock::invalidate()
 {
   auto guard = lock_guard(cpu_lock);
-  _lock_owner |= 1;
+  atomic_mp_or(&_lock_owner, 1);
 }
 
 PUBLIC
@@ -374,19 +443,25 @@ Switch_lock::wait_free()
   // have we already the lock?
   if ((_lock_owner & ~1UL) == (Address)current())
     {
-      set_lock_owner(0);
-      current()->dec_lock_cnt();
+      clear_lock_owner();
+      Context *c = current();
+      c->dec_lock_cnt();
       return;
     }
 
-  while (Address(_lock_owner) & ~1UL)
+  for(;;)
     {
       assert(cpu_lock.test());
 
+      Address _owner = access_once(&_lock_owner);
+      Context *owner = (Context *)(_owner & ~1UL);
+      if (!owner)
+        break;
+
       // Help lock owner until lock becomes free
       //      while (test())
-      check (!current()->switch_exec_locked((Context*)(Address(_lock_owner & ~1UL)), Context::Helping));
+      current()->switch_exec_helping(owner, Context::Helping, &_lock_owner, _owner);
 
-      Proc::irq_chance();
+      Proc::preemption_point();
     }
 }

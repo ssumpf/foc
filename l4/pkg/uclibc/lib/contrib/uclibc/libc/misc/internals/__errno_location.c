@@ -4,17 +4,15 @@
  * Licensed under the LGPL v2.1, see the file COPYING.LIB in this tarball.
  */
 
-#include "internal_errno.h"
+#include <features.h>
+#include <errno.h>
 
-/* psm: moved to bits/errno.h: */
-int *
-#ifndef __UCLIBC_HAS_THREADS__
-weak_const_function
+#ifndef __UCLIBC_HAS_TLS__
+# undef errno
+extern int errno;
 #endif
-__errno_location (void)
+
+int weak_const_function *__errno_location(void)
 {
     return &errno;
 }
-#ifdef IS_IN_libc /* not really need, only to keep in sync w/ libc_hidden_proto */
-libc_hidden_weak(__errno_location)
-#endif

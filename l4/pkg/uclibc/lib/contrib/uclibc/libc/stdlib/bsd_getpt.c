@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -40,7 +39,7 @@ const char __libc_ptyname1[] attribute_hidden = PTYNAME1;
 const char __libc_ptyname2[] attribute_hidden = PTYNAME2;
 
 /* Open a master pseudo terminal and return its file descriptor.  */
-int
+static __inline__ int
 __getpt (void)
 {
   char buf[sizeof (_PATH_PTY) + 2];

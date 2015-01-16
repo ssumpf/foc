@@ -24,7 +24,7 @@ Pit::done()
   Io::out8_p(0x30, 0x43);
 }
 
-PUBLIC static FIASCO_INIT_CPU
+PUBLIC static FIASCO_INIT_CPU_AND_PM
 void
 Pit::setup_channel2_to_20hz()
 {

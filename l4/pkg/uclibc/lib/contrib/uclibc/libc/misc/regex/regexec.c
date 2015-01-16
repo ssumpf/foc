@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 static reg_errcode_t match_ctx_init (re_match_context_t *cache, int eflags,
 				     int n) internal_function;
@@ -564,7 +563,7 @@ re_search_internal (const regex_t *preg, const char *string, int length,
   re_match_context_t mctx;
   char *fastmap = (preg->fastmap != NULL && preg->fastmap_accurate
 		   && range && !preg->can_be_null) ? preg->fastmap : NULL;
-  RE_TRANSLATE_TYPE t = preg->translate;
+  __RE_TRANSLATE_TYPE t = preg->translate;
 
   memset (&mctx, '\0', sizeof (re_match_context_t));
   mctx.dfa = dfa;

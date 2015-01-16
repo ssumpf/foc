@@ -222,7 +222,6 @@ alien_sys_fast_ipc_log:
 #endif // CONFIG_JDB
 
 
-#if (defined (CONFIG_JDB_LOGGING) || !defined(CONFIG_ASSEMBLER_IPC_SHORTCUT))
 	.p2align(4)
 	.global entry_sys_fast_ipc_c
 entry_sys_fast_ipc_c:
@@ -258,7 +257,6 @@ entry_sys_fast_ipc_c:
 	call    sys_ipc_wrapper
 in_sc_ipc2:
 	DO_SYSEXIT
-#endif
 
 	.globl alien_sys_fast_ipc_c     /* Also used in shortcut */
 	.global ret_from_fast_alien_ipc /* used in ex-regs */

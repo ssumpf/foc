@@ -197,7 +197,7 @@ double sin_pi(double x)
 	return -y;
 }
 
-double attribute_hidden __ieee754_lgamma_r(double x, int *signgamp)
+double __ieee754_lgamma_r(double x, int *signgamp)
 {
 	double t,y,z,nadj=0,p,p1,p2,p3,q,r,w;
 	int i,hx,lx,ix;
@@ -314,11 +314,12 @@ double lgamma_r(double x, int *signgamp)
 #else
 strong_alias(__ieee754_lgamma_r, lgamma_r)
 #endif
+libm_hidden_def(lgamma_r)
 
 /* __ieee754_lgamma(x)
  * Return the logarithm of the Gamma function of x.
  */
-double attribute_hidden __ieee754_lgamma(double x)
+double __ieee754_lgamma(double x)
 {
 	return __ieee754_lgamma_r(x, &signgam);
 }
@@ -358,6 +359,7 @@ strong_alias(lgamma, gamma)
 strong_alias(__ieee754_lgamma_r, gamma_r)
 strong_alias(__ieee754_lgamma, gamma)
 #endif
+libm_hidden_def(gamma)
 
 
 /* double tgamma(double x)

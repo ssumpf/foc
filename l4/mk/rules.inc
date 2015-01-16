@@ -36,11 +36,11 @@ endef
 define BID_MAKE_RULE_template_nongendep
 $(1): $(2)
 	@$$(COMP_MESSAGE)
-	$$(VERBOSE)$$($(BID_$(3)_COMPILER)) -c $$(DEPFLAGS) $$(CPPFLAGS) $$($(3)FLAGS) $(4) $$(call absfilename,$$<) -o $$@
+	$$(VERBOSE)$$($(BID_$(3)_COMPILER)) -c $$(DEPFLAGS) $$(DEPFLAGS_$(3)) $$(CPPFLAGS) $$($(3)FLAGS) $(4) $$(call absfilename,$$<) -o $$@
 endef
 
 # which template rule do we really use
-BID_MAKE_RULE_template = $(BID_MAKE_RULE_template_gendep)
+BID_MAKE_RULE_template = $(BID_MAKE_RULE_template_nongendep)
 
 #
 # Generate the default set of make rules.

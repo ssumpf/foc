@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef	_SYS_SOCKET_H
 #define	_SYS_SOCKET_H	1
@@ -69,7 +68,7 @@ enum
    old-style declaration, too.  */
 #if defined __cplusplus || !__GNUC_PREREQ (2, 7) || !defined __USE_GNU
 # define __SOCKADDR_ARG		struct sockaddr *__restrict
-# define __CONST_SOCKADDR_ARG	__const struct sockaddr *
+# define __CONST_SOCKADDR_ARG	const struct sockaddr *
 #else
 /* Add more `struct sockaddr_AF' types here as necessary.
    These are all the ones I found on NetBSD and Linux.  */
@@ -92,7 +91,7 @@ enum
 typedef union { __SOCKADDR_ALLTYPES
 	      } __SOCKADDR_ARG __attribute__ ((__transparent_union__));
 # undef __SOCKADDR_ONETYPE
-# define __SOCKADDR_ONETYPE(type) __const struct type *__restrict __##type##__;
+# define __SOCKADDR_ONETYPE(type) const struct type *__restrict __##type##__;
 typedef union { __SOCKADDR_ALLTYPES
 	      } __CONST_SOCKADDR_ARG __attribute__ ((__transparent_union__));
 # undef __SOCKADDR_ONETYPE
@@ -142,7 +141,7 @@ extern int getpeername (int __fd, __SOCKADDR_ARG __addr,
 
    This function is a cancellation point and therefore not marked with
    __THROW.  */
-extern ssize_t send (int __fd, __const void *__buf, size_t __n, int __flags);
+extern ssize_t send (int __fd, const void *__buf, size_t __n, int __flags);
 libc_hidden_proto(send)
 
 /* Read N bytes into BUF from socket FD.
@@ -158,10 +157,13 @@ libc_hidden_proto(recv)
 
    This function is a cancellation point and therefore not marked with
    __THROW.  */
-extern ssize_t sendto (int __fd, __const void *__buf, size_t __n,
+extern ssize_t sendto (int __fd, const void *__buf, size_t __n,
 		       int __flags, __CONST_SOCKADDR_ARG __addr,
 		       socklen_t __addr_len);
+#ifdef _LIBC
+extern __typeof(sendto) __sendto_nocancel attribute_hidden;
 libc_hidden_proto(sendto)
+#endif
 
 /* Read N bytes into BUF through socket FD.
    If ADDR is not NULL, fill in *ADDR_LEN bytes of it with tha address of
@@ -173,7 +175,10 @@ libc_hidden_proto(sendto)
 extern ssize_t recvfrom (int __fd, void *__restrict __buf, size_t __n,
 			 int __flags, __SOCKADDR_ARG __addr,
 			 socklen_t *__restrict __addr_len);
+#ifdef _LIBC
+extern __typeof(recvfrom) __recvfrom_nocancel attribute_hidden;
 libc_hidden_proto(recvfrom)
+#endif
 
 
 /* Send a message described MESSAGE on socket FD.
@@ -181,7 +186,7 @@ libc_hidden_proto(recvfrom)
 
    This function is a cancellation point and therefore not marked with
    __THROW.  */
-extern ssize_t sendmsg (int __fd, __const struct msghdr *__message,
+extern ssize_t sendmsg (int __fd, const struct msghdr *__message,
 			int __flags);
 libc_hidden_proto(sendmsg)
 
@@ -205,7 +210,7 @@ extern int getsockopt (int __fd, int __level, int __optname,
    to *OPTVAL (which is OPTLEN bytes long).
    Returns 0 on success, -1 for errors.  */
 extern int setsockopt (int __fd, int __level, int __optname,
-		       __const void *__optval, socklen_t __optlen) __THROW;
+		       const void *__optval, socklen_t __optlen) __THROW;
 libc_hidden_proto(setsockopt)
 
 
@@ -226,6 +231,15 @@ libc_hidden_proto(listen)
 extern int accept (int __fd, __SOCKADDR_ARG __addr,
 		   socklen_t *__restrict __addr_len);
 libc_hidden_proto(accept)
+
+#if defined __UCLIBC_LINUX_SPECIFIC__ && defined __USE_GNU
+/* Similar to 'accept' but takes an additional parameter to specify flags.
+
+   This function is a cancellation point and therefore not marked with
+   __THROW.  */
+extern int accept4 (int __fd, __SOCKADDR_ARG __addr,
+		    socklen_t *__restrict __addr_len, int __flags);
+#endif
 
 /* Shut down all or part of the connection open on socket FD.
    HOW determines what to shut down:
@@ -250,5 +264,9 @@ extern int isfdtype (int __fd, int __fdtype) __THROW;
 #endif
 
 __END_DECLS
+
+#ifdef _LIBC
+extern int __socketcall(int, unsigned long *) attribute_hidden;
+#endif
 
 #endif /* sys/socket.h */

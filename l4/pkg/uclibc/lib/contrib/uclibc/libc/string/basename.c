@@ -5,7 +5,7 @@
  * Licensed under the LGPL v2.1, see the file COPYING.LIB in this tarball.
  */
 
-#include "_string.h"
+#include <string.h>
 
 #ifdef __USE_GNU
 
@@ -24,5 +24,4 @@ char *basename(const char *path)
 
 	return (char *) p;
 }
-libc_hidden_def(basename)
 #endif

@@ -4,16 +4,18 @@ IMPLEMENTATION [arm]:
 #include "kmem_space.h"
 #include "ram_quota.h"
 
+//----------------------------------------------------------------------------
+IMPLEMENTATION [arm && !hyp]:
 
 PRIVATE //inline
 bool
 Kmem_alloc::map_pmem(unsigned long phy, unsigned long size)
 {
-  static unsigned long next_map = Mem_layout::Map_base + (4 << 20);
+  static unsigned long next_map = Mem_layout::Pmem_start;
   size = Mem_layout::round_superpage(size + (phy & ~Config::SUPERPAGE_MASK));
   phy = Mem_layout::trunc_superpage(phy);
 
-  if (next_map + size > Mem_layout::Map_end)
+  if (next_map + size > Mem_layout::Pmem_end)
     return false;
 
   for (unsigned long i = 0; i <size; i += Config::SUPERPAGE_SIZE)
@@ -34,13 +36,14 @@ Kmem_alloc::to_phys(void *v) const
   return Kmem_space::kdir()->virt_to_phys((Address)v);
 }
 
+
 IMPLEMENT
 Kmem_alloc::Kmem_alloc()
 {
   // The -Wframe-larger-than= warning for this function is known and
   // no problem, because the function runs only on our boot stack.
   Mword alloc_size = Config::KMEM_SIZE;
-  a->init(Mem_layout::Map_base);
+  a->init(Mem_layout::Pmem_start);
   Mem_region_map<64> map;
   unsigned long available_size = create_free_map(Kip::k(), &map);
 
@@ -60,7 +63,65 @@ Kmem_alloc::Kmem_alloc()
       if (Mem_layout::phys_to_pmem(f.start) == ~0UL)
 	if (!map_pmem(f.start, f.size()))
 	  panic("Kmem_alloc: cannot map physical memory %p\n", (void*)f.start);
+
       a->add_mem((void *)Mem_layout::phys_to_pmem(f.start), f.size());
+      alloc_size -= f.size();
+    }
+
+  if (alloc_size)
+    WARNX(Warning, "Kmem_alloc: cannot allocate sufficient kernel memory\n");
+}
+
+//----------------------------------------------------------------------------
+IMPLEMENTATION [arm && hyp]:
+
+PUBLIC inline NEEDS["kmem_space.h"]
+Address
+Kmem_alloc::to_phys(void *v) const
+{ return (Address)v; }
+
+
+IMPLEMENT
+Kmem_alloc::Kmem_alloc()
+{
+  // The -Wframe-larger-than= warning for this function is known and
+  // no problem, because the function runs only on our boot stack.
+  Mword alloc_size = Config::KMEM_SIZE;
+  Mem_region_map<64> map;
+  unsigned long available_size = create_free_map(Kip::k(), &map);
+
+  // sanity check whether the KIP has been filled out, number is arbitrary
+  if (available_size < (1 << 18))
+    panic("Kmem_alloc: No kernel memory available (%ld)\n",
+          available_size);
+
+  Address base = ~0UL;
+  for (int i = map.length() - 1; i >= 0 && alloc_size > 0; --i)
+    {
+      Mem_region f = map[i];
+      if (f.size() > alloc_size)
+	f.start += (f.size() - alloc_size);
+
+      if (f.start < base)
+        base = f.start;
+
+      Kip::k()->add_mem_region(Mem_desc(f.start, f.end, Mem_desc::Reserved));
+
+      alloc_size -= f.size();
+    }
+
+  base &= ~((Address)Config::SUPERPAGE_SIZE - 1);
+
+  a->init(base);
+  alloc_size = Config::KMEM_SIZE;
+
+  for (int i = map.length() - 1; i >= 0 && alloc_size > 0; --i)
+    {
+      Mem_region f = map[i];
+      if (f.size() > alloc_size)
+	f.start += (f.size() - alloc_size);
+
+      a->add_mem((void *)f.start, f.size());
       alloc_size -= f.size();
     }
 

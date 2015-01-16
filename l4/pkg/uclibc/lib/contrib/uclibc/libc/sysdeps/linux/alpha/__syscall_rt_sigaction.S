@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <features.h>
 #include <sys/syscall.h>
@@ -31,6 +30,9 @@
 	.text
 
 .globl __syscall_rt_sigaction
+#ifndef __UCLIBC_HAS_THREADS_NATIVE__
+.hidden __syscall_rt_sigaction
+#endif
 .align 4
 .ent __syscall_rt_sigaction, 0
 __syscall_rt_sigaction:

@@ -67,7 +67,7 @@ static int ipi_cnt;
 
 PRIVATE static
 void
-Jdb_kern_info_bench::wait_for_ipi(Cpu_number cpu, void *)
+Jdb_kern_info_bench::wait_for_ipi(Cpu_number cpu)
 {
   Jdb::restore_irqs(cpu);
   stop_timer();
@@ -89,10 +89,9 @@ Jdb_kern_info_bench::empty_func(Cpu_number, void *)
 
 PRIVATE static
 void
-Jdb_kern_info_bench::do_ipi_bench(Cpu_number my_cpu, void *_partner)
+Jdb_kern_info_bench::do_ipi_bench(Cpu_number my_cpu, Cpu_number partner)
 {
   Unsigned64 time;
-  Cpu_number partner = Cpu_number((unsigned long)_partner);
   enum {
     Runs2  = 3,
     Warmup = 4,
@@ -142,19 +141,17 @@ Jdb_kern_info_bench::do_mp_benchmark()
 
 		  // v is waiting for IPIs
 		  if (v != Cpu_number::boot_cpu())
-		    Jdb::remote_work(v, wait_for_ipi, 0, false);
+		    Jdb::remote_work(v, wait_for_ipi, false);
 
 		  // u is doing benchmark
 		  if (u == Cpu_number::boot_cpu())
-		    do_ipi_bench(Cpu_number::boot_cpu(),
-                                 (void *)(long)cxx::int_value<Cpu_number>(v));
+		    do_ipi_bench(Cpu_number::boot_cpu(), v);
 		  else
-                    Jdb::remote_work(u, do_ipi_bench,
-                                    (void *)(long)cxx::int_value<Cpu_number>(v), false);
+                    Jdb::remote_work(u, [this, v](Cpu_number cpu){ do_ipi_bench(cpu, v); }, false);
 
 		  // v is waiting for IPIs
 		  if (v == Cpu_number::boot_cpu())
-		    wait_for_ipi(Cpu_number::boot_cpu(), 0);
+		    wait_for_ipi(Cpu_number::boot_cpu());
 
 		  Mem::barrier();
 

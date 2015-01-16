@@ -12,21 +12,18 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
+#define __need_NULL
 #include <stddef.h>
 #include <setjmp.h>
 #include <signal.h>
-#include <libc-internal.h>
-
 
 /* This function is called by the `sigsetjmp' macro
    before doing a `__setjmp' on ENV[0].__jmpbuf.
    Always return zero.  */
 
-int __sigjmp_save (sigjmp_buf env, int savemask) attribute_hidden;
 int __sigjmp_save (sigjmp_buf env, int savemask)
 {
     env[0].__mask_was_saved = (savemask &&

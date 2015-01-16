@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _SYS_SWAP_H
 
@@ -33,10 +32,10 @@ __BEGIN_DECLS
 
 /* Make the block special device PATH available to the system for swapping.
    This call is restricted to the super-user.  */
-extern int swapon (__const char *__path, int __flags) __THROW;
+extern int swapon (const char *__path, int __flags) __THROW;
 
 /* Stop using block special device PATH for swapping.  */
-extern int swapoff (__const char *__path) __THROW;
+extern int swapoff (const char *__path) __THROW;
 
 __END_DECLS
 

@@ -210,6 +210,7 @@ template< unsigned long Flush_area, bool Ram >
 void Mmu<Flush_area, Ram>::flush_cache(void const *start,
 				       void const *end)
 {
+  unsigned i = icache_line_size(), d = dcache_line_size();
   __asm__ __volatile__ (
       "1:  mcr p15, 0, %[i], c7, c14, 1  \n" // DCCIMVAC
       "    mcr p15, 0, %[i], c7, c5, 1   \n" // ICIMVAU
@@ -217,9 +218,9 @@ void Mmu<Flush_area, Ram>::flush_cache(void const *start,
       "    cmp %[i], %[end]              \n"
       "    blo 1b                        \n"
       : [i]     "=&r" (start)
-      :         "0"   ((unsigned long)start & ~(dcache_line_size() - 1)),
+      :         "0"   ((unsigned long)start & ~((i < d ? d : i) - 1)),
         [end]   "r"   (end),
-	[clsz]  "ir"  (dcache_line_size())
+	[clsz]  "ir"  (i < d ? i : d)
       : "r0", "memory");
   btc_inv();
   Mem::dsb();

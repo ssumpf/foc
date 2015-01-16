@@ -41,15 +41,6 @@
 #include <stdio.h>
 #include <rpc/xdr.h>
 
-#ifdef USE_IN_LIBIO
-# include <libio/iolibio.h>
-# define fflush(s) _IO_fflush (s)
-# define fread(p, m, n, s) _IO_fread (p, m, n, s)
-# define ftell(s) _IO_ftell (s)
-# define fwrite(p, m, n, s) _IO_fwrite (p, m, n, s)
-#endif
-
-
 static bool_t xdrstdio_getlong (XDR *, long *);
 static bool_t xdrstdio_putlong (XDR *, const long *);
 static bool_t xdrstdio_getbytes (XDR *, caddr_t, u_int);
@@ -87,9 +78,7 @@ void
 xdrstdio_create (XDR *xdrs, FILE *file, enum xdr_op op)
 {
   xdrs->x_op = op;
-  /* We have to add the const since the `struct xdr_ops' in `struct XDR'
-     is not `const'.  */
-  xdrs->x_ops = (struct xdr_ops *) &xdrstdio_ops;
+  xdrs->x_ops = &xdrstdio_ops;
   xdrs->x_private = (caddr_t) file;
   xdrs->x_handy = 0;
   xdrs->x_base = 0;

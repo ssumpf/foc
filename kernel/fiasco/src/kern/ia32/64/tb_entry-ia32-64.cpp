@@ -18,7 +18,7 @@ private:
   Mword	_rbp, _cr2, _rax, _rflags, _rsp;
   Unsigned16	_cs,  _ds;
 public:
-  unsigned print(int max, char *buf) const;
+  void print(String_buffer *buf) const;
 } __attribute__((packed));
 
 IMPLEMENTATION [amd64]:

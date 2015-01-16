@@ -7,7 +7,7 @@ public:
   {
     Tb_entry_size = 64,
   };
-  static Mword (*read_cycle_counter)();
+  static Unsigned64 (*read_cycle_counter)();
 };
 
 /** logged trap. */
@@ -17,19 +17,19 @@ private:
   Unsigned32    _error;
   Mword         _cpsr, _sp;
 public:
-  unsigned print(int max, char *buf) const;
+  void print(String_buffer *buf) const;
 };
 
 // --------------------------------------------------------------------
 IMPLEMENTATION [arm]:
 
-PROTECTED static Mword Tb_entry::dummy_read_cycle_counter() { return 0; }
+PROTECTED static Unsigned64 Tb_entry::dummy_read_cycle_counter() { return 0; }
 
-Mword (*Tb_entry::read_cycle_counter)() = dummy_read_cycle_counter;
+Unsigned64 (*Tb_entry::read_cycle_counter)() = dummy_read_cycle_counter;
 
 PUBLIC static
 void
-Tb_entry::set_cycle_read_func(Mword (*f)())
+Tb_entry::set_cycle_read_func(Unsigned64 (*f)())
 { read_cycle_counter = f; }
 
 PUBLIC inline

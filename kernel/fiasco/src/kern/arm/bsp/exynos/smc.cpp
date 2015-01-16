@@ -5,8 +5,9 @@ INTERFACE [exynos]:
 class Exynos_smc
 {
 public:
-  static void cpuboot(Mword, unsigned);
   static void l2cache_setup(unsigned, unsigned, unsigned, Mword, Mword, Mword);
+  static void write_cp15(unsigned opc1, unsigned crn,
+                         unsigned crm, unsigned opc2, Mword val);
 };
 
 // ------------------------------------------------------------------------
@@ -16,7 +17,7 @@ INTERFACE [exynos && arm_em_ns && arm_smif_mc]:
 
 EXTENSION class Exynos_smc
 {
-private:
+public:
   enum Command : Smword
   {
     Init       = -1,
@@ -30,7 +31,7 @@ private:
     L2x0setup2 = -23,
     L2x0invall = -24,
     L2x0debug  = -25,
-    Reg        = -101,
+    Cp15_reg   = -101,
   };
 
   static int call(Command cmd, Mword a1 = 0, Mword a2 = 0, Mword a3 = 0)
@@ -48,6 +49,11 @@ private:
                  : "memory", "cc");
     return _cmd;
   }
+
+  static unsigned cp15_cmd(unsigned opc1, unsigned crn,
+                           unsigned crm, unsigned opc2)
+  { return (crn << 10) | (opc1 << 7) | (crm << 3) | opc2; }
+
 };
 
 // ------------------------------------------------------------------------
@@ -55,14 +61,8 @@ IMPLEMENTATION [exynos && arm_em_ns && arm_smif_mc]:
 
 #include "mem_space.h"
 #include "mem_unit.h"
+#include "platform.h"
 #include <cstdio>
-
-IMPLEMENT
-void
-Exynos_smc::cpuboot(Mword, unsigned cpu)
-{
-  call(Cpu1boot, cpu);
-}
 
 IMPLEMENT
 void
@@ -76,15 +76,24 @@ Exynos_smc::l2cache_setup(unsigned tag_lat, unsigned data_lat,
   call(L2x0ctrl, 1);
 }
 
-// ------------------------------------------------------------------------
-IMPLEMENTATION [exynos && !arm_em_ns]:
-
-IMPLEMENT inline
+IMPLEMENT
 void
-Exynos_smc::cpuboot(Mword, unsigned)
-{}
+Exynos_smc::write_cp15(unsigned opc1, unsigned crn,
+                       unsigned crm, unsigned opc2,
+                       Mword val)
+{
+  call(Cp15_reg, cp15_cmd(opc1, crn, crm, opc2), val);
+}
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [exynos && (!arm_em_ns || arm_smif_none)]:
 
 IMPLEMENT inline
 void
 Exynos_smc::l2cache_setup(unsigned, unsigned, unsigned, Mword, Mword, Mword)
+{}
+
+IMPLEMENT inline
+void
+Exynos_smc::write_cp15(unsigned, unsigned, unsigned, unsigned, Mword)
 {}

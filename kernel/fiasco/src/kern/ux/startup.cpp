@@ -65,7 +65,7 @@ startup_system2()
   Irq_chip_ia32_pic::init();
   Ipi::init(Cpu_number::boot_cpu());
   Idt::init();
-  Fpu::init(Cpu_number::boot_cpu());
+  Fpu::init(Cpu_number::boot_cpu(), false);
   Timer::init(Cpu_number::boot_cpu());
   Fb::init();
   Net::init();

@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /*
  *	X/Open Portability Guide 4.2: ftw.h
@@ -112,57 +111,57 @@ struct FTW
 
 
 /* Convenient types for callback functions.  */
-typedef int (*__ftw_func_t) (__const char *__filename,
-			     __const struct stat *__status, int __flag);
+typedef int (*__ftw_func_t) (const char *__filename,
+			     const struct stat *__status, int __flag);
 #ifdef __USE_LARGEFILE64
-typedef int (*__ftw64_func_t) (__const char *__filename,
-			       __const struct stat64 *__status, int __flag);
+typedef int (*__ftw64_func_t) (const char *__filename,
+			       const struct stat64 *__status, int __flag);
 #endif
 #ifdef __USE_XOPEN_EXTENDED
-typedef int (*__nftw_func_t) (__const char *__filename,
-			      __const struct stat *__status, int __flag,
+typedef int (*__nftw_func_t) (const char *__filename,
+			      const struct stat *__status, int __flag,
 			      struct FTW *__info);
 # ifdef __USE_LARGEFILE64
-typedef int (*__nftw64_func_t) (__const char *__filename,
-				__const struct stat64 *__status,
+typedef int (*__nftw64_func_t) (const char *__filename,
+				const struct stat64 *__status,
 				int __flag, struct FTW *__info);
 # endif
 #endif
 
-#if __UCLIBC_HAS_FTW__
+#ifdef __UCLIBC_HAS_FTW__
 /* Call a function on every element in a directory tree.
 
    This function is a possible cancellation point and therefore not
    marked with __THROW.  */
 # ifndef __USE_FILE_OFFSET64
-extern int ftw (__const char *__dir, __ftw_func_t __func, int __descriptors)
+extern int ftw (const char *__dir, __ftw_func_t __func, int __descriptors)
      __nonnull ((1, 2));
 # else
 #  ifdef __REDIRECT
-extern int __REDIRECT (ftw, (__const char *__dir, __ftw_func_t __func,
+extern int __REDIRECT (ftw, (const char *__dir, __ftw_func_t __func,
 			     int __descriptors), ftw64) __nonnull ((1, 2));
 #  else
 #   define ftw ftw64
 #  endif
 # endif
 # ifdef __USE_LARGEFILE64
-extern int ftw64 (__const char *__dir, __ftw64_func_t __func,
+extern int ftw64 (const char *__dir, __ftw64_func_t __func,
 		  int __descriptors) __nonnull ((1, 2));
 # endif
 #endif
 
-#if __UCLIBC_HAS_NFTW__ && defined __USE_XOPEN_EXTENDED
+#if defined __UCLIBC_HAS_NFTW__ && defined __USE_XOPEN_EXTENDED
 /* Call a function on every element in a directory tree.  FLAG allows
    to specify the behaviour more detailed.
 
    This function is a possible cancellation point and therefore not
    marked with __THROW.  */
 # ifndef __USE_FILE_OFFSET64
-extern int nftw (__const char *__dir, __nftw_func_t __func, int __descriptors,
+extern int nftw (const char *__dir, __nftw_func_t __func, int __descriptors,
 		 int __flag) __nonnull ((1, 2));
 # else
 #  ifdef __REDIRECT
-extern int __REDIRECT (nftw, (__const char *__dir, __nftw_func_t __func,
+extern int __REDIRECT (nftw, (const char *__dir, __nftw_func_t __func,
 			      int __descriptors, int __flag), nftw64)
      __nonnull ((1, 2));
 #  else
@@ -170,7 +169,7 @@ extern int __REDIRECT (nftw, (__const char *__dir, __nftw_func_t __func,
 #  endif
 # endif
 # ifdef __USE_LARGEFILE64
-extern int nftw64 (__const char *__dir, __nftw64_func_t __func,
+extern int nftw64 (const char *__dir, __nftw64_func_t __func,
 		   int __descriptors, int __flag) __nonnull ((1, 2));
 # endif
 #endif

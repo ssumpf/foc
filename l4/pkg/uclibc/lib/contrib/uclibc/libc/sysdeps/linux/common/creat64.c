@@ -12,19 +12,17 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <_lfs_64.h>
-
-#ifdef __UCLIBC_HAS_LFS__
 #include <fcntl.h>
-#include <sys/types.h>
+#include <cancel.h>
 
 /* Create FILE with protections MODE.  */
 int creat64(const char *file, mode_t mode)
 {
-	return open64(file, O_WRONLY|O_CREAT|O_TRUNC, mode);
+	return open64(file, O_WRONLY | O_CREAT | O_TRUNC, mode);
 }
-#endif /* __UCLIBC_HAS_LFS__ */
+/* open handled cancellation, noop on uClibc */
+LIBC_CANCEL_HANDLED();

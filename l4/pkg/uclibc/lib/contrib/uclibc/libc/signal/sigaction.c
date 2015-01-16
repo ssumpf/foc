@@ -12,22 +12,11 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
-#include <features.h>
-#include <errno.h>
 #include <signal.h>
-#include <string.h>
 #include <sys/syscall.h>
-
-#include <bits/kernel_sigaction.h>
-
-#ifndef LIBC_SIGACTION
-extern __typeof(sigaction) __libc_sigaction;
-#endif
-
 
 #if defined __NR_rt_sigaction
 
@@ -47,6 +36,9 @@ __libc_sigaction(int sig, const struct sigaction *act, struct sigaction *oact)
 }
 
 #else
+# define __need_NULL
+# include <stddef.h>
+# include <bits/kernel_sigaction.h>
 
 /* If ACT is not NULL, change the action for SIG to *ACT.
    If OACT is not NULL, put the old action for SIG in *OACT.  */
@@ -82,6 +74,11 @@ __libc_sigaction(int sig, const struct sigaction *act, struct sigaction *oact)
 
 
 #ifndef LIBC_SIGACTION
+# ifndef __UCLIBC_HAS_THREADS__
+strong_alias(__libc_sigaction,sigaction)
+libc_hidden_def(sigaction)
+# else
 weak_alias(__libc_sigaction,sigaction)
 libc_hidden_weak(sigaction)
+# endif
 #endif

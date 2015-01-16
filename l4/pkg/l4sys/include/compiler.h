@@ -244,8 +244,8 @@
 #define __builtin_expect(x, expected_value) (x)
 #endif
 
-#define EXPECT_TRUE(x)	__builtin_expect((x),1)   ///< Expression is likely to execute. \hideinitializer
-#define EXPECT_FALSE(x)	__builtin_expect((x),0)   ///< Expression is unlikely to execute. \hideinitializer
+#define L4_LIKELY(x)	__builtin_expect((x),1)   ///< Expression is likely to execute. \hideinitializer
+#define L4_UNLIKELY(x)	__builtin_expect((x),0)   ///< Expression is unlikely to execute. \hideinitializer
 
 #if (__GNUC__ == 3 && __GNUC_MINOR__ >= 3) || __GNUC__ >= 4
 /* Make sure that the function is not removed by optimization. Without the

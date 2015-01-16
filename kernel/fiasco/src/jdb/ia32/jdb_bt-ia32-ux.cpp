@@ -6,6 +6,7 @@ IMPLEMENTATION[ia32,amd64,ux]:
 #include "config.h"
 #include "jdb.h"
 #include "jdb_input.h"
+#include "jdb_input_task.h"
 #include "jdb_kobject.h"
 #include "jdb_lines.h"
 #include "jdb_module.h"
@@ -132,7 +133,7 @@ Jdb_bt::get_user_ebp_following_kernel_stack()
 
       if (!Mem_layout::in_kernel_code(m2))
 	{
-	  if (m2 < Kmem::mem_user_max)
+	  if (m2 <= Mem_layout::User_max)
 	    // valid user ebp found
 	    return m1;
 	  else
@@ -284,7 +285,7 @@ Jdb_bt::show(Mword ebp, Mword eip1, Mword eip2, Address_type user)
 	  ebp = m1;
 
 	  if (  (user==ADDR_KERNEL && !Mem_layout::in_kernel_code(m2))
-	      ||(user==ADDR_USER   && (m2==0 || m2>Kmem::mem_user_max)))
+	      ||(user==ADDR_USER   && (m2==0 || m2 > Mem_layout::User_max)))
 	    // no valid eip found -- leaving
 	    return;
 	}

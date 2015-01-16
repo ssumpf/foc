@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <features.h>
 
@@ -30,7 +29,12 @@
 # include <stdlib.h>
 # ifdef __UCLIBC_HAS_WCHAR__
 #  define RE_ENABLE_I18N
+#  define HAVE_WCHAR_H 1
+#  define HAVE_WCRTOMB 1
+#  define HAVE_MBRTOWC 1
+#  define HAVE_WCSCOLL 1
 #  include <wchar.h>
+#  define HAVE_WCTYPE_H 1
 #  include <wctype.h>
 #  define __iswctype iswctype
 #  define __wcrtomb wcrtomb
@@ -38,6 +42,9 @@
 #  define __wctype wctype
 # endif
 # include <ctype.h>
+# ifdef __UCLIBC_HAS_LOCALE__
+#  define HAVE_LOCALE_H 1
+# endif
 #endif
 
 /* Make sure noone compiles this code with a C++ compiler.  */

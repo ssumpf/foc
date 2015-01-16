@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /*
  *	POSIX Standard: 6.5 File Control Operations	<fcntl.h>
@@ -75,7 +74,10 @@ __BEGIN_DECLS
    __THROW.  */
 #if !defined(__USE_FILE_OFFSET64) || defined(__LP64__)
 extern int fcntl (int __fd, int __cmd, ...);
+# ifdef _LIBC
+extern int __fcntl_nocancel(int, int, long) attribute_hidden;
 libc_hidden_proto(fcntl)
+# endif
 #else
 # ifdef __REDIRECT
 extern int __REDIRECT (fcntl, (int __fd, int __cmd, ...), fcntl64);
@@ -85,7 +87,10 @@ extern int __REDIRECT (fcntl, (int __fd, int __cmd, ...), fcntl64);
 #endif
 #if defined(__USE_LARGEFILE64) && !defined(__LP64__)
 extern int fcntl64 (int __fd, int __cmd, ...);
+# ifdef _LIBC
+extern int __fcntl64_nocancel(int, int, long) attribute_hidden;
 libc_hidden_proto(fcntl64)
+# endif
 #endif
 
 /* Open FILE and return a new file descriptor for it, or -1 on error.
@@ -95,18 +100,22 @@ libc_hidden_proto(fcntl64)
    This function is a cancellation point and therefore not marked with
    __THROW.  */
 #ifndef __USE_FILE_OFFSET64
-extern int open (__const char *__file, int __oflag, ...) __nonnull ((1));
+extern int open (const char *__file, int __oflag, ...) __nonnull ((1));
 libc_hidden_proto(open)
+# ifdef _LIBC
+extern int __open2_nocancel(const char *, int) __nonnull ((1)) attribute_hidden;
+extern int __open_nocancel(const char *, int, mode_t) __nonnull ((1)) attribute_hidden;
+# endif
 #else
 # ifdef __REDIRECT
-extern int __REDIRECT (open, (__const char *__file, int __oflag, ...), open64)
+extern int __REDIRECT (open, (const char *__file, int __oflag, ...), open64)
      __nonnull ((1));
 # else
 #  define open open64
 # endif
 #endif
 #ifdef __USE_LARGEFILE64
-extern int open64 (__const char *__file, int __oflag, ...) __nonnull ((1));
+extern int open64 (const char *__file, int __oflag, ...) __nonnull ((1));
 libc_hidden_proto(open64)
 #endif
 
@@ -121,21 +130,20 @@ libc_hidden_proto(open64)
    This function is a cancellation point and therefore not marked with
    __THROW.  */
 # ifndef __USE_FILE_OFFSET64
-extern int openat (int __fd, __const char *__file, int __oflag, ...)
+extern int openat (int __fd, const char *__file, int __oflag, ...)
      __nonnull ((2));
 libc_hidden_proto(openat)
 # else
 #  ifdef __REDIRECT
-extern int __REDIRECT (openat, (int __fd, __const char *__file, int __oflag,
+extern int __REDIRECT (openat, (int __fd, const char *__file, int __oflag,
 				...), openat64) __nonnull ((2));
 #  else
 #   define openat openat64
 #  endif
 # endif
 
-extern int openat64 (int __fd, __const char *__file, int __oflag, ...)
+extern int openat64 (int __fd, const char *__file, int __oflag, ...)
      __nonnull ((2));
-libc_hidden_proto(openat64)
 #endif
 
 /* Create and open FILE, with mode MODE.  This takes an `int' MODE
@@ -144,17 +152,17 @@ libc_hidden_proto(openat64)
    This function is a cancellation point and therefore not marked with
    __THROW.  */
 #ifndef __USE_FILE_OFFSET64
-extern int creat (__const char *__file, __mode_t __mode) __nonnull ((1));
+extern int creat (const char *__file, __mode_t __mode) __nonnull ((1));
 #else
 # ifdef __REDIRECT
-extern int __REDIRECT (creat, (__const char *__file, __mode_t __mode),
+extern int __REDIRECT (creat, (const char *__file, __mode_t __mode),
 		       creat64) __nonnull ((1));
 # else
 #  define creat creat64
 # endif
 #endif
 #ifdef __USE_LARGEFILE64
-extern int creat64 (__const char *__file, __mode_t __mode) __nonnull ((1));
+extern int creat64 (const char *__file, __mode_t __mode) __nonnull ((1));
 #endif
 
 #if !defined F_LOCK && (defined __USE_MISC || (defined __USE_XOPEN_EXTENDED \
@@ -184,7 +192,6 @@ extern int __REDIRECT (lockf, (int __fd, int __cmd, __off64_t __len), lockf64);
 # endif
 # ifdef __USE_LARGEFILE64
 extern int lockf64 (int __fd, int __cmd, __off64_t __len);
-libc_hidden_proto(lockf64)
 # endif
 #endif
 
@@ -210,9 +217,7 @@ extern int posix_fadvise64 (int __fd, __off64_t __offset, __off64_t __len,
 
 #endif
 
-#if 0 /* && defined __UCLIBC_HAS_ADVANCED_REALTIME__ */
-
-/* FIXME -- uClibc should probably implement these... */
+#if defined __UCLIBC_HAS_ADVANCED_REALTIME__
 
 /* Reserve storage for the data of the file associated with FD.
 
@@ -233,8 +238,6 @@ extern int __REDIRECT (posix_fallocate, (int __fd, __off64_t __offset,
 extern int posix_fallocate64 (int __fd, __off64_t __offset, __off64_t __len);
 # endif
 #endif
-
-extern int __fcntl_nocancel (int fd, int cmd, ...);
 
 __END_DECLS
 

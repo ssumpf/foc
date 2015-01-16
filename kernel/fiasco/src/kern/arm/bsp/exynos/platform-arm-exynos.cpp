@@ -19,6 +19,7 @@ public:
     Soc_4210,
     Soc_4412,
     Soc_5250,
+    Soc_5410,
   };
 
   enum Gic_type
@@ -157,6 +158,11 @@ PUBLIC static inline
 bool
 Platform::is_5250()
 { type(); return _soc == Soc_5250; }
+
+PUBLIC static inline
+bool
+Platform::is_5410()
+{ type(); return _soc == Soc_5410; }
 
 PUBLIC static unsigned Platform::uart_nr() { type(); return _uart; }
 

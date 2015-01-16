@@ -39,7 +39,7 @@ static char sccsid[] = "@(#)pmap_getmaps.c 1.10 87/08/11 Copyr 1984 Sun Micro";
  * Copyright (C) 1984, Sun Microsystems, Inc.
  */
 
-#include <rpc/rpc.h>
+#include "rpc_private.h"
 #include <rpc/pmap_prot.h>
 #include <rpc/pmap_clnt.h>
 #include <netdb.h>
@@ -78,7 +78,7 @@ pmap_getmaps (struct sockaddr_in *address)
 	}
       CLNT_DESTROY (client);
     }
-  /* (void)__close(_socket); CLNT_DESTROY already closed it */
+  /* (void)close(_socket); CLNT_DESTROY already closed it */
   address->sin_port = 0;
   return head;
 }

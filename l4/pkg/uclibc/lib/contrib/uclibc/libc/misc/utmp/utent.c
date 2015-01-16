@@ -19,22 +19,13 @@
 #include <errno.h>
 #include <string.h>
 #include <utmp.h>
+#ifdef __UCLIBC_HAS_UTMPX__
+# include <utmpx.h>
+#endif
 #include <not-cancel.h>
 
 #include <bits/uClibc_mutex.h>
 __UCLIBC_MUTEX_STATIC(utmplock, PTHREAD_MUTEX_INITIALIZER);
-
-
-/* Do not create extra unlocked functions if no locking is needed */
-#if defined __UCLIBC_HAS_THREADS__
-# define static_if_threaded static
-#else
-# define static_if_threaded /* nothing */
-# define __setutent setutent
-# define __getutent getutent
-# define __getutid getutid
-#endif
-
 
 /* Some global crap */
 static int static_fd = -1;
@@ -42,9 +33,8 @@ static struct utmp static_utmp;
 static const char default_file_name[] = _PATH_UTMP;
 static const char *static_ut_name = default_file_name;
 
-
 /* This function must be called with the LOCK held */
-static_if_threaded void __setutent(void)
+static void __setutent_unlocked(void)
 {
     if (static_fd < 0) {
 	static_fd = open_not_cancel_2(static_ut_name, O_RDWR | O_CLOEXEC);
@@ -63,17 +53,24 @@ static_if_threaded void __setutent(void)
     lseek(static_fd, 0, SEEK_SET);
 }
 #if defined __UCLIBC_HAS_THREADS__
-void setutent(void)
+static void __setutent(void)
 {
     __UCLIBC_MUTEX_LOCK(utmplock);
-    __setutent();
+    __setutent_unlocked();
     __UCLIBC_MUTEX_UNLOCK(utmplock);
 }
+#else
+static void __setutent(void);
+strong_alias(__setutent_unlocked,__setutent)
 #endif
-libc_hidden_def(setutent)
+strong_alias(__setutent,setutent)
+
+#ifdef __UCLIBC_HAS_UTMPX__
+strong_alias(__setutent,setutxent)
+#endif
 
 /* This function must be called with the LOCK held */
-static_if_threaded struct utmp *__getutent(void)
+static struct utmp *__getutent_unlocked(void)
 {
     if (static_fd < 0) {
 	__setutent();
@@ -89,19 +86,29 @@ static_if_threaded struct utmp *__getutent(void)
     return NULL;
 }
 #if defined __UCLIBC_HAS_THREADS__
-struct utmp *getutent(void)
+static struct utmp *__getutent(void)
 {
     struct utmp *ret;
 
     __UCLIBC_MUTEX_LOCK(utmplock);
-    ret = __getutent();
+    ret = __getutent_unlocked();
     __UCLIBC_MUTEX_UNLOCK(utmplock);
     return ret;
 }
-libc_hidden_def(getutent)
+#else
+static struct utmp *__getutent(void);
+strong_alias(__getutent_unlocked,__getutent)
+#endif
+strong_alias(__getutent,getutent)
+
+#ifdef __UCLIBC_HAS_UTMPX__
+struct utmpx *getutxent(void)
+{
+	return (struct utmpx *) __getutent ();
+}
 #endif
 
-void endutent(void)
+static void __endutent(void)
 {
     __UCLIBC_MUTEX_LOCK(utmplock);
     if (static_fd >= 0)
@@ -109,10 +116,14 @@ void endutent(void)
     static_fd = -1;
     __UCLIBC_MUTEX_UNLOCK(utmplock);
 }
-libc_hidden_def(endutent)
+strong_alias(__endutent,endutent)
+
+#ifdef __UCLIBC_HAS_UTMPX__
+strong_alias(__endutent,endutxent)
+#endif
 
 /* This function must be called with the LOCK held */
-static_if_threaded struct utmp *__getutid(const struct utmp *utmp_entry)
+static struct utmp *__getutid_unlocked(const struct utmp *utmp_entry)
 {
     struct utmp *lutmp;
     unsigned type;
@@ -122,7 +133,7 @@ static_if_threaded struct utmp *__getutid(const struct utmp *utmp_entry)
     type = utmp_entry->ut_type - 1;
     type /= 4;
 
-    while ((lutmp = __getutent()) != NULL) {
+    while ((lutmp = __getutent_unlocked()) != NULL) {
 	if (type == 0 && lutmp->ut_type == utmp_entry->ut_type)	{
 	    /* one of RUN_LVL, BOOT_TIME, NEW_TIME, OLD_TIME */
 	    return lutmp;
@@ -136,23 +147,34 @@ static_if_threaded struct utmp *__getutid(const struct utmp *utmp_entry)
     return NULL;
 }
 #if defined __UCLIBC_HAS_THREADS__
-struct utmp *getutid(const struct utmp *utmp_entry)
+static struct utmp *__getutid(const struct utmp *utmp_entry)
 {
     struct utmp *ret;
 
     __UCLIBC_MUTEX_LOCK(utmplock);
-    ret = __getutid(utmp_entry);
+    ret = __getutid_unlocked(utmp_entry);
     __UCLIBC_MUTEX_UNLOCK(utmplock);
     return ret;
 }
+#else
+static struct utmp *__getutid(const struct utmp *utmp_entry);
+strong_alias(__getutid_unlocked,__getutid)
+#endif
+strong_alias(__getutid,getutid)
+
+#ifdef __UCLIBC_HAS_UTMPX__
+struct utmpx *getutxid(const struct utmpx *utmp_entry)
+{
+	return (struct utmpx *) __getutid ((const struct utmp *) utmp_entry);
+}
 #endif
 
-struct utmp *getutline(const struct utmp *utmp_entry)
+static struct utmp *__getutline(const struct utmp *utmp_entry)
 {
     struct utmp *lutmp;
 
     __UCLIBC_MUTEX_LOCK(utmplock);
-    while ((lutmp = __getutent()) != NULL) {
+    while ((lutmp = __getutent_unlocked()) != NULL) {
 	if (lutmp->ut_type == USER_PROCESS || lutmp->ut_type == LOGIN_PROCESS) {
 	    if (strncmp(lutmp->ut_line, utmp_entry->ut_line, sizeof(lutmp->ut_line)) == 0) {
 		break;
@@ -162,16 +184,23 @@ struct utmp *getutline(const struct utmp *utmp_entry)
     __UCLIBC_MUTEX_UNLOCK(utmplock);
     return lutmp;
 }
-libc_hidden_def(getutline)
+strong_alias(__getutline,getutline)
 
-struct utmp *pututline(const struct utmp *utmp_entry)
+#ifdef __UCLIBC_HAS_UTMPX__
+struct utmpx *getutxline(const struct utmpx *utmp_entry)
+{
+	return (struct utmpx *) __getutline ((const struct utmp *) utmp_entry);
+}
+#endif
+
+static struct utmp *__pututline(const struct utmp *utmp_entry)
 {
     __UCLIBC_MUTEX_LOCK(utmplock);
     /* Ignore the return value.  That way, if they've already positioned
        the file pointer where they want it, everything will work out. */
     lseek(static_fd, (off_t) - sizeof(struct utmp), SEEK_CUR);
 
-    if (__getutid(utmp_entry) != NULL)
+    if (__getutid_unlocked(utmp_entry) != NULL)
 	lseek(static_fd, (off_t) - sizeof(struct utmp), SEEK_CUR);
     else
 	lseek(static_fd, (off_t) 0, SEEK_END);
@@ -181,9 +210,16 @@ struct utmp *pututline(const struct utmp *utmp_entry)
     __UCLIBC_MUTEX_UNLOCK(utmplock);
     return (struct utmp *)utmp_entry;
 }
-libc_hidden_def(pututline)
+strong_alias(__pututline,pututline)
 
-int utmpname(const char *new_ut_name)
+#ifdef __UCLIBC_HAS_UTMPX__
+struct utmpx *pututxline (const struct utmpx *utmp_entry)
+{
+	return (struct utmpx *) __pututline ((const struct utmp *) utmp_entry);
+}
+#endif
+
+static int __utmpname(const char *new_ut_name)
 {
     __UCLIBC_MUTEX_LOCK(utmplock);
     if (new_ut_name != NULL) {
@@ -204,4 +240,8 @@ int utmpname(const char *new_ut_name)
     __UCLIBC_MUTEX_UNLOCK(utmplock);
     return 0; /* or maybe return -(static_ut_name != new_ut_name)? */
 }
-libc_hidden_def(utmpname)
+strong_alias(__utmpname,utmpname)
+
+#ifdef __UCLIBC_HAS_UTMPX__
+strong_alias(__utmpname,utmpxname)
+#endif

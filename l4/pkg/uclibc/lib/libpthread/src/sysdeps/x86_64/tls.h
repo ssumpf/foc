@@ -19,6 +19,7 @@
 
 #ifndef _TLS_H
 #define _TLS_H	1
+
 #ifndef __ASSEMBLER__
 //l4/# include <asm/prctl.h>	/* For ARCH_SET_FS.  */
 # include <stdbool.h>
@@ -112,13 +113,13 @@ typedef struct
 /* This is the size of the initial TCB.  Can't be just sizeof (tcbhead_t),
    because NPTL getpid, __libc_alloca_cutoff etc. need (almost) the whole
    struct pthread even when not linked with -lpthread.  */
-# define TLS_INIT_TCB_SIZE sizeof (struct _pthread_descr_struct)
+# define TLS_INIT_TCB_SIZE sizeof (struct pthread)
 
 /* Alignment requirements for the initial TCB.  */
-# define TLS_INIT_TCB_ALIGN __alignof__ (struct _pthread_descr_struct)
+# define TLS_INIT_TCB_ALIGN __alignof__ (struct pthread)
 
 /* This is the size of the TCB.  */
-# define TLS_TCB_SIZE sizeof (struct _pthread_descr_struct)
+# define TLS_TCB_SIZE sizeof (struct pthread)
 
 /* Alignment requirements for the TCB.  */
 //# define TLS_TCB_ALIGN __alignof__ (struct pthread)
@@ -139,12 +140,9 @@ typedef struct
   ((tcbhead_t *) (descr))->dtv = (dtvp) + 1
 
 /* Install new dtv for current thread.  */
-# define INSTALL_NEW_DTV_ORIG(dtvp) \
+# define INSTALL_NEW_DTV(dtvp) \
   ({ struct pthread *__pd;						      \
      THREAD_SETMEM (__pd, header.dtv, (dtvp)); })
-# define INSTALL_NEW_DTV(dtvpx) \
-  ({ struct _pthread_descr_struct *__pd;						      \
-     THREAD_SETMEM (__pd, p_header.data.dtvp, (dtvpx)); })
 
 /* Return dtv of given thread descriptor.  */
 # define GET_DTV(descr) \
@@ -199,13 +197,9 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
 
 
 /* Return the address of the dtv for the current thread.  */
-# define THREAD_DTV_ORIG() \
+# define THREAD_DTV() \
   ({ struct pthread *__pd;						      \
      THREAD_GETMEM (__pd, header.dtv); })
-
-# define THREAD_DTV() \
-  ({ struct _pthread_descr_struct *__pd;						      \
-     THREAD_GETMEM (__pd, p_header.data.dtvp); })
 
 
 /* Return the thread descriptor for the current thread.
@@ -214,15 +208,10 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
    assignments like
 	pthread_descr self = thread_self();
    do not get optimized away.  */
-# define THREAD_SELF_ORIG \
+# define THREAD_SELF \
   ({ struct pthread *__self;						      \
      __asm__ ("movq %%fs:%c1,%q0" : "=r" (__self)				      \
 	  : "i" (offsetof (struct pthread, header.self)));	 	      \
-     __self;})
-# define THREAD_SELF \
-  ({ struct _pthread_descr_struct *__self;						      \
-     __asm__ ("movq %%fs:%c1,%q0" : "=r" (__self)				      \
-	  : "i" (offsetof (struct _pthread_descr_struct, p_header.data.self)));	 	      \
      __self;})
 
 /* Magic for libthread_db to know how to do THREAD_SELF.  */
@@ -235,11 +224,11 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
      if (sizeof (__value) == 1)						      \
        __asm__ __volatile__ ("movb %%fs:%P2,%b0"				      \
 		     : "=q" (__value)					      \
-		     : "0" (0), "i" (offsetof (struct _pthread_descr_struct, member)));     \
+		     : "0" (0), "i" (offsetof (struct pthread, member)));     \
      else if (sizeof (__value) == 4)					      \
        __asm__ __volatile__ ("movl %%fs:%P1,%0"					      \
 		     : "=r" (__value)					      \
-		     : "i" (offsetof (struct _pthread_descr_struct, member)));	      \
+		     : "i" (offsetof (struct pthread, member)));	      \
      else								      \
        {								      \
 	 if (sizeof (__value) != 8)					      \
@@ -249,7 +238,7 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
 									      \
 	 __asm__ __volatile__ ("movq %%fs:%P1,%q0"				      \
 		       : "=r" (__value)					      \
-		       : "i" (offsetof (struct _pthread_descr_struct, member)));	      \
+		       : "i" (offsetof (struct pthread, member)));	      \
        }								      \
      __value; })
 
@@ -260,12 +249,12 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
      if (sizeof (__value) == 1)						      \
        __asm__ __volatile__ ("movb %%fs:%P2(%q3),%b0"				      \
 		     : "=q" (__value)					      \
-		     : "0" (0), "i" (offsetof (struct _pthread_descr_struct, member[0])),   \
+		     : "0" (0), "i" (offsetof (struct pthread, member[0])),   \
 		       "r" (idx));					      \
      else if (sizeof (__value) == 4)					      \
        __asm__ __volatile__ ("movl %%fs:%P1(,%q2,4),%0"				      \
 		     : "=r" (__value)					      \
-		     : "i" (offsetof (struct _pthread_descr_struct, member[0])), "r" (idx));\
+		     : "i" (offsetof (struct pthread, member[0])), "r" (idx));\
      else								      \
        {								      \
 	 if (sizeof (__value) != 8)					      \
@@ -275,7 +264,7 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
 									      \
 	 __asm__ __volatile__ ("movq %%fs:%P1(,%q2,8),%q0"			      \
 		       : "=r" (__value)					      \
-		       : "i" (offsetof (struct _pthread_descr_struct, member[0])),	      \
+		       : "i" (offsetof (struct pthread, member[0])),	      \
 			 "r" (idx));					      \
        }								      \
      __value; })
@@ -295,11 +284,11 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
   ({ if (sizeof (descr->member) == 1)					      \
        __asm__ __volatile__ ("movb %b0,%%fs:%P1" :				      \
 		     : "iq" (value),					      \
-		       "i" (offsetof (struct _pthread_descr_struct, member)));	      \
+		       "i" (offsetof (struct pthread, member)));	      \
      else if (sizeof (descr->member) == 4)				      \
        __asm__ __volatile__ ("movl %0,%%fs:%P1" :				      \
 		     : IMM_MODE (value),				      \
-		       "i" (offsetof (struct _pthread_descr_struct, member)));	      \
+		       "i" (offsetof (struct pthread, member)));	      \
      else								      \
        {								      \
 	 if (sizeof (descr->member) != 8)				      \
@@ -309,7 +298,7 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
 									      \
 	 __asm__ __volatile__ ("movq %q0,%%fs:%P1" :				      \
 		       : IMM_MODE ((unsigned long int) value),		      \
-			 "i" (offsetof (struct _pthread_descr_struct, member)));	      \
+			 "i" (offsetof (struct pthread, member)));	      \
        }})
 
 
@@ -318,12 +307,12 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
   ({ if (sizeof (descr->member[0]) == 1)				      \
        __asm__ __volatile__ ("movb %b0,%%fs:%P1(%q2)" :				      \
 		     : "iq" (value),					      \
-		       "i" (offsetof (struct _pthread_descr_struct, member[0])),	      \
+		       "i" (offsetof (struct pthread, member[0])),	      \
 		       "r" (idx));					      \
      else if (sizeof (descr->member[0]) == 4)				      \
        __asm__ __volatile__ ("movl %0,%%fs:%P1(,%q2,4)" :			      \
 		     : IMM_MODE (value),				      \
-		       "i" (offsetof (struct _pthread_descr_struct, member[0])),	      \
+		       "i" (offsetof (struct pthread, member[0])),	      \
 		       "r" (idx));					      \
      else								      \
        {								      \
@@ -334,7 +323,7 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
 									      \
 	 __asm__ __volatile__ ("movq %q0,%%fs:%P1(,%q2,8)" :			      \
 		       : IMM_MODE ((unsigned long int) value),		      \
-			 "i" (offsetof (struct _pthread_descr_struct, member[0])),	      \
+			 "i" (offsetof (struct pthread, member[0])),	      \
 			 "r" (idx));					      \
        }})
 
@@ -460,4 +449,5 @@ extern void _dl_x86_64_restore_sse (void);
 
 
 #endif /* __ASSEMBLER__ */
+
 #endif	/* tls.h */

@@ -5,21 +5,18 @@
 # Licensed under the LGPL v2.1, see the file COPYING.LIB in this tarball.
 #
 
-CSRC := \
-	__longjmp.c  brk.c setjmp_aux.c mmap.c \
-	cacheflush.c pread_write.c sysmips.c _test_and_set.c \
-	readahead.c
+CSRC-y := \
+	__longjmp.c  brk.c setjmp_aux.c \
+	pread_write.c sigaction.c _test_and_set.c
 
-SSRC := bsd-_setjmp.S bsd-setjmp.S setjmp.S syscall.S pipe.S syscall_error.S
+SSRC-y := bsd-_setjmp.S bsd-setjmp.S setjmp.S syscall.S pipe.S syscall_error.S
 
-ifeq ($(UCLIBC_HAS_ADVANCED_REALTIME),y)
-CSRC += posix_fadvise.c posix_fadvise64.c
-endif
-
-ifneq ($(UCLIBC_HAS_THREADS_NATIVE),y)
-CSRC += sigaction.c
-SSRC += vfork.S clone.S
-endif
+CSRC-$(UCLIBC_LINUX_SPECIFIC) += cacheflush.c sysmips.c
+CSRC-$(UCLIBC_HAS_ADVANCED_REALTIME) += posix_fadvise.c
+CSRC-$(if $(findstring yy,$(UCLIBC_HAS_LFS)$(UCLIBC_HAS_ADVANCED_REALTIME)),y) += posix_fadvise64.c
+SSRC-$(if $(UCLIBC_HAS_THREADS_NATIVE),,y) += vfork.S clone.S
+SSRC-$(UCLIBC_HAS_CONTEXT_FUNCS) += makecontext.S setcontext.S getcontext.S \
+	swapcontext.S
 
 ASFLAGS-syscall_error.S += -D_LIBC_REENTRANT
 

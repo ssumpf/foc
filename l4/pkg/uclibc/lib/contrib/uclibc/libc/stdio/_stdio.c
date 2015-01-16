@@ -7,7 +7,6 @@
 
 #include "_stdio.h"
 
-
 /* This is pretty much straight from uClibc, but with one important
  * difference.
  *
@@ -185,7 +184,7 @@ void attribute_hidden __stdio_init_mutex(__UCLIBC_MUTEX_TYPE *m)
 /**********************************************************************/
 
 /* We assume here that we are the only remaining thread. */
-void attribute_hidden _stdio_term(void)
+void _stdio_term(void)
 {
 #if defined(__STDIO_BUFFERS) || defined(__UCLIBC_HAS_GLIBC_CUSTOM_STREAMS__)
 	register FILE *ptr;
@@ -252,7 +251,7 @@ void attribute_hidden _stdio_term(void)
 }
 
 #if defined __STDIO_BUFFERS || !defined __UCLIBC__
-void attribute_hidden _stdio_init(void)
+void _stdio_init(void)
 {
 #ifdef __NOT_FOR_L4__
 #ifdef __STDIO_BUFFERS
@@ -291,13 +290,9 @@ void attribute_hidden _stdio_init(void)
 #error Assumption violated about __MASK_READING and __FLAG_UNGOT
 #endif
 
-#ifdef __UCLIBC_HAS_THREADS__
-#include <pthread.h>
-#endif
-
 #ifndef NDEBUG
 
-void _stdio_validate_FILE(const FILE *stream)
+void attribute_hidden _stdio_validate_FILE(const FILE *stream)
 {
 #ifdef __UCLIBC_HAS_THREADS__
 	assert(((unsigned int)(stream->__user_locking)) <= 2);

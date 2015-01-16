@@ -73,7 +73,7 @@ include .Unittest.deps
 endif
 
 # List of subsystems on which KERNEL depends 
-$(ALL_TESTS): $(ABI) $(JABI) $(DRIVERS) $(LIBK) $(LIBAMM) $(CXXLIB)
+$(ALL_TESTS): $(ABI) $(JABI) $(DRIVERS) $(LIBK) $(LIBAMM)
 $(ALL_TESTS): kernel.ux.lds
 
 # XXX Hacks

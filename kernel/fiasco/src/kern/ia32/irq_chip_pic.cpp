@@ -152,7 +152,6 @@ Irq_chip_ia32_pic::init()
   //
   Irq_mgr::mgr->reserve(2);		// reserve cascade irq
   Irq_mgr::mgr->reserve(7);		// reserve spurious vect
-  Irq_mgr::mgr->reserve(0xf);		// reserve spurious vect
 
   Pic::enable_locked(2);		// allow cascaded irqs
 }

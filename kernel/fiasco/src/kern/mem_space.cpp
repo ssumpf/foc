@@ -118,7 +118,7 @@ public:
 
   virtual
   Page_number mem_space_map_max_address() const
-  { return Virt_addr(Map_max_address); }
+  { return Page_number(Virt_addr(Mem_layout::User_max)) + Page_count(1); }
 
   Page_number map_max_address() const
   { return mem_space_map_max_address(); }

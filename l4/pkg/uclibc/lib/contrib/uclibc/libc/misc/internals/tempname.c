@@ -13,8 +13,7 @@
 
    You should have received a copy of the GNU Library General Public
    License along with the GNU C Library; see the file COPYING.LIB.  If not,
-   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   see <http://www.gnu.org/licenses/>.  */
 
 /* March 11, 2002       Manuel Novoa III
  *
@@ -58,11 +57,14 @@ static int direxists (const char *dir)
    for use with mk[s]temp.  Will fail (-1) if DIR is non-null and
    doesn't exist, none of the searched dirs exists, or there's not
    enough space in TMPL. */
-int attribute_hidden ___path_search (char *tmpl, size_t tmpl_len, const char *dir,
+int ___path_search (char *tmpl, size_t tmpl_len, const char *dir,
 	const char *pfx /*, int try_tmpdir*/)
 {
     /*const char *d; */
-    size_t dlen, plen;
+    /* dir and pfx lengths should always fit into an int,
+       so don't bother using size_t here.  Especially since
+       the printf func requires an int for precision (%*s).  */
+    int dlen, plen;
 
     if (!pfx || !pfx[0])
     {
@@ -107,7 +109,7 @@ int attribute_hidden ___path_search (char *tmpl, size_t tmpl_len, const char *di
 	dlen--;			/* remove trailing slashes */
 
     /* check we have room for "${dir}/${pfx}XXXXXX\0" */
-    if (tmpl_len < dlen + 1 + plen + 6 + 1)
+    if (tmpl_len < (size_t)dlen + 1 + plen + 6 + 1)
     {
 	__set_errno (EINVAL);
 	return -1;
@@ -175,7 +177,7 @@ static void brain_damaged_fillrand(unsigned char *buf, unsigned int len)
    __GT_DIR:            create a directory with given mode.
 
 */
-int __gen_tempname (char *tmpl, int kind, mode_t mode)
+int attribute_hidden __gen_tempname (char *tmpl, int kind, mode_t mode)
 {
     char *XXXXXX;
     unsigned int i;
@@ -193,7 +195,7 @@ int __gen_tempname (char *tmpl, int kind, mode_t mode)
     }
 
     for (i = 0; i < TMP_MAX; ++i) {
-	int j;
+	unsigned char j;
 	/* Get some random data.  */
 	if (fillrand(randomness, sizeof(randomness)) != sizeof(randomness)) {
 	    /* if random device nodes failed us, lets use the braindamaged ver */

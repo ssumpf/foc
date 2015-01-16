@@ -86,10 +86,10 @@ INTERFACE [arm && perf_cnt && (armca8 || armca9)]:
 EXTENSION class Perf_cnt
 {
 private:
-  static void pmnc(Mword val)
+  static void pmcr(Mword val)
   { asm volatile ("mcr p15, 0, %0, c9, c12, 0" : : "r" (val)); }
 
-  static Mword pmnc()
+  static Mword pmcr()
   { Mword val; asm volatile ("mrc p15, 0, %0, c9, c12, 0" : "=r" (val)); return val;}
 
 
@@ -209,7 +209,7 @@ Perf_cnt::init_cpu()
 {}
 
 PUBLIC static inline
-Mword
+Unsigned64
 Perf_cnt::read_cycle_cnt()
 { return 0; }
 
@@ -276,7 +276,7 @@ Perf_cnt::init_cpu()
 }
 
 PUBLIC static
-Mword
+Unsigned64
 Perf_cnt::read_cycle_cnt()
 { return read_counter(7); }
 
@@ -296,7 +296,14 @@ int Perf_cnt::_nr_counters;
 PRIVATE static
 bool
 Perf_cnt::is_avail()
-{ return Cpu::boot_cpu()->copro_dbg_model() == Cpu::Copro_dbg_model_v7; }
+{
+  switch (Cpu::boot_cpu()->copro_dbg_model())
+    {
+      case Cpu::Copro_dbg_model_v7:
+      case Cpu::Copro_dbg_model_v7_1: return true;
+      default: return false;
+    }
+}
 
 PRIVATE static
 void
@@ -310,7 +317,7 @@ Perf_cnt::set_event_type(int counter_nr, int event)
 }
 
 PUBLIC static
-Mword
+Unsigned64
 Perf_cnt::read_cycle_cnt()
 {
   if (!is_avail())
@@ -350,9 +357,9 @@ Perf_cnt::init_cpu()
   if (!is_avail())
     return;
 
-  _nr_counters = (pmnc() >> 11) & 0x1f;
+  _nr_counters = (pmcr() >> 11) & 0x1f;
 
-  pmnc(PMNC_ENABLE | PMNC_PERF_RESET | PMNC_CNT_RESET);
+  pmcr(PMNC_ENABLE | PMNC_PERF_RESET | PMNC_CNT_RESET);
 
   cntens((1 << 31) | ((1 << _nr_counters) - 1));
 

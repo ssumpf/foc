@@ -16,6 +16,7 @@ IMPLEMENTATION:
 #include "jdb_disasm.h"
 #include "jdb_table.h"
 #include "jdb_input.h"
+#include "jdb_input_task.h"
 #include "jdb_module.h"
 #include "jdb_screen.h"
 #include "jdb_symbol.h"

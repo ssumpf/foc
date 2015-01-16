@@ -39,7 +39,7 @@
 /**
  * Size of a large page, log2-based.
  */
-#define L4_SUPERPAGESHIFT	20
+#define L4_SUPERPAGESHIFT	21
 
 /*@}*/
 

@@ -17,7 +17,7 @@ IMPLEMENTATION [arm]:
 #include "ram_quota.h"
 #include "paging.h"
 
-IMPLEMENT
+IMPLEMENT_DEFAULT
 void Kern_lib_page::init()
 {
   extern char kern_lib_start;
@@ -33,6 +33,11 @@ void Kern_lib_page::init()
           + Mem_layout::Sdram_phys_base), Page::Attr(Page::Rights::URX(), Page::Type::Normal(), Page::Kern::Global()));
   pte.write_back_if(true, Mem_unit::Asid_kernel);
 }
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [arm && hyp]:
+
+IMPLEMENT inline void Kern_lib_page::init() {}
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && !armv6plus]:
@@ -90,6 +95,7 @@ IMPLEMENTATION [arm && armv6plus]:
 
 asm (
     ".p2align(12)                        \n"
+    ".global kern_lib_start              \n" // need this for mem_space.cpp
     "kern_lib_start:                     \n"
 
     // no restart through kernel entry code

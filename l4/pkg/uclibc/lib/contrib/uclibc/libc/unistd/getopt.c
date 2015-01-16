@@ -17,9 +17,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /*
  * Modified for uClibc by Manuel Novoa III on 1/5/01.
@@ -35,9 +34,6 @@
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
-
-#define __FORCE_GLIBC
-#include <features.h>
 
 #include <stdio.h>
 
@@ -62,7 +58,7 @@
 
 /* This needs to come after some library #include
    to get __GNU_LIBRARY__ defined.  */
-#ifdef	__GNU_LIBRARY__
+#if defined __GNU_LIBRARY__ || defined __UCLIBC__
 /* Don't include stdlib.h for non-GNU C libraries because some of them
    contain conflicting prototypes for getopt.  */
 # include <stdlib.h>
@@ -75,21 +71,11 @@
 # include <unixlib.h>
 #endif
 
-#if !defined __UCLIBC__ && !defined __UCLIBC_HAS_GETTEXT_AWARENESS__
 #ifdef _LIBC
 # include <libintl.h>
 #else
 # include "gettext.h"
 # define _(msgid) gettext (msgid)
-#endif
-#else
-#ifdef __UCLIBC_MJN3_ONLY__
-#warning TODO: Enable gettext awareness.
-#endif /* __UCLIBC_MJN3_ONLY__ */
-
-#undef _
-#define _(X)	X
-
 #endif
 
 /* Treat '-W foo' the same as the long option '--foo',
@@ -161,7 +147,7 @@ int optopt = '?';
 static struct _getopt_data getopt_data;
 
 
-#ifndef __GNU_LIBRARY__
+#if !defined __GNU_LIBRARY__ && !defined __UCLIBC__
 
 /* Avoid depending on library functions or files
    whose names are inconsistent.  */
@@ -235,7 +221,7 @@ exchange (char **argv, struct _getopt_data *d)
 	d->__nonoption_flags_len = d->__nonoption_flags_max_len = 0;
       else
 	{
-	  memset (__mempcpy (new_str, __getopt_nonoption_flags,
+	  memset (mempcpy (new_str, __getopt_nonoption_flags,
 			     d->__nonoption_flags_max_len),
 		  '\0', top + 1 - d->__nonoption_flags_max_len);
 	  d->__nonoption_flags_max_len = top + 1;
@@ -341,7 +327,7 @@ _getopt_initialize (attribute_unused int argc, attribute_unused char *const *arg
 	      if (__getopt_nonoption_flags == NULL)
 		d->__nonoption_flags_max_len = -1;
 	      else
-		memset (__mempcpy (__getopt_nonoption_flags, orig_str, len),
+		memset (mempcpy (__getopt_nonoption_flags, orig_str, len),
 			'\0', d->__nonoption_flags_max_len - len);
 	    }
 	}

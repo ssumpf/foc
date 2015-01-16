@@ -7,13 +7,23 @@ DEFINES_amd64-l4f += -DUSE_TLS=1
 DEFINES_arm-l4f   += -DUSE_TLS=1
 DEFINES_ppc32-l4f += -DUSE_TLS=1
 DEFINES_sparc-l4f += -DUSE_TLS=1
-TARGET            := libuc_c.a libuc_c.so libuc_c_nonshared.p.a
+TARGET            := libuc_c.a libuc_c.so libuc_c_nonshared.p.a libssp_nonshared.p.a
 PC_FILENAME       := libc
 PC_LIBS           := -luc_c
+
+PICFLAGS += -DSHARED=1
 
 include $(LIBCSRC_DIR)/make_vars.mk
 include $(LIBCSRC_DIR)/make_rules.mk
 include $(LIBCSRC_DIR)/contrib_files.mk
+
+# stack protector handling
+ifdef CONFIG_BID_GCC_ENABLE_STACK_PROTECTOR
+DEFINES           += -D__UCLIBC_HAS_SSP__=1
+PC_LIBS           += -lssp_nonshared.p
+# signal BID that uclibc implements infrastructure for stack protector
+PC_CFLAGS         := bid_allow_stack_protector
+endif
 
 LDFLAGS         = -z combreloc -z relro --sort-common \
 		  --warn-common 
@@ -33,6 +43,11 @@ SUB_MODULES := wchar large_file
 $(eval $(call PROCESS_src_lists, $(DIRS), $(SUB_MODULES)))
 # libm stuff
 $(eval $(call PROCESS_template_src, libm, float double))
+
+# stack protector handling
+ifdef CONFIG_BID_GCC_ENABLE_STACK_PROTECTOR
+UCLIBC_SRC_C              += ssp-l4.c
+endif
 
 UCLIBC_SRC_CC             += _exit.cc
 
@@ -67,12 +82,15 @@ SRC_C_libuc_c.a_arm-l4f     += libc/misc/pthread/tsd.c
 SRC_C_libuc_c.so_ppc32-l4f  += libc/misc/pthread/tsd.c
 SRC_C_libuc_c.a_ppc32-l4f   += libc/misc/pthread/tsd.c
 SRC_C_libuc_c.so_sparc-l4f  += libc/misc/pthread/tsd.c
+SRC_S_libuc_c.so_sparc-l4f  += libc/sysdeps/linux/sparc/sdiv.S
 SRC_C_libuc_c.a_sparc-l4f   += libc/misc/pthread/tsd.c
 
 SRC_C_libuc_c.so_arm-l4f    += ARCH-arm/aeabi_read_tp_generic.c
 SRC_C_libuc_c.a_arm-l4f     += ARCH-arm/aeabi_read_tp_generic.c
 #SRC_S_libuc_c.so_arm-l4f    += ARCH-arm/aeabi_read_tp-v6p.S
 #SRC_S_libuc_c.a_arm-l4f     += ARCH-arm/aeabi_read_tp-v6p.S
+
+SRC_C_libssp_nonshared.p.a  += libc/sysdeps/linux/common/ssp-local.c
 
 CXXFLAGS_libc-tls.cc += -fno-rtti -fno-exceptions
 

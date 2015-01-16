@@ -46,7 +46,7 @@ Thread::get_ioport(Address eip, Trap_state *ts, unsigned *port, unsigned *size)
     }
 
   // handle 2 Byte IO
-  if (!(eip < Kmem::mem_user_max - 1))
+  if (!(eip < Mem_layout::User_max))
     return false;
 
   switch (mem_space()->peek((Unsigned8 *)eip, from_user))
@@ -105,7 +105,7 @@ Thread::get_ioport(Address eip, Trap_state *ts, unsigned *port, unsigned *size)
     }
 
   // handle 3 Byte IO
-  if (!(eip < Kmem::mem_user_max - 2))
+  if (!(eip < Mem_layout::User_max - 1))
     return false;
 
   Unsigned16 w = mem_space()->peek((Unsigned16 *)eip, from_user);
@@ -143,7 +143,7 @@ Thread::handle_io_page_fault(Trap_state *ts)
   // the faulting eip to deterine the IO port and send an IO flexpage to our
   // pager. If it was a page fault, check the faulting address to prevent
   // touching userland.
-  if (eip < Kmem::mem_user_max &&
+  if (eip <= Mem_layout::User_max &&
       (ts->_trapno == 13 && (ts->_err & 7) == 0 ||
        ts->_trapno == 14 && Kmem::is_io_bitmap_page_fault(ts->_cr2)))
     {

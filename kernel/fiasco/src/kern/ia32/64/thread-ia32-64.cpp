@@ -8,10 +8,10 @@ Thread::fast_return_to_user(Mword ip, Mword sp, T arg)
 {
   assert_kdb(cpu_lock.test());
   assert_kdb(current() == this);
-  assert_kdb(regs()->cs() & 3 == 3);
 
   regs()->ip(ip);
   regs()->sp(sp);
+  regs()->cs(Gdt::gdt_code_user | Gdt::Selector_user);
   regs()->flags(EFLAGS_IF);
   asm volatile
     ("mov %0, %%rsp \t\n"
@@ -22,18 +22,34 @@ Thread::fast_return_to_user(Mword ip, Mword sp, T arg)
   __builtin_trap();
 }
 
-PROTECTED inline
+PROTECTED inline NEEDS[Thread::sys_gdt_x86]
 L4_msg_tag
 Thread::invoke_arch(L4_msg_tag tag, Utcb *utcb)
 {
   switch (utcb->values[0] & Opcode_mask)
     {
-    case Op_set_fs_amd64:
+    case Op_gdt_x86: return sys_gdt_x86(tag, utcb);
+    case Op_set_segment_base_amd64:
       if (tag.words() < 2)
-	return commit_result(-L4_err::EInval);
-      _fs_base = utcb->values[1];
-      if (current() == this)
-        load_segments();
+        return commit_result(-L4_err::EInval);
+      switch (utcb->values[0] >> 16)
+        {
+        case 0:
+          _fs = 0;
+          _fs_base = utcb->values[1];
+          if (current() == this)
+            Cpu::wrmsr(_fs_base, MSR_FS_BASE);
+          break;
+
+        case 1:
+          _gs = 0;
+          _gs_base = utcb->values[1];
+          if (current() == this)
+            Cpu::wrmsr(_gs_base, MSR_GS_BASE);
+          break;
+
+        default: return commit_result(-L4_err::EInval);
+        }
       return Kobject_iface::commit_result(0);
     default:
       return commit_result(-L4_err::ENosys);
@@ -157,6 +173,11 @@ Thread::user_invoke()
 {
   user_invoke_generic();
 
+  Mword di = 0;
+
+  if (current()->space()->is_sigma0())
+    di = Kmem::virt_to_phys(Kip::k());
+
   asm volatile
     ("  mov %%rax,%%rsp \n"    // set stack pointer to regs structure
      "  mov %%ecx,%%es   \n"
@@ -165,7 +186,6 @@ Thread::user_invoke()
      "  xor %%rcx,%%rcx \n"     // clean out user regs
      "  xor %%rdx,%%rdx \n"
      "  xor %%rsi,%%rsi \n"
-     "  xor %%rdi,%%rdi \n"
      "  xor %%rbx,%%rbx \n"
      "  xor %%rbp,%%rbp \n"
      "  xor %%r8,%%r8   \n"
@@ -180,7 +200,8 @@ Thread::user_invoke()
      "  iretq           \n"
      :                          // no output
      : "a" (nonull_static_cast<Return_frame*>(current()->regs())),
-       "c" (Gdt::gdt_data_user | Gdt::Selector_user)
+       "c" (Gdt::gdt_data_user | Gdt::Selector_user),
+       "D" (di)
      );
 
   // never returns here
@@ -250,6 +271,9 @@ Thread::call_nested_trap_handler(Trap_state *ts)
        [stack] "r" (stack),
        [handler] "m" (nested_trap_handler)
      : "rdx", "rcx", "r8", "r9", "memory");
+
+  if (!ntr)
+    handle_global_requests();
 
   return ret == 0 ? 0 : -1;
 }

@@ -52,6 +52,15 @@ public:
 
 IMPLEMENTATION [arm && exynos]: // ------------------
 
+PUBLIC
+void
+Mct_timer::start_free_running()
+{
+  write<Mword>(0, Reg::Cnt_u);
+  write<Mword>(0, Reg::Cnt_l);
+  modify<Mword>(1 << 8, 0, Reg::Tcon);
+}
+
 PRIVATE inline
 void
 Mct_core_timer::wstat_poll(unsigned val)

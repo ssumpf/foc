@@ -9,3 +9,6 @@ INTERFACE[arm && omap3_am33xx]: //-----------------------------------------
 
 INTERFACE[arm && omap4_pandaboard]: //-------------------------------------
 #define TARGET_NAME "Pandaboard"
+
+INTERFACE[arm && omap5]: //------------------------------------------------
+#define TARGET_NAME "OMAP5"

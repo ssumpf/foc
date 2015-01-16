@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <errno.h>
 #include <getopt.h>
@@ -104,7 +103,7 @@ __attribute__ ((unused))
 create_temp_file (const char *base, char **filename)
 {
   char *fname;
-  int fd;
+  int _fd;
 
   fname = (char *) malloc (strlen (test_dir) + 1 + strlen (base)
 			   + sizeof ("XXXXXX"));
@@ -115,8 +114,8 @@ create_temp_file (const char *base, char **filename)
     }
   strcpy (stpcpy (stpcpy (stpcpy (fname, test_dir), "/"), base), "XXXXXX");
 
-  fd = mkstemp (fname);
-  if (fd == -1)
+  _fd = mkstemp (fname);
+  if (_fd == -1)
     {
       printf ("cannot open temporary file '%s': %s\n", fname, strerror(errno));
       free (fname);
@@ -127,13 +126,13 @@ create_temp_file (const char *base, char **filename)
   if (filename != NULL)
     *filename = fname;
 
-  return fd;
+  return _fd;
 }
 
 /* Timeout handler.  We kill the child and exit with an error.  */
 static void
 __attribute__ ((noreturn))
-timeout_handler (int sig __attribute__ ((unused)))
+signal_handler (int sig __attribute__ ((unused)))
 {
   int killed = 0;
   int status;
@@ -168,6 +167,12 @@ timeout_handler (int sig __attribute__ ((unused)))
   CLEANUP_HANDLER;
 #endif
 
+  if (sig == SIGINT)
+    {
+      signal (sig, SIG_DFL);
+      raise (sig);
+    }
+
   /* If we expected this signal: good!  */
 #ifdef EXPECTED_SIGNAL
   if (EXPECTED_SIGNAL == SIGALRM)
@@ -190,6 +195,7 @@ timeout_handler (int sig __attribute__ ((unused)))
   exit (1);
 }
 
+#ifdef __XXX_HANDLE_CTRL_C
 static void
 __attribute__ ((noreturn))
 handler_killpid(int sig)
@@ -199,6 +205,7 @@ handler_killpid(int sig)
 	raise(sig); /* kill ourself */
 	_exit(128 + sig); /* paranoia */
 }
+#endif
 
 /* We provide the entry point here.  */
 int
@@ -345,17 +352,22 @@ main (int argc, char *argv[])
       exit (1);
     }
 
+#ifdef __XXX_HANDLE_CTRL_C
   signal (SIGTERM, handler_killpid);
   signal (SIGINT, handler_killpid);
   signal (SIGQUIT, handler_killpid);
+#endif
 
   /* Set timeout.  */
 #ifndef TIMEOUT
   /* Default timeout is two seconds.  */
 # define TIMEOUT 2
 #endif
-  signal (SIGALRM, timeout_handler);
+  signal (SIGALRM, signal_handler);
   alarm (TIMEOUT * timeoutfactor);
+
+  /* Make sure we clean up if the wrapper gets interrupted.  */
+  signal (SIGINT, signal_handler);
 
   /* Wait for the regular termination.  */
   termpid = TEMP_FAILURE_RETRY (waitpid (pid, &status, 0));

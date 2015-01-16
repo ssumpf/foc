@@ -13,17 +13,18 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* This just does a tail-call to `__sigsetjmp (ARG, 0)'.
    We cannot do it in C because it must be a tail-call, so frame-unwinding
    in setjmp doesn't clobber the state restored by longjmp.  */
 
+#include <sysdep.h>
+
 .global _setjmp
 .type   _setjmp,%function
 _setjmp:
 	xorq %rsi, %rsi
-	jmp __sigsetjmp@PLT
+	jmp HIDDEN_JUMPTARGET(__sigsetjmp)
 .size _setjmp,.-_setjmp

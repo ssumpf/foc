@@ -12,26 +12,20 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
-#include <features.h>
-#ifdef __USE_GNU
-
-#include <sched.h>
-#include <sys/types.h>
 #include <sys/syscall.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/param.h>
-#include <alloca.h>
 
-#if defined __NR_sched_setaffinity
-
-#define __NR___syscall_sched_setaffinity __NR_sched_setaffinity
-static __inline__ _syscall3(int, __syscall_sched_setaffinity, __kernel_pid_t, pid,
-			size_t, cpusetsize, cpu_set_t *, cpuset)
+#if defined __NR_sched_setaffinity && defined __USE_GNU
+# include <sched.h>
+# include <sys/types.h>
+# include <string.h>
+# include <unistd.h>
+# include <alloca.h>
+# define __NR___syscall_sched_setaffinity __NR_sched_setaffinity
+static __always_inline _syscall3(int, __syscall_sched_setaffinity, __kernel_pid_t, pid,
+				 size_t, cpusetsize, const cpu_set_t *, cpuset)
 
 static size_t __kernel_cpumask_size;
 
@@ -68,18 +62,6 @@ int sched_setaffinity(pid_t pid, size_t cpusetsize, const cpu_set_t *cpuset)
 			return -1;
 		}
 
-	return INLINE_SYSCALL (sched_setaffinity, 3, pid, cpusetsize, cpuset);
-}
-#else
-#define ___HAVE_NO_sched_setaffinity
-#endif
-
-#if defined ___HAVE_NO_sched_setaffinity && defined __UCLIBC_HAS_STUBS__
-int sched_setaffinity(pid_t pid, size_t cpusetsize, const cpu_set_t *cpuset)
-{
-    __set_errno(ENOSYS);
-    return -1;
+	return __syscall_sched_setaffinity(pid, cpusetsize, cpuset);
 }
 #endif
-
-#endif /* __USE_GNU */

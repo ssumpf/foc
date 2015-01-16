@@ -12,16 +12,15 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #undef NDEBUG
 #include <assert.h>
 #include <stdlib.h>
 
 
-void __aeabi_assert(const char *assertion, const char *file, unsigned int line);
+void __aeabi_assert(const char *assertion, const char *file, unsigned int line) attribute_noreturn;
 void __aeabi_assert(const char *assertion, const char *file, unsigned int line)
 {
   __assert (assertion, file, line, NULL);

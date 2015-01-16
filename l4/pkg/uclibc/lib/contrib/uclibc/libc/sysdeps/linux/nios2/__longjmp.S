@@ -12,9 +12,7 @@
  */
 
 #include <features.h>
-#define _ASM
-#define _SETJMP_H
-#include <bits/setjmp.h>
+#include <jmpbuf-offsets.h>
 
 .globl __longjmp
 .type  __longjmp,@function
@@ -39,7 +37,7 @@ __longjmp:
     ldw     gp, JB_GP(r4)
     ldw     sp, JB_SP(r4)
     
-#if defined(__HAVE_FPU__)
+#ifdef __UCLIBC_HAS_FPU__
     RESTORE_FPU r4 JB_FPREGS
 #endif
 

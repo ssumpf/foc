@@ -2,7 +2,7 @@ INTERFACE [sa1100]:
 
 #include "types.h"
 
-EXTENSION class Uart  
+EXTENSION class Uart
 {
 public:
 
@@ -55,14 +55,14 @@ private:
     UTSR0_RBB = 0x08,
     UTSR0_REB = 0x10,
     UTSR0_EIF = 0x20,
-    
+
     UTSR1_TBY = 0x01,
     UTSR1_RNE = 0x02,
     UTSR1_TNF = 0x04,
     UTSR1_PRE = 0x08,
     UTSR1_FRE = 0x10,
     UTSR1_ROR = 0x20,
-    
+
     UARTCLK = 3686400,
   };
 
@@ -74,33 +74,33 @@ IMPLEMENTATION [sa1100]:
 #include <cassert>
 #include "processor.h"
 
-PRIVATE INLINE static Address Uart::_utcr0( Address a ) 
+PRIVATE INLINE static Address Uart::_utcr0(Address a)
 { return a; }
 
-PRIVATE INLINE static Address Uart::_utcr1( Address a ) 
+PRIVATE INLINE static Address Uart::_utcr1(Address a)
 { return (a+0x04); }
 
-PRIVATE INLINE static Address Uart::_utcr2( Address a ) 
+PRIVATE INLINE static Address Uart::_utcr2(Address a)
 { return (a+0x08); }
 
-PRIVATE INLINE static Address Uart::_utcr3( Address a ) 
+PRIVATE INLINE static Address Uart::_utcr3(Address a)
 { return (a+0x0c); }
 
-PRIVATE INLINE static Address Uart::_utcr4( Address a ) 
+PRIVATE INLINE static Address Uart::_utcr4(Address a)
 { return (a+0x10); }
 
-PRIVATE INLINE static Address Uart::_utdr( Address a ) 
+PRIVATE INLINE static Address Uart::_utdr(Address a)
 { return (a+0x14); }
 
-PRIVATE INLINE static Address Uart::_utsr0( Address a )
+PRIVATE INLINE static Address Uart::_utsr0(Address a)
 { return (a+0x1c); }
 
-PRIVATE INLINE static Address Uart::_utsr1( Address a )
+PRIVATE INLINE static Address Uart::_utsr1(Address a)
 { return (a+0x20); }
 
 
 PRIVATE INLINE NEEDS[Uart::_utcr0]
-unsigned Uart::utcr0()  const 
+unsigned Uart::utcr0()  const
 { return *((volatile unsigned*)(_utcr0(address))); }
 
 PRIVATE INLINE NEEDS[Uart::_utcr1]
@@ -133,39 +133,39 @@ unsigned Uart::utsr1()  const
 
 
 PRIVATE INLINE NEEDS[Uart::_utcr0]
-void Uart::utcr0(unsigned v) 
+void Uart::utcr0(unsigned v)
 { *((volatile unsigned*)(_utcr0(address)))= v; }
 
 PRIVATE INLINE NEEDS[Uart::_utcr1]
-void Uart::utcr1(unsigned v) 
+void Uart::utcr1(unsigned v)
 { *((volatile unsigned*)(_utcr1(address)))= v; }
 
 PRIVATE INLINE NEEDS[Uart::_utcr2]
-void Uart::utcr2(unsigned v) 
+void Uart::utcr2(unsigned v)
 { *((volatile unsigned*)(_utcr2(address)))= v; }
 
 PRIVATE INLINE NEEDS[Uart::_utcr3]
-void Uart::utcr3(unsigned v) 
+void Uart::utcr3(unsigned v)
 { *((volatile unsigned*)(_utcr3(address)))= v; }
 
 PRIVATE INLINE NEEDS[Uart::_utcr4]
-void Uart::utcr4(unsigned v) 
+void Uart::utcr4(unsigned v)
 { *((volatile unsigned*)(_utcr4(address)))= v; }
 
 PRIVATE INLINE NEEDS[Uart::_utdr]
-void Uart::utdr(unsigned v) 
+void Uart::utdr(unsigned v)
 { *((volatile unsigned*)(_utdr(address)))= v; }
 
 PRIVATE INLINE NEEDS[Uart::_utsr0]
-void Uart::utsr0(unsigned v) 
+void Uart::utsr0(unsigned v)
 { *((volatile unsigned*)(_utsr0(address)))= v; }
 
 PRIVATE INLINE NEEDS[Uart::_utsr1]
-void Uart::utsr1(unsigned v) 
+void Uart::utsr1(unsigned v)
 { *((volatile unsigned*)(_utsr1(address)))= v; }
 
 
-IMPLEMENT Uart::Uart()
+IMPLEMENT Uart::Uart() : Console(DISABLED)
 {
   address = (unsigned)-1;
   _irq = (unsigned)-1;
@@ -177,12 +177,13 @@ IMPLEMENT Uart::~Uart()
 }
 
 
-IMPLEMENT bool Uart::startup( Address _address, unsigned irq ) 
+IMPLEMENT bool Uart::startup(Address _address, unsigned irq)
 {
   address =_address;
   _irq = irq;
   utsr0((unsigned)-1); //clear pending status bits
   utcr3(UTCR3_RXE | UTCR3_TXE); //enable transmitter and receiver
+  add_state(ENABLED);
   return true;
 }
 
@@ -196,9 +197,9 @@ IMPLEMENT bool Uart::change_mode(TransferMode m, BaudRate baud)
 {
   unsigned old_utcr3, quot;
   Proc::Status st;
-  if(baud == (BaudRate)-1) 
+  if(baud == (BaudRate)-1)
     return false;
-  if(baud != BAUD_NC && (baud>115200 || baud<96)) 
+  if(baud != BAUD_NC && (baud>115200 || baud<96))
     return false;
   if(m == (TransferMode)-1)
     return false;
@@ -238,28 +239,31 @@ PUBLIC bool Uart::tx_empty()
 
 
 IMPLEMENT
-int Uart::write( const char *s, size_t count )
+int Uart::write(const char *s, size_t count)
 {
   unsigned old_utcr3;
   Proc::Status st;
   st = Proc::cli_save();
   old_utcr3 = utcr3();
-  utcr3( (old_utcr3 & ~(UTCR3_RIE|UTCR3_TIE)) | UTCR3_TXE );
+  utcr3((old_utcr3 & ~(UTCR3_RIE|UTCR3_TIE)) | UTCR3_TXE);
 
   /* transmission */
-  for(unsigned i =0; i<count; i++) 
+  for(unsigned i =0; i<count; i++)
     {
-      while(!(utsr1() & UTSR1_TNF)) ;
+      while(!(utsr1() & UTSR1_TNF))
+        ;
       utdr(s[i]);
-      if( s[i]=='\n' ) 
-	{
-	  while(!(utsr1() & UTSR1_TNF)) ;
-	  utdr('\r');
-	}	  
+      if( s[i]=='\n' )
+        {
+          while(!(utsr1() & UTSR1_TNF))
+            ;
+          utdr('\r');
+        }
     }
 
   /* wait till everything is transmitted */
-  while(utsr1() & UTSR1_TBY) ;
+  while(utsr1() & UTSR1_TBY)
+    ;
 
   utcr3(old_utcr3);
   Proc::sti_restore(st);
@@ -267,12 +271,12 @@ int Uart::write( const char *s, size_t count )
 }
 
 IMPLEMENT
-int Uart::getchar( bool blocking )
+int Uart::getchar(bool blocking)
 {
   unsigned old_utcr3, ch;
 
   old_utcr3 = utcr3();
-  utcr3( old_utcr3 & ~(UTCR3_RIE|UTCR3_TIE) );
+  utcr3(old_utcr3 & ~(UTCR3_RIE|UTCR3_TIE));
   while(!(utsr1() & UTSR1_RNE))
     if(!blocking)
       return -1;
@@ -291,7 +295,7 @@ int Uart::char_avail() const
     {
       return 1;
     }
-  else 
+  else
     return 0;
 }
 
@@ -302,13 +306,13 @@ int Uart::irq() const
   return (int)_irq;
 }
 
-IMPLEMENT inline NEEDS[Uart::utcr3] 
+IMPLEMENT inline NEEDS[Uart::utcr3]
 void Uart::enable_rcv_irq()
 {
   utcr3(utcr3() | UTCR3_RIE);
 }
 
-IMPLEMENT inline NEEDS[Uart::utcr3] 
+IMPLEMENT inline NEEDS[Uart::utcr3]
 void Uart::disable_rcv_irq()
 {
   utcr3(utcr3() & ~UTCR3_RIE);

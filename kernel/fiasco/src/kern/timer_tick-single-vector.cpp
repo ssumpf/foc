@@ -18,10 +18,9 @@ IMPLEMENT void
 Timer_tick::setup(Cpu_number cpu)
 {
   // all CPUs use the same timer IRQ, so initialize just on CPU 0
-  if (cpu != Cpu_number::boot_cpu())
-    return;
+  if (cpu == Cpu_number::boot_cpu())
+    _glbl_timer.construct(Any_cpu);
 
-  _glbl_timer.construct(Any_cpu);
   if (!allocate_irq(_glbl_timer, Timer::irq()))
     panic("Could not allocate scheduling IRQ %d\n", Timer::irq());
 
@@ -33,6 +32,7 @@ void
 Timer_tick::enable(Cpu_number)
 {
   _glbl_timer->chip()->unmask(_glbl_timer->pin());
+  Timer::enable();
 }
 
 IMPLEMENT
@@ -49,3 +49,11 @@ Timer_tick::ack()
   Timer::acknowledge();
   Irq_base::ack();
 }
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [debug]:
+
+IMPLEMENT
+Timer_tick *
+Timer_tick::boot_cpu_timer_tick()
+{ return _glbl_timer; }

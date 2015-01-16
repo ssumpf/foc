@@ -64,13 +64,13 @@ Jdb_entry_frame::dump() const
 IMPLEMENT inline
 bool
 Jdb_entry_frame::debug_ipi() const
-{ return error_code == 0x00e00002; }
+{ return error_code == ((0x33UL << 26) | 2); }
 
 IMPLEMENT inline NEEDS["processor.h"]
 Address_type
 Jdb_entry_frame::from_user() const
 {
-  return (psr & Proc::Status_mode_mask) == Proc::Status_mode_user
+  return (psr & Proc::Status_mode_mask) != Proc::Status_mode_supervisor
          ? ADDR_USER : ADDR_KERNEL;
 }
 

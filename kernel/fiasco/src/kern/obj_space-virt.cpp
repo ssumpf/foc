@@ -30,7 +30,7 @@ Generic_obj_space<SPACE>::mem_space(Base *base)
 
 IMPLEMENT  template< typename SPACE >
 inline
-bool __attribute__((__flatten__))
+bool FIASCO_FLATTEN
 Generic_obj_space<SPACE>::v_lookup(V_pfn const &virt, Phys_addr *phys,
                                    Page_order *size, Attr *attribs)
 {
@@ -38,36 +38,36 @@ Generic_obj_space<SPACE>::v_lookup(V_pfn const &virt, Phys_addr *phys,
 }
 
 IMPLEMENT template< typename SPACE >
-inline __attribute__((__flatten__))
-typename Generic_obj_space<SPACE>::Capability __attribute__((__flatten__))
+inline
+typename Generic_obj_space<SPACE>::Capability FIASCO_FLATTEN
 Generic_obj_space<SPACE>::lookup(Cap_index virt)
 { return Base::lookup(virt); }
 
 IMPLEMENT template< typename SPACE >
-inline __attribute__((__flatten__))
-Kobject_iface *
+inline
+Kobject_iface * FIASCO_FLATTEN
 Generic_obj_space<SPACE>::lookup_local(Cap_index virt, L4_fpage::Rights *rights = 0)
 { return Base::lookup_local(virt, rights); }
 
 
 IMPLEMENT template< typename SPACE >
-inline __attribute__((__flatten__))
-L4_fpage::Rights __attribute__((__flatten__))
+inline
+L4_fpage::Rights FIASCO_FLATTEN
 Generic_obj_space<SPACE>::v_delete(V_pfn virt, Order size,
                                    L4_fpage::Rights page_attribs)
 { return  Base::v_delete(virt, size, page_attribs); }
 
 IMPLEMENT  template< typename SPACE >
-inline __attribute__((__flatten__))
-typename Generic_obj_space<SPACE>::Status __attribute__((__flatten__))
+inline
+typename Generic_obj_space<SPACE>::Status FIASCO_FLATTEN
 Generic_obj_space<SPACE>::v_insert(Phys_addr phys, V_pfn const &virt, Order size,
                                    Attr page_attribs)
 { return (Status)Base::v_insert(phys, virt, size, page_attribs); }
 
 
 IMPLEMENT template< typename SPACE >
-inline __attribute__((__flatten__))
-typename Generic_obj_space<SPACE>::V_pfn
+inline
+typename Generic_obj_space<SPACE>::V_pfn FIASCO_FLATTEN
 Generic_obj_space<SPACE>::obj_map_max_address() const
 { return Base::obj_map_max_address(); }
 

@@ -1,4 +1,4 @@
-/* Copyright (C) 1996-2002, 2003, 2004 Free Software Foundation, Inc.
+/* Copyright (C) 1996-2002, 2003, 2004, 2009 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* All data returned by the network data base library are supplied in
    host order and returned in network order (suitable for use in
@@ -59,7 +58,6 @@ __BEGIN_DECLS
 
 /* Function to get address of global `h_errno' variable.  */
 extern int *__h_errno_location (void) __THROW __attribute__ ((__const__));
-libc_hidden_proto(__h_errno_location)
 
 /* Macros for accessing h_errno from inside libc.  */
 #ifdef _LIBC
@@ -88,8 +86,6 @@ extern int h_errno;
 #endif /* _LIBC */
 
 /* Possible values left in `h_errno'.  */
-#define	NETDB_INTERNAL	-1	/* See errno.  */
-#define	NETDB_SUCCESS	0	/* No problem.  */
 #define	HOST_NOT_FOUND	1	/* Authoritative Answer Host not found.  */
 #define	TRY_AGAIN	2	/* Non-Authoritative Host not found,
 				   or SERVERFAIL.  */
@@ -97,7 +93,11 @@ extern int h_errno;
 				   NOTIMP.  */
 #define	NO_DATA		4	/* Valid name, no data record of requested
 				   type.  */
-#define	NO_ADDRESS	NO_DATA	/* No address, look for MX record.  */
+#if defined __USE_MISC || defined __USE_GNU
+# define NETDB_INTERNAL	-1	/* See errno.  */
+# define NETDB_SUCCESS	0	/* No problem.  */
+# define NO_ADDRESS	NO_DATA	/* No address, look for MX record.  */
+#endif
 
 #ifdef __USE_XOPEN2K
 /* Highest reserved Internet port number.  */
@@ -109,13 +109,15 @@ extern int h_errno;
 # define SCOPE_DELIMITER	'%'
 #endif
 
+#if defined __USE_MISC || defined __USE_GNU
 /* Print error indicated by `h_errno' variable on standard error.  STR
    if non-null is printed before the error string.  */
-extern void herror (__const char *__str) __THROW;
+extern void herror (const char *__str) __THROW;
 libc_hidden_proto(herror)
 
 /* Return string associated with error ERR_NUM.  */
-extern __const char *hstrerror (int __err_num) __THROW;
+extern const char *hstrerror (int __err_num) __THROW;
+#endif
 
 
 /* Description of data base entry for a single host.  */
@@ -126,7 +128,9 @@ struct hostent
   int h_addrtype;		/* Host address type.  */
   int h_length;			/* Length of address.  */
   char **h_addr_list;		/* List of addresses from name server.  */
-#define	h_addr	h_addr_list[0]	/* Address, for backward compatibility.  */
+#if defined __USE_MISC || defined __USE_GNU
+# define	h_addr	h_addr_list[0] /* Address, for backward compatibility.*/
+#endif
 };
 
 /* Open host data base files and mark them as staying open even after
@@ -154,7 +158,7 @@ extern struct hostent *gethostent (void);
 
    This function is a possible cancellation point and therefore not
    marked with __THROW.  */
-extern struct hostent *gethostbyaddr (__const void *__addr, __socklen_t __len,
+extern struct hostent *gethostbyaddr (const void *__addr, __socklen_t __len,
 				      int __type);
 libc_hidden_proto(gethostbyaddr)
 
@@ -162,7 +166,7 @@ libc_hidden_proto(gethostbyaddr)
 
    This function is a possible cancellation point and therefore not
    marked with __THROW.  */
-extern struct hostent *gethostbyname (__const char *__name);
+extern struct hostent *gethostbyname (const char *__name);
 libc_hidden_proto(gethostbyname)
 
 #ifdef __USE_MISC
@@ -174,7 +178,7 @@ libc_hidden_proto(gethostbyname)
    cancellation point.  But due to similarity with an POSIX interface
    or due to the implementation it is a cancellation point and
    therefore not marked with __THROW.  */
-extern struct hostent *gethostbyname2 (__const char *__name, int __af);
+extern struct hostent *gethostbyname2 (const char *__name, int __af);
 libc_hidden_proto(gethostbyname2)
 
 /* Reentrant versions of the functions above.  The additional
@@ -193,7 +197,7 @@ extern int gethostent_r (struct hostent *__restrict __result_buf,
 			 int *__restrict __h_errnop);
 libc_hidden_proto(gethostent_r)
 
-extern int gethostbyaddr_r (__const void *__restrict __addr, __socklen_t __len,
+extern int gethostbyaddr_r (const void *__restrict __addr, __socklen_t __len,
 			    int __type,
 			    struct hostent *__restrict __result_buf,
 			    char *__restrict __buf, size_t __buflen,
@@ -201,14 +205,14 @@ extern int gethostbyaddr_r (__const void *__restrict __addr, __socklen_t __len,
 			    int *__restrict __h_errnop);
 libc_hidden_proto(gethostbyaddr_r)
 
-extern int gethostbyname_r (__const char *__restrict __name,
+extern int gethostbyname_r (const char *__restrict __name,
 			    struct hostent *__restrict __result_buf,
 			    char *__restrict __buf, size_t __buflen,
 			    struct hostent **__restrict __result,
 			    int *__restrict __h_errnop);
 libc_hidden_proto(gethostbyname_r)
 
-extern int gethostbyname2_r (__const char *__restrict __name, int __af,
+extern int gethostbyname2_r (const char *__restrict __name, int __af,
 			     struct hostent *__restrict __result_buf,
 			     char *__restrict __buf, size_t __buflen,
 			     struct hostent **__restrict __result,
@@ -250,7 +254,7 @@ extern struct netent *getnetbyaddr (uint32_t __net, int __type);
 
    This function is a possible cancellation point and therefore not
    marked with __THROW.  */
-extern struct netent *getnetbyname (__const char *__name);
+extern struct netent *getnetbyname (const char *__name);
 
 #ifdef	__USE_MISC
 /* Reentrant versions of the functions above.  The additional
@@ -268,13 +272,15 @@ extern int getnetent_r (struct netent *__restrict __result_buf,
 			struct netent **__restrict __result,
 			int *__restrict __h_errnop);
 libc_hidden_proto(getnetent_r)
+
 extern int getnetbyaddr_r (uint32_t __net, int __type,
 			   struct netent *__restrict __result_buf,
 			   char *__restrict __buf, size_t __buflen,
 			   struct netent **__restrict __result,
 			   int *__restrict __h_errnop);
 libc_hidden_proto(getnetbyaddr_r)
-extern int getnetbyname_r (__const char *__restrict __name,
+
+extern int getnetbyname_r (const char *__restrict __name,
 			   struct netent *__restrict __result_buf,
 			   char *__restrict __buf, size_t __buflen,
 			   struct netent **__restrict __result,
@@ -319,15 +325,15 @@ extern struct servent *getservent (void);
 
    This function is a possible cancellation point and therefore not
    marked with __THROW.  */
-extern struct servent *getservbyname (__const char *__name,
-				      __const char *__proto);
+extern struct servent *getservbyname (const char *__name,
+				      const char *__proto);
 
 /* Return entry from service data base which matches port PORT and
    protocol PROTO.
 
    This function is a possible cancellation point and therefore not
    marked with __THROW.  */
-extern struct servent *getservbyport (int __port, __const char *__proto);
+extern struct servent *getservbyport (int __port, const char *__proto);
 libc_hidden_proto(getservbyport)
 
 
@@ -344,14 +350,14 @@ extern int getservent_r (struct servent *__restrict __result_buf,
 			 struct servent **__restrict __result);
 libc_hidden_proto(getservent_r)
 
-extern int getservbyname_r (__const char *__restrict __name,
-			    __const char *__restrict __proto,
+extern int getservbyname_r (const char *__restrict __name,
+			    const char *__restrict __proto,
 			    struct servent *__restrict __result_buf,
 			    char *__restrict __buf, size_t __buflen,
 			    struct servent **__restrict __result);
 libc_hidden_proto(getservbyname_r)
 
-extern int getservbyport_r (int __port, __const char *__restrict __proto,
+extern int getservbyport_r (int __port, const char *__restrict __proto,
 			    struct servent *__restrict __result_buf,
 			    char *__restrict __buf, size_t __buflen,
 			    struct servent **__restrict __result);
@@ -393,7 +399,7 @@ extern struct protoent *getprotoent (void);
 
    This function is a possible cancellation point and therefore not
    marked with __THROW.  */
-extern struct protoent *getprotobyname (__const char *__name);
+extern struct protoent *getprotobyname (const char *__name);
 
 /* Return entry from protocol data base which number is PROTO.
 
@@ -415,7 +421,7 @@ extern int getprotoent_r (struct protoent *__restrict __result_buf,
 			  struct protoent **__restrict __result);
 libc_hidden_proto(getprotoent_r)
 
-extern int getprotobyname_r (__const char *__restrict __name,
+extern int getprotobyname_r (const char *__restrict __name,
 			     struct protoent *__restrict __result_buf,
 			     char *__restrict __buf, size_t __buflen,
 			     struct protoent **__restrict __result);
@@ -435,7 +441,7 @@ libc_hidden_proto(getprotobynumber_r)
    cancellation point.  But due to similarity with an POSIX interface
    or due to the implementation it is a cancellation point and
    therefore not marked with __THROW.  */
-extern int setnetgrent (__const char *__netgroup);
+extern int setnetgrent (const char *__netgroup);
 
 /* Free all space allocated by previous `setnetgrent' call.
 
@@ -463,8 +469,8 @@ extern int getnetgrent (char **__restrict __hostp,
    cancellation point.  But due to similarity with an POSIX interface
    or due to the implementation it is a cancellation point and
    therefore not marked with __THROW.  */
-extern int innetgr (__const char *__netgroup, __const char *__host,
-		    __const char *__user, __const char *domain);
+extern int innetgr (const char *__netgroup, const char *__host,
+		    const char *__user, const char *__domain);
 
 /* Reentrant version of `getnetgrent' where result is placed in BUFFER.
 
@@ -479,12 +485,12 @@ extern int getnetgrent_r (char **__restrict __hostp,
 #endif	/* UCLIBC_HAS_NETGROUP */
 #endif	/* misc */
 
-
+#ifdef __UCLIBC__
 /* ruserpass - remote password check.
    This function also exists in glibc but is undocumented */
 extern int ruserpass(const char *host, const char **aname, const char **apass);
 libc_hidden_proto(ruserpass)
-
+#endif
 
 #ifdef __USE_BSD
 /* Call `rshd' at port RPORT on remote machine *AHOST to execute CMD.
@@ -499,9 +505,9 @@ libc_hidden_proto(ruserpass)
    or due to the implementation it is a cancellation point and
    therefore not marked with __THROW.  */
 extern int rcmd (char **__restrict __ahost, unsigned short int __rport,
-		 __const char *__restrict __locuser,
-		 __const char *__restrict __remuser,
-		 __const char *__restrict __cmd, int *__restrict __fd2p);
+		 const char *__restrict __locuser,
+		 const char *__restrict __remuser,
+		 const char *__restrict __cmd, int *__restrict __fd2p);
 
 #if 0
 /* FIXME */
@@ -513,9 +519,9 @@ extern int rcmd (char **__restrict __ahost, unsigned short int __rport,
    or due to the implementation it is a cancellation point and
    therefore not marked with __THROW.  */
 extern int rcmd_af (char **__restrict __ahost, unsigned short int __rport,
-		    __const char *__restrict __locuser,
-		    __const char *__restrict __remuser,
-		    __const char *__restrict __cmd, int *__restrict __fd2p,
+		    const char *__restrict __locuser,
+		    const char *__restrict __remuser,
+		    const char *__restrict __cmd, int *__restrict __fd2p,
 		    sa_family_t __af);
 #endif
 
@@ -530,9 +536,9 @@ extern int rcmd_af (char **__restrict __ahost, unsigned short int __rport,
    or due to the implementation it is a cancellation point and
    therefore not marked with __THROW.  */
 extern int rexec (char **__restrict __ahost, int __rport,
-		  __const char *__restrict __name,
-		  __const char *__restrict __pass,
-		  __const char *__restrict __cmd, int *__restrict __fd2p);
+		  const char *__restrict __name,
+		  const char *__restrict __pass,
+		  const char *__restrict __cmd, int *__restrict __fd2p);
 
 /* This is the equivalent function where the protocol can be selected
    and which therefore can be used for IPv6.
@@ -542,9 +548,9 @@ extern int rexec (char **__restrict __ahost, int __rport,
    or due to the implementation it is a cancellation point and
    therefore not marked with __THROW.  */
 extern int rexec_af (char **__restrict __ahost, int __rport,
-		     __const char *__restrict __name,
-		     __const char *__restrict __pass,
-		     __const char *__restrict __cmd, int *__restrict __fd2p,
+		     const char *__restrict __name,
+		     const char *__restrict __pass,
+		     const char *__restrict __cmd, int *__restrict __fd2p,
 		     sa_family_t __af);
 libc_hidden_proto(rexec_af)
 
@@ -556,8 +562,8 @@ libc_hidden_proto(rexec_af)
    cancellation point.  But due to similarity with an POSIX interface
    or due to the implementation it is a cancellation point and
    therefore not marked with __THROW.  */
-extern int ruserok (__const char *__rhost, int __suser,
-		    __const char *__remuser, __const char *__locuser);
+extern int ruserok (const char *__rhost, int __suser,
+		    const char *__remuser, const char *__locuser);
 
 #if 0
 /* FIXME */
@@ -568,8 +574,8 @@ extern int ruserok (__const char *__rhost, int __suser,
    cancellation point.  But due to similarity with an POSIX interface
    or due to the implementation it is a cancellation point and
    therefore not marked with __THROW.  */
-extern int ruserok_af (__const char *__rhost, int __suser,
-		       __const char *__remuser, __const char *__locuser,
+extern int ruserok_af (const char *__rhost, int __suser,
+		       const char *__remuser, const char *__locuser,
 		       sa_family_t __af);
 #endif
 
@@ -638,15 +644,15 @@ struct addrinfo
 # define EAI_NONAME	  -2	/* NAME or SERVICE is unknown.  */
 # define EAI_AGAIN	  -3	/* Temporary failure in name resolution.  */
 # define EAI_FAIL	  -4	/* Non-recoverable failure in name res.  */
-# define EAI_NODATA	  -5	/* No address associated with NAME.  */
 # define EAI_FAMILY	  -6	/* `ai_family' not supported.  */
 # define EAI_SOCKTYPE	  -7	/* `ai_socktype' not supported.  */
 # define EAI_SERVICE	  -8	/* SERVICE not supported for `ai_socktype'.  */
-# define EAI_ADDRFAMILY	  -9	/* Address family for NAME not supported.  */
 # define EAI_MEMORY	  -10	/* Memory allocation failure.  */
 # define EAI_SYSTEM	  -11	/* System error returned in `errno'.  */
 # define EAI_OVERFLOW	  -12	/* Argument buffer overflow.  */
 # ifdef __USE_GNU
+#  define EAI_NODATA	  -5	/* No address associated with NAME.  */
+#  define EAI_ADDRFAMILY  -9	/* Address family for NAME not supported.  */
 #  define EAI_INPROGRESS  -100	/* Processing request in progress.  */
 #  define EAI_CANCELED	  -101	/* Request canceled.  */
 #  define EAI_NOTCANCELED -102	/* Request not canceled.  */
@@ -655,8 +661,10 @@ struct addrinfo
 #  define EAI_IDN_ENCODE  -105	/* IDN encoding failed.  */
 # endif
 
-# define NI_MAXHOST      1025
-# define NI_MAXSERV      32
+# ifdef __USE_MISC
+#  define NI_MAXHOST      1025
+#  define NI_MAXSERV      32
+# endif
 
 # define NI_NUMERICHOST	1	/* Don't try to look up hostname.  */
 # define NI_NUMERICSERV 2	/* Don't convert port number to name.  */
@@ -676,9 +684,9 @@ struct addrinfo
 
    This function is a possible cancellation point and therefore not
    marked with __THROW.  */
-extern int getaddrinfo (__const char *__restrict __name,
-			__const char *__restrict __service,
-			__const struct addrinfo *__restrict __req,
+extern int getaddrinfo (const char *__restrict __name,
+			const char *__restrict __service,
+			const struct addrinfo *__restrict __req,
 			struct addrinfo **__restrict __pai);
 libc_hidden_proto(getaddrinfo)
 
@@ -687,13 +695,13 @@ extern void freeaddrinfo (struct addrinfo *__ai) __THROW;
 libc_hidden_proto(freeaddrinfo)
 
 /* Convert error return from getaddrinfo() to a string.  */
-extern __const char *gai_strerror (int __ecode) __THROW;
+extern const char *gai_strerror (int __ecode) __THROW;
 
 /* Translate a socket address to a location and service name.
 
    This function is a possible cancellation point and therefore not
    marked with __THROW.  */
-extern int getnameinfo (__const struct sockaddr *__restrict __sa,
+extern int getnameinfo (const struct sockaddr *__restrict __sa,
 			socklen_t __salen, char *__restrict __host,
 			socklen_t __hostlen, char *__restrict __serv,
 			socklen_t __servlen, unsigned int __flags);

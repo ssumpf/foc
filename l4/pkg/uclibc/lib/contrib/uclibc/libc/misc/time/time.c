@@ -149,10 +149,6 @@
 #ifdef __UCLIBC_HAS_WCHAR__
 #include <wchar.h>
 #endif
-#ifdef __UCLIBC_HAS_XLOCALE__
-#include <xlocale.h>
-#endif
-
 
 #ifndef __isleap
 #define __isleap(y) ( !((y) % 4) && ( ((y) % 100) || !((y) % 400) ) )
@@ -212,7 +208,7 @@ typedef struct {
 	char tzname[TZNAME_MAX+1];
 } rule_struct;
 
-__UCLIBC_MUTEX_EXTERN(_time_tzlock);
+__UCLIBC_MUTEX_EXTERN(_time_tzlock) attribute_hidden;
 
 extern rule_struct _time_tzinfo[2] attribute_hidden;
 
@@ -605,11 +601,11 @@ typedef struct ll_tzname_item {
 } ll_tzname_item_t;
 
 /* Structures form a list "UTC" -> "???" -> "tzname1" -> "tzname2"... */
-struct {
+static struct {
 	struct ll_tzname_item *next;
 	char tzname[4];
 } ll_tzname_UNKNOWN = { NULL, "???" };
-const struct {
+static const struct {
 	struct ll_tzname_item *next;
 	char tzname[4];
 } ll_tzname_UTC = { (void*)&ll_tzname_UNKNOWN, "UTC" };
@@ -671,7 +667,7 @@ static int tm_isdst(register const struct tm *__restrict ptm,
 		isleap = __isleap(i);
 		--i;
 		day0 = (1
-				+ i				/* Normal years increment 1 wday. */
+				+ i	/* Normal years increment 1 wday. */
 				+ (i/4)
 				- (i/100)
 				+ (i/400) ) % 7;
@@ -684,20 +680,22 @@ static int tm_isdst(register const struct tm *__restrict ptm,
 				}
 			} else if (r->rule_type == 'M') {
 				/* Find 0-based day number for 1st of the month. */
-				day = 31*r->month - day_cor[r->month -1];
+				day = 31 * r->month - day_cor[r->month - 1];
 				if (isleap && (day >= 59)) {
 					++day;
 				}
-				monlen = 31 + day_cor[r->month -1] - day_cor[r->month];
-				if (isleap && (r->month > 1)) {
+				monlen = 31 + day_cor[r->month - 1] - day_cor[r->month];
+				if (isleap && (r->month == 2)) {
 					++monlen;
 				}
-				/* Wweekday (0 is Sunday) of 1st of the month
+				/* Weekday (0 is Sunday) of 1st of the month
 				 * is (day0 + day) % 7. */
-				if ((mday = r->day - ((day0 + day) % 7)) >= 0) {
-					mday -= 7;	/* Back up into prev month since r->week>0. */
+				mday = r->day - ((day0 + day) % 7);
+				if (mday >= 0) {
+					mday -= 7;	/* Back up into prev month since r->week > 0. */
 				}
-				if ((mday += 7 * r->week) >= monlen) {
+				mday += 7 * r->week;
+				if (mday >= monlen) {
 					mday -= 7;
 				}
 				/* So, 0-based day number is... */
@@ -799,7 +797,6 @@ size_t strftime(char *__restrict s, size_t maxsize,
 {
 	return strftime_l(s, maxsize, format, timeptr, __UCLIBC_CURLOCALE);
 }
-libc_hidden_def(strftime)
 
 #else  /* defined(__UCLIBC_HAS_XLOCALE__) && !defined(__UCLIBC_DO_XLOCALE) */
 
@@ -999,7 +996,6 @@ static int load_field(int k, const struct tm *__restrict timeptr)
 #warning TODO: Check multibyte format string validity.
 #endif
 
-libc_hidden_proto(__XL_NPP(strftime))
 size_t __XL_NPP(strftime)(char *__restrict s, size_t maxsize,
 					  const char *__restrict format,
 					  const struct tm *__restrict timeptr   __LOCALE_PARAM )
@@ -1013,7 +1009,7 @@ size_t __XL_NPP(strftime)(char *__restrict s, size_t maxsize,
 	const char *stack[MAX_PUSH];
 	size_t count;
 	size_t o_count;
-	int field_val, i, j, lvl;
+	int field_val = 0, i = 0, j, lvl;
 	int x[3];			/* wday, yday, year */
 	int isofm, days;
 	char buf[__UIM_BUFLEN_LONG];
@@ -1291,7 +1287,9 @@ OUTPUT:
 	}
 	goto LOOP;
 }
-libc_hidden_def(__XL_NPP(strftime))
+# ifdef L_strftime_l
+libc_hidden_def(strftime_l)
+# endif
 
 #endif /* defined(__UCLIBC_HAS_XLOCALE__) && !defined(__UCLIBC_DO_XLOCALE) */
 
@@ -1314,7 +1312,6 @@ char *strptime(const char *__restrict buf, const char *__restrict format,
 {
 	return strptime_l(buf, format, tm, __UCLIBC_CURLOCALE);
 }
-libc_hidden_def(strptime)
 
 #else  /* defined(__UCLIBC_HAS_XLOCALE__) && !defined(__UCLIBC_DO_XLOCALE) */
 
@@ -1460,7 +1457,6 @@ static const unsigned char spec[] = {
 
 #define MAX_PUSH 4
 
-libc_hidden_proto(__XL_NPP(strptime))
 char *__XL_NPP(strptime)(const char *__restrict buf, const char *__restrict format,
 					 struct tm *__restrict tm   __LOCALE_PARAM)
 {
@@ -1671,7 +1667,9 @@ LOOP:
 	}
 	return NULL;
 }
-libc_hidden_def(__XL_NPP(strptime))
+# ifdef L_strptime_l
+libc_hidden_def(strptime_l)
+# endif
 
 #endif /* defined(__UCLIBC_HAS_XLOCALE__) && !defined(__UCLIBC_DO_XLOCALE) */
 
@@ -2100,7 +2098,8 @@ DONE:
 	daylight = !!_time_tzinfo[1].tzname[0];
 	timezone = _time_tzinfo[0].gmt_offset;
 
-#if defined(__UCLIBC_HAS_TZ_FILE__) || defined(__UCLIBC_HAS_TZ_CACHING__)
+#if (defined(__UCLIBC_HAS_TZ_FILE__) && !defined(__UCLIBC_HAS_TZ_FILE_READ_MANY__)) || \
+	defined(__UCLIBC_HAS_TZ_CACHING__)
 FAST_DONE:
 #endif
 	__UCLIBC_MUTEX_UNLOCK(_time_tzlock);
@@ -2455,11 +2454,9 @@ size_t wcsftime(wchar_t *__restrict s, size_t maxsize,
 {
 	return wcsftime_l(s, maxsize, format, timeptr, __UCLIBC_CURLOCALE);
 }
-libc_hidden_def(wcsftime)
 
 #else  /* defined(__UCLIBC_HAS_XLOCALE__) && !defined(__UCLIBC_DO_XLOCALE) */
 
-libc_hidden_proto(__XL_NPP(wcsftime))
 size_t __XL_NPP(wcsftime)(wchar_t *__restrict s, size_t maxsize,
 					  const wchar_t *__restrict format,
 					  const struct tm *__restrict timeptr   __LOCALE_PARAM )
@@ -2467,7 +2464,9 @@ size_t __XL_NPP(wcsftime)(wchar_t *__restrict s, size_t maxsize,
 #warning wcsftime always fails
 	return 0;					/* always fail */
 }
-libc_hidden_def(__XL_NPP(wcsftime))
+#ifdef L_wcsftime_l
+libc_hidden_def(wcsftime_l)
+#endif
 
 #endif /* defined(__UCLIBC_HAS_XLOCALE__) && !defined(__UCLIBC_DO_XLOCALE) */
 

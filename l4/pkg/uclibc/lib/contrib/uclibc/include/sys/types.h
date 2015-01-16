@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /*
  *	POSIX Standard: 2.6 Primitive System Data Types	<sys/types.h>
@@ -165,7 +164,7 @@ typedef	short int int16_t;
 typedef	int int32_t;
 #  if __WORDSIZE == 64
 typedef long int int64_t;
-#  elif defined __GNUC__ || defined __ICC
+#  elif defined __GNUC__ || defined __ICC || defined __TenDRA__
 __extension__ typedef long long int int64_t;
 #  endif
 # endif
@@ -176,7 +175,7 @@ typedef	unsigned short int u_int16_t;
 typedef	unsigned int u_int32_t;
 # if __WORDSIZE == 64
 typedef unsigned long int u_int64_t;
-# elif defined __GNUC__ || defined __ICC
+# elif defined __GNUC__ || defined __ICC || defined __TenDRA__
 __extension__ typedef unsigned long long int u_int64_t;
 # endif
 

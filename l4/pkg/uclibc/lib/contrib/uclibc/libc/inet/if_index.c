@@ -13,15 +13,12 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.
+   License along with the GNU C Library; see the file COPYING.LIB.  If
+   not, see <http://www.gnu.org/licenses/>.
 
    Reworked Dec 2002 by Erik Andersen <andersen@codepoet.org>
  */
 
-#define __FORCE_GLIBC
-#include <features.h>
 #include <string.h>
 #include <alloca.h>
 #include <errno.h>
@@ -31,7 +28,6 @@
 #include <net/if.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
-#include <libc-internal.h>
 #include <not-cancel.h>
 
 #include "netlinkaccess.h"

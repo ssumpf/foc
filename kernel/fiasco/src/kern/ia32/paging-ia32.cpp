@@ -307,7 +307,8 @@ Mword PF::is_read_error(Mword error)
 IMPLEMENT inline NEEDS["regdefs.h"]
 Mword PF::addr_to_msgword0(Address pfa, Mword error)
 {
-  return    (pfa   & ~(PF_ERR_PRESENT | PF_ERR_WRITE))
-          | (error &  (PF_ERR_PRESENT | PF_ERR_WRITE));
+  Mword v = (pfa & ~0x7) | (error &  (PF_ERR_PRESENT | PF_ERR_WRITE));
+  if (error & (1 << 4)) v |= 0x4;
+  return v;
 }
 

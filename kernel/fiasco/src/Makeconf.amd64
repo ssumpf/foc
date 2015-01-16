@@ -1,4 +1,5 @@
 # -*- makefile -*-
+# vi:se ft=make:
 
 #OPT_SHARED_FLAGS	+= $(call CHECKCC,-finline-limit=10000,)
 #OPT_CXXFLAGS		+= $(call CHECKCXX,--param large-function-insns=10000)
@@ -14,6 +15,7 @@ OPT_CFLAGS		+= -mno-red-zone -funit-at-a-time
 OPT_CXXFLAGS		+= -mno-red-zone -funit-at-a-time
 
 SHARED_FLAGS-$(CONFIG_AMD64_CORE2) += $(call CHECKCC,-march=core2,)
+SHARED_FLAGS-$(CONFIG_AMD64_CORE_I)+= $(call CHECKCC,-march=corei7,)
 SHARED_FLAGS-$(CONFIG_AMD64_ATOM)  += $(call CHECKCC,-march=atom,)
 SHARED_FLAGS-$(CONFIG_AMD64_K8)    += $(call CHECKCC,-march=k8,)
 SHARED_FLAGS                       += $(call CHECKCC,-mno-mmx,)

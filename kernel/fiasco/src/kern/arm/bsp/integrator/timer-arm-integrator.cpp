@@ -57,16 +57,6 @@ IMPLEMENT
 void Timer::init(Cpu_number)
 { _timer.construct(Kmem::mmio_remap(Mem_layout::Timer_phys_base)); }
 
-static inline
-Unsigned64
-Timer::timer_to_us(Unsigned32 /*cr*/)
-{ return 0; }
-
-static inline
-Unsigned64
-Timer::us_to_timer(Unsigned64 us)
-{ (void)us; return 0; }
-
 PUBLIC static inline
 void
 Timer::acknowledge()
@@ -86,7 +76,6 @@ Unsigned64
 Timer::system_clock()
 {
   if (Config::Scheduler_one_shot)
-    //return Kip::k()->clock + timer_to_us(Io::read<Unsigned32>(OSCR));
     return 0;
   else
     return Kip::k()->clock;

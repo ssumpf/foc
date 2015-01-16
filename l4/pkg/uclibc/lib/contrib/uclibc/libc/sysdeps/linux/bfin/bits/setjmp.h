@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Define the machine-dependent type `jmp_buf'.  bfin version.  Lineo, Inc. 2001*/
 #ifndef _BITS_SETJMP_H
@@ -24,7 +23,6 @@
 # error "Never include <bits/setjmp.h> directly; use <setjmp.h> instead."
 #endif
 
-#ifndef _ASM
 /* Jump buffer contains r7-r4, p5-p3, fp, sp and pc.  Other registers are not saved.  */
 typedef struct
 {
@@ -44,14 +42,5 @@ typedef struct
 	unsigned long __bregs[4];
 	unsigned long pc;
 }__jmp_buf[1];
-
-#endif
-
-#define __JMP_BUF_SP	8
-
-/* Test if longjmp to JMPBUF would unwind the frame
-   containing a local variable at ADDRESS.  */
-#define _JMPBUF_UNWINDS(jmpbuf, address) \
-  ((void *) (address) < (void *) (jmpbuf)->__pregs[6])
 
 #endif	/* bits/setjmp.h */

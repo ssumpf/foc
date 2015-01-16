@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <setjmp.h>
 #include <stdlib.h>
@@ -23,7 +22,7 @@
 #include <jmpbuf-unwind.h>
 
 void
-attribute_protected
+/*does not apply due to hidden_proto(): attribute_protected*/
 __pthread_cleanup_upto (__jmp_buf target, char *targetframe)
 {
   struct pthread *self = THREAD_SELF;
@@ -39,13 +38,13 @@ __pthread_cleanup_upto (__jmp_buf target, char *targetframe)
        cbuf != NULL && _JMPBUF_UNWINDS_ADJ (target, cbuf, adj);
        cbuf = cbuf->__prev)
     {
-#if _STACK_GROWS_DOWN
+#ifdef _STACK_GROWS_DOWN
       if ((uintptr_t) cbuf - adj <= targetframe_adj)
         {
           cbuf = NULL;
           break;
         }
-#elif _STACK_GROWS_UP
+#elif defined _STACK_GROWS_UP
       if ((uintptr_t) cbuf - adj >= targetframe_adj)
         {
           cbuf = NULL;

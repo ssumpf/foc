@@ -12,8 +12,8 @@
  *  Library General Public License for more details.
  *
  *  You should have received a copy of the GNU Library General Public
- *  License along with this library; if not, write to the Free
- *  Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  License along with this library; if not, see
+ *  <http://www.gnu.org/licenses/>.
  */
 
 /* This code needs a lot of clean up.  Some of that is on hold until uClibc
@@ -88,7 +88,6 @@
  *   treats this as an error.
  */
 
-#define _ISOC99_SOURCE			/* for ULLONG primarily... */
 #include <features.h>
 #include "_stdio.h"
 #include <stdlib.h>
@@ -101,7 +100,6 @@
 #include <stdint.h>
 #include <errno.h>
 #include <locale.h>
-#include <printf.h>
 
 #ifdef __UCLIBC_HAS_THREADS__
 # include <stdio_ext.h>
@@ -126,30 +124,16 @@
 /**********************************************************************/
 /* These provide some control over printf's feature set */
 
-/* This is undefined below depeding on uClibc's configuration. */
-#define __STDIO_PRINTF_FLOAT 1
+/* Now controlled by uClibc_config.h. */
+/* #define __UCLIBC_HAS_FLOATS__ 1 */
 
-/* Now controlled by uClibc_stdio.h. */
+/* Now controlled by uClibc_config.h. */
 /* #define __UCLIBC_HAS_PRINTF_M_SPEC__ */
 
 
 /**********************************************************************/
 
-#if defined(__UCLIBC__) && !defined(__UCLIBC_HAS_FLOATS__)
-# undef __STDIO_PRINTF_FLOAT
-#endif
-
-#ifdef __BCC__
-# undef __STDIO_PRINTF_FLOAT
-#endif
-
-#ifdef __STDIO_PRINTF_FLOAT
-# include <float.h>
-# include <bits/uClibc_fpmax.h>
-#else
-# undef L__fpmaxtostr
-#endif
-
+#include "_fpmaxtostr.h"
 
 #undef __STDIO_HAS_VSNPRINTF
 #if defined(__STDIO_BUFFERS) || defined(__USE_OLD_VFPRINTF__) || defined(__UCLIBC_HAS_GLIBC_CUSTOM_STREAMS__)
@@ -158,7 +142,7 @@
 
 /**********************************************************************/
 
-/* Now controlled by uClibc_stdio.h. */
+/* Now controlled by uClibc_config.h. */
 /* #define __UCLIBC_HAS_GLIBC_CUSTOM_PRINTF__ */
 
 #ifdef __UCLIBC_MJN3_ONLY__
@@ -361,7 +345,7 @@ typedef union {
 # ifdef ULLONG_MAX
 	unsigned long long ull;
 # endif
-# ifdef __STDIO_PRINTF_FLOAT
+# ifdef __UCLIBC_HAS_FLOATS__
 	double d;
 	long double ld;
 # endif
@@ -398,24 +382,15 @@ typedef struct {
 /* TODO: fix printf to return 0 and set errno if format error.  Standard says
    only returns -1 if sets error indicator for the stream. */
 
-#ifdef __STDIO_PRINTF_FLOAT
-typedef size_t (__fp_outfunc_t)(FILE *fp, intptr_t type, intptr_t len,
-								intptr_t buf);
-
-extern ssize_t _fpmaxtostr(FILE * fp, __fpmax_t x, struct printf_info *info,
-						   __fp_outfunc_t fp_outfunc) attribute_hidden;
-#endif
-
 extern int _ppfs_init(ppfs_t *ppfs, const char *fmt0) attribute_hidden; /* validates */
 extern void _ppfs_prepargs(ppfs_t *ppfs, va_list arg) attribute_hidden; /* sets posargptrs */
 extern void _ppfs_setargs(ppfs_t *ppfs) attribute_hidden; /* sets argptrs for current spec */
 extern int _ppfs_parsespec(ppfs_t *ppfs) attribute_hidden; /* parses specifier */
 
-extern void _store_inttype(void *dest, int desttype, uintmax_t val) attribute_hidden;
-extern uintmax_t _load_inttype(int desttype, const void *src, int uflag) attribute_hidden;
-
 /**********************************************************************/
 #ifdef L_parse_printf_format
+
+#ifdef __UCLIBC_HAS_GLIBC_CUSTOM_PRINTF__
 
 /* NOTE: This function differs from the glibc version in that parsing stops
  * upon encountering an invalid conversion specifier.  Since this is the way
@@ -483,6 +458,8 @@ size_t parse_printf_format(register const char *template,
 
 	return count;
 }
+
+#endif
 
 #endif
 /**********************************************************************/
@@ -560,7 +537,7 @@ int attribute_hidden _ppfs_init(register ppfs_t *ppfs, const char *fmt0)
 		ppfs->fmtpos = fmt0;		/* rewind */
 	}
 
-#ifdef NL_MAX_ARG
+#ifdef NL_ARGMAX
 	/* If we have positional args, make sure we know all the types. */
 	{
 		register int *p = ppfs->argtype;
@@ -572,7 +549,7 @@ int attribute_hidden _ppfs_init(register ppfs_t *ppfs, const char *fmt0)
 			++p;
 		}
 	}
-#endif /* NL_MAX_ARG */
+#endif /* NL_ARGMAX */
 
 	return 0;
 }
@@ -649,7 +626,7 @@ void attribute_hidden _ppfs_setargs(register ppfs_t *ppfs)
 					/* we're assuming wchar_t is at least an int */
 					GET_VA_ARG(p,wc,wchar_t,ppfs->arg);
 					break;
-#ifdef __STDIO_PRINTF_FLOAT
+#ifdef __UCLIBC_HAS_FLOATS__
 					/* PA_FLOAT */
 				case PA_DOUBLE:
 					GET_VA_ARG(p,d,double,ppfs->arg);
@@ -657,12 +634,12 @@ void attribute_hidden _ppfs_setargs(register ppfs_t *ppfs)
 				case (PA_DOUBLE|PA_FLAG_LONG_DOUBLE):
 					GET_VA_ARG(p,ld,long double,ppfs->arg);
 					break;
-#else  /* __STDIO_PRINTF_FLOAT */
+#else  /* __UCLIBC_HAS_FLOATS__ */
 				case PA_DOUBLE:
 				case (PA_DOUBLE|PA_FLAG_LONG_DOUBLE):
 					assert(0);
 					continue;
-#endif /* __STDIO_PRINTF_FLOAT */
+#endif /* __UCLIBC_HAS_FLOATS__ */
 				default:
 					/* TODO -- really need to ensure this can't happen */
 					assert(ppfs->argtype[i-1] & PA_FLAG_PTR);
@@ -739,7 +716,7 @@ static const short int type_codes[] = {
 	PA_INT|PA_FLAG_LONG,
 	PA_INT|PA_FLAG_LONG_LONG,
 	PA_WCHAR,
-#ifdef __STDIO_PRINTF_FLOAT
+#ifdef __UCLIBC_HAS_FLOATS__
 	/* PA_FLOAT, */
 	PA_DOUBLE,
 	PA_DOUBLE|PA_FLAG_LONG_DOUBLE,
@@ -762,7 +739,7 @@ static const unsigned char type_sizes[] = {
 	PROMOTED_SIZE_OF(long),		/* TODO -- is this correct? (above too) */
 #endif
 	PROMOTED_SIZE_OF(wchar_t),
-#ifdef __STDIO_PRINTF_FLOAT
+#ifdef __UCLIBC_HAS_FLOATS__
 	/* PROMOTED_SIZE_OF(float), */
 	PROMOTED_SIZE_OF(double),
 	PROMOTED_SIZE_OF(long double),
@@ -1195,7 +1172,7 @@ static size_t _charpad(FILE * __restrict stream, int padchar, size_t numpad);
 #define _outnstr(stream, string, len)	((len > 0) ? __stdio_fwrite((const unsigned char *)(string), len, stream) : 0)
 #define FP_OUT _fp_out_narrow
 
-#ifdef __STDIO_PRINTF_FLOAT
+#ifdef __UCLIBC_HAS_FLOATS__
 
 static size_t _fp_out_narrow(FILE *fp, intptr_t type, intptr_t len, intptr_t buf)
 {
@@ -1215,7 +1192,7 @@ static size_t _fp_out_narrow(FILE *fp, intptr_t type, intptr_t len, intptr_t buf
 	return r + OUTNSTR(fp, (const char *) buf, len);
 }
 
-#endif /* __STDIO_PRINTF_FLOAT */
+#endif /* __UCLIBC_HAS_FLOATS__ */
 
 #else  /* L__vfprintf_internal */
 
@@ -1225,7 +1202,7 @@ static size_t _fp_out_narrow(FILE *fp, intptr_t type, intptr_t len, intptr_t buf
 #define STRLEN  wcslen
 #define _PPFS_init _ppwfs_init
 /* Pulls in fseek: */
-#define OUTPUT(F,S)			fputws(S,F)
+#define OUTPUT(F,S)			fputws_unlocked(S,F)
 /* TODO: #define OUTPUT(F,S)		_wstdio_fwrite((S),wcslen(S),(F)) */
 #define _outnwcs(stream, wstring, len)	_wstdio_fwrite((const wchar_t *)(wstring), len, stream)
 #define FP_OUT _fp_out_wide
@@ -1257,16 +1234,7 @@ static size_t _outnstr(FILE *stream, const char *s, size_t wclen)
 	return wclen - todo;
 }
 
-#ifdef __STDIO_PRINTF_FLOAT
-
-#ifdef __UCLIBC_MJN3_ONLY__
-#warning TODO: Move defines from _fpmaxtostr.  Put them in a common header.
-#endif
-
-/* The following defines are from _fpmaxtostr.*/
-#define DIGITS_PER_BLOCK     9
-#define NUM_DIGIT_BLOCKS   ((DECIMAL_DIG+DIGITS_PER_BLOCK-1)/DIGITS_PER_BLOCK)
-#define BUF_SIZE  ( 3 + NUM_DIGIT_BLOCKS * DIGITS_PER_BLOCK )
+#ifdef __UCLIBC_HAS_FLOATS__
 
 static size_t _fp_out_wide(FILE *fp, intptr_t type, intptr_t len, intptr_t buf)
 {
@@ -1314,7 +1282,7 @@ static size_t _fp_out_wide(FILE *fp, intptr_t type, intptr_t len, intptr_t buf)
 	return r;
 }
 
-#endif /* __STDIO_PRINTF_FLOAT */
+#endif /* __UCLIBC_HAS_FLOATS__ */
 
 static int _ppwfs_init(register ppfs_t *ppfs, const wchar_t *fmt0)
 {
@@ -1604,7 +1572,7 @@ static int _do_one_spec(FILE * __restrict stream,
 			}
 			numfill = ((numfill > SLEN) ? numfill - SLEN : 0);
 		} else if (ppfs->conv_num <= CONV_A) {	/* floating point */
-#ifdef __STDIO_PRINTF_FLOAT
+#ifdef __UCLIBC_HAS_FLOATS__
 			ssize_t nf;
 			nf = _fpmaxtostr(stream,
 							 (__fpmax_t)
@@ -1618,7 +1586,7 @@ static int _do_one_spec(FILE * __restrict stream,
 			*count += nf;
 
 			return 0;
-#else  /* __STDIO_PRINTF_FLOAT */
+#else  /* __UCLIBC_HAS_FLOATS__ */
 			return -1;			/* TODO -- try to continue? */
 #endif
 		} else if (ppfs->conv_num <= CONV_S) {	/* wide char or string */
@@ -1670,6 +1638,9 @@ static int _do_one_spec(FILE * __restrict stream,
 #endif
 					s = "(null)";
 					slen = 6;
+					/* Use an empty string rather than truncation if precision is too small. */
+					if (ppfs->info.prec >= 0 && ppfs->info.prec < slen)
+						slen = 0;
 				}
 			} else {			/* char */
 				s = buf;
@@ -1726,6 +1697,9 @@ static int _do_one_spec(FILE * __restrict stream,
 				NULL_STRING:
 					s = "(null)";
 					SLEN = slen = 6;
+					/* Use an empty string rather than truncation if precision is too small. */
+					if (ppfs->info.prec >= 0 && ppfs->info.prec < slen)
+						SLEN = slen = 0;
 				}
 			} else {			/* char */
 				*wbuf = btowc( (unsigned char)(*((const int *) *argptr)) );

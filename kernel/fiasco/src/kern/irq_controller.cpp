@@ -96,5 +96,3 @@ Icu::Icu()
   initial_kobjects.register_obj(this, 6);
 }
 
-static Icu icu;
-

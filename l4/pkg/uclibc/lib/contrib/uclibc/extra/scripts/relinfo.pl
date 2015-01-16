@@ -1,5 +1,5 @@
 #! /usr/bin/perl
-eval "exec /usr/bin/perl -S $0 $*"
+eval "exec /usr/bin/env perl -w -S $0 $@"
     if 0;
 # Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005 Red Hat, Inc.
 # Written by Ulrich Drepper <drepper@redhat.com>, 2000.
@@ -14,8 +14,7 @@ eval "exec /usr/bin/perl -S $0 $*"
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software Foundation,
-# Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
+# along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 for ($cnt = 0; $cnt <= $#ARGV; ++$cnt) {
   $relent = 0;

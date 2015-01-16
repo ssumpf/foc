@@ -1,10 +1,10 @@
-INTERFACE [arm && !kern_start_0xd]:
+INTERFACE [arm && !kern_start_0xd && !hyp]:
 
 EXTENSION class Mem_layout
 {
 public:
   enum Virt_layout_umax : Address {
-    User_max             = 0xc0000000,
+    User_max             = 0xbfffffff,
   };
 };
 
@@ -16,7 +16,18 @@ EXTENSION class Mem_layout
 {
 public:
   enum Virt_layout_umax : Address {
-    User_max             = 0xd0000000,
+    User_max             = 0xcfffffff,
+  };
+
+};
+//---------------------------------------------------------------------------
+INTERFACE [arm && hyp]:
+
+EXTENSION class Mem_layout
+{
+public:
+  enum Virt_layout_umax : Address {
+    User_max             = 0xffffffff,
   };
 };
 
@@ -24,13 +35,51 @@ public:
 //---------------------------------------------------------------------------
 INTERFACE [arm]:
 
+EXTENSION class Mem_layout
+{
+public:
+  enum Virt_layout : Address {
+    Kern_lib_base	 = 0xffffe000,
+    Syscalls		 = 0xfffff000,
+    Utcb_addr            = User_max + 1 - 0x10000,
+  };
+
+  enum Phys_layout : Address {
+    Sdram_phys_base      = RAM_PHYS_BASE
+  };
+};
+
+//---------------------------------------------------------------------------
+INTERFACE [arm && hyp]:
+
+EXTENSION class Mem_layout
+{
+public:
+  enum Virt_layout_kern : Address {
+    Cache_flush_area     = 0x00000000, // dummy
+    Service_page         = 0xeac00000,
+    Tbuf_status_page     = Service_page + 0x5000,
+    Tbuf_ustatus_page    = Tbuf_status_page,
+    Tbuf_buffer_area	 = Service_page + 0x200000,
+    Tbuf_ubuffer_area    = Tbuf_buffer_area,
+    Jdb_tmp_map_area     = Service_page + 0x400000,
+    Map_base             = RAM_PHYS_BASE,
+    Ivt_base             = 0xffff0000,
+
+    Kernel_max           = 0x00000000,
+    };
+};
+
+
+//---------------------------------------------------------------------------
+INTERFACE [arm && !hyp]:
+
 #include "template_math.h"
 
 EXTENSION class Mem_layout
 {
 public:
-  enum Virt_layout : Address {
-    Utcb_addr            = User_max - 0x10000,
+  enum Virt_layout_kern : Address {
     Service_page         = 0xeac00000,
     Tbuf_status_page     = Service_page + 0x5000,
     Tbuf_ustatus_page    = Tbuf_status_page,
@@ -42,22 +91,19 @@ public:
     Cache_flush_area     = 0xef000000,
     Cache_flush_area_end = 0xef100000,
     Map_base             = 0xf0000000,
-    Map_end              = 0xf5000000,
+    Pmem_start           = 0xf0400000,
+    Pmem_end             = 0xf5000000,
+
     Caps_start           = 0xf5000000,
     Caps_end             = 0xfd000000,
     Utcb_ptr_page        = 0xffffd000,
     // don't care about caches here, because arm uses a register on MP
     utcb_ptr_align       = Tl_math::Ld<sizeof(void*)>::Res,
-    Kern_lib_base	 = 0xffffe000,
     Ivt_base             = 0xffff0000,
-    Syscalls		 = 0xfffff000,
 
     Kernel_max           = 0x00000000,
   };
 
-  enum Phys_layout : Address {
-    Sdram_phys_base      = RAM_PHYS_BASE
-  };
 };
 
 // -------------------------------------------------------------------------

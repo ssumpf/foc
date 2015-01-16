@@ -8,22 +8,23 @@ namespace cxx {
 /**
  * \brief Get native interger value of \a v.
  *
- * Currently do this for native integers direcly.
+ * Get the native value of the embedded integer of TYPE.
  */
-template< typename TYPE, typename = typename cxx::enable_if<cxx::is_integral<TYPE>::value>::type > inline
-TYPE
+template< typename TYPE, typename = typename TYPE::Value > inline
+typename TYPE::Value
 int_value(typename cxx::idendity<TYPE>::type const &v)
-{ return v; }
+{ return TYPE::val(v); }
+
 
 /**
  * \brief Get native interger value of \a v.
  *
- * Get the native value of the embedded integer of TYPE.
+ * Currently do this for native integers direcly.
  */
-template< typename TYPE > inline
-typename TYPE::Value
+template< typename TYPE > //, typename = typename cxx::enable_if<cxx::is_integral<TYPE>::value>::type > inline
+TYPE
 int_value(TYPE const &v)
-{ return TYPE::val(v); }
+{ return v; }
 
 
 /** \brief Base class for type-safe integers.

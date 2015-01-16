@@ -138,7 +138,6 @@ struct __res_state {
 	} sort_list[MAXRESOLVSORT];
 #endif
 
-#ifdef __UCLIBC_HAS_IPV6__
 	/* I assume that the intention is to store all
 	 * DNS servers' addresses here, and duplicate in nsaddr_list[]
 	 * those which have IPv4 address. In the case of IPv4 address
@@ -152,7 +151,9 @@ struct __res_state {
 	 */
 	union {
 		struct {
+#ifdef __UCLIBC_HAS_IPV6__
 			struct sockaddr_in6	*nsaddrs[MAXNS];
+#endif
 			u_int8_t		nscount; /* (was: u_int16_t) */
 #ifdef __UCLIBC_HAS_COMPAT_RES_STATE__
 			/* rather obscure, and differs in BSD and glibc */
@@ -166,7 +167,6 @@ struct __res_state {
 #endif
 		} _ext;
 	} _u;
-#endif
 
 #ifdef __UCLIBC_HAS_EXTRA_COMPAT_RES_STATE__
 	/* Truly obscure stuff.
@@ -282,30 +282,40 @@ extern struct __res_state *__res_state(void) __attribute__ ((__const__));
 __END_DECLS
 #define _res (*__res_state())
 
+#if 0
 #define fp_nquery		__fp_nquery
 #define fp_query		__fp_query
 #define hostalias		__hostalias
 #define p_query			__p_query
+#endif
 #define res_close		__res_close
 #define res_init		__res_init
+#if 0
 #define res_isourserver		__res_isourserver
+#endif
 #define res_mkquery		__res_mkquery
 #define res_query		__res_query
 #define res_querydomain		__res_querydomain
 #define res_search		__res_search
+#if 0
 #define res_send		__res_send
+#endif
 
 __BEGIN_DECLS
+#if 0
 void		fp_nquery (const u_char *, int, FILE *) __THROW;
 void		fp_query (const u_char *, FILE *) __THROW;
 const char *	hostalias (const char *) __THROW;
 void		p_query (const u_char *) __THROW;
+#endif
 #ifdef __UCLIBC_HAS_BSD_RES_CLOSE__
 void		res_close (void) __THROW;
 #endif
 int		res_init (void) __THROW;
 libc_hidden_proto(res_init)
+#if 0
 int		res_isourserver (const struct sockaddr_in *) __THROW;
+#endif
 int		res_mkquery (int, const char *, int, int, const u_char *,
 			     int, const u_char *, u_char *, int) __THROW;
 int		res_query (const char *, int, int, u_char *, int) __THROW;
@@ -314,15 +324,22 @@ int		res_querydomain (const char *, const char *, int, int,
 				 u_char *, int) __THROW;
 libc_hidden_proto(res_querydomain)
 int		res_search (const char *, int, int, u_char *, int) __THROW;
+#if 0
 int		res_send (const u_char *, int, u_char *, int) __THROW;
+#endif
 __END_DECLS
 
+#if 0
 #define b64_ntop		__b64_ntop
 #define b64_pton		__b64_pton
-#define dn_comp			__dn_comp
 #define dn_count_labels		__dn_count_labels
+#endif
+#define dn_comp			__dn_comp
 #define dn_expand		__dn_expand
 #define dn_skipname		__dn_skipname
+#define res_ninit		__res_ninit
+#define res_nclose		__res_nclose
+#if 0
 #define fp_resstat		__fp_resstat
 #define loc_aton		__loc_aton
 #define loc_ntoa		__loc_ntoa
@@ -344,8 +361,6 @@ __END_DECLS
 #define res_hostalias		__res_hostalias
 #define res_mailok		__res_mailok
 #define res_nameinquery		__res_nameinquery
-#define res_nclose		__res_nclose
-#define res_ninit		__res_ninit
 #define res_nmkquery		__res_nmkquery
 #define res_npquery		__res_npquery
 #define res_nquery		__res_nquery
@@ -359,7 +374,9 @@ __END_DECLS
 #define sym_ntop		__sym_ntop
 #define sym_ntos		__sym_ntos
 #define sym_ston		__sym_ston
+#endif
 __BEGIN_DECLS
+#if 0
 int		res_hnok (const char *) __THROW;
 int		res_ownok (const char *) __THROW;
 int		res_mailok (const char *) __THROW;
@@ -371,7 +388,6 @@ int		b64_ntop (u_char const *, size_t, char *, size_t) __THROW;
 int		b64_pton (char const *, u_char *, size_t) __THROW;
 int		loc_aton (const char *ascii, u_char *binary) __THROW;
 const char *	loc_ntoa (const u_char *binary, char *ascii) __THROW;
-int		dn_skipname (const u_char *, const u_char *) __THROW;
 void		putlong (u_int32_t, u_char *) __THROW;
 void		putshort (u_int16_t, u_char *) __THROW;
 const char *	p_class (int) __THROW;
@@ -387,10 +403,18 @@ const u_char *	p_fqname (const u_char *, const u_char *, FILE *) __THROW;
 const char *	p_option (u_long option) __THROW;
 char *		p_secstodate (u_long) __THROW;
 int		dn_count_labels (const char *) __THROW;
+#endif
+int		dn_skipname (const u_char *, const u_char *) __THROW;
+libc_hidden_proto(dn_skipname)
 int		dn_comp (const char *, u_char *, int, u_char **, u_char **)
      __THROW;
+libc_hidden_proto(dn_comp)
 int		dn_expand (const u_char *, const u_char *, const u_char *,
 			   char *, int) __THROW;
+libc_hidden_proto(dn_expand)
+int		res_ninit (res_state) __THROW;
+void		res_nclose (res_state) __THROW;
+#if 0
 u_int		res_randomid (void) __THROW;
 int		res_nameinquery (const char *, int, int,
 				 const u_char *, const u_char *) __THROW;
@@ -398,7 +422,6 @@ int		res_queriesmatch (const u_char *, const u_char *,
 				  const u_char *, const u_char *) __THROW;
 const char *	p_section (int section, int opcode) __THROW;
 /* Things involving a resolver context. */
-int		res_ninit (res_state) __THROW;
 int		res_nisourserver (const res_state,
 				  const struct sockaddr_in *) __THROW;
 void		fp_resstat (const res_state, FILE *) __THROW;
@@ -417,7 +440,7 @@ int		res_nmkquery (res_state, int, const char *, int, int,
 			      int) __THROW;
 int		res_nsend (res_state, const u_char *, int, u_char *, int)
      __THROW;
-void		res_nclose (res_state) __THROW;
+#endif
 __END_DECLS
 
 # if _LIBC

@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <sysdep-cancel.h>
 #define _ERRNO_H	1
@@ -32,7 +31,7 @@ ENTRY (__vfork)
 #ifdef __NR_vfork
 
 # ifdef SHARED
-#  if !defined HAVE_HIDDEN || !USE___THREAD
+#  if !defined HAVE_HIDDEN || !defined __UCLIBC_HAS_TLS__
 	SETUP_PIC_REG (cx)
 #  else
 	call	__i686.get_pc_thunk.cx
@@ -44,7 +43,7 @@ ENTRY (__vfork)
 	movl	$pthread_create, %eax
 	testl	%eax, %eax
 # endif
-	jne	HIDDEN_JUMPTARGET (__fork)
+	jne	HIDDEN_JUMPTARGET (fork)
 
 	/* Pop the return PC value into ECX.  */
 	popl	%ecx

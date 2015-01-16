@@ -10,12 +10,13 @@
 if !ARCH_USE_MMU
 choice
 	prompt "Target File Format"
-config UCLIBC_FORMAT_ELF
-	bool "ELF"
-	depends on ARCH_USE_MMU
 config UCLIBC_FORMAT_FDPIC_ELF
 	bool "FDPIC ELF"
-	depends on !ARCH_USE_MMU
+	depends on !ARCH_USE_MMU && (TARGET_bfin || TARGET_frv)
+	select DOPIC
+config UCLIBC_FORMAT_DSBT_ELF
+	bool "DBST ELF"
+	depends on !ARCH_USE_MMU && TARGET_c6x
 	select DOPIC
 config UCLIBC_FORMAT_FLAT
 	bool "STATIC FLAT"
@@ -37,6 +38,14 @@ endif
 if ARCH_USE_MMU
 comment "Using ELF file format"
 endif
+
+config ARCH_HAS_DEPRECATED_SYSCALLS
+	bool
+	help
+	  New architectures do not support deprecated system calls. However,
+	  these system calls are needed to build linuxthreads (old and new) so
+	  this symbol controls whether there is support for these threading libraries
+	  or not.
 
 config UCLIBC_SHARED_FLAT_ID
 	int "Shared library ID"
@@ -129,7 +138,6 @@ config UCLIBC_HAS_FLOATS
 
 config UCLIBC_HAS_FPU
 	bool "Target CPU has a floating point unit (FPU)"
-	depends on UCLIBC_HAS_FLOATS
 	default y
 	help
 	  If your target CPU does not have a Floating Point Unit (FPU) or a
@@ -149,7 +157,6 @@ config UCLIBC_HAS_SOFT_FLOAT
 config DO_C99_MATH
 	bool "Enable full C99 math library support"
 	depends on UCLIBC_HAS_FLOATS
-	default n
 	help
 	  If you want the uClibc math library to contain the full set C99
 	  math library features, then answer Y.  If you leave this set to
@@ -163,7 +170,6 @@ config DO_C99_MATH
 config DO_XSI_MATH
 	bool "Enable XSI math extensions to the ISO C standard (bessel)"
 	depends on UCLIBC_HAS_FLOATS
-	default n
 	help
 	  X/Open System Interfaces extensions to ISO C math functions
 	  (differential equation functions):
@@ -174,7 +180,6 @@ config DO_XSI_MATH
 config UCLIBC_HAS_FENV
 	bool "Enable C99 Floating-point environment"
 	depends on UCLIBC_HAS_FLOATS
-	default n
 	help
 	  If you want the uClibc math library to contain the C99 floating
 	  point environment, rounding and exception handling functions then
@@ -186,7 +191,7 @@ config UCLIBC_HAS_FENV
 config UCLIBC_HAS_LONG_DOUBLE_MATH
 	bool "Enable long double support"
 	depends on DO_C99_MATH
-	depends on TARGET_i386 || TARGET_m68k || TARGET_sparc || TARGET_x86_64 || TARGET_powerpc || TARGET_sh
+	depends on TARGET_i386 || TARGET_m68k || TARGET_sparc || TARGET_x86_64 || TARGET_powerpc || TARGET_sh || TARGET_microblaze
 	default y
 	help
 	  If you want the uClibc math library to contain the full set of C99
@@ -195,7 +200,7 @@ config UCLIBC_HAS_LONG_DOUBLE_MATH
 
 config KERNEL_HEADERS
 	string "Linux kernel header location"
-	default "/usr/include"
+	default ""
 	help
 	  The kernel source you use to compile with should be the same
 	  as the Linux kernel you run your apps on.  uClibc doesn't even
@@ -205,6 +210,8 @@ config KERNEL_HEADERS
 	  Similarly, if you compile uClibc vs Linux 2.4.x kernel headers,
 	  but then run on Linux 2.0.x, lchown will be compiled into uClibc,
 	  but won't work at all.  You have been warned.
+
+	  If you don't set this, we'll assume the toolchain can find them.
 
 config UCLIBC_UCLINUX_BROKEN_MUNMAP
 	bool

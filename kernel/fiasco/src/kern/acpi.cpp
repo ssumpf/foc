@@ -191,9 +191,50 @@ Acpi_sdt::init(SDT *sdt)
       _num_tables = entries;
       for (unsigned i = 0; i < entries; ++i)
         if (sdt->ptrs[i])
-          this->map_entry(i, sdt->ptrs[i]);
+          _tables[i] = this->map_entry(i, sdt->ptrs[i]);
+        else
+          _tables[i] = 0;
     }
 }
+
+PRIVATE static
+void *
+Acpi::_map_table_head(Unsigned64 phys)
+{
+  // is the acpi address bigger that our handled physical addresses
+  if (Acpi_helper_get_msb<(sizeof(phys) > sizeof(Address))>::msb(phys))
+    {
+      printf("ACPI: cannot map phys address %llx, out of range (%zdbit)\n",
+             (unsigned long long)phys, sizeof(Address) * 8);
+      return 0;
+    }
+
+  void *t = Kmem::dev_map.map((void*)phys);
+  if (t == (void *)~0UL)
+    {
+      printf("ACPI: cannot map phys address %llx, map failed\n",
+             (unsigned long long)phys);
+      return 0;
+    }
+
+  return t;
+}
+
+PUBLIC static
+bool
+Acpi::check_signature(char const *sig, char const *reference)
+{
+  for (; *reference; ++sig, ++reference)
+    if (*reference != *sig)
+      return false;
+
+  return true;
+}
+
+PUBLIC static template<typename TAB>
+TAB *
+Acpi::map_table_head(Unsigned64 phys)
+{ return reinterpret_cast<TAB *>(_map_table_head(phys)); }
 
 
 PRIVATE template< typename T >
@@ -206,24 +247,7 @@ Acpi_sdt::map_entry(unsigned idx, T phys)
       return 0;
     }
 
-  // is the acpi address bigger that our handled physical addresses
-  if (Acpi_helper_get_msb<(sizeof(phys) > sizeof(Address))>::msb(phys))
-    {
-      printf("ACPI: cannot map phys address %llx, out of range (%zdbit)\n",
-             (unsigned long long)phys, sizeof(Address) * 8);
-      return 0;
-    }
-
-  Acpi_table_head const *t = Kmem::dev_map.map((Acpi_table_head const*)(unsigned long)phys);
-  if (t == (Acpi_table_head const *)~0UL)
-    {
-      printf("ACPI: cannot map phys address %llx, map failed\n",
-             (unsigned long long)phys);
-      return 0;
-    }
-
-  _tables[idx] = t;
-  return t;
+  return Acpi::map_table_head<Acpi_table_head>((Unsigned64)phys);
 }
 
 
@@ -340,7 +364,7 @@ Acpi_table_head::checksum_ok() const
 
 PUBLIC
 Acpi_table_head const *
-Acpi_sdt::find(char const sig[4]) const
+Acpi_sdt::find(char const *sig) const
 {
   for (unsigned i = 0; i < _num_tables; ++i)
     {
@@ -348,10 +372,7 @@ Acpi_sdt::find(char const sig[4]) const
       if (!t)
 	continue;
 
-      if (t->signature[0] == sig[0]
-	  && t->signature[1] == sig[1]
-	  && t->signature[2] == sig[2]
-	  && t->signature[3] == sig[3]
+      if (Acpi::check_signature(t->signature, sig)
           && t->checksum_ok())
 	return t;
     }
@@ -362,7 +383,7 @@ Acpi_sdt::find(char const sig[4]) const
 PUBLIC
 template< typename T >
 Acpi_table_head const *
-Acpi_sdt_p<T>::find(char const sig[4]) const
+Acpi_sdt_p<T>::find(char const *sig) const
 {
   for (unsigned i = 0; i < ((len-sizeof(Acpi_table_head))/sizeof(ptrs[0])); ++i)
     {
@@ -370,10 +391,7 @@ Acpi_sdt_p<T>::find(char const sig[4]) const
       if (t == (Acpi_table_head const *)~0UL)
 	continue;
 
-      if (t->signature[0] == sig[0]
-	  && t->signature[1] == sig[1]
-	  && t->signature[2] == sig[2]
-	  && t->signature[3] == sig[3]
+      if (Acpi::check_signature(t->signature, sig)
           && t->checksum_ok())
 	return t;
     }
@@ -404,6 +422,21 @@ Acpi_madt::find(Unsigned8 type, int idx) const
 // ------------------------------------------------------------------------
 IMPLEMENTATION [ia32,amd64]:
 
+PRIVATE static
+Acpi_rsdp const *
+Acpi_rsdp::locate_in_region(Address start, Address end)
+{
+  for (Address p = start; p < end; p += 16)
+    {
+      Acpi_rsdp const* r = (Acpi_rsdp const *)p;
+      if (Acpi::check_signature(r->signature, "RSD PTR ")
+          && r->checksum_ok())
+        return r;
+    }
+
+  return 0;
+}
+
 IMPLEMENT
 Acpi_rsdp const *
 Acpi_rsdp::locate()
@@ -411,23 +444,34 @@ Acpi_rsdp::locate()
   enum
   {
     ACPI20_PC99_RSDP_START = 0x0e0000,
-    ACPI20_PC99_RSDP_END =   0x100000
+    ACPI20_PC99_RSDP_END   = 0x100000,
+
+    BDA_EBDA_SEGMENT       = 0x00040E,
   };
 
-  for (Address p = ACPI20_PC99_RSDP_START; p < ACPI20_PC99_RSDP_END; p += 16)
-    {
-      Acpi_rsdp const* r = (Acpi_rsdp const *)p;
-      if (r->signature[0] == 'R' &&
-	  r->signature[1] == 'S' &&
-	  r->signature[2] == 'D' &&
-	  r->signature[3] == ' ' &&
-	  r->signature[4] == 'P' &&
-	  r->signature[5] == 'T' &&
-	  r->signature[6] == 'R' &&
-	  r->signature[7] == ' ' &&
-          r->checksum_ok())
-	return r;
-    }
+  // If we are booted from UEFI, bootstrap reads the RDSP pointer from
+  // UEFI and creates a memory descriptor with sub type 5 for it
+  Mem_desc *md = Kip::k()->mem_descs();
+  Mem_desc const *const md_end = md + Kip::k()->num_mem_descs();
+  for (; md < md_end; ++md)
+    if (   md->type() == Mem_desc::Info
+        && md->ext_type() == Mem_desc::Info_acpi_rsdp)
+      {
+        Acpi_rsdp const *r = Acpi::map_table_head<Acpi_rsdp>(md->start());
+        if (   Acpi::check_signature(r->signature, "RSD PTR ")
+            && r->checksum_ok())
+          return r;
+        else
+          panic("RSDP memory descriptor from bootstrap invalid");
+      }
+
+  if (Acpi_rsdp const *r = locate_in_region(ACPI20_PC99_RSDP_START,
+                                            ACPI20_PC99_RSDP_END))
+    return r;
+
+  Address ebda = *(Unsigned16 *)BDA_EBDA_SEGMENT << 4;
+  if (Acpi_rsdp const *r = locate_in_region(ebda, ebda + 1024))
+    return r;
 
   return 0;
 }

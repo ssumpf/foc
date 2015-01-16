@@ -80,10 +80,12 @@ io_map(Space *from, L4_fpage const &fp_from,
   if (snd_size == Io_space::V_pfc(0))
     return L4_error::None;
 
+  Mu::Auto_tlb_flush<Io_space> tlb;
+
   return map<Io_space>(mapdb_io.get(), from, from, snd_addr,
              snd_size,
              to, to, snd_addr,
-             control.is_grant(), fp_from.rights(),
+             control.is_grant(), fp_from.rights(), tlb,
              (Io_space::Reap_list**)0);
 }
 
@@ -113,8 +115,9 @@ io_fpage_unmap(Space *space, L4_fpage fp, L4_map_mask mask)
   //
   // current()->regs()->eflags &= ~EFLAGS_IOPL;
 
+  Mu::Auto_tlb_flush<Io_space> tlb;
   return unmap<Io_space>(mapdb_io.get(), space, space,
                port, Io_space::V_pfc(1) << size,
-               fp.rights(), mask, (Io_space::Reap_list**)0);
+               fp.rights(), mask, tlb, (Io_space::Reap_list**)0);
 }
 

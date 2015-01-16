@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _SYS_MSG_H
 #define _SYS_MSG_H
@@ -77,7 +76,7 @@ extern ssize_t msgrcv (int __msqid, void *__msgp, size_t __msgsz,
 
    This function is a cancellation point and therefore not marked with
    __THROW.  */
-extern int msgsnd (int __msqid, __const void *__msgp, size_t __msgsz,
+extern int msgsnd (int __msqid, const void *__msgp, size_t __msgsz,
 		   int __msgflg);
 
 __END_DECLS

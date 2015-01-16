@@ -1,11 +1,8 @@
 # -*- makefile -*-
+# vi:se ft=make:
 
 SUBSYSTEMS = JABI ABI DRIVERS KERNEL LIBK CXXLIB JDB \
 	     TCBOFFSET SYMBOLS VERSION GBLCFG MINILIBC
-
-ifeq ("$(CONFIG_GSTABS)","y")     
-  SUBSYSTEMS		+= LINES
-endif
 
 PREPROCESS_PARTS	+= arch $(CONFIG_ABI) 32bit $(CONFIG_XARCH)    \
 			   fpu jdb_thread_names iofp \
@@ -78,28 +75,28 @@ KERNEL_EXTRA            += $(KERNEL_EXTRA-y)
 # modules that precede M in this list, minus sibling modules (those
 # modules that _directly_ precede M and that M does not include).
 
-INTERFACES_KERNEL	:= mem_region simpleio kernel_console panic warn \
+INTERFACES_KERNEL	:= string_buffer mem_region simpleio kernel_console panic warn \
 			   bitmap buddy_alloc koptions context_base \
-			   mem_layout per_cpu_data globals loader vhw     \
+			   mem_layout per_cpu_data pm globals loader vhw   \
 			   kip_init ipi queue_item queue cpu_mask rcupdate \
 			   boot_info config jdb_symbol jdb_util	          \
 			   tb_entry perf_cnt jdb_tbuf x86desc		  \
-			   emulation pic usermode cpu trampoline cpu_lock \
+			   emulation pic cpu trampoline cpu_lock \
 			   spin_lock boot_alloc			  \
 			   entry_frame continuation                \
 			   kmem mem_unit  \
 			   ram_quota kmem_alloc ptab_base per_cpu_data_alloc \
-			   ref_ptr ref_obj                                \
+			   ref_obj                                \
 			   slab_cache kmem_slab dbg_page_info   \
 			   vmem_alloc paging fpu_state fpu	  \
 			   ready_queue_wfq ready_queue_fp \
 			   sched_context switch_lock timer timeout	  \
 			   obj_space kobject_dbg kobject kobject_iface    \
-			   l4_buf_iter lock  \
+			   l4_buf_iter lock  clock \
                            obj_space_types obj_space_phys_util \
-			   mem_space space vcpu context \
+			   mem_space space utcb_init vcpu trap_state context \
 			   helping_lock \
-			   mp_lock             \
+			   usermode \
 			   mapping mapping_tree mappable                  \
 			   mapdb kobject_mapdb map_util \
 			   hostproc task sigma0_task kernel_task prio_list \
@@ -112,9 +109,9 @@ INTERFACES_KERNEL	:= mem_region simpleio kernel_console panic warn \
 			   irq_chip_ia32 irq_chip_pic  \
 			   banner fpu_alloc irq icu_helper main 	  \
 			   startup libc_support                 \
-			   jdb_dbinfo jdb fb net utcb_init	  \
+			   jdb_dbinfo jdb fb net \
 			   jdb_core jdb_module jdb_table         	  \
-			   jdb_thread_list jdb_input jdb_dump jdb_thread  \
+			   jdb_thread_list jdb_input jdb_input_task jdb_dump jdb_thread  \
 			   jdb_lines jdb_tcb jdb_prompt_module jdb_bt	  \
 			   jdb_mapdb jdb_ptab jdb_kern_info jdb_counters  \
 			   glibc_getchar jdb_trace jdb_trace_set	  \
@@ -124,7 +121,7 @@ INTERFACES_KERNEL	:= mem_region simpleio kernel_console panic warn \
 			   jdb_screen push_console jdb_bp		  \
 			   jdb_attach_irq sys_call_page			  \
 			   jdb_timeout gdt factory	                  \
-			   idt tss trap_state jdb_prompt_ext		  \
+			   idt tss jdb_prompt_ext		  \
 			   jdb_handler_queue jdb_exit_module		  \
 			   jdb_halt_thread  jdb_tetris                    \
 			   jdb_kern_info_kip                              \
@@ -136,8 +133,8 @@ INTERFACES_KERNEL	:= mem_region simpleio kernel_console panic warn \
                            jdb_list jdb_ipc_gate jdb_obj_space            \
 			   jdb_log jdb_factory scheduler \
                            platform_control_object    \
-			   jdb_scheduler clock jdb_sender_list            \
-			   jdb_disasm jdb_regex
+			   jdb_scheduler jdb_sender_list            \
+			   jdb_disasm jdb_regex jdb_report
 
 boot_info_IMPL		:= boot_info boot_info-ia32 boot_info-ux
 clock_IMPL              := clock clock-ia32
@@ -224,12 +221,6 @@ CXXSRC_TCBOFFSET	:= tcboffset.cc dump_tcboffsets.cc
 # SYMBOLS subsystem
 #
 SYMBOLS			:= Symbols
-
-#
-# LINES subsystem
-#
-LINES			:= Lines
-PROG_LINES		:= genlines
 
 #
 # VERSION subsystem
@@ -335,16 +326,16 @@ endif
 #
 # UNITTEST subsystem
 #
-# disabled until unittests fixed
 ifeq (0,1)
 SUBSYSTEMS		+= UNITTEST
 VPATH			+= test/unit
 
 INTERFACES_UNITTEST	+= mapdb_t map_util_t
+endif
 
 # Compile all unit tests without -DNDEBUG.
 NONDEBUG += $(patsubst %.o, %, $(OBJ_UNITTEST))
-endif
+
 
 MODULES_FILES = $(MODULES_FILE) $(MODULES_FILE_BSP)
 

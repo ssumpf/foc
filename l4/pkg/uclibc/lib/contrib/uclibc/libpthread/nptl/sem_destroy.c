@@ -13,16 +13,15 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <semaphore.h>
 #include "semaphoreP.h"
 
 
 int
-__new_sem_destroy (
+sem_destroy (
      sem_t *sem)
 {
   /* XXX Check for valid parameter.  */
@@ -30,4 +29,3 @@ __new_sem_destroy (
   /* Nothing to do.  */
   return 0;
 }
-weak_alias(__new_sem_destroy, sem_destroy)

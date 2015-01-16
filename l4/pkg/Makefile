@@ -85,13 +85,17 @@ ifneq ($(OBJ_BASE),)
 $(OBJ_BASE)/pc:
 	$(VERBOSE)mkdir -p $(OBJ_BASE)/pc
 
+$(OBJ_BASE)/pkg/.Package.deps.pkgs: FORCE
+	$(VERBOSE)mkdir -p $(dir $@)
+	$(VERBOSE)echo $(BUILD_SUBDIRS) > $@.tmp
+	$(call move_if_changed,$@,$@.tmp)
+
 # deps on disappearing aliases.d-files are not handled...
-$(OBJ_BASE)/pkg/.Package.deps: $(L4DIR)/mk/pkgdeps \
+$(OBJ_BASE)/pkg/.Package.deps: $(L4DIR)/mk/pkgdeps $(OBJ_BASE)/pkg/.Package.deps.pkgs \
                                $(if $(filter update up,$(MAKECMDGOALS)),,Makefile) \
                                $(wildcard $(foreach d,$(ALIASES_DIRS),$(d)/*)) \
 			       $(OBJ_BASE)/pc \
                                $(wildcard $(foreach d,$(BUILD_SUBDIRS),$(d)/Control))
-	$(VERBOSE)mkdir -p $(dir $@)
 	$(VERBOSE)if $(PKGDEPS_CMD) \
 	  generate $(L4DIR)/pkg > $@.tmp; then \
 	    mv $@.tmp $@; else $(RM) $@.tmp; exit 1; fi
@@ -131,7 +135,8 @@ depcheck:
 	  echo ==========================================================;     \
 	  echo "Deleting all pkgs in build-dir";                               \
 	  $(RM) -r $(OBJ_BASE)/lib $(OBJ_BASE)/bin $(OBJ_BASE)/include         \
-	           $(OBJ_BASE)/pc $(OBJ_BASE)/pkg/.Package.deps;               \
+	           $(OBJ_BASE)/pc $(OBJ_BASE)/pkg/.Package.deps                \
+	           $(OBJ_BASE)/pkg/.Package.deps.pkgs;                         \
 	  $(if $(CHECK_FULL),$(RM) -r $(OBJ_BASE)/pkg;,)                       \
 	  echo "Done";                                                         \
 	  echo ----------------------------------------------------------;     \

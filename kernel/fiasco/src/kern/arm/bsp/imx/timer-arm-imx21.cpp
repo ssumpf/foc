@@ -73,16 +73,6 @@ void Timer::init(Cpu_number)
   _timer.construct();
 }
 
-static inline
-Unsigned64
-Timer::timer_to_us(Unsigned32 /*cr*/)
-{ return 0; }
-
-static inline
-Unsigned64
-Timer::us_to_timer(Unsigned64 us)
-{ (void)us; return 0; }
-
 PUBLIC static inline NEEDS["io.h"]
 void
 Timer::acknowledge()
@@ -90,13 +80,13 @@ Timer::acknowledge()
   _timer->acknowledge();
 }
 
-IMPLEMENT inline NEEDS["kip.h", "io.h", Timer::timer_to_us, Timer::us_to_timer]
+IMPLEMENT inline
 void
 Timer::update_one_shot(Unsigned64 /*wakeup*/)
 {
 }
 
-IMPLEMENT inline NEEDS["config.h", "kip.h", "io.h", Timer::timer_to_us]
+IMPLEMENT inline NEEDS["config.h", "kip.h", "io.h"]
 Unsigned64
 Timer::system_clock()
 {

@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 
 #include <errno.h>
@@ -29,9 +28,6 @@
 
 /* We do not globally define the SA_RESTORER flag so do it here.  */
 #define SA_RESTORER 0x04000000
-
-extern __typeof(sigaction) __libc_sigaction;
-
 
 #ifdef __NR_rt_sigaction
 
@@ -99,8 +95,13 @@ __libc_sigaction(int sig, const struct sigaction *act, struct sigaction *oact)
 
 
 #ifndef LIBC_SIGACTION
+# ifndef __UCLIBC_HAS_THREADS__
+strong_alias(__libc_sigaction,sigaction)
+libc_hidden_def(sigaction)
+# else
 weak_alias(__libc_sigaction,sigaction)
 libc_hidden_weak(sigaction)
+# endif
 #endif
 
 
@@ -110,11 +111,19 @@ libc_hidden_weak(sigaction)
    signal handlers work right.  Important are both the names
    (__restore_rt) and the exact instruction sequence.
    If you ever feel the need to make any changes, please notify the
-   appropriate GDB maintainer.  */
+   appropriate GDB maintainer.
+
+   The unwind information starts a byte before __restore_rt, so that
+   it is found when unwinding, to get an address the unwinder assumes
+   will be in the middle of a call instruction.  See the Linux kernel
+   (the i386 vsyscall, in particular) for an explanation of the complex
+   unwind information used here in order to get the traditional CFA.
+ */
 
 #define RESTORE(name, syscall) RESTORE2(name, syscall)
 #define RESTORE2(name, syscall) \
 __asm__ (						\
+	"nop\n"						\
 	".text\n"					\
 	"__" #name ":\n"				\
 	"	movq	$" #syscall ", %rax\n"		\

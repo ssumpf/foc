@@ -15,7 +15,7 @@
  * Please see the COPYING-GPL-2 file for details.
  */
 
-#include <l4/drivers/uart_pxa.h>
+#include "mmio_16550.h"
 #include "support.h"
 
 namespace {
@@ -25,10 +25,12 @@ class Platform_arm_pxa : public Platform_single_region_ram
 
   void init()
   {
-    static L4::Uart_16550 _uart(L4::Uart_16550::Base_rate_pxa);
-    static L4::Io_register_block_mmio regs(0x40100000, 2);
-    _uart.startup(&regs);
-    set_stdio_uart(&_uart);
+    kuart.base_address = 0x40100000;
+    kuart.reg_shift    = 2;
+    kuart.base_baud    = L4::Uart_16550::Base_rate_pxa;
+    kuart.baud         = 115200;
+    kuart.irqno        = -1;
+    setup_16550_mmio_uart();
   }
 };
 }

@@ -12,28 +12,27 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <resolv.h>
 #include <tls.h>
 #include <linuxthreads/internals.h>
 #include <sysdep-cancel.h>
 
-#if ! USE___THREAD
+#ifndef __UCLIBC_HAS_TLS__
 # undef _res
 extern struct __res_state _res;
 #endif
 
 /* When threaded, _res may be a per-thread variable.  */
 struct __res_state *
-#if ! USE___THREAD
+#ifndef __UCLIBC_HAS_TLS__
 weak_const_function
 #endif
 __res_state (void)
 {
-#if ! USE___THREAD
+#ifndef __UCLIBC_HAS_TLS__
   if (! SINGLE_THREAD_P)
     {
       pthread_descr self = thread_self();

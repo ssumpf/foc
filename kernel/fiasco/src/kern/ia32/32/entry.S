@@ -426,13 +426,8 @@ entry_int_pic_ignore:
 /* system calls                                                             */
 /****************************************************************************/
 
-#ifdef CONFIG_ASSEMBLER_IPC_SHORTCUT
-GATE_ENTRY(0x30,entry_sys_ipc,ACC_PL_U | ACC_INTR_GATE);
-#else
 GATE_ENTRY(0x30,entry_sys_ipc_c,ACC_PL_U | ACC_INTR_GATE);
-#endif
 
-#if defined (CONFIG_JDB_LOGGING) || !defined(CONFIG_ASSEMBLER_IPC_SHORTCUT)
         .p2align 4
 	.globl	entry_sys_ipc_c
 entry_sys_ipc_c:
@@ -451,7 +446,6 @@ in_sc_ipc1:
 	iret
 
 	.globl	in_sc_ipc1
-#endif
 
 #ifdef CONFIG_JDB
 	/* The slow variant of sys_ipc_entry is used when logging IPC */
@@ -582,7 +576,6 @@ alien_sys_call:
 	.p2align
 	.globl	leave_by_trigger_exception
 leave_by_trigger_exception:
-	cli
 	subl	$12,%esp		/* clean up stack from previous
 					 * CPL0-CPL0 iret */
 	SAVE_SCRATCH
@@ -596,7 +589,6 @@ leave_by_trigger_exception:
 	.p2align
 	.globl	leave_by_vcpu_upcall
 leave_by_vcpu_upcall:
-	cli
 	subl	$12,%esp		/* clean up stack from previous
 					 * CPL0-CPL0 iret */
 	SAVE_SCRATCH

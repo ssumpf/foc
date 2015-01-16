@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _SYS_UIO_H
 #define _SYS_UIO_H	1
@@ -37,7 +36,7 @@ __BEGIN_DECLS
 
    This function is a cancellation point and therefore not marked with
    __THROW.  */
-extern ssize_t readv (int __fd, __const struct iovec *__iovec, int __count);
+extern ssize_t readv (int __fd, const struct iovec *__iovec, int __count);
 
 /* Write data pointed by the buffers described by IOVEC, which
    is a vector of COUNT `struct iovec's, to file descriptor FD.
@@ -47,7 +46,7 @@ extern ssize_t readv (int __fd, __const struct iovec *__iovec, int __count);
 
    This function is a cancellation point and therefore not marked with
    __THROW.  */
-extern ssize_t writev (int __fd, __const struct iovec *__iovec, int __count);
+extern ssize_t writev (int __fd, const struct iovec *__iovec, int __count);
 
 __END_DECLS
 

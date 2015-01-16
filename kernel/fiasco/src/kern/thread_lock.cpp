@@ -192,7 +192,8 @@ Thread_lock::clear()
   // Switch to lockee's execution context if the switch hint says so
   if (hint == SWITCH_ACTIVATE_LOCKEE)
     {
-      check(!current()->switch_exec_locked (context(), Context::Not_Helping));
+      check(current()->switch_exec_locked (context(), Context::Not_Helping)
+            == Context::Switch::Ok);
       return;
     }
 
@@ -248,7 +249,8 @@ Thread_lock::clear_dirty()
   // Switch to lockee's execution context if the switch hint says so
   if (hint == SWITCH_ACTIVATE_LOCKEE)
     {
-      check(!current()->switch_exec_locked(context(), Context::Not_Helping));
+      check(current()->switch_exec_locked(context(), Context::Not_Helping)
+            == Context::Switch::Ok);
       return;
     }
 

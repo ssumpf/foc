@@ -142,7 +142,7 @@ Generic_obj_space<SPACE>::~Generic_obj_space()
 }
 
 IMPLEMENT template< typename SPACE > inline
-void __attribute__((__flatten__))
+void FIASCO_FLATTEN
 Generic_obj_space<SPACE>::caps_free()
 { Base::caps_free(); }
 

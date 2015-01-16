@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <sys/syscall.h>
 
@@ -49,8 +48,11 @@
 #define JUMPTARGET(sym)		sym
 #endif
 
+#define ret_ERRVAL ret
+
 /* Macros to generate eh_frame unwind information.  */
 # ifdef HAVE_ASM_CFI_DIRECTIVES
+#  define cfi_sections(sect...) 	.cfi_sections sect
 #  define cfi_startproc			.cfi_startproc
 #  define cfi_endproc			.cfi_endproc
 #  define cfi_def_cfa(reg, off)		.cfi_def_cfa reg, off
@@ -71,6 +73,7 @@
 #  define cfi_lsda(enc, exp)		.cfi_lsda enc, exp
 
 # else
+#  define cfi_sections(sect...)
 #  define cfi_startproc
 #  define cfi_endproc
 #  define cfi_def_cfa(reg, off)
@@ -95,6 +98,8 @@
 # ifdef HAVE_ASM_CFI_DIRECTIVES
 #  define CFI_STRINGIFY(Name) CFI_STRINGIFY2 (Name)
 #  define CFI_STRINGIFY2(Name) #Name
+#  define CFI_SECTIONS(sect...) \
+   ".cfi_sections " CFI_STRINGIFY(sect)
 #  define CFI_STARTPROC	".cfi_startproc"
 #  define CFI_ENDPROC	".cfi_endproc"
 #  define CFI_DEF_CFA(reg, off)	\
@@ -128,6 +133,7 @@
 #  define CFI_LSDA(enc, exp) \
    ".cfi_lsda " CFI_STRINGIFY(enc) "," CFI_STRINGIFY(exp)
 # else
+#  define CFI_SECTIONS(sect...)
 #  define CFI_STARTPROC
 #  define CFI_ENDPROC
 #  define CFI_DEF_CFA(reg, off)

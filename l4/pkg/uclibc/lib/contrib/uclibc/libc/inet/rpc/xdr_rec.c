@@ -44,21 +44,10 @@
  * The other 31 bits encode the byte length of the fragment.
  */
 
-#define __FORCE_GLIBC
-#include <features.h>
-
-
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <rpc/rpc.h>
-
-#ifdef USE_IN_LIBIO
-# include <wchar.h>
-# include <libio/iolibio.h>
-# define fputs(s, f) _IO_fputs (s, f)
-#endif
-
+#include "rpc_private.h"
 
 static bool_t xdrrec_getbytes (XDR *, caddr_t, u_int);
 static bool_t xdrrec_putbytes (XDR *, const char *, u_int);
@@ -165,12 +154,7 @@ xdrrec_create (XDR *xdrs, u_int sendsize,
 
   if (rstrm == NULL || buf == NULL)
     {
-#ifdef USE_IN_LIBIO
-      if (_IO_fwide (stderr, 0) > 0)
-	(void) fwprintf (stderr, L"%s", _("xdrrec_create: out of memory\n"));
-      else
-#endif
-	(void) fputs (_("xdrrec_create: out of memory\n"), stderr);
+      (void) fputs (_("xdrrec_create: out of memory\n"), stderr);
       mem_free (rstrm, sizeof (RECSTREAM));
       mem_free (buf, sendsize + recvsize + BYTES_PER_XDR_UNIT);
       /*
@@ -193,9 +177,7 @@ xdrrec_create (XDR *xdrs, u_int sendsize,
   /*
    * now the rest ...
    */
-  /* We have to add the const since the `struct xdr_ops' in `struct XDR'
-     is not `const'.  */
-  xdrs->x_ops = (struct xdr_ops *) &xdrrec_ops;
+  xdrs->x_ops = &xdrrec_ops;
   xdrs->x_private = (caddr_t) rstrm;
   rstrm->tcp_handle = tcp_handle;
   rstrm->readit = readit;

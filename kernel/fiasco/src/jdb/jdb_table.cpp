@@ -169,7 +169,7 @@ screen:
       Jdb::cursor(crow - absr + 1, 
 	          col_ofs(absc, ccol)+1);
 
-      int c = Kconsole::console()->getchar();
+      int c = Jdb_core::getchar();
 
       unsigned long nrow = crow;
       unsigned long ncol = ccol;

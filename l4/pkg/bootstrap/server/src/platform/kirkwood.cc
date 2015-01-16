@@ -16,7 +16,7 @@
  */
 
 #include "support.h"
-#include <l4/drivers/uart_pxa.h>
+#include "mmio_16550.h"
 
 namespace {
 class Platform_arm_kirkwood : public Platform_single_region_ram
@@ -25,11 +25,12 @@ class Platform_arm_kirkwood : public Platform_single_region_ram
 
   void init()
   {
-    static L4::Uart_16550 _uart(L4::Uart_16550::Base_rate_pxa);
-    static L4::Io_register_block_mmio r(0xf1012000, 2); // uart0
-    //static L4::Io_register_block_mmio r(0xf1012100); // uart1
-    _uart.startup(&r); // uart1
-    _uart.change_mode(0x3, 8500); // TCLK=200000000, Divisor: 108=TCLK/115200/16
+    kuart.base_address = 0xf1012000; /* uart 1: 0xf1012100 */
+    kuart.reg_shift    = 2;
+    kuart.base_baud    = 12500000;
+    kuart.baud         = 115200;
+    kuart.irqno        = 33;         /* uart 1 irq: ??? */
+    setup_16550_mmio_uart();
     set_stdio_uart(&_uart);
 
 

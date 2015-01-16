@@ -76,27 +76,18 @@ IMPLEMENTATION [vmx]:
 // necessary to do a (keyboard) reset
 
 #include "cpu.h"
-
-PRIVATE static
-void
-Jdb_exit_module::do_vmxoff(Cpu_number, void *)
-{
-  asm volatile("vmxoff");
-}
-
-PRIVATE static
-void
-Jdb_exit_module::remote_vmxoff(Cpu_number cpu)
-{
-  Jdb::remote_work(cpu, do_vmxoff, 0);
-}
+#include "vmx.h"
 
 PRIVATE
 void
 Jdb_exit_module::vmx_off() const
 {
   if (Cpu::boot_cpu()->vmx())
-    Jdb::foreach_cpu(&remote_vmxoff);
+    Jdb::on_each_cpu([](Cpu_number cpu)
+    {
+      if (Vmx::cpus.cpu(cpu).vmx_enabled())
+        asm volatile("vmxoff");
+    });
 }
 
 // ------------------------------------------------------------------------

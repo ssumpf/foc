@@ -14,19 +14,22 @@
 
    You should have received a copy of the GNU Library General Public
    License along with the GNU C Library; see the file COPYING.LIB.  If not,
-   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   see <http://www.gnu.org/licenses/>.  */
 
 #include <sys/ipc.h>
 #include <sys/stat.h>
-
+#ifdef __UCLIBC_HAS_LFS__
+# include <_lfs_64.h>
+#else
+# define stat64 stat
+#endif
 
 key_t ftok (const char *pathname, int proj_id)
 {
-  struct stat st;
+  struct stat64 st;
   key_t key;
 
-  if (stat(pathname, &st) < 0)
+  if (stat64(pathname, &st) < 0)
     return (key_t) -1;
 
   key = ((st.st_ino & 0xffff) | ((st.st_dev & 0xff) << 16)

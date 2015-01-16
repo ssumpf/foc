@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _SYS_SENDFILE_H
 #define _SYS_SENDFILE_H	1
@@ -45,6 +44,7 @@ extern ssize_t __REDIRECT_NTH (sendfile,
 #ifdef __USE_LARGEFILE64
 extern ssize_t sendfile64 (int __out_fd, int __in_fd, __off64_t *__offset,
 			   size_t __count) __THROW;
+libc_hidden_proto(sendfile64)
 #endif
 
 __END_DECLS

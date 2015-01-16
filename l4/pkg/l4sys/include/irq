@@ -127,15 +127,18 @@ class Icu : public Kobject_t<Icu, Irq_eio, L4_PROTO_IRQ>
   L4_KOBJECT(Icu);
 
 public:
-  enum Flow_type
+  enum Mode
   {
-    F_none       = L4_IRQ_F_NONE,
-    F_level_high = L4_IRQ_F_LEVEL_HIGH,
-    F_level_low  = L4_IRQ_F_LEVEL_LOW,
-    F_pos_edge   = L4_IRQ_F_POS_EDGE,
-    F_neg_edge   = L4_IRQ_F_NEG_EDGE,
-    F_both_edge  = L4_IRQ_F_BOTH_EDGE,
-    F_mask       = L4_IRQ_F_MASK,
+    F_none         = L4_IRQ_F_NONE,
+    F_level_high   = L4_IRQ_F_LEVEL_HIGH,
+    F_level_low    = L4_IRQ_F_LEVEL_LOW,
+    F_pos_edge     = L4_IRQ_F_POS_EDGE,
+    F_neg_edge     = L4_IRQ_F_NEG_EDGE,
+    F_both_edge    = L4_IRQ_F_BOTH_EDGE,
+    F_mask         = L4_IRQ_F_MASK,
+
+    F_set_wakeup   = L4_IRQ_F_SET_WAKEUP,
+    F_clear_wakeup = L4_IRQ_F_CLEAR_WAKEUP,
   };
 
   enum Flags

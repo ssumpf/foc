@@ -10,7 +10,7 @@ Core packages:
   - cxx*              C++ library containing
                          - Data structures: AVL trees, lists, bitmaps
                          - L4 IPC framework
-  - drivers           Driver libraries (e.g. UARTs)
+  - drivers*          Driver libraries
   - io                Io server, maintains the platform and I/O resources
   - l4re              L4 Runtime Environment interfaces and library, C++ version
   - l4re_c            C interface for L4 Runtime Environment
@@ -25,13 +25,12 @@ Core packages:
   - libio             Interface and library to access device resources
                          (e.g. MMIO, IRQs)
   - libio-io          Specific interface library code for the io server.
+  - libgcc*           GCC runtime support
   - libloader         Support library for l4re and moe.
   - libsigma0         Sigma0 API library.
   - libstdc++-headers Standard C++ library headers
   - libstdc++-v3      Standard C++ library
-  - libstdc++-v3_r    Standard C++ library, thread-safe
   - libsupc++         Standard C++ Runtime Environment
-  - libsupc++_r       Standard C++ Runtime Environment, thread-safe
   - libvbus           Virtual bus library for devices
   - loader            L4Re program loader
   - log               Library for debug logging support
@@ -40,7 +39,6 @@ Core packages:
   - ned               Scriptable application launcher
   - sigma0            L4 Root pager (essential L4 program)
   - ucblic            Standard C library, including POSIX thread environment
-  - uclibc_r          Meta package for thread-safe standard C library
 
 
 Other packages:

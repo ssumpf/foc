@@ -61,6 +61,20 @@ private:
   class Tconv<T*> { public: typedef T Base; };
 
 public:
+
+  class Reap_list
+  {
+  private:
+    Kobject *_h;
+    Kobject **_t;
+
+  public:
+    Reap_list() : _h(0), _t(&_h) {}
+    ~Reap_list() { del(); }
+    Kobject ***list() { return &_t; }
+    void del();
+  };
+
   template<typename T>
   static T dcast(Kobject_common *_o)
   {
@@ -108,6 +122,8 @@ public:
   char const *t::kobj_type() const { return static_kobj_type; } \
   Address t::kobject_start_addr() const { return (Address)this; } \
   Mword t::kobject_size() const { return sizeof(*this); }
+
+
 
 
 //---------------------------------------------------------------------------
@@ -197,6 +213,32 @@ Kobject::kobject_invoke(L4_obj_ref, L4_fpage::Rights /*rights*/,
 
 }
 
+
+IMPLEMENT
+void
+Kobject::Reap_list::del()
+{
+  if (EXPECT_TRUE(!_h))
+    return;
+
+  for (Kobject *reap = _h; reap; reap = reap->_next_to_reap)
+    reap->destroy(list());
+
+  current()->rcu_wait();
+
+  for (Kobject *reap = _h; reap;)
+    {
+      Kobject *d = reap;
+      reap = reap->_next_to_reap;
+      if (d->put())
+	delete d;
+    }
+
+  _h = 0;
+  _t = &_h;
+}
+
+
 //---------------------------------------------------------------------------
 INTERFACE [debug]:
 
@@ -211,12 +253,14 @@ protected:
     Mword       id;
     char const *type;
     Mword       ram;
-    unsigned print(int max, char *buf) const;
+    void print(String_buffer *buf) const;
   };
 };
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [debug]:
+
+#include "string_buffer.h"
 
 PUBLIC static inline
 Kobject *
@@ -238,8 +282,8 @@ Kobject::dbg_info() const
 { return const_cast<Kobject*>(this); }
 
 IMPLEMENT
-unsigned
-Kobject::Log_destroy::print(int max, char *buf) const
+void
+Kobject::Log_destroy::print(String_buffer *buf) const
 {
-  return snprintf(buf, max, "obj=%lx [%s] (%p) ram=%lx", id, type, obj, ram);
+  buf->printf("obj=%lx [%s] (%p) ram=%lx", id, type, obj, ram);
 }

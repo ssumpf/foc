@@ -15,13 +15,10 @@ class Jdb_set_trace : public Jdb_module
 {
 public:
   enum Mode { Off, Log, Log_to_buf, Trace, Use_c_short_cut, Use_slow_path };
-  
+
   Jdb_set_trace() FIASCO_INIT;
   void ipc_tracing(Mode mode);
-  void next_preiod_tracing(bool enable);
-  void page_fault_tracing(bool enable);
-  void unmap_tracing(bool enable);
-  
+
 private:
   static char first_char;
   static char second_char;
@@ -31,11 +28,6 @@ char Jdb_set_trace::first_char;
 char Jdb_set_trace::second_char;
 
 IMPLEMENTATION[!{ia32,ux,amd64}]:
-
-PRIVATE inline
-void
-Jdb_set_trace::set_unmap_vector()
-{}
 
 
 IMPLEMENTATION:
@@ -229,99 +221,6 @@ Jdb_set_trace::action(int cmd, void *&args, char const *&fmt, int &)
       putchar('\n');
       Jdb_pf_trace::show();
       break;
-
-    case 2:
-      // unmap syscall tracing
-      if (args == &first_char)
-	{
-	  switch (first_char)
-	    {
-	    case ' ':
-	    case KEY_RETURN:
-	      first_char = ' '; // print status
-	      break;
-	    case '+': // on
-	      Jdb_unmap_trace::_log        = 1;
-	      Jdb_unmap_trace::_log_to_buf = 0;
-	      break;
-	    case '-': // off
-	      Jdb_unmap_trace::_log        = 0;
-	      break;
-	    case '*': // to buffer
-	      Jdb_unmap_trace::_log        = 1;
-	      Jdb_unmap_trace::_log_to_buf = 1;
-	      break;
-	    case 'r': // restriction
-	      fmt  = "r%C";
-	      args = &second_char;
-	      return EXTRA_INPUT;
-	    default:
-	      return ERROR;
-	    }
-	  set_unmap_vector();
-	  putchar(first_char);
-	}
-      else if (args == &second_char)
-	{
-	  switch (first_char)
-	    {
-	    case 'r':
-	      switch (second_char)
-		{
-		case 't':
-		case 'T':
-		  putstr(" restrict to thread");
-		  fmt  = second_char == 'T' ? "!=%x" : "==%x";
-		  args = &Jdb_unmap_trace::_gthread;
-		  Jdb_unmap_trace::_other_thread = second_char == 'T';
-		  return EXTRA_INPUT;
-		case 'x':
-		  putstr(" restrict to addr in ");
-		  fmt  = "[%p-%p]";
-		  args = &Jdb_unmap_trace::_addr;
-		  return EXTRA_INPUT;
-		case '-':
-		  Jdb_unmap_trace::clear_restriction();
-		  puts(" unmap syscall restrictions disabled");
-		default:
-		  return ERROR;
-		}
-	      break;
-	    default:
-	      return ERROR;
-	    }
-	}
-
-      putchar('\n');
-      Jdb_unmap_trace::show();
-      break;
-
-    case 3:
-      // next period tracing
-      if (args == &first_char)
-	{
-	  switch (first_char)
-	    {
-	    case ' ':
-	    case KEY_RETURN:
-	      first_char = ' '; // print status
-	      break;
-	    case '+': // buffer
-	    case '*': // buffer
-	      next_preiod_tracing(true);
-	      break;
-	    case '-': // off
-	      next_preiod_tracing(false);
-	      break;
-	    default:
-	      return ERROR;
-	    }
-	  putchar(first_char);
-	}
-
-      putchar('\n');
-      Jdb_nextper_trace::show();
-      break;
     }
 
   return NOTHING;
@@ -345,13 +244,6 @@ Jdb_set_trace::cmds() const
 	  "P{+|-|*}\ton/off/buffer pagefault logging\n"
 	  "Pr{t|T|x|-}\trestrict pagefault log to (!)thread/!thread/addr/clr",
 	  &first_char },
-        { 2, "U", "U", "%C",
-	  "U{+|-|*}\ton/off/buffer unmap logging\n"
-	  "Ur{t|T|x|-}\trestrict unmap log to (!)thread/addr/clr",
-	  &first_char },
-	{ 3, "N", "N", "%C",
-	  "N{+|-|*}\tbuffer/off/buffer next period IPC",
-	  &first_char },
     };
 
   return cs;
@@ -361,7 +253,7 @@ PUBLIC
 int
 Jdb_set_trace::num_cmds() const
 {
-  return 4;
+  return 2;
 }
 
 IMPLEMENT

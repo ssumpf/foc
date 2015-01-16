@@ -138,7 +138,6 @@ class Rcu
 public:
   /// The lock to prevent a quiescent state.
   typedef Cpu_lock Lock;
-  enum { Period = 3000 /* 10ms */ };
   static Rcu_glbl *rcu() { return &_rcu; }
 private:
   static Rcu_glbl _rcu;
@@ -159,7 +158,7 @@ public:
     Rcu_item *item;
     void *cb;
     unsigned char event;
-    unsigned print(int max, char *buf) const;
+    void print(String_buffer *buf) const;
   };
 
   enum Rcu_events
@@ -174,14 +173,15 @@ public:
 IMPLEMENTATION [debug]:
 
 #include "logdefs.h"
+#include "string_buffer.h"
 
 IMPLEMENT
-unsigned
-Rcu::Log_rcu::print(int max, char *buf) const
+void
+Rcu::Log_rcu::print(String_buffer *buf) const
 {
   char const *events[] = { "call", "process"};
-  return snprintf(buf, max, "rcu-%s (cpu=%u) item=%p", events[event],
-                  cxx::int_value<Cpu_number>(cpu), item);
+  buf->printf("rcu-%s (cpu=%u) item=%p", events[event],
+              cxx::int_value<Cpu_number>(cpu), item);
 }
 
 
@@ -217,7 +217,7 @@ Rcu_timeout::expired()
 
 
 Rcu_glbl Rcu::_rcu INIT_PRIORITY(EARLY_INIT_PRIO);
-DEFINE_PER_CPU Per_cpu<Rcu_data> Rcu::_rcu_data(true);
+DEFINE_PER_CPU Per_cpu<Rcu_data> Rcu::_rcu_data(Per_cpu_data::Cpu_num);
 DEFINE_PER_CPU static Per_cpu<Rcu_timeout> _rcu_timeout;
 
 PUBLIC
@@ -266,7 +266,7 @@ Rcu_data::do_batch()
     }
 
   // XXX: I do not know why this and the former stuff is w/o cpu lock
-  //      but the couting needs it ?
+  //      but the couting needs it?
   _d.clear();
 
   // XXX: we use clear, we seemingly worked through the whole list
@@ -276,13 +276,7 @@ Rcu_data::do_batch()
       auto guard = lock_guard(cpu_lock);
       _len -= count;
     }
-#if 0
-  if (_d.full())
-    {
-      Timeout *t = &_rcu_timeout.cpu(_cpu);
-      t->set(t->get_timeout(0) + Rcu::Period, _cpu);
-    }
-#endif
+
   return need_resched;
 }
 
@@ -552,9 +546,6 @@ Rcu::do_pending_work(Cpu_number cpu)
     {
       inc_q_cnt(cpu);
       return process_callbacks(cpu);
-#if 0
-      Rcu::schedule_callbacks(cpu, Kip::k()->clock + Rcu::Period);
-#endif
     }
   return false;
 }

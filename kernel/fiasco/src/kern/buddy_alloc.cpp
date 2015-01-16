@@ -222,10 +222,12 @@ template< int A, int B, int M >
 void
 Buddy_t_base<A,B,M>::dump() const
 {
+  unsigned long total = 0;
   printf("Buddy_alloc [%d,%d]\n", Min_size, Num_sizes);
   for (unsigned i = 0; i < Num_sizes; ++i)
     {
       unsigned c = 0;
+      unsigned long avail = 0;
       B_list::Const_iterator h = _free[i].begin();
       printf("  [%d] %p(%ld)", Min_size << i, *h, h != _free[i].end() ? h->index : 0UL);
       while (h != _free[i].end())
@@ -233,16 +235,19 @@ Buddy_t_base<A,B,M>::dump() const
 	  ++h;
 	  if (c < 5)
 	    printf(" -> %p(%ld)", *h, *h?h->index:0UL);
-	  else
-	    {
-	      printf(" ...");
-	      break;
-	    }
+	  else if (c == 5)
+            printf(" ...");
+
+          if (*h)
+            avail += Min_size << i;
 
 	  ++c;
 	}
-      printf("\n");
+      printf(" == %ldK (%ld)\n", avail / 1024, avail);
+      total += avail;
     }
+
+  printf("sum of available memory: %ldK (%ld)\n", total / 1024, total);
 }
 
 PUBLIC

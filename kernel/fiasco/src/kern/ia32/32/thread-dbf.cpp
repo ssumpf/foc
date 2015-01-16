@@ -41,12 +41,13 @@ Thread::handle_double_fault (void)
 	  "EBX=%08x  EDI=%08x  ES=%04x\n"
 	  "ECX=%08x  EBP=%08x  GS=%04x\n"
 	  "EDX=%08x  ESP=%08x  SS=%04x   ESP0=%08lx\n"
-	  "EFL=%08x  EIP=%08x  CS=%04x\n",
+	  "EFL=%08x  EIP=%08x  CS=%04x    CPU=%d\n",
 	  tss->_eax,    tss->_esi, tss->_ds & 0xffff,
 	  tss->_ebx,    tss->_edi, tss->_es & 0xffff,
 	  tss->_ecx,    tss->_ebp, tss->_gs & 0xffff,
 	  tss->_edx,    tss->_esp, tss->_ss & 0xffff, tss->_esp0,
-	  tss->_eflags, tss->_eip, tss->_cs & 0xffff);
+	  tss->_eflags, tss->_eip, tss->_cs & 0xffff,
+          cxx::int_value<Cpu_number>(current_cpu()));
 
   if (may_enter_jdb)
     {

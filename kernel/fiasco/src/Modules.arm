@@ -1,4 +1,5 @@
 # -*- makefile -*-
+# vi:se ft=make:
 
 ###############################################################################
 
@@ -34,8 +35,8 @@ PREPROCESS_PARTS-$(CONFIG_ARM_CORTEX_A15)           += armca9
 PREPROCESS_PARTS-$(CONFIG_ARM_EM_TZ)                += arm_em_tz
 PREPROCESS_PARTS-$(CONFIG_ARM_EM_STD)               += arm_em_std
 PREPROCESS_PARTS-$(CONFIG_ARM_EM_NS)                += arm_em_ns
+PREPROCESS_PARTS-$(CONFIG_ARM_SECMONIF_NONE)        += arm_smif_none
 PREPROCESS_PARTS-$(CONFIG_ARM_SECMONIF_MC)          += arm_smif_mc
-PREPROCESS_PARTS-$(CONFIG_ARM_SECMONIF_LP)          += arm_smif_lp
 PREPROCESS_PARTS-$(CONFIG_ARM_SECMONIF_TL)          += arm_smif_tl
 PREPROCESS_PARTS-$(CONFIG_ARM_1176_CACHE_ALIAS_FIX) += arm1176_cache_alias_fix
 PREPROCESS_PARTS-$(CONFIG_ARM_CPU_ERRATA)           += arm_cpu_errata
@@ -43,7 +44,7 @@ PREPROCESS_PARTS-$(CONFIG_SCHED_FIXED_PRIO)  += sched_fixed_prio
 PREPROCESS_PARTS-$(CONFIG_SCHED_WFQ)         += sched_wfq
 PREPROCESS_PARTS-$(CONFIG_SCHED_FP_WFQ)      += sched_fp_wfq
 PREPROCESS_PARTS-$(CONFIG_ARM_LPAE)          += arm_lpae
-PREPROCESS_PARTS-$(CONFIG_CPU_VIRT)                 += hyp
+PREPROCESS_PARTS-$(CONFIG_CPU_VIRT)                 += hyp vgic
 PREPROCESS_PARTS-y$(CONFIG_CPU_VIRT)                += noncont_mem
 
 
@@ -146,6 +147,7 @@ INTERFACES_KERNEL += 	__main mem_op kmem_space boot_uart_init     \
 
 INTERFACES_KERNEL-$(CONFIG_SERIAL) += uart_console
 INTERFACES_KERNEL-$(CONFIG_ARM_EM_TZ) += vm
+INTERFACES_KERNEL-$(CONFIG_CPU_VIRT) += vgic
 
 
 
@@ -154,9 +156,9 @@ bootstrap_IMPL		:= bootstrap
 CXXFLAGS_bootstrap      := -O3
 clock_IMPL              := clock
 config_IMPL	  	:= config config-arm
-context_IMPL	  	:= context context-arm context-vcpu
+context_IMPL	  	:= context context-arm context-vcpu context-arm-hyp
 continuation_IMPL	:= continuation-arm
-cpu_IMPL	  	:= cpu cpu-arm
+cpu_IMPL	  	:= cpu cpu-arm cpu-arm-hyp
 cpu_lock_IMPL  	  	:= cpu_lock cpu_lock-generic
 entry_frame_IMPL  	:= entry_frame entry_frame-arm                       \
 			   entry_frame-abs-timeout-hack
@@ -183,7 +185,7 @@ spin_lock_IMPL		:= spin_lock spin_lock-arm
 startup_IMPL		:= startup startup-arm
 sys_call_page_IMPL	:= sys_call_page sys_call_page-arm
 task_IMPL		:= task task-arm
-thread_IMPL	  	:= thread thread-arm \
+thread_IMPL	  	:= thread thread-arm thread-arm-hyp \
 			   thread-jdb thread-ipc \
 			   thread-pagefault  thread-log \
 			   thread-vcpu
@@ -205,19 +207,19 @@ INTERFACES_JDB		:= jdb_handler_queue jdb_module jdb_pic            \
                            jdb_prompt_module jdb_exit_module jdb_kern_info \
 			   jdb_tcb jdb_screen jdb_thread_list jdb_input    \
 			   jdb_symbol jdb_lines push_console               \
-			   jdb_timeout jdb_dump jdb_ptab                   \
+			   jdb_timeout jdb_dump jdb_ptab jdb_input_task    \
 			   jdb_attach_irq jdb_table                        \
-			   jdb_kern_info_kmem_alloc                        \
+			   jdb_kern_info_kmem_alloc jdb_kern_info_data     \
 			   jdb_kern_info_kip jdb_mapdb kern_cnt            \
 			   jdb_trace_set jdb_entry_frame                   \
 			   jdb_kobject jdb_kobject_names                   \
-			   jdb_util jdb_space jdb_utcb                     \
+			   jdb_util jdb_space jdb_utcb jdb_counters        \
 			   jdb_trap_state jdb_ipi jdb_rcupdate             \
 			   jdb_ipc_gate jdb_obj_space jdb_log jdb_factory  \
 			   jdb_thread jdb_scheduler jdb_sender_list\
 			   jdb_perf jdb_vm jdb_regex jdb_disasm jdb_bp \
-			   jdb_tbuf_output jdb_tbuf_show \
-                           jdb_idle_stats
+			   jdb_tbuf_output jdb_tbuf_show jdb_console_buffer \
+                           jdb_idle_stats jdb_report
 CXXSRC_JDB := tb_entry_output.cc
 
 
@@ -231,7 +233,7 @@ jdb_tcb_IMPL		:= jdb_tcb jdb_tcb-arm
 jdb_ptab_IMPL		:= jdb_ptab jdb_ptab-ia32-ux-arm jdb_ptab-arm
 jdb_entry_frame_IMPL	:= jdb_entry_frame-arm
 jdb_trace_set_IMPL	:= jdb_trace_set jdb_trace_set-arm
-jdb_bp			:= jdb_bp
+jdb_bp_IMPL		:= jdb_bp-arm
 thread_IMPL		+= thread-debug 
 
 ifneq ($(CONFIG_JDB_GZIP),)
@@ -245,7 +247,8 @@ endif
 endif
 
 CXXSRC_KERNEL		:= kernel_panic.cc libc_backend_lock.cc
-ASSRC_KERNEL	  	:= ivt.S $(if $(CONFIG_MP),tramp-mp.S)
+ASSRC_KERNEL	  	:= $(if $(CONFIG_MP),tramp-mp.S)
+ASSRC_KERNEL            += $(if $(CONFIG_CPU_VIRT),hvt.S,ivt.S)
 CPPFLAGS                += $(if $(CONFIG_MP),-DMPCORE_PHYS_BASE=$(MPCORE_PHYS_BASE))
 CPPFLAGS                += -DRAM_PHYS_BASE=$(RAM_PHYS_BASE)
 
@@ -312,16 +315,19 @@ TCBOFFSET	:= tcboffset.h
 CXXSRC_TCBOFFSET	:= tcboffset.cc dump_tcboffsets.cc
 
 BSP_NAME         := $(patsubst "%",%,$(CONFIG_BSP_NAME))
-MODULES_FILE_BSP := $(srcdir)/kern/arm/bsp/$(BSP_NAME)/Modules
+BSP_SRC_DIR      := kern/arm/bsp/$(BSP_NAME)
+MODULES_FILE_BSP := $(srcdir)/$(BSP_SRC_DIR)/Modules
 ifeq ($(wildcard $(MODULES_FILE_BSP)),)
   $(error No BSP name defined or no BSP Modules file available)
 endif
 
 include $(MODULES_FILE_BSP)
-VPATH += kern/arm/bsp/$(BSP_NAME)
+VPATH                   += $(BSP_SRC_DIR)
 PREPROCESS_PARTS	+= $(PREPROCESS_PARTS-y)
 INTERFACES_KERNEL       += $(INTERFACES_KERNEL-y)
 INTERFACES_JDB		+= $(INTERFACES_JDB-y)
+TRAMP_MP_ASM_INCLUDE    ?= kern/arm/tramp-mp-asm-default.h
+CPPFLAGS                += -DTRAMP_MP_ASM_INCLUDE=\"$(srcdir)/$(TRAMP_MP_ASM_INCLUDE)\"
 
 ifeq ("$(filter LIBUART, $(SUBSYSTEMS))","LIBUART")
   LIBUART			:= uart/libuart.a
@@ -333,6 +339,23 @@ ifneq ($(CONFIG_MP),)
 ifeq ($(MPCORE_PHYS_BASE),)
 $(error $(MODULES_FILE_BSP) needs to set MPCORE_PHYS_BASE variable)
 endif
+endif
+
+ifneq ($(CONFIG_CPU_VIRT),)
+  ifeq ($(CC_TYPE),gcc)
+    ifneq ($(findstring $(CCVER_MAJOR),4 5 6 7),)
+      ifeq ($(CCVER_MAJOR),4)
+	ARM_CC_OK_FOR_VIRT := $(if $(findstring $(CCVER_MINOR),0 1 2 3 4 5 6),,y)
+      else
+        ARM_CC_OK_FOR_VIRT := y
+      endif
+    endif
+  endif
+
+  ifeq ($(ARM_CC_OK_FOR_VIRT),)
+    $(shell touch buildcheck.ignore)
+    $(error At least GCC 4.7 required for compiling Fiasco with virtualization enabled)
+  endif
 endif
 
 MODULES_FILES = $(MODULES_FILE) $(MODULES_FILE_BSP)

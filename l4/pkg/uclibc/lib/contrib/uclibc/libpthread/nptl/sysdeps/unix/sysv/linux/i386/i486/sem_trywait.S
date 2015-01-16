@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <sysdep.h>
 #include <pthread-errnos.h>
@@ -23,10 +22,10 @@
 
 	.text
 
-	.globl	__new_sem_trywait
-	.type	__new_sem_trywait,@function
+	.globl	sem_trywait
+	.type	sem_trywait,@function
 	.align	16
-__new_sem_trywait:
+sem_trywait:
 	movl	4(%esp), %ecx
 
 	movl	(%ecx), %eax
@@ -63,9 +62,7 @@ __new_sem_trywait:
 #endif
 	orl	$-1, %eax
 	ret
-	.size	__new_sem_trywait,.-__new_sem_trywait
-weak_alias(__new_sem_trywait, sem_trywait)
-
+	.size	sem_trywait,.-sem_trywait
 
 #ifdef __PIC__
 	.section .gnu.linkonce.t.__x86.get_pc_thunk.cx,"ax",@progbits

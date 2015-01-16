@@ -21,7 +21,7 @@ Timer_tick::allocate_irq(Irq_base *irq, unsigned irqnum)
 
       // from now we can save energy in getchar()
       if (!Config::Scheduler_one_shot)
-        Config::getchar_does_hlt_works_ok = Config::hlt_works_ok;
+        Config::getchar_does_hlt_works_ok = false && Config::hlt_works_ok;
     }
   return res;
 }

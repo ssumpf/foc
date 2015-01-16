@@ -18,7 +18,7 @@ public:
   {
     Utcb_addr         = 0xbff00000,    ///< % 4KB   UTCB map address
     Kip_auto_map      = 0xbfff2000,    ///< % 4KB
-    User_max          = 0xc0000000,
+    User_max          = 0xbfffffff,
     Service_page      = 0xeac00000,    ///< % 4MB   global mappings
     Local_apic_page   = Service_page + 0x0000,   ///< % 4KB
     Kmem_tmp_page_1   = Service_page + 0x2000,   ///< % 4KB size 8KB

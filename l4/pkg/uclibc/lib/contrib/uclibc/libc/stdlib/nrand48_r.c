@@ -13,14 +13,10 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <stdlib.h>
-
-extern int __drand48_iterate(unsigned short xsubi[3],
-	struct drand48_data *buffer) attribute_hidden;
 
 int nrand48_r (unsigned short int xsubi[3], struct drand48_data *buffer, long int *result)
 {

@@ -28,7 +28,7 @@ static Jdb_io_apic_module jdb_io_apic_module INIT_PRIORITY(JDB_MODULE_INIT_PRIO)
 
 PRIVATE static
 void
-Jdb_io_apic_module::print_lapic(Cpu_number cpu, void *)
+Jdb_io_apic_module::print_lapic(Cpu_number cpu)
 {
   printf("\nLocal APIC [%u, %08x]: tpr=%2x ppr=%2x\n",
          cxx::int_value<Cpu_number>(cpu),
@@ -47,13 +47,6 @@ Jdb_io_apic_module::print_lapic(Cpu_number cpu, void *)
 	}
       puts("");
     }
-}
-
-PRIVATE static
-void
-Jdb_io_apic_module::remote_print_lapic(Cpu_number cpu)
-{
-  Jdb::remote_work(cpu, print_lapic, 0);
 }
 
 PUBLIC
@@ -102,7 +95,7 @@ Jdb_io_apic_module::action (int cmd, void *&, char const *&, int &)
 	          ? "not supported (Local APIC disabled)"
 		  : "not supported (no Local APIC)"
       );
-  Jdb::foreach_cpu(&remote_print_lapic);
+  Jdb::on_each_cpu(print_lapic);
 
   return NOTHING;
 }

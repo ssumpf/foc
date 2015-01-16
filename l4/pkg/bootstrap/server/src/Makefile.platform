@@ -11,6 +11,7 @@ SUPPORT_CC_arm-omap3evm        := platform/omap.cc
 SUPPORT_CC_arm-omap3_am33xx    := platform/omap.cc
 SUPPORT_CC_arm-beagleboard     := platform/omap.cc
 SUPPORT_CC_arm-pandaboard      := platform/omap.cc
+SUPPORT_CC_arm-omap5           := platform/omap.cc
 SUPPORT_CC_arm-tegra2          := platform/tegra2.cc
 SUPPORT_CC_arm-tegra3          := platform/tegra3.cc
 SUPPORT_CC_arm-imx21           := platform/imx.cc
@@ -24,6 +25,9 @@ SUPPORT_CC_arm-rpi_a           := platform/rpi.cc
 SUPPORT_CC_arm-rpi_b           := platform/rpi.cc
 SUPPORT_CC_arm-exynos4         := platform/exynos.cc
 SUPPORT_CC_arm-exynos5         := platform/exynos.cc
+SUPPORT_CC_arm-zedboard        := platform/zynq.cc
+SUPPORT_CC_arm-parallella      := platform/zynq.cc
+SUPPORT_CC_arm-cubieboard2     := platform/sunxi.cc
 
 # PPC
 SUPPORT_CC_ppc32-mpc5200       := platform/mpc5200.cc
@@ -32,5 +36,10 @@ SUPPORT_CC_ppc32-mpc5200       := platform/mpc5200.cc
 SUPPORT_CC_sparc-leon3         := platform/leon3.cc
 
 # x86
+ifneq ($(BOOTSTRAP_DO_UEFI),y)
 SUPPORT_CC_x86-pc              := platform/x86_pc.cc
 SUPPORT_CC_amd64-pc            := platform/x86_pc.cc
+else
+SUPPORT_CC_x86-pc              := platform/x86_efi_pc.cc
+SUPPORT_CC_amd64-pc            := platform/x86_efi_pc.cc
+endif

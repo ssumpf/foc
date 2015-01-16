@@ -112,6 +112,17 @@ create_stack();
 template <> inline stack_t<bool>*
 create_stack();
 
+#line 238 "template.cpp"
+template<typename FOO,
+         typename = typename cxx::enable_if<!cxx::is_same<SPACE, Mem_space>::value>::type> void
+template_with_dfl_arg1();
+
+#line 244 "template.cpp"
+template<typename FOO,
+         typename = typename cxx::enable_if<!cxx::is_same<SPACE, Mem_space>::value>::type,
+         typename BAR> void
+template_with_dfl_arg2();
+
 //
 // IMPLEMENTATION of inline functions (and needed classes)
 //
@@ -312,5 +323,22 @@ create_stack()
 {
   return new stack_t<T>();
 }
+
+#line 236 "template.cpp"
+
+
+template<typename FOO,
+         typename> void
+template_with_dfl_arg1()
+{}
+
+#line 242 "template.cpp"
+
+
+template<typename FOO,
+         typename,
+         typename BAR> void
+template_with_dfl_arg2()
+{}
 
 #endif // template_inline_h

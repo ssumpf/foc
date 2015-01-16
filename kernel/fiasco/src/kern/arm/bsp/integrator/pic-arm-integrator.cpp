@@ -93,6 +93,18 @@ extern "C"
 void irq_handler()
 { mgr->c.handle_multi_pending<Irq_chip_arm_integr>(0); }
 
+// ------------------------------------------------------------------------
+IMPLEMENTATION [arm && integrator && arm_em_tz]:
+
+#include <cstdio>
+
+PUBLIC static
+void
+Pic::set_pending_irq(unsigned group32num, Unsigned32 val)
+{
+  printf("%s(%d, %x): Not implemented\n", __func__, group32num, val);
+}
+
 //---------------------------------------------------------------------------
 IMPLEMENTATION [debug && integrator]:
 

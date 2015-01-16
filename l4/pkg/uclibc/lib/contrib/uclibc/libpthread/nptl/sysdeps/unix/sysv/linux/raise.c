@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <errno.h>
 #include <limits.h>
@@ -30,7 +29,7 @@ raise (
      int sig)
 {
   struct pthread *pd = THREAD_SELF;
-#if __ASSUME_TGKILL || defined __NR_tgkill
+#if (defined(__ASSUME_TGKILL) && __ASSUME_TGKILL) || defined __NR_tgkill
   pid_t pid = THREAD_GETMEM (pd, pid);
 #endif
   pid_t selftid = THREAD_GETMEM (pd, tid);
@@ -45,13 +44,13 @@ raise (
 #endif
       THREAD_SETMEM (pd, tid, selftid);
 
-#if __ASSUME_TGKILL || defined __NR_tgkill
+#if (defined(__ASSUME_TGKILL) && __ASSUME_TGKILL) || defined __NR_tgkill
       /* We do not set the PID field in the TID here since we might be
 	 called from a signal handler while the thread executes fork.  */
       pid = selftid;
 #endif
     }
-#if __ASSUME_TGKILL || defined __NR_tgkill
+#if (defined(__ASSUME_TGKILL) && __ASSUME_TGKILL) || defined __NR_tgkill
   else
     /* raise is an async-safe function.  It could be called while the
        fork/vfork function temporarily invalidated the PID field.  Adjust for
@@ -60,7 +59,7 @@ raise (
       pid = (pid & INT_MAX) == 0 ? selftid : -pid;
 #endif
 
-#if __ASSUME_TGKILL
+#if defined(__ASSUME_TGKILL) && __ASSUME_TGKILL
   return INLINE_SYSCALL (tgkill, 3, pid, selftid, sig);
 #else
 # ifdef __NR_tgkill

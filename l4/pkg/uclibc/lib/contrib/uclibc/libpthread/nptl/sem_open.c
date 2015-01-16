@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -39,12 +38,18 @@
 
 /* Compatibility defines. */
 #define __endmntent                    endmntent
-#define __fxstat64(vers, fd, buf)      fstat64(fd, buf)
 #define __getmntent_r                  getmntent_r
 #define __setmntent                    setmntent
 #define __statfs                       statfs
 #define __libc_close                   close
-#define __libc_open                    open
+#ifdef __UCLIBC_HAS_LFS__
+# define __libc_open                    open64
+# define __fxstat64(vers, fd, buf)		fstat64(fd, buf)
+#else
+# define __libc_open                    open
+# define __fxstat64(vers, fd, buf)		fstat(fd, buf)
+# define stat64							stat
+#endif
 #define __libc_write                   write
 
 
@@ -85,10 +90,10 @@ __where_is_shmfs (void)
   /* OK, do it the hard way.  Look through the /proc/mounts file and if
      this does not exist through /etc/fstab to find the mount point.  */
   fp = __setmntent ("/proc/mounts", "r");
-  if (__builtin_expect (fp == NULL, 0))
+  if (unlikely (fp == NULL))
     {
       fp = __setmntent (_PATH_MNTTAB, "r");
-      if (__builtin_expect (fp == NULL, 0))
+      if (unlikely (fp == NULL))
 	/* There is nothing we can do.  Blind guesses are not helpful.  */
 	return;
     }
@@ -168,13 +173,8 @@ check_add_mapping (const char *name, size_t namelen, int fd, sem_t *existing)
   sem_t *result = SEM_FAILED;
 
   /* Get the information about the file.  */
-#ifdef __UCLIBC_HAS_LFS__
   struct stat64 st;
   if (__fxstat64 (_STAT_VER, fd, &st) == 0)
-#else
-  struct stat st;
-  if (fstat (fd, &st) == 0)
-#endif
     {
       /* Get the lock.  */
       lll_lock (__sem_mappings_lock, LLL_PRIVATE);

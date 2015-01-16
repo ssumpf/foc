@@ -52,16 +52,6 @@ IMPLEMENT
 void Timer::init(Cpu_number)
 { _timer.construct(Kmem::mmio_remap(Mem_layout::Timer_phys_base)); }
 
-static inline
-Unsigned64
-Timer::timer_to_us(Unsigned32 /*cr*/)
-{ return 0; }
-
-static inline
-Unsigned64
-Timer::us_to_timer(Unsigned64 us)
-{ (void)us; return 0; }
-
 PUBLIC static inline NEEDS[Timer::set_next]
 void
 Timer::acknowledge()

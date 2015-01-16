@@ -12,7 +12,7 @@ public:
    * The implementation is platform specific. Two x86 implementations
    * are timer-pit and timer-rtc.
    */
-  static void init(Cpu_number cpu) FIASCO_INIT_CPU;
+  static void init(Cpu_number cpu) FIASCO_INIT_CPU_AND_PM;
 
   /**
    * Initialize the system clock.
@@ -34,6 +34,11 @@ public:
    */
   static void update_timer(Unsigned64 wakeup);
 
+  /**
+   * enable the timer
+   */
+  static void enable();
+
   static void master_cpu(Cpu_number cpu) { _cpu = cpu; }
 
 private:
@@ -44,3 +49,8 @@ private:
 IMPLEMENTATION:
 
 Cpu_number Timer::_cpu;
+
+IMPLEMENT_DEFAULT
+void
+Timer::enable()
+{}

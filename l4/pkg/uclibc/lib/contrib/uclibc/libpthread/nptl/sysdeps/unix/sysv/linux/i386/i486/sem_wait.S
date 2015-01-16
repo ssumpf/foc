@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <sysdep.h>
 #include <pthread-errnos.h>
@@ -29,10 +28,10 @@
 
 	.text
 
-	.globl	__new_sem_wait
-	.type	__new_sem_wait,@function
+	.globl	sem_wait
+	.type	sem_wait,@function
 	.align	16
-__new_sem_wait:
+sem_wait:
 .LSTARTCODE:
 	pushl	%ebx
 .Lpush_ebx:
@@ -129,8 +128,7 @@ __new_sem_wait:
 	orl	$-1, %eax
 
 	jmp	9b
-	.size	__new_sem_wait,.-__new_sem_wait
-weak_alias(__new_sem_wait, sem_wait)
+	.size	sem_wait,.-sem_wait
 
 
 	.type	sem_wait_cleanup,@function

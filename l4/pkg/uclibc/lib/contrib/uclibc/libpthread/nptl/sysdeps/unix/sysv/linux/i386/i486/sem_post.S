@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <sysdep.h>
 #include <pthread-errnos.h>
@@ -25,10 +24,10 @@
 
 	.text
 
-	.globl	__new_sem_post
-	.type	__new_sem_post,@function
+	.globl	sem_post
+	.type	sem_post,@function
 	.align	16
-__new_sem_post:
+sem_post:
 	cfi_startproc
 	pushl	%ebx
 	cfi_adjust_cfa_offset(4)
@@ -126,9 +125,7 @@ __new_sem_post:
 	cfi_restore(%ebx)
 	ret
 	cfi_endproc
-	.size	__new_sem_post,.-__new_sem_post
-weak_alias(__new_sem_post, sem_post)
-
+	.size	sem_post,.-sem_post
 
 #ifdef __PIC__
 	.section .gnu.linkonce.t.__x86.get_pc_thunk.bx,"ax",@progbits

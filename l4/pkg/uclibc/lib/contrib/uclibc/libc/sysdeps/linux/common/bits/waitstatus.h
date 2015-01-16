@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #if !defined _SYS_WAIT_H && !defined _STDLIB_H
 # error "Never include <bits/waitstatus.h> directly; use <sys/wait.h> instead."
@@ -25,7 +24,7 @@
 /* Everything extant so far uses these same bits.  */
 
 
-/* If WIFEXITED(STATUS), the low-order 8 bits of the status.  */
+/* If WIFEXITED(STATUS), the low-order 8 bits of exit(N).  */
 #define	__WEXITSTATUS(status)	(((status) & 0xff00) >> 8)
 
 /* If WIFSIGNALED(STATUS), the terminating signal.  */
@@ -37,12 +36,20 @@
 /* Nonzero if STATUS indicates normal termination.  */
 #define	__WIFEXITED(status)	(__WTERMSIG(status) == 0)
 
-/* Nonzero if STATUS indicates termination by a signal.  */
-#define __WIFSIGNALED(status) \
-  (((signed char) (((status) & 0x7f) + 1) >> 1) > 0)
+/* Nonzero if STATUS indicates termination by a signal.
+ * Note that status 0x007f is "died from signal 127", not "stopped by signal 0".
+ * This does happen on MIPS.
+ * The comparison is "< 0xff", not "< 0x7f", because WCOREDUMP bit (0x80)
+ * can be set too.
+ */
+#define	__WIFSIGNALED(status)	(((unsigned)((status) & 0xffff) - 1U) < 0xffU)
 
 /* Nonzero if STATUS indicates the child is stopped.  */
+#if !defined(__mips__)
 #define	__WIFSTOPPED(status)	(((status) & 0xff) == 0x7f)
+#else
+#define	__WIFSTOPPED(status)	(((status) & 0xff) == 0x7f && ((status) & 0xff00))
+#endif
 
 /* Nonzero if STATUS indicates the child continued after a stop.  We only
    define this if <bits/waitflags.h> provides the WCONTINUED flag bit.  */

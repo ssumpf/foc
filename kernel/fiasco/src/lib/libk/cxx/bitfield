@@ -188,10 +188,10 @@ public:
     Bits_type get() const { return Bitfield::get(v); }
     T get_unshifted() const { return Bitfield::get_unshifted(v); }
 
-    void set(Bits_type val) { v = Bitfield::set(v, val); }
-    void set_dirty(Bits_type val) { v = Bitfield::set_dirty(v, val); }
-    void set_unshifted(Shift_type val) { v = Bitfield::set_unshifted(v, val); }
-    void set_unshifted_dirty(Shift_type val) { v = Bitfield::set_unshifted_dirty(v, val); }
+    void set(Bits_type val) __restrict__ { v = Bitfield::set(v, val); }
+    void set_dirty(Bits_type val) __restrict__ { v = Bitfield::set_dirty(v, val); }
+    void set_unshifted(Shift_type val) __restrict__ { v = Bitfield::set_unshifted(v, val); }
+    void set_unshifted_dirty(Shift_type val) __restrict__ { v = Bitfield::set_unshifted_dirty(v, val); }
   };
 
   /** Internal helper type */
@@ -201,7 +201,7 @@ public:
   public:
     Value(TT t) : Value_base<TT>(t) {}
     operator Bits_type () const { return this->get(); }
-    Value &operator = (Bits_type val) { this->set(val); return *this; }
+    Value &operator = (Bits_type val) __restrict__ { this->set(val); return *this; }
   };
 
   /** Internal helper type */
@@ -211,7 +211,7 @@ public:
   public:
     Value_unshifted(TT t) : Value_base<TT>(t) {}
     operator Shift_type () const { return this->get_unshifted(); }
-    Value_unshifted &operator = (Shift_type val) { this->set_unshifted(val); return *this; }
+    Value_unshifted &operator = (Shift_type val) __restrict__ { this->set_unshifted(val); return *this; }
   };
 
   /** Reference type to access the bits inside a raw bit field. */
@@ -235,6 +235,14 @@ public:
   name ## _bfm_t::Ref name() { return data_member; } \
   /** @} */
 
+#define CXX_BITFIELD_MEMBER_RO(LSB, MSB, name, data_member) \
+  /** @{ */ \
+  /** \brief Type to access the \a name bits (LSB to MSB) of \a data_member. */ \
+  typedef cxx::Bitfield<decltype(data_member), LSB, MSB> name ## _bfm_t; \
+  /** \brief Get the \a name bits (LSB to MSB) of \a data_member. */ \
+  name ## _bfm_t::Val name() const { return data_member; } \
+  /** @} */
+
 #define CXX_BITFIELD_MEMBER_UNSHIFTED(LSB, MSB, name, data_member) \
   /** @{ */ \
   /** \brief Type to access the \a name bits (LSB to MSB) of \a data_member. */ \
@@ -245,4 +253,11 @@ public:
   name ## _bfm_t::Ref_unshifted name() { return data_member; } \
   /** @} */
 
+#define CXX_BITFIELD_MEMBER_UNSHIFTED_RO(LSB, MSB, name, data_member) \
+  /** @{ */ \
+  /** \brief Type to access the \a name bits (LSB to MSB) of \a data_member. */ \
+  typedef cxx::Bitfield<decltype(data_member), LSB, MSB> name ## _bfm_t; \
+  /** \brief Get the \a name bits (LSB to MSB) of \a data_member. */ \
+  name ## _bfm_t::Val_unshifted name() const { return data_member; } \
+  /** @} */
 }

@@ -87,7 +87,7 @@ typedef union l4_timeout_t {
  * \brief Intervals of validity for absolute timeouts
  * \ingroup l4_timeout_api
  *
- * Times are actually 2^x values (e.g. 2ms -> 2048µs)
+ * Times are actually 2^x values (e.g. 2ms -> 2048Âµs)
  */
 enum l4_timeout_abs_validity {
   L4_TIMEOUT_ABS_V1_ms = 0,

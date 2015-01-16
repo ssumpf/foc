@@ -46,6 +46,7 @@ typedef struct l4_vcpu_state_t
   l4_umword_t          entry_sp;      ///< Stack pointer for entry (when coming from user task)
   l4_umword_t          entry_ip;      ///< IP for entry
   l4_umword_t          reserved_sp;   ///< \internal
+  l4_vcpu_arch_state_t arch_state;
 } l4_vcpu_state_t;
 
 /**

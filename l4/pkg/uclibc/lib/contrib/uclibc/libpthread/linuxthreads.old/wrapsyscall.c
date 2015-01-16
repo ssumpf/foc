@@ -1,4 +1,4 @@
-/* Wrapper arpund system calls to provide cancelation points.
+/* Wrapper around system calls to provide cancellation points.
    Copyright (C) 1996,1997,1998,1999,2000,2001 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
    Contributed by Ulrich Drepper <drepper@cygnus.com>, 1996.
@@ -15,11 +15,8 @@
 
    You should have received a copy of the GNU Library General Public
    License along with the GNU C Library; see the file COPYING.LIB.  If not,
-   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   see <http://www.gnu.org/licenses/>.  */
 
-#define __FORCE_GLIBC
-#include <features.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <pthread.h>
@@ -28,6 +25,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <termios.h>
+#include <sys/epoll.h>
 #include <sys/resource.h>
 #include <sys/wait.h>
 #include <sys/socket.h>
@@ -81,6 +79,12 @@ CANCELABLE_SYSCALL (int, close, (int fd), (fd))
 /* fcntl(2).  */
 CANCELABLE_SYSCALL_VA (int, fcntl, (int fd, int cmd, ...),
 		       (fd, cmd, va_arg (ap, long int)), cmd)
+
+#if defined __UCLIBC_HAS_LFS__ && __WORDSIZE == 32
+/* fcntl64(2).  */
+CANCELABLE_SYSCALL_VA (int, fcntl64, (int fd, int cmd, ...),
+		       (fd, cmd, va_arg (ap, long int)), cmd)
+#endif
 
 
 /* fsync(2).  */
@@ -227,3 +231,16 @@ CANCELABLE_SYSCALL (ssize_t, sendto, (int fd, const __ptr_t buf, size_t n,
 				      socklen_t addr_len),
 		    (fd, buf, n, flags, addr, addr_len))
 #endif /* __UCLIBC_HAS_SOCKET__ */
+
+#ifdef  __UCLIBC_HAS_EPOLL__
+# include <sys/epoll.h>
+# ifdef __NR_epoll_wait
+CANCELABLE_SYSCALL (int, epoll_wait, (int epfd, struct epoll_event *events, int maxevents, int timeout),
+		    (epfd, events, maxevents, timeout))
+# endif
+# ifdef __NR_epoll_pwait
+CANCELABLE_SYSCALL (int, epoll_pwait, (int epfd, struct epoll_event *events, int maxevents, int timeout,
+				       const sigset_t *set),
+		    (epfd, events, maxevents, timeout, set))
+# endif
+#endif

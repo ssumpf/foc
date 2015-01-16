@@ -93,6 +93,9 @@ test_rules: Makefile
 	    echo "$${test}_flags = " >> $@.new; \
 	    echo "endif" >> $@.new; \
 	    echo "$${test}.cc: \$$(addsuffix .cpp, \$$($${test}_src)) \$$(TOOL); \$$(TOOL) \$$($${test}_flags) -c $${test} \$$(filter-out \$$(TOOL), \$$^)" >> $@.new; \
+	    echo "ifdef $${test}_extra" >> $@.new; \
+	    echo "clean:: ; \$$(RM) \$$($${test}_extra)" >> $@.new; \
+	    echo "endif" >> $@.new; \
 	  done
 	mv $@.new $@
 

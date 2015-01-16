@@ -14,13 +14,13 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _LINUX_IA64_SYSDEP_H
 #define _LINUX_IA64_SYSDEP_H 1
 
+#include <common/sysdep.h>
 #include <features.h>
 #include <asm/unistd.h>
 
@@ -46,6 +46,15 @@
 	.align 32;				\
 	.proc C_SYMBOL_NAME(name);		\
 	.global C_SYMBOL_NAME(name);		\
+	C_LABEL(name)				\
+	CALL_MCOUNT
+
+#define HIDDEN_ENTRY(name)			\
+	.text;					\
+	.align 32;				\
+	.proc C_SYMBOL_NAME(name);		\
+	.global C_SYMBOL_NAME(name);		\
+	.hidden C_SYMBOL_NAME(name);		\
 	C_LABEL(name)				\
 	CALL_MCOUNT
 
@@ -161,7 +170,6 @@
 
 #define ret			br.ret.sptk.few b0
 #define ret_NOERRNO		ret
-#define ret_ERRVAL		ret
 
 #endif /* not __ASSEMBLER__ */
 

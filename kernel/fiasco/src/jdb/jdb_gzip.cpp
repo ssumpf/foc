@@ -21,9 +21,8 @@ class Jdb_gzip : public Console
 
 Console *Jdb_gzip::uart;
 
-Jdb_gzip::Jdb_gzip()
+Jdb_gzip::Jdb_gzip() : Console(DISABLED)
 {
-  _state = Console::DISABLED_INIT;
   char *heap = (char*)Kmem_alloc::allocator()->
     unaligned_alloc(heap_pages*Config::PAGE_SIZE);
   if (!heap)

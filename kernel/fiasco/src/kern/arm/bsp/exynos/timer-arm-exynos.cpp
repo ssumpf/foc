@@ -80,16 +80,6 @@ Timer::init(Cpu_number cpu)
   timers.cpu(cpu)->Mct_core_timer::configure();
 }
 
-static inline
-Unsigned64
-Timer::timer_to_us(Unsigned32 /*cr*/)
-{ return 0; }
-
-static inline
-Unsigned64
-Timer::us_to_timer(Unsigned64 us)
-{ (void)us; return 0; }
-
 PRIVATE static
 unsigned
 Timer::us_to_mct(Unsigned64 d_us)

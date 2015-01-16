@@ -32,8 +32,8 @@
 
 /*
  * The main trick with this program is that initially, we ourselves are not
- * dynamicly linked.  This means that we cannot access any global variables or
- * call any functions.  No globals initially, since the Global Offset Table
+ * dynamically linked.  This means that we cannot access any global variables
+ * or call any functions.  No globals initially, since the Global Offset Table
  * (GOT) is initialized by the linker assuming a virtual address of 0, and no
  * function calls initially since the Procedure Linkage Table (PLT) is not yet
  * initialized.
@@ -55,12 +55,12 @@
  *
  * Fortunately, the linker itself leaves a few clues lying around, and when the
  * kernel starts the image, there are a few further clues.  First of all, there
- * is Auxiliary Vector Table information sitting on which is provided to us by
- * the kernel, and which includes information about the load address that the
- * program interpreter was loaded at, the number of sections, the address the
- * application was loaded at and so forth.  Here this information is stored in
- * the array auxvt.  For details see linux/fs/binfmt_elf.c where it calls
- * NEW_AUX_ENT() a bunch of time....
+ * is Auxiliary Vector Table information sitting on the stack which is provided
+ * to us by the kernel, and which includes information about the address
+ * that the program interpreter was loaded at, the number of sections, the
+ * address the application was loaded at, and so forth.  Here this information
+ * is stored in the array auxvt.  For details see linux/fs/binfmt_elf.c where
+ * it calls NEW_AUX_ENT() a bunch of times....
  *
  * Next, we need to find the GOT.  On most arches there is a register pointing
  * to the GOT, but just in case (and for new ports) I've added some (slow) C
@@ -93,6 +93,11 @@
 
 /* Pull in all the arch specific stuff */
 #include "dl-startup.h"
+
+#ifdef __LDSO_PRELINK_SUPPORT__
+/* These defined magically in the linker script.  */
+extern char _begin[] attribute_hidden;
+#endif
 
 /* Static declarations */
 static int (*_dl_elf_main) (int, char **, char **);
@@ -179,11 +184,26 @@ DL_START(unsigned long args)
 		aux_dat += 2;
 	}
 
-	/* locate the ELF header.   We need this done as soon as possible
-	 * (esp since SEND_STDERR() needs this on some platforms... */
+	/*
+	 * Locate the dynamic linker ELF header. We need this done as soon as
+	 * possible (esp since SEND_STDERR() needs this on some platforms...
+	 */
+
+#ifdef __LDSO_PRELINK_SUPPORT__
+	/*
+	 * The `_begin' symbol created by the linker script points to ld.so ELF
+	 * We use it if the kernel is not passing a valid address through the auxvt.
+	 */
+
+	if (!auxvt[AT_BASE].a_un.a_val)
+		auxvt[AT_BASE].a_un.a_val =  (Elf32_Addr) &_begin;
+	/* Note: if the dynamic linker itself is prelinked, the load_addr is 0 */
+	DL_INIT_LOADADDR_BOOT(load_addr, elf_machine_load_address());
+#else
 	if (!auxvt[AT_BASE].a_un.a_val)
 		auxvt[AT_BASE].a_un.a_val = elf_machine_load_address();
 	DL_INIT_LOADADDR_BOOT(load_addr, auxvt[AT_BASE].a_un.a_val);
+#endif
 	header = (ElfW(Ehdr) *) auxvt[AT_BASE].a_un.a_val;
 
 	/* Check the ELF header to make sure everything looks ok.  */
@@ -198,7 +218,8 @@ DL_START(unsigned long args)
 		_dl_exit(0);
 	}
 	SEND_EARLY_STDERR_DEBUG("ELF header=");
-	SEND_ADDRESS_STDERR_DEBUG(DL_LOADADDR_BASE(load_addr), 1);
+	SEND_ADDRESS_STDERR_DEBUG(
+		DL_LOADADDR_BASE(DL_GET_RUN_ADDR(load_addr, header)), 1);
 
 	/* aw11: iterate the phdrs of ldso to find our dynamic info not the GOT,
 	 *       as GNU gold does not provide tge GOT entry.
@@ -211,7 +232,7 @@ DL_START(unsigned long args)
 	DL_BOOT_COMPUTE_GOT(got);
 
 	/* Now, finally, fix up the location of the dynamic stuff */
-	DL_BOOT_COMPUTE_DYN(dpnt, got, load_addr);
+	DL_BOOT_COMPUTE_DYN(dpnt, got, (DL_LOADADDR_TYPE)header);
 #else /* aw11 code */
 	/* locate the ELF phdrs.   We need this for finding the dynamic infos
 	 */
@@ -221,7 +242,7 @@ DL_START(unsigned long args)
 	dpnt = 0;
 	for (i = 0; i < header->e_phnum; ++i) {
 		if (phdr[i].p_type == PT_DYNAMIC) {
-			DL_BOOT_COMPUTE_DYN(dpnt, phdr[i].p_vaddr, load_addr);
+			DL_BOOT_COMPUTE_DYN(dpnt, phdr[i].p_vaddr, (DL_LOADADDR_TYPE)header);
 			break;
 		}
 	}
@@ -265,7 +286,7 @@ DL_START(unsigned long args)
 	PERFORM_BOOTSTRAP_GOT(tpnt);
 #endif
 
-#if !defined(PERFORM_BOOTSTRAP_GOT) || defined(__avr32__)
+#if !defined(PERFORM_BOOTSTRAP_GOT) || defined(__avr32__) || defined(__mips__)
 
 	/* OK, now do the relocations.  We do not do a lazy binding here, so
 	   that once we are done, we have considerably more flexibility. */
@@ -292,7 +313,10 @@ DL_START(unsigned long args)
 
 			if (!indx && relative_count) {
 				rel_size -= relative_count * sizeof(ELF_RELOC);
-				elf_machine_relative(load_addr, rel_addr, relative_count);
+#ifdef __LDSO_PRELINK_SUPPORT__
+				if (load_addr || !tpnt->dynamic_info[DT_GNU_PRELINKED_IDX])
+#endif
+					elf_machine_relative(load_addr, rel_addr, relative_count);
 				rel_addr += relative_count * sizeof(ELF_RELOC);
 			}
 
@@ -376,12 +400,12 @@ DL_START(unsigned long args)
 			(*ia)();
 	}
 #endif
-	_dl_get_ready_to_run(tpnt, load_addr, auxvt, envp, argv
-			     DL_GET_READY_TO_RUN_EXTRA_ARGS);
+	_dl_elf_main = (int (*)(int, char **, char **))
+			_dl_get_ready_to_run(tpnt, load_addr, auxvt, envp, argv
+					     DL_GET_READY_TO_RUN_EXTRA_ARGS);
 
 	/* Transfer control to the application.  */
 	SEND_STDERR_DEBUG("transfering control to application @ ");
-	_dl_elf_main = (int (*)(int, char **, char **)) auxvt[AT_ENTRY].a_un.a_val;
 	SEND_ADDRESS_STDERR_DEBUG(_dl_elf_main, 1);
 
 #if !defined(START)

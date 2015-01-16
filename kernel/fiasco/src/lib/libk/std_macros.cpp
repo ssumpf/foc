@@ -37,6 +37,7 @@ INTERFACE:
 #endif
 
 #define FIASCO_NORETURN         __attribute__ ((__noreturn__))
+#define FIASCO_FLATTEN          __attribute__((__flatten__))
 
 IMPLEMENTATION:
 //-

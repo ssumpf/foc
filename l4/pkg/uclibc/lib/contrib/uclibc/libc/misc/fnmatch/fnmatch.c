@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
@@ -52,10 +51,6 @@
 
 #if defined STDC_HEADERS || defined _LIBC
 # include <stdlib.h>
-#endif
-
-#ifdef __UCLIBC__
-# define __memset memset
 #endif
 
 /* For platform which support the ISO C amendement 1 functionality we
@@ -334,11 +329,6 @@ is_char_class (const wchar_t *wcs)
 #  include "fnmatch_loop.c"
 # endif
 
-#ifndef __UCLIBC_HAS_WCHAR__
-# undef MB_CUR_MAX
-# define MB_CUR_MAX 1
-#endif
-
 int
 fnmatch (const char *pattern, const char *string, int flags)
 {
@@ -352,7 +342,7 @@ fnmatch (const char *pattern, const char *string, int flags)
       wchar_t *wstring = NULL;
 
       /* Convert the strings into wide characters.  */
-      __memset (&ps, '\0', sizeof (ps));
+      memset (&ps, '\0', sizeof (ps));
       p = pattern;
 #ifdef _LIBC
       n = strnlen (pattern, 1024);
@@ -369,7 +359,7 @@ fnmatch (const char *pattern, const char *string, int flags)
 	       already done?  */
 	    return -1;
 	  if (p)
-	    __memset (&ps, '\0', sizeof (ps));
+	    memset (&ps, '\0', sizeof (ps));
 	}
       if (__builtin_expect (p != NULL, 0))
 	{
@@ -401,7 +391,7 @@ fnmatch (const char *pattern, const char *string, int flags)
 	       already done?  */
 	    return -1;
 	  if (p)
-	    __memset (&ps, '\0', sizeof (ps));
+	    memset (&ps, '\0', sizeof (ps));
 	}
       if (__builtin_expect (p != NULL, 0))
 	{

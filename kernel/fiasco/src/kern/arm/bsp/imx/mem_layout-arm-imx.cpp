@@ -75,11 +75,12 @@ public:
     Gic_dist_phys_base   = 0x00a01000,
     L2cxx0_phys_base     = 0x00a02000,
 
-    Uart1_phys_base      = 0x02020000, // uart1
     Watchdog_phys_base   = 0x020bc000, // wdog1
     Gpt_phys_base        = 0x02098000,
     Src_phys_base        = 0x020d8000,
-    Uart2_phys_base      = 0x021e8000, // uart2
-    Uart_phys_base       = Uart2_phys_base,
+    Uart1_phys_base      = 0x02020000,
+    Uart2_phys_base      = 0x021e8000,
+    Uart_phys_base       = CONFIG_PF_IMX_UART_NR == 2
+                           ? Uart2_phys_base : Uart1_phys_base,
   };
 };

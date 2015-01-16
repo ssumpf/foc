@@ -20,7 +20,7 @@
 class Region
 {
 public:
-  enum Type { No_mem, Kernel, Sigma0, Boot, Root, Arch, Ram };
+  enum Type { No_mem, Kernel, Sigma0, Boot, Root, Arch, Ram, Info };
 
   /** Basic noop constructor, to be able to have array without ini code */
   Region() {}
@@ -33,6 +33,13 @@ public:
   : _begin(begin), _end(begin), _name(0), _t(No_mem), _s(0)
   {}
 
+  /** Create a 1byte region for address \a ptr.
+   * @param ptr the start address for the 1byte region.
+   */
+  Region(void const *ptr)
+  : _begin((l4_addr_t)ptr), _end((l4_addr_t)ptr), _name(0), _t(No_mem), _s(0)
+  {}
+
   /** Create a fully fledged region.
    * @param begin The start address.
    * @param end The address of the last byte in the region.
@@ -41,8 +48,18 @@ public:
    * @param sub The subtype of the region.
    */
   Region(unsigned long long begin, unsigned long long end,
-         char const *name = 0, Type t = No_mem, char sub = 0)
+         char const *name = 0, Type t = No_mem, short sub = 0)
   : _begin(begin), _end(end), _name(name), _t(t), _s(sub)
+  {}
+
+  /**
+   * Create a region ...
+   * @param other a region to copy the name, the type, and the sub_type from
+   * @param begin the start address of the new region
+   * @param end the end address (inclusive) of the new region
+   */
+  Region(Region const &other, unsigned long long begin, unsigned long long end)
+  : _begin(begin), _end(end), _name(other._name), _t(other._t), _s(other._s)
   {}
 
   /**
@@ -55,8 +72,64 @@ public:
    */
   static Region n(unsigned long long begin,
                   unsigned long long end, char const *name = 0,
-                  Type t = No_mem, char sub = 0)
+                  Type t = No_mem, short sub = 0)
   { return Region(begin, end - 1, name, t, sub); }
+
+  /**
+   * Create a region (using start and end pointers)
+   * @param begin start address
+   * @param end the address of the last byte in the region
+   * @param name The name of the region
+   * @param t the type of the region
+   * @param sub the subtype of the region
+   */
+  static Region n(void const *begin,
+                  void const *end, char const *name = 0,
+                  Type t = No_mem, short sub = 0)
+  { return Region((l4_addr_t)begin, (l4_addr_t)end - 1, name, t, sub); }
+
+  /**
+   * Create a region from start and size.
+   * @param begin the start address of the region
+   * @param size the size of the region in bytes
+   * @param name the name of the region
+   * @param t the type of the region
+   * @param sub the subtype of the region
+   */
+  static Region start_size(unsigned long long begin, unsigned long size,
+                           char const *name = 0, Type t = No_mem,
+                           short sub = 0)
+  { return Region(begin, begin + size - 1, name, t, sub); }
+
+  /**
+   * Create a region for the given object.
+   * @param begin a pointer to the object that shall be covered
+   *              (the size of the region will be sizeof(T))
+   * @param name the name of the region
+   * @param t the type of theregion
+   * @param sub the subtype of the region
+   */
+  template< typename T >
+  static Region from_ptr(T const *begin, char const *name = 0,
+                         Type t = No_mem, short sub = 0)
+  { return Region::start_size((l4_addr_t)begin, sizeof(T), name, t, sub); }
+
+  /**
+   * Create a region for an array of objects.
+   * @param begin pointer to the first element of the array
+   * @param size the number of elements in the array (the size of the
+   *             whole region will be size * sizeof(T))
+   * @param name the name of the region
+   * @param t the type of the region
+   * @param sub the subtype of the region
+   */
+  template< typename T >
+  static Region array(T const *begin, unsigned long size, char const *name = 0,
+                      Type t = No_mem, short sub = 0)
+  {
+    return Region::start_size((l4_addr_t)begin, sizeof(T) * size,
+                              name, t, sub);
+  }
 
   /** Get the start address. */
   unsigned long long begin() const { return _begin; }
@@ -75,7 +148,9 @@ public:
   /** Get the type of the region. */
   Type type() const { return (Type)(_t); }
   /** Get the subtype of the region. */
-  char sub_type() const { return _s; }
+  short sub_type() const { return _s; }
+  /** Set the subtype of the region. */
+  void sub_type(short s) { _s = s; }
 
   /** Print the region [begin; end] */
   void print() const;
@@ -112,7 +187,7 @@ public:
 private:
   unsigned long long _begin, _end;
   char const *_name;
-  char _t, _s;
+  short _t, _s;
 };
 
 
@@ -137,8 +212,40 @@ public:
     _combined_size = 0;
   }
 
+  /** Helper template for array parameters
+   *
+   * This helper allows to access the type and the size of compile-time
+   * bound arrays. In particular used as parameters.
+   */
+  template< typename T >
+    struct Array_type_helper;
+
+  template< typename T, unsigned SZ >
+    struct Array_type_helper<T[SZ]> {
+      enum { size = SZ };
+      typedef T type;
+    };
+
+  /**
+   * Initialize the region list, using a region array as store
+   *
+   * @param store the array for the regoion backing store.
+   * @param name the name of the region list for output
+   * @param max_combined_size max sum of bytes in this list
+   * @param address_limit maximum allowed address in this list
+   */
+  template<typename STORE>
+  void init(STORE &store,
+            const char *name,
+            unsigned long long max_combined_size = ~0ULL,
+            unsigned long long address_limit = ~0ULL)
+  {
+    init(store, Array_type_helper<STORE>::size, name,
+         max_combined_size, address_limit);
+  }
+
   /** Search for a region that overlaps o. */
-  Region *find(Region const &o);
+  Region *find(Region const &o) const;
 
   /** Search for the region that contains o. */
   Region *contains(Region const &o);
@@ -148,12 +255,20 @@ public:
    * within search.
    */
   unsigned long long find_free(Region const &search,
-                               unsigned long long size, unsigned align);
+                               unsigned long long size, unsigned align) const;
 
+  /**
+   * Search for a memory region not overlapping any know region, starting
+   * from the end of the search region.
+   */
+  unsigned long long find_free_rev(Region const &search, unsigned long long _size,
+                                   unsigned align) const;
   /**
    * Add a new region, with a upper limit check and verboseness.
    */
   void add(Region const &r, bool may_overlap = false);
+
+  bool sub(Region const &r);
 
   /** Dump the whole region list. */
   void dump();
@@ -164,7 +279,7 @@ public:
   Region *end() const { return _end; }
 
   /** Remove the region given by the iterator r. */
-  void remove(Region *r);
+  Region *remove(Region *r);
 
   /** Sort the region list (does bubble sort). */
   void sort();
@@ -187,8 +302,6 @@ protected:
 
 private:
   void swap(Region *a, Region *b);
-  unsigned long long next_free(unsigned long long start);
-  bool test_fit(unsigned long long start, unsigned long long _size);
 
   /**
    * Add a new memory region to the list. The new region must not overlap

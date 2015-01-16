@@ -1566,19 +1566,34 @@ sub print_funcdef($)
       $pretext =~ s/^($s)/${1}static /s;
     }
 
+  $parengroup = qr{		# Matches correctly-nested groups of <> parens
+		      <
+		      (?:
+		       (?> [^<>]* )        # Non-parens without backtracking
+		       |
+		       (??{ $parengroup }) # Backtrack: Group with parens
+		      )*
+		      >
+		     }x;
+  my $expr = qr{ [^<>,]* (?:$parengroup)? [^<>,]* }x;
+
   if ($function->{funtemplate} ne '')
     {
-      $pretext =~ s/^($s)/${1}$function->{funtemplate} /s;
+      my $templ = $function->{funtemplate};
+      $templ =~ s/$s = $expr//gx;
+      $pretext =~ s/^($s)/${1}$templ /s;
     }
 
   if ($function->{classtemplate} ne '')
     {
-      $pretext =~ s/^($s)/${1}$function->{classtemplate} /s;
+      my $templ = $function->{classtemplate};
+      $templ =~ s/$s = $expr//gx;
+      $pretext =~ s/^($s)/${1}$templ /s;
     }
 
   # Remove default arguments from argument list
   my $args = $function->{args};
-  $parengroup = qr{		# Matches correctly-nested groups of parens
+  $parengroup = qr{		# Matches correctly-nested groups of () parens
 		      \(
 		      (?:
 		       (?> [^()]* )        # Non-parens without backtracking
@@ -1587,7 +1602,7 @@ sub print_funcdef($)
 		      )*
 		      \)
 		     }x;
-  my $expr = qr{ [^(),]* (?:$parengroup)? [^(),]* }x;
+  $expr = qr{ [^(),]* (?:$parengroup)? [^(),]* }x;
   $args =~ s/$s = $expr//gx;
 
   print_expand "\n";

@@ -11,9 +11,8 @@
  *  Lesser General Public License for more details.
  *
  *  You should have received a copy of the GNU Lesser General Public
- *  License along with the GNU C Library; if not, write to the Free
- *  Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
- *  02111-1307 USA.
+ *  License along with the GNU C Library; see the file COPYING.LIB.  If
+ *  not, see <http://www.gnu.org/licenses/>.
  */
 
 /*  ATTENTION!   ATTENTION!   ATTENTION!   ATTENTION!   ATTENTION!
@@ -27,16 +26,6 @@
 
 #ifndef _UINTMAXTOSTR_H
 #define _UINTMAXTOSTR_H 1
-
-#ifdef _FEATURES_H
-# ifndef __USE_ISOC99
-#  error features was included without defining _ISOC99_SOURCE!
-# endif
-#else
-# ifndef _ISOC99_SOURCE
-#  define _ISOC99_SOURCE
-# endif
-#endif
 
 #include <features.h>
 #include <limits.h>

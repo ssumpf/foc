@@ -64,6 +64,7 @@ bits/sigstack.h
 bits/sigthread.h
 bits/sockaddr.h
 bits/socket.h
+bits/socket_type.h
 bits/stackinfo.h
 bits/statfs.h
 bits/stat.h
@@ -77,12 +78,12 @@ bits/uClibc_arch_features.h
 bits/uClibc_charclass.h
 bits/uClibc_clk_tck.h
 bits/uClibc_config.h
-bits/uClibc_errno.h
 bits/uClibc_fpmax.h
 bits/uClibc_locale.h
 bits/uClibc_local_lim.h
 bits/uClibc_mutex.h
 bits/uClibc_page.h
+bits/uClibc_posix_opt.h
 bits/uClibc_pthread.h
 bits/uClibc_stdio.h
 bits/uClibc_touplow.h
@@ -98,6 +99,7 @@ bits/wchar.h
 bits/wordsize.h
 bits/xopen_lim.h
 byteswap.h
+cancel.h
 complex.h
 crypt.h
 ctype.h
@@ -119,10 +121,13 @@ ieee754.h
 ifaddrs.h
 internal/parse_config.h
 inttypes.h
+jmpbuf-offsets.h
+jmpbuf-unwind.h
 langinfo.h
 _lfs_64.h
 libc-internal.h
 libc-symbols.h
+bits/l4-libc-symbols.h
 libgen.h
 libintl.h
 limits.h

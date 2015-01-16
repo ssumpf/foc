@@ -36,11 +36,9 @@
  * Copyright (C) 1984, Sun Microsystems, Inc.
  */
 
-#define __FORCE_GLIBC
-#include <features.h>
-
 #include <errno.h>
 #include <unistd.h>
+#include <string.h>
 #include "rpc_private.h"
 #include <rpc/svc.h>
 #include <rpc/pmap_clnt.h>

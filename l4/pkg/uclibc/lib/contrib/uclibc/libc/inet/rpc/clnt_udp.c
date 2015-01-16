@@ -37,12 +37,9 @@ static char sccsid[] = "@(#)clnt_udp.c 1.39 87/08/11 Copyr 1984 Sun Micro";
  * Copyright (C) 1984, Sun Microsystems, Inc.
  */
 
-#define __FORCE_GLIBC
-#include <features.h>
-
 #include <stdio.h>
 #include <unistd.h>
-#include <rpc/rpc.h>
+#include "rpc_private.h"
 #include <rpc/xdr.h>
 #include <rpc/clnt.h>
 #include <sys/poll.h>
@@ -52,19 +49,11 @@ static char sccsid[] = "@(#)clnt_udp.c 1.39 87/08/11 Copyr 1984 Sun Micro";
 #include <errno.h>
 #include <rpc/pmap_clnt.h>
 #include <net/if.h>
-#ifdef USE_IN_LIBIO
-# include <wchar.h>
-#endif
 
 #ifdef IP_RECVERR
 #include "errqueue.h"
 #include <sys/uio.h>
 #endif
-
-/* CMSG_NXTHDR is using it */
-
-
-extern u_long _create_xid (void) attribute_hidden;
 
 /*
  * UDP bases client side rpc operations
@@ -116,7 +105,7 @@ struct cu_data
  * NB: The rpch->cl_auth is initialized to null authentication.
  *     Caller may wish to set this something more useful.
  *
- * wait is the amount of time used between retransmitting a call if
+ * _wait is the amount of time used between retransmitting a call if
  * no response has been heard; retransmission occurs until the actual
  * rpc call times out.
  *
@@ -125,7 +114,7 @@ struct cu_data
  */
 CLIENT *
 clntudp_bufcreate (struct sockaddr_in *raddr, u_long program, u_long version,
-		   struct timeval wait, int *sockp, u_int sendsz,
+		   struct timeval _wait, int *sockp, u_int sendsz,
 		   u_int recvsz)
 {
   CLIENT *cl;
@@ -139,13 +128,7 @@ clntudp_bufcreate (struct sockaddr_in *raddr, u_long program, u_long version,
   if (cl == NULL || cu == NULL)
     {
       struct rpc_createerr *ce = &get_rpc_createerr ();
-#ifdef USE_IN_LIBIO
-      if (_IO_fwide (stderr, 0) > 0)
-	(void) fwprintf (stderr, L"%s",
-			   _("clntudp_create: out of memory\n"));
-      else
-#endif
-	(void) fputs (_("clntudp_create: out of memory\n"), stderr);
+      (void) fputs (_("clntudp_create: out of memory\n"), stderr);
       ce->cf_stat = RPC_SYSTEMERROR;
       ce->cf_error.re_errno = ENOMEM;
       goto fooy;
@@ -166,7 +149,7 @@ clntudp_bufcreate (struct sockaddr_in *raddr, u_long program, u_long version,
   cl->cl_private = (caddr_t) cu;
   cu->cu_raddr = *raddr;
   cu->cu_rlen = sizeof (cu->cu_raddr);
-  cu->cu_wait = wait;
+  cu->cu_wait = _wait;
   cu->cu_total.tv_sec = -1;
   cu->cu_total.tv_usec = -1;
   cu->cu_sendsz = sendsz;
@@ -224,10 +207,10 @@ fooy:
 libc_hidden_def(clntudp_bufcreate)
 
 CLIENT *
-clntudp_create (struct sockaddr_in *raddr, u_long program, u_long version, struct timeval wait, int *sockp)
+clntudp_create (struct sockaddr_in *raddr, u_long program, u_long version, struct timeval _wait, int *sockp)
 {
 
-  return clntudp_bufcreate (raddr, program, version, wait, sockp,
+  return clntudp_bufcreate (raddr, program, version, _wait, sockp,
 			    UDPMSGSIZE, UDPMSGSIZE);
 }
 libc_hidden_def(clntudp_create)
@@ -554,6 +537,7 @@ clntudp_control (CLIENT *cl, int request, char *info)
       /* This will set the xid of the NEXT call */
       *(u_long *)cu->cu_outbuf =  htonl(*(u_long *)info - 1);
       /* decrement by 1 as clntudp_call() increments once */
+      break;
     case CLGET_VERS:
       /*
        * This RELIES on the information that, in the call body,

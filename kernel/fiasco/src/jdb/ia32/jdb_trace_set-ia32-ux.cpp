@@ -2,6 +2,7 @@ IMPLEMENTATION:
 #include "syscalls.h"
 #include "idt.h"
 #include "jdb.h"
+#include "pm.h"
 
 extern "C" void entry_sys_ipc_log (void);
 extern "C" void entry_sys_ipc_c (void);
@@ -17,21 +18,6 @@ extern "C" void sys_ipc_trace_wrapper (void);
 
 typedef void (Fast_entry_func)(void);
 
-PUBLIC static
-void
-Jdb_set_trace::ia32_set_fast_entry(Cpu_number cpu, void *entry)
-{
-  Cpu::cpus.cpu(cpu).set_fast_entry((Fast_entry_func*)entry);
-}
-
-struct Set_fast_entry
-{
-  void *entry;
-  Set_fast_entry(Fast_entry_func *entry) : entry((void*)entry) {}
-  void operator () (Cpu_number cpu) const
-  { Jdb::remote_work(cpu, Jdb_set_trace::ia32_set_fast_entry, entry, true); }
-};
-
 static
 void
 Jdb_set_trace::set_ipc_vector()
@@ -39,8 +25,8 @@ Jdb_set_trace::set_ipc_vector()
   void (*int30_entry)(void);
   void (*fast_entry)(void);
 
-  if (Jdb_ipc_trace::_trace || Jdb_ipc_trace::_slow_ipc || 
-      Jdb_ipc_trace::_log   || Jdb_nextper_trace::_log)
+  if (Jdb_ipc_trace::_trace || Jdb_ipc_trace::_slow_ipc ||
+      Jdb_ipc_trace::_log)
     {
       int30_entry = entry_sys_ipc_log;
       fast_entry  = entry_sys_fast_ipc_log;
@@ -52,51 +38,16 @@ Jdb_set_trace::set_ipc_vector()
     }
 
   Idt::set_entry(0x30, (Address) int30_entry, true);
-  Jdb::foreach_cpu(Set_fast_entry(fast_entry));
+  Jdb::on_each_cpu([fast_entry](Cpu_number cpu){
+    Cpu::cpus.cpu(cpu).set_fast_entry(fast_entry);
+  });
 
   if (Jdb_ipc_trace::_trace)
     syscall_table[0] = sys_ipc_trace_wrapper;
-  else if ((Jdb_ipc_trace::_log && !Jdb_ipc_trace::_slow_ipc) ||
-	   Jdb_nextper_trace::_log)            
+  else if ((Jdb_ipc_trace::_log && !Jdb_ipc_trace::_slow_ipc))
     syscall_table[0] = sys_ipc_log_wrapper;
   else
     syscall_table[0] = sys_ipc_wrapper;
-}
-
-PUBLIC static FIASCO_NOINLINE
-void
-Jdb_set_trace::set_cpath()
-{
-  Jdb_ipc_trace::_cpath = 0;
-  BEGIN_LOG_EVENT("Context switches", "csw", Tb_entry_empty)
-  Jdb_ipc_trace::_cpath = 1;
-  END_LOG_EVENT;
-  BEGIN_LOG_EVENT("Shortcut", "sc", Tb_entry_empty)
-  Jdb_ipc_trace::_cpath = 1;
-  END_LOG_EVENT;
-  set_ipc_vector();
-}
-
-void
-jdb_trace_set_cpath(void)
-{
-  Jdb_set_trace::set_cpath();
-}
-
-IMPLEMENT void
-Jdb_set_trace::next_preiod_tracing(bool enable)
-{
-  if (enable)
-    Jdb_nextper_trace::_log = 1;
-  else
-    Jdb_nextper_trace::_log = 0;
-
-  set_ipc_vector();
-}
-
-IMPLEMENT void
-Jdb_set_trace::page_fault_tracing(bool /*enable*/)
-{
 }
 
 IMPLEMENT void
@@ -140,14 +91,26 @@ Jdb_set_trace::ipc_tracing(Mode mode)
   set_ipc_vector();
 }
 
-
-static
-void
-Jdb_set_trace::set_unmap_vector()
+namespace {
+struct Jdb_ipc_log_pm : Pm_object
 {
-}
+  Jdb_ipc_log_pm(Cpu_number cpu) { register_pm(cpu); }
+  void pm_on_resume(Cpu_number cpu)
+  {
+    void (*fast_entry)(void);
 
-IMPLEMENT void
-Jdb_set_trace::unmap_tracing(bool /*enable*/)
-{
+    if (Jdb_ipc_trace::_trace || Jdb_ipc_trace::_slow_ipc ||
+        Jdb_ipc_trace::_log)
+      fast_entry  = entry_sys_fast_ipc_log;
+    else
+      fast_entry  = entry_sys_fast_ipc_c;
+
+    Cpu::cpus.cpu(cpu).set_fast_entry(fast_entry);
+  }
+
+  void pm_on_suspend(Cpu_number) {}
+};
+
+DEFINE_PER_CPU static Per_cpu<Jdb_ipc_log_pm> _pm(Per_cpu_data::Cpu_num);
+
 }

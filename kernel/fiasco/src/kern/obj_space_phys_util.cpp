@@ -141,7 +141,7 @@ Obj_space_phys<SPACE>::caps_free()
 
 IMPLEMENT template< typename SPACE >
 inline NEEDS[Obj_space_phys::get_cap]
-bool __attribute__((__flatten__))
+bool FIASCO_FLATTEN
 Obj_space_phys<SPACE>::v_lookup(V_pfn const &virt, Phys_addr *phys,
                                 Page_order *size, Attr *attribs)
 {
@@ -164,7 +164,7 @@ Obj_space_phys<SPACE>::v_lookup(V_pfn const &virt, Phys_addr *phys,
 
 IMPLEMENT template< typename SPACE >
 inline NEEDS [Obj_space_phys::get_cap]
-typename Obj_space_phys<SPACE>::Capability __attribute__((__flatten__))
+typename Obj_space_phys<SPACE>::Capability FIASCO_FLATTEN
 Obj_space_phys<SPACE>::lookup(Cap_index virt)
 {
   Capability *c = get_cap(virt);
@@ -196,7 +196,7 @@ Obj_space_phys<SPACE>::lookup_local(Cap_index virt, L4_fpage::Rights *rights)
 
 IMPLEMENT template< typename SPACE >
 inline NEEDS[<cassert>, Obj_space_phys::get_cap]
-L4_fpage::Rights __attribute__((__flatten__))
+L4_fpage::Rights FIASCO_FLATTEN
 Obj_space_phys<SPACE>::v_delete(V_pfn virt, Page_order size,
                                    L4_fpage::Rights page_attribs = L4_fpage::Rights::FULL())
 {
@@ -217,7 +217,7 @@ Obj_space_phys<SPACE>::v_delete(V_pfn virt, Page_order size,
 
 IMPLEMENT template< typename SPACE >
 inline NEEDS[Obj_space_phys::caps_alloc]
-typename Obj::Insert_result __attribute__((__flatten__))
+typename Obj::Insert_result FIASCO_FLATTEN
 Obj_space_phys<SPACE>::v_insert(Phys_addr phys, V_pfn const &virt, Page_order size,
                                 Attr page_attribs)
 {

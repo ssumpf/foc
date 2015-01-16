@@ -25,7 +25,7 @@
  * the GNU General Public License.
  */
 #pragma once
-
+#if 0
 /*
  * Some words about the sysenter entry frame: Since the sysenter instruction
  * automatically reloads the instruction pointer (eip) and the stack pointer
@@ -72,6 +72,8 @@
 
 # endif
 
-/** Kenrel entry code for inline assembly. \internal */
+/** Kernel entry code for inline assembly. \internal */
 #define L4_ENTER_KERNEL IPC_SYSENTER
+
+#endif
 

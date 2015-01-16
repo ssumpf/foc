@@ -4,6 +4,7 @@ INTERFACE [svm]:
 #include "vm.h"
 
 class Vmcb;
+class Svm;
 
 class Vm_svm : public Vm
 {
@@ -11,11 +12,15 @@ private:
   static void resume_vm_svm(Mword phys_vmcb, Vcpu_state *regs)
     asm("resume_vm_svm") __attribute__((__regparm__(3)));
 
-  typedef Per_cpu_array<Unsigned8> Asid_array;
-  typedef Per_cpu_array<Unsigned32> Asid_version_array;
+  struct Asid_info
+  {
+    Unsigned32 asid;
+    Unsigned32 generation;
+  };
+
+  typedef Per_cpu_array<Asid_info> Asid_array;
 
   Asid_array _asid;
-  Asid_version_array _asid_generation;
 
   enum
   {
@@ -35,7 +40,7 @@ protected:
   struct Log_vm_svm_exit : public Tb_entry
   {
     Mword exitcode, exitinfo1, exitinfo2, rip;
-    unsigned print(int max, char *buf) const;
+    void print(String_buffer *buf) const;
   };
 
 };
@@ -46,7 +51,6 @@ IMPLEMENTATION [svm]:
 #include "context.h"
 #include "mem_space.h"
 #include "fpu.h"
-#include "ref_ptr.h"
 #include "svm.h"
 #include "thread.h" // XXX: circular dep, move this out here!
 #include "thread_state.h" // XXX: circular dep, move this out here!
@@ -56,6 +60,14 @@ IMPLEMENTATION [svm]:
 IMPLEMENTATION [svm && ia32]:
 
 #include "virt.h"
+
+PRIVATE inline
+void
+Vm_svm::restore_segments(Context *, Unsigned16 fs, Unsigned16 gs)
+{
+  Cpu::set_fs(fs);
+  Cpu::set_gs(gs);
+}
 
 PRIVATE inline NEEDS["virt.h"]
 Address
@@ -71,6 +83,19 @@ IMPLEMENTATION [svm && amd64]:
 
 #include "assert_opt.h"
 #include "virt.h"
+
+PRIVATE inline
+void
+Vm_svm::restore_segments(Context *ctxt, Unsigned16 fs, Unsigned16 gs)
+{
+  Cpu::set_fs(fs);
+  if (!fs)
+    Cpu::wrmsr(ctxt->fs_base(), MSR_FS_BASE);
+
+  Cpu::set_gs(gs);
+  if (!gs)
+    Cpu::wrmsr(ctxt->gs_base(), MSR_GS_BASE);
+}
 
 PRIVATE inline NEEDS["assert_opt.h", "virt.h"]
 Address
@@ -132,40 +157,26 @@ Vm_svm::get_vm_cr3(Vmcb *v)
 //----------------------------------------------------------------------------
 IMPLEMENTATION [svm]:
 
-PRIVATE inline
-Unsigned8
-Vm_svm::asid ()
-{
-  return _asid[current_cpu()];
-}
-
-PRIVATE inline
+PRIVATE inline NOEXPORT
 void
-Vm_svm::asid(Unsigned8 asid)
+Vm_svm::new_asid(Cpu_number cpu, Svm *svm)
 {
-  _asid[current_cpu()] = asid;
+  Asid_info *a = &_asid[cpu];
+  a->asid = svm->next_asid();
+  if (svm->global_asid_generation() == a->generation)
+    a->generation = svm->global_asid_generation();
 }
 
-PRIVATE inline
-Unsigned32
-Vm_svm::asid_generation()
-{
-  return _asid_generation[current_cpu()];
-}
-
-PRIVATE inline
-void
-Vm_svm::asid_generation(Unsigned32 generation)
-{
-  _asid_generation[current_cpu()] = generation;
-}
+PRIVATE inline NOEXPORT
+Vm_svm::Asid_info const *
+Vm_svm::asid(Cpu_number cpu) const
+{ return &_asid[cpu]; }
 
 PUBLIC
 Vm_svm::Vm_svm(Ram_quota *q)
   : Vm(q)
 {
   memset(&_asid, 0, sizeof(_asid));
-  memset(&_asid_generation, 0, sizeof(_asid_generation));
 }
 
 PUBLIC inline
@@ -299,6 +310,9 @@ Vm_svm::copy_control_area(Vmcb *dest, Vmcb *src)
   d->intercept_instruction0    = s->intercept_instruction0;
   d->intercept_instruction1    = s->intercept_instruction1;
 
+  d->pause_filter_threshold    = s->pause_filter_threshold;
+  d->pause_filter_count        = s->pause_filter_count;
+
   // skip iopm_base_pa and msrpm_base_pa
 
   d->tsc_offset                = s->tsc_offset;
@@ -336,48 +350,6 @@ Vm_svm::copy_control_area_back(Vmcb *dest, Vmcb *src)
   d->eventinj = s->eventinj;
 }
 
-/** \brief Choose an ASID for this Vm.
- *
- * Choose an ASID for this Vm. The ASID provided by userspace is ignored
- * instead the kernel picks one.
- * Userspace uses the flush-bit to receive a new ASID for this Vm.
- * All ASIDs are flushed as soon as the kernel runs out of ASIDs.
- *
- * @param vmcb_s external VMCB provided by userspace
- * @param kernel_vmcb_s our VMCB
- *
- */
-PRIVATE
-void
-Vm_svm::configure_asid(Vmcb *vmcb_s, Vmcb *kernel_vmcb_s)
-{
-  assert (cpu_lock.test());
-
-  Svm &s = Svm::cpus.cpu(current_cpu());
-
-  if (// vmm requests flush
-      ((vmcb_s->control_area.guest_asid_tlb_ctl >> 32) & 1) == 1 ||
-      // our asid is not valid or expired
-      !(s.asid_valid(asid(), asid_generation())))
-    {
-      asid(s.next_asid());
-      asid_generation(s.global_asid_generation());
-    }
-
-  assert(s.asid_valid(asid(), asid_generation()));
-#if 1
-  kernel_vmcb_s->control_area.guest_asid_tlb_ctl = asid();
-  if (s.flush_all_asids())
-    {
-      kernel_vmcb_s->control_area.guest_asid_tlb_ctl |= (1ULL << 32);
-      s.flush_all_asids(false);
-    }
-#else
-  kernel_vmcb_s->control_area.guest_asid_tlb_ctl = 1;
-  kernel_vmcb_s->control_area.guest_asid_tlb_ctl |= (1ULL << 32);
-#endif
-}
-
 PRIVATE inline NOEXPORT
 int
 Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
@@ -393,7 +365,7 @@ Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
   assert (!(Cpu::get_ds() & (1 << 2)));
   assert (!(Cpu::get_es() & (1 << 2)));
 
-  Svm &s = Svm::cpus.cpu(current_cpu());
+  Svm &s = Svm::cpus.current();
 
   // FIXME: this can be an assertion I think, however, think about MP
   if (EXPECT_FALSE(!s.svm_enabled()))
@@ -459,9 +431,6 @@ Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
     }
 #endif
 
-  // increment our refcount, and drop it at the end automatically
-  Ref_ptr<Vm_svm> pin_myself(this);
-
   // sanitize VMCB
 
   orig_cr3  = vmcb_s->state_save_area.cr3;
@@ -471,6 +440,9 @@ Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
 
   copy_control_area(kernel_vmcb_s, vmcb_s);
   copy_state_save_area(kernel_vmcb_s, vmcb_s);
+  // we copy xcr0 here not in copy_state_save_area,
+  // because it is written by the VMM only, never by the guest itself
+  kernel_vmcb_s->state_save_area.xcr0 = vmcb_s->state_save_area.xcr0;
 
   if (EXPECT_FALSE(is_64bit() && !kernel_vmcb_s->np_enabled()
                    && (kernel_vmcb_s->state_save_area.cr0 & CR0_PG)
@@ -512,6 +484,8 @@ Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
   kernel_vmcb_s->control_area.intercept_instruction0 |= (1 << 31);
   // intercept MONITOR/MWAIT
   kernel_vmcb_s->control_area.intercept_instruction1 |= (1 << 10) | (1 << 11);
+  // intercept XSETBV
+  kernel_vmcb_s->control_area.intercept_instruction1 |= (1 << 13);
 
   // intercept virtualization related instructions
   //  vmrun interception is required by the hardware
@@ -524,7 +498,15 @@ Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
   kernel_vmcb_s->control_area.iopm_base_pa = iopm_base_pa;
   kernel_vmcb_s->control_area.msrpm_base_pa = msrpm_base_pa;
 
-  configure_asid(vmcb_s, kernel_vmcb_s);
+  Cpu_number ccpu = current_cpu();
+
+  if (// vmm requests flush
+      ((vmcb_s->control_area.guest_asid_tlb_ctl >> 32) & 1) == 1
+      // our asid is not valid or expired
+      || !(s.asid_valid(asid(ccpu)->asid, asid(ccpu)->generation)))
+    new_asid(ccpu, &s);
+
+  s.flush_asids_if_needed();
 
   // 7:0 V_TPR, 8 V_IRQ, 15:9 reserved SBZ,
   // 19:16 V_INTR_PRIO, 20 V_IGN_TPR, 23:21 reserved SBZ
@@ -582,17 +564,12 @@ Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
   // - supply trusted msrpm_base_pa and iopm_base_pa (done)
   // - save host state not covered by VMRUN/VMEXIT (ldt, some segments etc) (done)
   // - disable interupts (done)
-  // - trigger interecepted device and timer interrupts (done, not necessary)
+  // - trigger intercepted device and timer interrupts (done, not necessary)
   // - check host CR0.TS (floating point registers) (done)
 
-  Unsigned64 sysenter_cs, sysenter_eip, sysenter_esp;
   Unsigned32 fs, gs;
   Unsigned16 tr, ldtr;
   //Unsigned32 cr4;
-
-  sysenter_cs = Cpu::rdmsr(MSR_SYSENTER_CS);
-  sysenter_eip = Cpu::rdmsr(MSR_SYSENTER_EIP);
-  sysenter_esp = Cpu::rdmsr(MSR_SYSENTER_ESP);
 
   fs = Cpu::get_fs();
   gs = Cpu::get_gs();
@@ -601,7 +578,8 @@ Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
 
   Gdt_entry tr_entry;
 
-  tr_entry = (*Cpu::cpus.cpu(current_cpu()).get_gdt())[tr / 8];
+  Cpu &cpu = Cpu::cpus.cpu(ccpu);
+  tr_entry = (*cpu.get_gdt())[tr / 8];
 
 #if 0
   // to do: check if the nested page table walker looks
@@ -615,28 +593,30 @@ Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
     Cpu::set_cr4(cr4 & ~CR4_PGE);
 #endif
 
+  if (Cpu::have_xsave() && (kernel_vmcb_s->state_save_area.xcr0 ^ s.host_xcr0))
+    Cpu::xsetbv(kernel_vmcb_s->state_save_area.xcr0 & s.host_xcr0 | 1, 0);
+
   resume_vm_svm(kernel_vmcb_pa, vcpu);
 
+  if (Cpu::have_xsave() && (kernel_vmcb_s->state_save_area.xcr0 ^ s.host_xcr0))
+    Cpu::xsetbv(s.host_xcr0, 0);
 
 #if 0
   if (cr4 & CR4_PGE)
     Cpu::set_cr4(cr4);
 #endif
 
-  Cpu::wrmsr(sysenter_cs, MSR_SYSENTER_CS);
-  Cpu::wrmsr(sysenter_eip, MSR_SYSENTER_EIP);
-  Cpu::wrmsr(sysenter_esp, MSR_SYSENTER_ESP);
+  cpu.setup_sysenter();
 
   Cpu::set_ldt(ldtr);
-  Cpu::set_fs(fs);
-  Cpu::set_gs(gs);
+  restore_segments(ctxt, fs, gs);
 
   // clear busy flag
   Gdt_entry tss_entry;
 
-  tss_entry = (*Cpu::cpus.cpu(current_cpu()).get_gdt())[tr / 8];
+  tss_entry = (*cpu.get_gdt())[tr / 8];
   tss_entry.access &= 0xfd;
-  (*Cpu::cpus.cpu(current_cpu()).get_gdt())[tr / 8] = tss_entry;
+  (*cpu.get_gdt())[tr / 8] = tss_entry;
 
   Cpu::set_tr(tr); // TODO move under stgi in asm
 
@@ -723,10 +703,12 @@ Vm_svm::resume_vcpu(Context *ctxt, Vcpu_state *vcpu, bool user_mode)
 // ------------------------------------------------------------------------
 IMPLEMENTATION [svm && debug]:
 
+#include "string_buffer.h"
+
 IMPLEMENT
-unsigned
-Vm_svm::Log_vm_svm_exit::print(int max, char *buf) const
+void
+Vm_svm::Log_vm_svm_exit::print(String_buffer *buf) const
 {
-  return snprintf(buf, max, "ec=%lx ei1=%08lx ei2=%08lx rip=%08lx",
-                  exitcode, exitinfo1, exitinfo2, rip);
+  buf->printf("ec=%lx ei1=%08lx ei2=%08lx rip=%08lx",
+              exitcode, exitinfo1, exitinfo2, rip);
 }

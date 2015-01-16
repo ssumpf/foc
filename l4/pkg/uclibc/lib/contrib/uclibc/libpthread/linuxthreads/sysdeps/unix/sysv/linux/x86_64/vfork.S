@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <sysdep-cancel.h>
 #define _ERRNO_H	1
@@ -34,7 +33,7 @@ ENTRY (__vfork)
 	movq	$pthread_create, %rax
 	testq	%rax, %rax
 #endif
-	jne	HIDDEN_JUMPTARGET (__fork)
+	jne	HIDDEN_JUMPTARGET (fork)
 
 	/* Pop the return PC value into RDI.  We need a register that
 	   is preserved by the syscall and that we're allowed to destroy. */

@@ -31,11 +31,14 @@ extern "C" void sys_kdb_ke()
 {
   cpu_lock.lock();
   Thread *t = current_thread();
-  unsigned *x = (unsigned*)t->regs()->ip();
+  Unsigned32 x = Thread::peek_user((Unsigned32 *)t->regs()->ip(), t);
 
-  if ((*x & 0xffff0000) == 0xe35e0000)
+  if (EXPECT_FALSE(t->is_kernel_mem_op_hit_and_clear()))
+    x = 0;
+
+  if ((x & 0xffff0000) == 0xe35e0000)
     {
-      unsigned func = (*x) & 0x3f;
+      unsigned func = x & 0x3f;
       if (Thread::dbg_extension[func])
 	{
 	  Thread::dbg_extension[func](t, t->regs());
@@ -45,10 +48,22 @@ extern "C" void sys_kdb_ke()
     }
 
   char str[32] = "USER ENTRY";
-  if ((*x & 0xfffffff0) == 0xea000000)
+  if ((x & 0xfffffff0) == 0xea000000)
     // check for always branch, no return, maximum 32 bytes forward
     {
-      strncpy(str, (char *)(x + 1), sizeof(str));
+      char const *user_str = reinterpret_cast<char const *>(t->regs()->ip() + 4);
+      for (unsigned i = 0; i < sizeof(str); ++i)
+        {
+          str[i] = Thread::peek_user(user_str + i, t);
+          if (EXPECT_FALSE(t->is_kernel_mem_op_hit_and_clear()))
+            {
+              str[0] = 0;
+              break;
+            }
+          if (str[i] == 0)
+            break;
+        }
+
       str[sizeof(str)-1] = 0;
     }
 
@@ -119,6 +134,9 @@ Thread::call_nested_trap_handler(Trap_state *ts)
   if (m != Kernel_task::kernel_task())
     m->make_current();
 
+  if (!ntr)
+    handle_global_requests();
+
   return ret;
 }
 
@@ -128,5 +146,7 @@ IMPLEMENTATION [arm-!debug]:
 extern "C" void sys_kdb_ke()
 {}
 
-extern "C" void enter_jdb()
-{}
+PRIVATE static inline
+int
+Thread::call_nested_trap_handler(Trap_state *)
+{ return -1; }

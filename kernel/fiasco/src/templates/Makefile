@@ -8,19 +8,21 @@ all:
 
 runconfig = export INCLUDE_PPC32=y;                      \
 	    export INCLUDE_SPARC=y;                      \
-	    cp globalconfig.out.$(2) globalconfig.out ;  \
-            make $(1) && sed -e '3,4d'                   \
-		globalconfig.out > globalconfig.out.$(2)
+            make $(1)
+
+copyin   = cp globalconfig.out.$(1) globalconfig.out
+#copyback = sed -e '3,4d' $(1) > globalconfig.out.$(2)
+copyback = cp $(1) globalconfig.out.$(2)
 
 cleanup = make mrproper && \
-	  $(RM) -r globalconfig.out.old globalconfig.h Kconfig include
-
-testconfigs:
-	$(foreach cfg,$(SAMPLE_CONFIGS), $(call runconfig,menuconfig,$(cfg)))
-	$(call cleanup)
+	  $(RM) -r globalconfig.out.old globalconfig.h \
+	           defconfig Kconfig include
 
 testconfig:
-	if [ "$$T" != "" ]; then $(call runconfig,menuconfig,$$T); \
+	if [ "$$T" != "" ]; then                          \
+	   $(call copyin,$$T);                            \
+	   $(call runconfig,menuconfig,$$T);              \
+	   $(call copyback,globalconfig.out,$$T);         \
 	else echo "use: make T=configname testconfig"; fi
 	$(call cleanup)
 
@@ -29,7 +31,10 @@ refresh:
 	  echo "********************************************"; \
 	  echo "** $$cfg **";                                  \
 	  echo "********************************************"; \
-	  $(call runconfig,oldconfig,$$cfg);                   \
+	  $(call copyin,$$cfg);                                \
+	  $(call runconfig,olddefconfig,$$cfg);                   \
+	  $(call runconfig,savedefconfig,$$cfg);               \
+	  $(call copyback,defconfig,$$cfg);                    \
 	done
 	$(call cleanup)
 
@@ -38,5 +43,6 @@ refresh:
 	  srcdir=$(srcdir) objbase=$(shell pwd) "$@"
 
 
+.NOTPARALLEL:
 .PHONY: refresh testconfig
 

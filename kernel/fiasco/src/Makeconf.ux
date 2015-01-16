@@ -1,4 +1,5 @@
 # -*- makefile -*-
+# vi:se ft=make:
 
 OPT_SHARED_FLAGS	+= $(call CHECKCC,-finline-limit=10000,)
 OPT_CXXFLAGS		+= $(call CHECKCXX,--param large-function-insns=10000)

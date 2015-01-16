@@ -18,6 +18,7 @@ public:
   T *get() { return reinterpret_cast<T*>(_s); }
   T *operator -> () { return get(); }
   T &operator * () { return *get(); }
+  operator T* () { return get(); }
 
   void construct()
   { new (reinterpret_cast<void*>(_s)) T; }

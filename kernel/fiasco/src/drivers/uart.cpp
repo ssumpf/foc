@@ -61,6 +61,7 @@ public:
    * (abstract) Get the IRQ assigned to the port.
    */
   int irq() const;
+  void irq_ack();
 
   Address base() const;
 
@@ -113,6 +114,11 @@ Uart::get_attributes() const
   return UART | IN | OUT;
 }
 
+IMPLEMENT_DEFAULT
+void
+Uart::irq_ack()
+{}
+
 //---------------------------------------------------------------------------
 INTERFACE [libuart]:
 
@@ -121,9 +127,26 @@ INTERFACE [libuart]:
 EXTENSION class Uart
 {
 public:
-  enum
-  {
-    MODE_8N1 = 1,
+    enum
+      {
+        PAR_NONE = 0x00,
+        PAR_EVEN = 0x18,
+        PAR_ODD  = 0x08,
+        DAT_5    = 0x00,
+        DAT_6    = 0x01,
+        DAT_7    = 0x02,
+        DAT_8    = 0x03,
+        STOP_1   = 0x00,
+        STOP_2   = 0x04,
+
+        MODE_8N1 = PAR_NONE | DAT_8 | STOP_1,
+        MODE_7E1 = PAR_EVEN | DAT_7 | STOP_1,
+
+        // these two values are to leave either mode
+        // or baud rate unchanged on a call to change_mode
+        MODE_NC  = 0x1000000,
+        BAUD_NC  = 0x1000000,
+
   };
 
   static L4::Uart *uart();
@@ -139,6 +162,7 @@ IMPLEMENT inline Uart::~Uart()
 
 IMPLEMENT inline void Uart::shutdown()
 {
+  del_state(ENABLED);
   uart()->shutdown();
 }
 

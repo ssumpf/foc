@@ -50,22 +50,14 @@ static char sccsid[] = "@(#)clnt_tcp.c 1.37 87/10/05 Copyr 1984 Sun Micro";
  * Now go hang yourself.
  */
 
-#define __FORCE_GLIBC
-#include <features.h>
-
 #include <netdb.h>
 #include <errno.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <rpc/rpc.h>
+#include "rpc_private.h"
 #include <sys/poll.h>
 #include <sys/socket.h>
 #include <rpc/pmap_clnt.h>
-#ifdef USE_IN_LIBIO
-# include <wchar.h>
-#endif
-
-extern u_long _create_xid (void) attribute_hidden;
 
 #define MCALL_MSG_SIZE 24
 
@@ -130,13 +122,7 @@ clnttcp_create (struct sockaddr_in *raddr, u_long prog, u_long vers,
   if (h == NULL || ct == NULL)
     {
       struct rpc_createerr *ce = &get_rpc_createerr ();
-#ifdef USE_IN_LIBIO
-      if (_IO_fwide (stderr, 0) > 0)
-	(void) fwprintf (stderr, L"%s",
-			   _("clnttcp_create: out of memory\n"));
-      else
-#endif
-	(void) fputs (_("clnttcp_create: out of memory\n"), stderr);
+      (void) fputs (_("clnttcp_create: out of memory\n"), stderr);
       ce->cf_stat = RPC_SYSTEMERROR;
       ce->cf_error.re_errno = ENOMEM;
       goto fooy;
@@ -402,6 +388,7 @@ clnttcp_control (CLIENT *cl, int request, char *info)
       /* This will set the xid of the NEXT call */
       *(u_long *)ct->ct_mcall =  htonl (*(u_long *)info - 1);
       /* decrement by 1 as clnttcp_call() increments once */
+      break;
     case CLGET_VERS:
       /*
        * This RELIES on the information that, in the call body,

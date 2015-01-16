@@ -14,7 +14,8 @@ HEADER_DIR  := $(OBJ_DIR)/install_includes
 
 # just a few additions, handle them here directly
 DST_HEADERS-arm     := bits/arm_asm.h
-DST_HEADERS-sparc   := linux/sockios.h
+DST_HEADERS-arm     += bits/arm_bx.h
+DST_HEADERS-sparc   := linux/sockios.h asm/traps.h
 DST_HEADERS-ppc32   := asm/sockios.h asm/ioctl.h
 
 DST_HEADERS += $(DST_HEADERS-$(BUILD_ARCH))

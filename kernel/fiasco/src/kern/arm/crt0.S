@@ -14,11 +14,12 @@ ENTRY(start)
 
 .type __init_data, %object
 __init_data:
-.long SYMBOL_NAME(_stack-4)
+.long SYMBOL_NAME(_stack)
 
 
 
 .section ".init.data"
+.p2align 3
 .globl _sstack
 _sstack:
 	.space	2048

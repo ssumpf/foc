@@ -40,8 +40,8 @@ struct Basic_list_policy
   typedef TYPE *Const_type;
   typedef TYPE *Head_type;
 
-  static Type next(Type c) { return &(*c)->_n; }
-  static Const_type next(Const_type c) { return c->_n; }
+  static Type next(Type c) { return static_cast<Type>(&(*c)->_n); }
+  static Const_type next(Const_type c) { return static_cast<Const_type>(c->_n); }
 };
 
 template< typename POLICY >

@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <tls.h>
 #include <pt-machine.h>
@@ -139,7 +138,7 @@
 #endif
 
 # ifndef __ASSEMBLER__
-#  if defined FLOATING_STACKS && USE___THREAD && defined __PIC__
+#  if defined FLOATING_STACKS && defined __UCLIBC_HAS_TLS__ && defined __PIC__
 #   define SINGLE_THREAD_P \
   __builtin_expect (THREAD_GETMEM (THREAD_SELF,				      \
 				   p_header.data.multiple_threads) == 0, 1)
@@ -155,7 +154,7 @@ extern int __local_multiple_threads
 # else
 #  if !defined __PIC__
 #   define SINGLE_THREAD_P cmpl $0, __local_multiple_threads
-#  elif defined FLOATING_STACKS && USE___THREAD
+#  elif defined FLOATING_STACKS && defined __UCLIBC_HAS_TLS__
 #   define SINGLE_THREAD_P cmpl $0, %gs:MULTIPLE_THREADS_OFFSET
 #  else
 #   if !defined NOT_IN_libc || defined IS_IN_libpthread
@@ -165,7 +164,7 @@ extern int __local_multiple_threads
   movl __local_multiple_threads@GOT(%ecx), %ecx;\
   cmpl $0, (%ecx)
 #   endif
-#   if !defined HAVE_HIDDEN || !USE___THREAD
+#   if !defined HAVE_HIDDEN || !defined __UCLIBC_HAS_TLS__
 #    define SINGLE_THREAD_P \
   SETUP_PIC_REG (cx);				\
   addl $_GLOBAL_OFFSET_TABLE_, %ecx;		\

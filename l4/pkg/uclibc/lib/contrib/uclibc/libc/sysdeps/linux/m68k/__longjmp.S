@@ -2,10 +2,8 @@
 /* Copyright (C) 2002, David McCullough <davidm@snapgear.com> */
 /* This file is released under the LGPL, any version you like */
 
-#define _ASM
-#define _SETJMP_H
 #include <features.h>
-#include <bits/setjmp.h>
+#include <jmpbuf-offsets.h>
 
 .globl __longjmp
 .type  __longjmp,@function
@@ -17,7 +15,7 @@ __longjmp:
 	movel	#1, %d0
 1:
 	moveml	%a0@(JB_REGS), %d2-%d7/%a2-%a7
-#if defined(__HAVE_68881__) || defined(__HAVE_FPU__)
+#if defined __HAVE_68881__ || defined __UCLIBC_HAS_FPU__
 	fmovemx %a0@(JB_FPREGS), %fp2-%fp7
 #endif
 	movel	%a0@(JB_PC), %sp@

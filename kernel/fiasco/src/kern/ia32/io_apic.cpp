@@ -63,6 +63,7 @@ private:
   static unsigned _nr_irqs;
   static Io_apic *_first;
   static Acpi_madt const *_madt;
+  static Io_apic_entry *_state_save_area;
 };
 
 IMPLEMENTATION:
@@ -75,14 +76,18 @@ IMPLEMENTATION:
 #include "kip.h"
 #include "lock_guard.h"
 #include "boot_alloc.h"
+#include "pm.h"
 
 Acpi_madt const *Io_apic::_madt;
 unsigned Io_apic::_nr_irqs;
 Io_apic *Io_apic::_first;
+Io_apic_entry *Io_apic::_state_save_area;
 
 
-class Io_apic_mgr : public Irq_mgr
+class Io_apic_mgr : public Irq_mgr, public Pm_object
 {
+public:
+  Io_apic_mgr() { register_pm(Cpu_number::boot_cpu()); }
 };
 
 PUBLIC Irq_mgr::Irq
@@ -110,6 +115,21 @@ Io_apic_mgr::nr_msis() const
 PUBLIC unsigned
 Io_apic_mgr::legacy_override(Mword i)
 { return Io_apic::legacy_override(i); }
+
+PUBLIC void
+Io_apic_mgr::pm_on_suspend(Cpu_number cpu)
+{
+  assert (cpu == Cpu_number::boot_cpu());
+  Io_apic::save_state();
+}
+
+PUBLIC void
+Io_apic_mgr::pm_on_resume(Cpu_number cpu)
+{
+  assert (cpu == Cpu_number::boot_cpu());
+  Pic::disable_all_save();
+  Io_apic::restore_state();
+}
 
 
 IMPLEMENT inline
@@ -243,6 +263,7 @@ Io_apic::init(Cpu_number cpu)
       return false;
     }
 
+  Irq_mgr::mgr = new Boot_object<Io_apic_mgr>();
 
   printf("IO-APIC: dual 8259: %s\n", _madt->apic_flags & 1 ? "yes" : "no");
 
@@ -254,16 +275,69 @@ Io_apic::init(Cpu_number cpu)
       if (!irq)
 	break;
 
-      printf("IO-APIC: ovr[%2u] %02x -> %x\n", tmp, irq->src, irq->irq);
+      printf("IO-APIC: ovr[%2u] %02x -> %x %x\n", tmp, irq->src, irq->irq, irq->flags);
+
+      if (irq->irq >= _nr_irqs)
+        {
+          printf("IO-APIC: warning override points to invalid GSI\n");
+          continue;
+        }
+
+      Irq_mgr::Irq i = Irq_mgr::mgr->chip(irq->irq);
+
+      assert (i.chip);
+
+      Irq_chip::Mode mode = static_cast<Io_apic*>(i.chip)->get_mode(i.pin);
+
+      unsigned pol = irq->flags & 0x3;
+      unsigned trg = (irq->flags >> 2) & 0x3;
+      switch (pol)
+        {
+        default: break;
+        case 0: break;
+        case 1: mode.polarity() = Mode::Polarity_high; break;
+        case 2: break;
+        case 3: mode.polarity() = Mode::Polarity_low; break;
+        }
+
+      switch (trg)
+        {
+        default: break;
+        case 0: break;
+        case 1: mode.level_triggered() = Mode::Trigger_edge; break;
+        case 2: break;
+        case 3: mode.level_triggered() = Mode::Trigger_level; break;
+        }
+
+      i.chip->set_mode(i.pin, mode);
     }
 
-  Irq_mgr::mgr = new Boot_object<Io_apic_mgr>();
+
+  _state_save_area = new Boot_object<Io_apic_entry>[_nr_irqs];
 
   // in the case we use the IO-APIC not the PIC we can dynamically use
   // INT vectors from 0x20 to 0x2f too
   _vectors.add_free(0x20, 0x30);
   return true;
 };
+
+PUBLIC static
+void
+Io_apic::save_state()
+{
+  for (Io_apic *a = _first; a; a = a->_next)
+    for (unsigned i = 0; i < a->_irqs; ++i)
+      _state_save_area[a->_offset + i] = a->read_entry(i);
+}
+
+PUBLIC static
+void
+Io_apic::restore_state()
+{
+  for (Io_apic *a = _first; a; a = a->_next)
+    for (unsigned i = 0; i < a->_irqs; ++i)
+      a->write_entry(i, _state_save_area[a->_offset + i]);
+}
 
 PUBLIC static
 unsigned
@@ -432,6 +506,21 @@ Io_apic::set_mode(Mword pin, Mode mode)
   e.trigger() = to_io_apic_trigger(mode);
   write_entry(pin, e);
   return 0;
+}
+
+PUBLIC inline
+Irq_chip::Mode
+Io_apic::get_mode(Mword pin)
+{
+  Io_apic_entry e = read_entry(pin);
+  Mode m(Mode::Set_irq_mode);
+  m.polarity() = e.polarity() == Io_apic_entry::High_active
+               ? Mode::Polarity_high
+               : Mode::Polarity_low;
+  m.level_triggered() = e.trigger() == Io_apic_entry::Level
+                      ? Mode::Trigger_level
+                      : Mode::Trigger_edge;
+  return m;
 }
 
 PUBLIC

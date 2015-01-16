@@ -31,17 +31,20 @@ public:
    * NOTE: This does not activate an inactive CPU, Just set the given state.
    */
   void set_online(bool o);
+  void set_present(bool o);
 
   /** Convienience for Cpu::cpus.cpu(cpu).online() */
   static bool online(Cpu_number cpu);
-
-  static Online_cpu_mask const &online_mask();
-
-private:
   /** Is this CPU online ? */
   bool online() const;
 
+  static Online_cpu_mask const &online_mask();
+  static Online_cpu_mask const &present_mask();
+
+private:
+
   static Online_cpu_mask _online_mask;
+  static Online_cpu_mask _present_mask;
 };
 
 
@@ -70,11 +73,37 @@ private:
 IMPLEMENTATION:
 
 Cpu::Online_cpu_mask Cpu::_online_mask(Online_cpu_mask::Init::Bss);
+Cpu::Online_cpu_mask Cpu::_present_mask(Online_cpu_mask::Init::Bss);
 
 IMPLEMENT inline
 Cpu::Online_cpu_mask const &
 Cpu::online_mask()
 { return _online_mask; }
+
+IMPLEMENT inline
+Cpu::Online_cpu_mask const &
+Cpu::present_mask()
+{ return _present_mask; }
+
+IMPLEMENT inline
+void
+Cpu::set_online(bool o)
+{
+  if (o)
+    _online_mask.atomic_set(id());
+  else
+    _online_mask.atomic_clear(id());
+}
+
+IMPLEMENT inline
+void
+Cpu::set_present(bool o)
+{
+  if (o)
+    _present_mask.atomic_set(id());
+  else
+    _present_mask.atomic_clear(id());
+}
 
 // --------------------------------------------------------------------------
 IMPLEMENTATION [mp]:
@@ -89,21 +118,10 @@ bool
 Cpu::online() const
 { return _online_mask.get(_id); }
 
-IMPLEMENT inline
-void
-Cpu::set_online(bool o)
-{
-  if (o)
-    _online_mask.atomic_set(_id);
-  else
-    _online_mask.atomic_clear(_id);
-}
-
 IMPLEMENT static inline
 bool
 Cpu::online(Cpu_number _cpu)
 { return _online_mask.get(_cpu); }
-
 
 // --------------------------------------------------------------------------
 IMPLEMENTATION [!mp]:
@@ -117,11 +135,6 @@ IMPLEMENT inline
 bool
 Cpu::online() const
 { return true; }
-
-IMPLEMENT inline
-void
-Cpu::set_online(bool)
-{}
 
 IMPLEMENT static inline
 bool

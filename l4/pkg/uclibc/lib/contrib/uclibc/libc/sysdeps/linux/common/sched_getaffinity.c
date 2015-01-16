@@ -12,24 +12,19 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
-#include <features.h>
-#ifdef __USE_GNU
-
-#include <sched.h>
-#include <sys/types.h>
 #include <sys/syscall.h>
 
-#include <string.h>
-#include <sys/param.h>
-
-#if defined __NR_sched_getaffinity
-#define __NR___syscall_sched_getaffinity __NR_sched_getaffinity
-static __inline__ _syscall3(int, __syscall_sched_getaffinity, __kernel_pid_t, pid,
-			size_t, cpusetsize, cpu_set_t *, cpuset)
+#if defined __NR_sched_getaffinity && defined __USE_GNU
+# include <sched.h>
+# include <string.h>
+# include <sys/types.h>
+# include <sys/param.h>
+# define __NR___syscall_sched_getaffinity __NR_sched_getaffinity
+static __always_inline _syscall3(int, __syscall_sched_getaffinity, __kernel_pid_t, pid,
+				 size_t, cpusetsize, cpu_set_t *, cpuset)
 
 int sched_getaffinity(pid_t pid, size_t cpusetsize, cpu_set_t *cpuset)
 {
@@ -44,11 +39,4 @@ int sched_getaffinity(pid_t pid, size_t cpusetsize, cpu_set_t *cpuset)
 	}
 	return res;
 }
-#elif defined __UCLIBC_HAS_STUBS__
-int sched_getaffinity(pid_t pid, size_t cpusetsize, cpu_set_t *cpuset)
-{
-    __set_errno(ENOSYS);
-    return -1;
-}
-#endif
 #endif

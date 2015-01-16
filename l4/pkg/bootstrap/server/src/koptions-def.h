@@ -20,6 +20,7 @@ namespace L4_kernel_options
     F_apic              = 1 << 8,
     F_loadcnt           = 1 << 9,
     F_watchdog          = 1 << 10,
+    F_keymap_de         = 1 << 11,
     F_irq0              = 1 << 13,
     F_nosfn             = 1 << 15,
     F_jdb_never_stop    = 1 << 16,
@@ -39,18 +40,25 @@ namespace L4_kernel_options
     Magic = 0x4C344B43,
   };
 
-  enum Uart_types
+  enum Uart_type
   {
     Uart_type_invalid = 0,
     Uart_type_ioport  = 1,
     Uart_type_mmio    = 2,
   };
 
+  enum
+  {
+    Uart_irq_none = 0xffff,
+  };
+
   struct Uart
   {
-    l4_uint32_t  access_type;  ///< Accesstype of UART: unset, MMIO or ports
-    l4_uint32_t  baud;         ///< Baud rate
-    l4_uint32_t  irqno;        ///< (Receive) IRQ
+    l4_uint32_t  base_baud;    ///< Base baud rate of the UART (if applicable)
+    l4_uint32_t  baud;         ///< Baud rate (this is the baud rate to use)
+    l4_uint16_t  irqno;        ///< (Receive) IRQ
+    l4_uint8_t   reg_shift;    ///< Shift value for register addressing
+    l4_uint8_t   access_type;  ///< Accesstype of UART: unset, MMIO or ports
     l4_uint64_t  base_address; ///< Start address of UART
   } __attribute__((packed));
 

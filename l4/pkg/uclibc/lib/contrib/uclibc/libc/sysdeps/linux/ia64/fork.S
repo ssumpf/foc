@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 
 #include "sysdep.h"
@@ -24,7 +23,10 @@
 /* pid_t fork(void); */
 /* Implemented as a clone system call with parameters SIGCHLD and 0	*/
 
-ENTRY(__libc_fork)
+#ifdef __UCLIBC_HAS_THREADS__
+.weak fork
+#endif
+ENTRY(fork)
 	alloc r2=ar.pfs,0,0,2,0
 	mov out0=SIGCHLD	/* Return SIGCHLD when child finishes	*/
 				/* no other clone flags; nothing shared	*/
@@ -34,9 +36,8 @@ ENTRY(__libc_fork)
 	cmp.eq p6,p0=-1,r10
 (p6)	br.cond.spnt.few __syscall_error
 	ret
-PSEUDO_END(__libc_fork)
-
-weak_alias (__libc_fork, __fork)
-libc_hidden_def (__fork)
-weak_alias (__libc_fork, fork)
-libc_hidden_weak (fork)
+PSEUDO_END(fork)
+#ifdef __UCLIBC_HAS_THREADS__
+strong_alias(fork,__libc_fork)
+#endif
+libc_hidden_def(fork)

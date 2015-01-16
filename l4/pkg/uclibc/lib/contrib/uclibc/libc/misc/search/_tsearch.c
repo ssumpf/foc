@@ -13,8 +13,7 @@ Library General Public License for more details.
 
 You should have received a copy of the GNU Library General Public
 License along with the GNU C Library; see the file COPYING.LIB.  If
-not, write to the Free Software Foundation, Inc., 675 Mass Ave,
-Cambridge, MA 02139, USA.  */
+not, see <http://www.gnu.org/licenses/>.  */
 
 /*
  * Tree search generalized from Knuth (6.2.2) Algorithm T just like
@@ -50,7 +49,7 @@ register node	**rootp;	 address of tree root
 int	(*compar)();		 ordering function
 */
 
-void *tsearch(__const void *key, void **vrootp, __compar_fn_t compar)
+void *tsearch(const void *key, void **vrootp, __compar_fn_t compar)
 {
     register node *q;
     register node **rootp = (node **) vrootp;
@@ -80,7 +79,7 @@ libc_hidden_def(tsearch)
 #endif
 
 #ifdef L_tfind
-void *tfind(__const void *key, void * __const *vrootp, __compar_fn_t compar)
+void *tfind(const void *key, void * const *vrootp, __compar_fn_t compar)
 {
     register node **rootp = (node **) vrootp;
 
@@ -107,7 +106,7 @@ char	*key;			key to be deleted
 register node	**rootp;	address of the root of tree
 int	(*compar)();		comparison function
 */
-void *tdelete(__const void *key, void ** vrootp, __compar_fn_t compar)
+void *tdelete(const void *key, void ** vrootp, __compar_fn_t compar)
 {
     node *p;
     register node *q;
@@ -157,7 +156,7 @@ register node	*root;		Root of the tree to be walked
 register void	(*action)();	Function to be called at each node
 register int	level;
 */
-static void trecurse(__const void *vroot, __action_fn_t action, int level)
+static void trecurse(const void *vroot, __action_fn_t action, int level)
 {
     register node *root = (node *) vroot;
 
@@ -180,9 +179,9 @@ node	*root;			Root of the tree to be walked
 void	(*action)();		Function to be called at each node
 PTR
 */
-void twalk(__const void *vroot, __action_fn_t action)
+void twalk(const void *vroot, __action_fn_t action)
 {
-    register __const node *root = (node *) vroot;
+    register const node *root = (node *) vroot;
 
     if (root != (node *)0 && action != (__action_fn_t) 0)
 	trecurse(root, action, 0);

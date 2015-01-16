@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <signal.h>
 
@@ -70,6 +69,7 @@ __libc_current_sigrtmax (void)
 strong_alias (__libc_current_sigrtmax, __libc_current_sigrtmax_private)
 libc_hidden_def (__libc_current_sigrtmax)
 
+#if 0
 /* Allocate real-time signal with highest/lowest available
    priority.  Please note that we don't use a lock since we assume
    this function to be called at program start.  */
@@ -85,3 +85,4 @@ __libc_allocate_rtsig (int high)
   return high ? current_rtmin++ : current_rtmax--;
 }
 strong_alias (__libc_allocate_rtsig, __libc_allocate_rtsig_private)
+#endif

@@ -19,7 +19,7 @@ thread_page_fault(Address, Mword, Address, Mword, Return_frame *);
 EXTENSION class Mem_space
 {
 protected:
-  void sync_kernel() const {}
+  int sync_kernel() const { return 0; }
 
   pid_t _pid;
 };

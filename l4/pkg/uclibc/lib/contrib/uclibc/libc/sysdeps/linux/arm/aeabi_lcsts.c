@@ -30,9 +30,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* The ARM EABI requires that we provide ISO compile-time constants as
    link-time constants.  Some portable applications may reference these.  */
@@ -79,7 +78,9 @@ eabi_constant (BUFSIZ);
 eabi_constant (FOPEN_MAX);
 eabi_constant (TMP_MAX);
 eabi_constant (FILENAME_MAX);
+#ifdef __UCLIBC_SUSV4_LEGACY__
 eabi_constant (L_tmpnam);
+#endif
 
 FILE *__aeabi_stdin attribute_hidden;
 FILE *__aeabi_stdout attribute_hidden;

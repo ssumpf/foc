@@ -9,8 +9,15 @@ EXTENSION class Uart
 };
 
 IMPLEMENT inline NEEDS["kmem.h"]
-Uart::Uart() : _regs(Kmem::mmio_remap(base())) {}
+Uart::Uart() : Console(DISABLED), _regs(Kmem::mmio_remap(base())) {}
 
 PUBLIC bool Uart::startup()
-{ return uart()->startup(&_regs); }
+{
+  if (uart()->startup(&_regs))
+    {
+      add_state(ENABLED);
+      return true;
+    }
+  return false;
+}
 

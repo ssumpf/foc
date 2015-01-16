@@ -79,8 +79,19 @@ sub prepare_grub2_dir($)
 sub grub2_mkisofs($$@)
 {
   my ($isofilename, $dir, @morefiles) = @_;
-  my $cmd = "grub_mkisofs_arguments=-f grub-mkrescue"
-            ." --output=\"$isofilename\" $dir ".join(' ', @morefiles);
+  # There are different versions of grub-mkrescue
+  # With Grub 2.00 it's a shell script, with 2.02 it's a binary, with it
+  # seems slightly different handling of mkisofs/xorriso options.
+  my $mkr = "grub-mkrescue";
+  my $fp = `sh -c "command -v $mkr"`;
+  die "Did not find '$mkr'" if $?;
+  my $opt = '';
+  open(A, $fp) && do {
+    $opt = " -as mkisofs" if <A> =~ /^#! +\/.+sh/;
+    close A;
+  };
+  my $cmd = "$mkr --output=\"$isofilename\" $dir ".
+            join(' ', @morefiles)." --$opt -f";
   system("$cmd");
   die "Failed to create ISO" if $?;
 }

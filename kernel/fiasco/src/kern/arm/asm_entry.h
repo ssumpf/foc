@@ -1,3 +1,4 @@
+// vim:se ft=asms:
 #pragma once
 
 #include "globalconfig.h"
@@ -15,6 +16,7 @@
 #define RF_USR_SP     0
 #define RF(reg, offs) (RF_##reg + (offs))
 
+#define GET_HSR(ec) (ec << 26)
 
 /**********************************************************************
  * calculate the TCB address from a stack pointer
@@ -55,14 +57,14 @@ sys_call_table:
 	.word sys_kdb_ke
 .endm
 
-.macro GEN_VCPU_UPCALL THREAD_VCPU, LOAD_USR_SP, LOAD_USR_VCPU
+.macro GEN_VCPU_UPCALL THREAD_VCPU, LOAD_USR_SP, LOAD_USR_VCPU, USR_ONLY
 .align 4
 .global leave_by_vcpu_upcall;
 
 leave_by_vcpu_upcall:
-	sub 	sp, sp, #RF_SIZE   @ restore old return frame
+	sub 	sp, sp, #(RF_SIZE + 3*4)   @ restore old return frame
         /* save r0, r1, r2 for scratch registers */
-	stmdb 	sp!, {r0 - r2}
+	stmia 	sp, {r0 - r2}
 
 	/* restore original IP */
 	CONTEXT_OF r1, sp
@@ -74,38 +76,44 @@ leave_by_vcpu_upcall:
 
 	ldr 	r0, [r1, #(OFS__THREAD__EXCEPTION_IP)]
 	str	r0, [r2, #RF(PC, 0)]
-
+        .if ! \USR_ONLY
+          ldr     r0, [r1, #(OFS__THREAD__STATE)]
+          tst     r0, #0x2000000 @ext vcpu ?
+        .endif
 	ldr	r0, [r1, #(OFS__THREAD__EXCEPTION_PSR)]
 	str	r0, [r2, #RF(PSR, 0)]
 	bic	r0, #0x20 // force ARM mode
+        .if ! \USR_ONLY
+          bicne   r0, #0xf
+          orrne   r0, #0x13
+        .endif
 	str	r0, [sp, #RF(PSR, 3*4)]
+
+        ldr	r0, [sp, #RF(USR_LR, 3*4)]
+        str	r0, [r2, #RF(USR_LR, 0)]
+
+        ldr	r0, [sp, #RF(USR_SP, 3*4)]
+        str	r0, [r2, #RF(USR_SP, 0)]
 
 	mov     r0, #~0
 	str	r0, [r1, #(OFS__THREAD__EXCEPTION_IP)]
 
-	ldr	r0, [sp, #RF(USR_LR, 3*4)]
-	str	r0, [r2, #RF(USR_LR, 0)]
 
-	ldr	r0, [sp, #RF(USR_SP, 3*4)]
-	str	r0, [r2, #RF(USR_SP, 0)]
-
-	stmdb   r2!, {r3-r12}
+	stmdb   r2, {r3-r12}
 
 	/* Restore scratch registers saved previously */
 	ldr	r0, [sp, #8]
-	str	r0, [r2, #-4]
+	str	r0, [r2, #-44]
 
 	ldr	r0, [sp, #4]
-	str	r0, [r2, #-8]
+	str	r0, [r2, #-48]
 
 	ldr	r0, [sp]
-	str	r0, [r2, #-12]!
-        sub     r2, r2, #12     @ now r2 points to the VCPU STATE again
+	str	r0, [r2, #-52]
+        sub     r2, r2, #64     @ now r2 points to the VCPU STATE again
 
 	add	sp, sp, #(3*4)
 
-	/* r2 = &vcpu_state->ts.r[0] */
-	/* r2 - 12 ->  pfa, err & tpidruro -> &vcpu_state->ts */
         \LOAD_USR_SP r2
 
 	ldr	r0, [r2, #(OFS__VCPU_STATE__ENTRY_IP)]
@@ -133,7 +141,7 @@ leave_by_vcpu_upcall:
 	stmdb	sp!, {r0 - r12}
 	sub sp, sp, #4
 	mov	r0, #-1			@ pfa
-	mov	r1, #0x00e00000		@ err
+	mov	r1, #GET_HSR(0x33)	@ err
 	orr	r1, #\type		@ + type
 	stmdb	sp!, {r0, r1}
 
@@ -182,10 +190,21 @@ kern_kdebug_ipi_entry:
 
 .endm
 
-.macro 	enter_slowtrap_w_stack errorcode
+.macro align_and_save_sp orig_sp
+	mov 	\orig_sp, sp
+	tst	sp, #4
+	subeq	sp, sp, #8
+	subne	sp, sp, #4
+	str	\orig_sp, [sp]
+.endm
+
+.macro 	enter_slowtrap_w_stack errorcode, ec2 = 0
 	mov	r1, #\errorcode
+        .if \ec2 != 0
+           orr r1, r1, #\ec2
+        .endif
 	stmdb	sp!, {r0, r1}
-	mov 	r0, sp
+	align_and_save_sp r0
 	adr	lr, exception_return
 	ldr	pc, .LCslowtrap_entry
 .endm
@@ -211,5 +230,5 @@ leave_by_trigger_exception:
 	mov     r0, #~0
 	str	r0, [r1, #(OFS__THREAD__EXCEPTION_IP)]
 
-	enter_slowtrap_w_stack 0x00500000
+	enter_slowtrap_w_stack GET_HSR(0x3e)
 .endm

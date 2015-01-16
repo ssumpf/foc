@@ -14,8 +14,6 @@
 
 /* Thread creation, initialization, and basic low-level routines */
 
-#define __FORCE_GLIBC
-#include <features.h>
 #include <errno.h>
 #include <netdb.h>	/* for h_errno */
 #include <stddef.h>
@@ -38,8 +36,6 @@
 #include <sys/types.h>
 #include <sys/syscall.h>
 
-/* mods for uClibc: __libc_sigaction is not in any standard headers */
-extern __typeof(sigaction) __libc_sigaction;
 libpthread_hidden_proto(waitpid)
 libpthread_hidden_proto(raise)
 
@@ -168,12 +164,10 @@ pthread_descr __pthread_main_thread = &__pthread_initial_thread;
 
 char *__pthread_initial_thread_bos = NULL;
 
-/* For non-MMU systems also remember to stack top of the initial thread.
- * This is adapted when other stacks are malloc'ed since we don't know
- * the bounds a-priori. -StS */
-
 #ifndef __ARCH_USE_MMU__
+/* See nommu notes in internals.h and pthread_initialize() below. */
 char *__pthread_initial_thread_tos = NULL;
+char *__pthread_initial_thread_mid = NULL;
 #endif /* __ARCH_USE_MMU__ */
 
 /* File descriptor for sending requests to the thread manager. */
@@ -262,6 +256,7 @@ int __libc_current_sigrtmax (void)
     return current_rtmax;
 }
 
+#if 0
 /* Allocate real-time signal with highest/lowest available
    priority.  Please note that we don't use a lock since we assume
    this function to be called at program start.  */
@@ -273,6 +268,7 @@ int __libc_allocate_rtsig (int high)
 	return -1;
     return high ? current_rtmin++ : current_rtmax--;
 }
+#endif
 #endif
 
 /* Initialize the pthread library.
@@ -321,7 +317,7 @@ libpthread_hidden_proto(pthread_condattr_init)
 
 struct pthread_functions __pthread_functions =
   {
-#ifndef USE___THREAD
+#if !defined __UCLIBC_HAS_TLS__ && defined __UCLIBC_HAS_RPC__
     .ptr_pthread_internal_tsd_set = __pthread_internal_tsd_set,
     .ptr_pthread_internal_tsd_get = __pthread_internal_tsd_get,
     .ptr_pthread_internal_tsd_address = __pthread_internal_tsd_address,
@@ -369,10 +365,10 @@ struct pthread_functions __pthread_functions =
     .ptr_pthread_sigwait = pthread_sigwait,
     .ptr_pthread_raise = pthread_raise,
     .ptr__pthread_cleanup_push = _pthread_cleanup_push,
-    .ptr__pthread_cleanup_pop = _pthread_cleanup_pop
+    .ptr__pthread_cleanup_pop = _pthread_cleanup_pop,
 */
     .ptr__pthread_cleanup_push_defer = __pthread_cleanup_push_defer,
-    .ptr__pthread_cleanup_pop_restore = __pthread_cleanup_pop_restore,
+    .ptr__pthread_cleanup_pop_restore = __pthread_cleanup_pop_restore
   };
 #ifdef SHARED
 # define ptr_pthread_functions &__pthread_functions
@@ -457,12 +453,19 @@ static void pthread_initialize(void)
     setrlimit(RLIMIT_STACK, &limit);
   }
 #else
-  /* For non-MMU assume __pthread_initial_thread_tos at upper page boundary, and
-   * __pthread_initial_thread_bos at address 0. These bounds are refined as we
-   * malloc other stack frames such that they don't overlap. -StS
+  /* For non-MMU, the initial thread stack can reside anywhere in memory.
+   * We don't have a way of knowing where the kernel started things -- top
+   * or bottom (well, that isn't exactly true, but the solution is fairly
+   * complex and error prone).  All we can determine here is an address
+   * that lies within that stack.  Save that address as a reference so that
+   * as other thread stacks are created, we can adjust the estimated bounds
+   * of the initial thread's stack appropriately.
+   *
+   * This checking is handled in NOMMU_INITIAL_THREAD_BOUNDS(), so see that
+   * for a few more details.
    */
-  __pthread_initial_thread_tos =
-    (char *)(((long)CURRENT_STACK_FRAME + getpagesize()) & ~(getpagesize() - 1));
+  __pthread_initial_thread_mid = CURRENT_STACK_FRAME;
+  __pthread_initial_thread_tos = (char *) -1;
   __pthread_initial_thread_bos = (char *) 1; /* set it non-zero so we know we have been here */
   PDEBUG("initial thread stack bounds: bos=%p, tos=%p\n",
 	 __pthread_initial_thread_bos, __pthread_initial_thread_tos);
@@ -523,7 +526,7 @@ int __pthread_initialize_manager(void)
   /* On non-MMU systems we make sure that the initial thread bounds don't overlap
    * with the manager stack frame */
   NOMMU_INITIAL_THREAD_BOUNDS(__pthread_manager_thread_tos,__pthread_manager_thread_bos);
-  PDEBUG("manager stack: size=%d, bos=%p, tos=%p\n", THREAD_MANAGER_STACK_SIZE,
+  PDEBUG("manager stack: size=%ld, bos=%p, tos=%p\n", THREAD_MANAGER_STACK_SIZE,
 	 __pthread_manager_thread_bos, __pthread_manager_thread_tos);
 #if 0
   PDEBUG("initial stack: estimate bos=%p, tos=%p\n",
@@ -1154,7 +1157,7 @@ void __pthread_message(char * fmt, ...)
 
 
 #ifndef __PIC__
-/* We need a hook to force the cancelation wrappers to be linked in when
+/* We need a hook to force the cancellation wrappers to be linked in when
    static libpthread is used.  */
 extern const char __pthread_provide_wrappers;
 static const char *const __pthread_require_wrappers =

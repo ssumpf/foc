@@ -41,17 +41,6 @@
 #ifndef _RPC_AUTH_H
 
 #define _RPC_AUTH_H	1
-#ifdef _LIBC
-/* Some adjustments to make the libc source from glibc
- * compile more easily with uClibc... */
-#ifndef __FORCE_GLIBC
-#define __FORCE_GLIBC
-#endif
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-#define _(X)	X
-#endif
 #include <features.h>
 #include <rpc/xdr.h>
 
@@ -107,6 +96,10 @@ struct AUTH {
   struct opaque_auth ah_cred;
   struct opaque_auth ah_verf;
   union des_block ah_key;
+  /* not sure whether non-const-ness is a part of the spec... if it is,
+   * enclose "const" in #ifdef _LIBC / #endif
+   * to make it effective only for libc compile */
+  const
   struct auth_ops {
     void (*ah_nextverf) (AUTH *);
     int  (*ah_marshal) (AUTH *, XDR *);		/* nextverf & serialize */
@@ -200,11 +193,11 @@ extern AUTH *authdes_pk_create (const char *, netobj *, u_int,
  *
  */
 extern int getnetname (char *) __THROW;
-extern int host2netname (char *, __const char *, __const char *) __THROW;
-extern int user2netname (char *, __const uid_t, __const char *) __THROW;
-extern int netname2user (__const char *, uid_t *, gid_t *, int *, gid_t *)
+extern int host2netname (char *, const char *, const char *) __THROW;
+extern int user2netname (char *, const uid_t, const char *) __THROW;
+extern int netname2user (const char *, uid_t *, gid_t *, int *, gid_t *)
      __THROW;
-extern int netname2host (__const char *, char *, __const int) __THROW;
+extern int netname2host (const char *, char *, const int) __THROW;
 
 /*
  *

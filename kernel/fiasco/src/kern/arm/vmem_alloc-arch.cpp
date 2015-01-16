@@ -25,12 +25,12 @@ void *Vmem_alloc::page_alloc(void *address, Zero_fill zf, unsigned mode)
   if (EXPECT_FALSE(!vpage))
     return 0;
 
-  Address page = Mem_space::kernel_space()->virt_to_phys((Address)vpage);
+  Address page = Kmem_space::kdir()->virt_to_phys((Address)vpage);
   //printf("  allocated page (virt=%p, phys=%08lx\n", vpage, page);
   Mem_unit::inv_dcache(vpage, ((char*)vpage) + Config::PAGE_SIZE);
 
   // insert page into master page table
-  auto pte = Mem_space::kernel_space()->dir()->walk(Virt_addr(address),
+  auto pte = Kmem_space::kdir()->walk(Virt_addr(address),
       Pdir::Depth, true, Kmem_alloc::q_allocator(Ram_quota::root));
 
   Page::Rights r = Page::Rights::RWX();

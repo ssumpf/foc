@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _ELF_H
 #define	_ELF_H 1
@@ -148,8 +147,8 @@ typedef struct
 #define ELFOSABI_SYSV		0	/* Alias.  */
 #define ELFOSABI_HPUX		1	/* HP-UX */
 #define ELFOSABI_NETBSD		2	/* NetBSD.  */
-#define ELFOSABI_LINUX		3	/* Linux.  */
-#define ELFOSABI_HURD		4	/* GNU/Hurd */
+#define ELFOSABI_GNU		3	/* Object uses GNU ELF extensions.  */
+#define ELFOSABI_LINUX		ELFOSABI_GNU	/* Compatibility alias.  */
 #define ELFOSABI_SOLARIS	6	/* Sun Solaris.  */
 #define ELFOSABI_AIX		7	/* IBM AIX.  */
 #define ELFOSABI_IRIX		8	/* SGI Irix.  */
@@ -260,6 +259,7 @@ typedef struct
 #define EM_PJ		91		/* picoJava */
 #define EM_OPENRISC	92		/* OpenRISC 32-bit embedded processor */
 #define EM_ARC_A5	93		/* ARC Cores Tangent-A5 */
+#define EM_ARCOMPACT	93		/* ARCompact ISA based Cores: ARC 700 */
 #define EM_XTENSA	94		/* Tensilica Xtensa Architecture */
 #define EM_IP2K		101		/* Ubicom IP2022 micro controller */
 #define EM_CR		103		/* National Semiconductor CompactRISC */
@@ -268,6 +268,7 @@ typedef struct
 #define EM_ALTERA_NIOS2	113	/* Altera Nios II soft-core processor */
 #define EM_CRX		114		/* National Semiconductor CRX */
 #define EM_NUM		95
+#define EM_TI_C6000	140
 
 /* If it is necessary to assign new unofficial EM_* values, please pick large
    random numbers (0x8523, 0xa7f2, etc.) to minimize the chances of collision
@@ -280,6 +281,9 @@ typedef struct
    Normally, each entity or maintainer responsible for a machine with an
    unofficial e_machine number should eventually ask registry@caldera.com for
    an officially blessed number to be added to the list above.  */
+
+/* Imagination Technologies Meta */
+#define EM_METAG        174
 
 /* picoJava */
 #define EM_PJ_OLD	99
@@ -366,6 +370,14 @@ typedef struct
 
 /* V850 backend magic number.  Written in the absense of an ABI.  */
 #define EM_CYGNUS_V850 0x9080
+
+/* Xilinx Microblaze (unofficial). Note that there is now an official microblaze
+ * magic number, but all the toolchains currently in existence use the old number
+ */
+#define EM_MICROBLAZE_OLD   0xbaab
+
+/* Xilinx Microblaze (official) */
+#define EM_MICROBLAZE   189
 
 /* Legal values for e_version (version).  */
 
@@ -3062,6 +3074,179 @@ typedef Elf32_Addr Elf32_Conflict;
 #define R_XTENSA_SLOT14_ALT	49
 /* Keep this the last entry.  */
 #define R_XTENSA_NUM		50
+
+/* C6X specific relocs */
+#define R_C6000_NONE		0
+#define R_C6000_ABS32		1
+#define R_C6000_ABS16		2
+#define R_C6000_ABS8		3
+#define R_C6000_PCR_S21		4
+#define R_C6000_PCR_S12		5
+#define R_C6000_PCR_S10		6
+#define R_C6000_PCR_S7		7
+#define R_C6000_ABS_S16		8
+#define R_C6000_ABS_L16		9
+#define R_C6000_ABS_H16		10
+#define R_C6000_SBR_U15_B	11
+#define R_C6000_SBR_U15_H	12
+#define R_C6000_SBR_U15_W	13
+#define R_C6000_SBR_S16		14
+#define R_C6000_SBR_L16_B	15
+#define R_C6000_SBR_L16_H	16
+#define R_C6000_SBR_L16_W	17
+#define R_C6000_SBR_H16_B	18
+#define R_C6000_SBR_H16_H	19
+#define R_C6000_SBR_H16_W	20
+#define R_C6000_SBR_GOT_U15_W	21
+#define R_C6000_SBR_GOT_L16_W	22
+#define R_C6000_SBR_GOT_H16_W	23
+#define R_C6000_DSBT_INDEX	24
+#define R_C6000_PREL31		25
+#define R_C6000_COPY		26
+#define R_C6000_JUMP_SLOT	27
+#define R_C6000_SBR_GOT32	28
+#define R_C6000_PCR_H16		29
+#define R_C6000_PCR_L16		30
+#define R_C6000_ALIGN		253
+#define R_C6000_FPHEAD		254
+#define R_C6000_NOCMP		255
+
+/* C6x specific values for the Dyn d_tag field.  */
+#define DT_C6000_DSBT_BASE	(DT_LOPROC + 0)
+#define DT_C6000_DSBT_SIZE	(DT_LOPROC + 1)
+#define DT_C6000_PREEMPTMAP	(DT_LOPROC + 2)
+#define DT_C6000_DSBT_INDEX	(DT_LOPROC + 3)
+
+#define DT_C6000_NUM    4
+
+/* microblaze specific relocs */
+#define R_MICROBLAZE_NONE 0
+#define R_MICROBLAZE_32 1
+#define R_MICROBLAZE_32_PCREL 2
+#define R_MICROBLAZE_64_PCREL 3
+#define R_MICROBLAZE_32_PCREL_LO 4
+#define R_MICROBLAZE_64 5
+#define R_MICROBLAZE_32_LO 6
+#define R_MICROBLAZE_SRO32 7
+#define R_MICROBLAZE_SRW32 8
+#define R_MICROBLAZE_64_NONE 9
+#define R_MICROBLAZE_32_SYM_OP_SYM 10
+#define R_MICROBLAZE_GNU_VTINHERIT 11
+#define R_MICROBLAZE_GNU_VTENTRY 12
+#define R_MICROBLAZE_GOTPC_64 13  /* PC-relative GOT offset */
+#define R_MICROBLAZE_GOT_64 14  /* GOT entry offset */
+#define R_MICROBLAZE_PLT_64 15  /* PLT offset (PC-relative  */
+#define R_MICROBLAZE_REL 16  /* adjust by program base */
+#define R_MICROBLAZE_JUMP_SLOT 17  /* create PLT entry */
+#define R_MICROBLAZE_GLOB_DAT 18  /* create GOT entry */
+#define R_MICROBLAZE_GOTOFF_64 19  /* offset relative to GOT */
+#define R_MICROBLAZE_GOTOFF_32 20  /* offset relative to GOT */
+#define R_MICROBLAZE_COPY 21  /* runtime copy */
+#define R_MICROBLAZE_NUM 22
+
+/* Meta relocations */
+#define R_METAG_HIADDR16                 0
+#define R_METAG_LOADDR16                 1
+#define R_METAG_ADDR32                   2
+#define R_METAG_NONE                     3
+#define R_METAG_RELBRANCH                4
+#define R_METAG_GETSETOFF                5
+
+/* Backward compatability */
+#define R_METAG_REG32OP1                 6
+#define R_METAG_REG32OP2                 7
+#define R_METAG_REG32OP3                 8
+#define R_METAG_REG16OP1                 9
+#define R_METAG_REG16OP2                10
+#define R_METAG_REG16OP3                11
+#define R_METAG_REG32OP4                12
+
+#define R_METAG_HIOG                    13
+#define R_METAG_LOOG                    14
+
+/* GNU */
+#define R_METAG_GNU_VTINHERIT           30
+#define R_METAG_GNU_VTENTRY             31
+
+/* PIC relocations */
+#define R_METAG_HI16_GOTOFF             32
+#define R_METAG_LO16_GOTOFF             33
+#define R_METAG_GETSET_GOTOFF           34
+#define R_METAG_GETSET_GOT              35
+#define R_METAG_HI16_GOTPC              36
+#define R_METAG_LO16_GOTPC              37
+#define R_METAG_HI16_PLT                38
+#define R_METAG_LO16_PLT                39
+#define R_METAG_RELBRANCH_PLT           40
+#define R_METAG_GOTOFF                  41
+#define R_METAG_PLT                     42
+#define R_METAG_COPY                    43
+#define R_METAG_JMP_SLOT                44
+#define R_METAG_RELATIVE                45
+#define R_METAG_GLOB_DAT                46
+
+/* TLS relocations */
+#define R_METAG_TLS_TPOFF               56
+#define R_METAG_TLS_DTPMOD              57
+#define R_METAG_TLS_DTPOFF              58
+
+/* ARCompact specific relocs */
+#define R_ARC_NONE		0x0
+#define R_ARC_8			0x1
+#define R_ARC_16		0x2
+#define R_ARC_24		0x3
+#define R_ARC_32		0x4
+#define R_ARC_B26		0x5
+#define R_ARC_B22_PCREL		0x6
+#define R_ARC_H30		0x7
+#define R_ARC_N8		0x8
+#define R_ARC_N16		0x9
+#define R_ARC_N24		0xA
+#define R_ARC_N32		0xB
+#define R_ARC_SDA		0xC
+#define R_ARC_SECTOFF		0xD
+#define R_ARC_S21H_PCREL	0xE
+#define R_ARC_S21W_PCREL	0xF
+#define R_ARC_S25H_PCREL	0x10
+#define R_ARC_S25W_PCREL	0x11
+#define R_ARC_SDA32		0x12
+#define R_ARC_SDA_LDST		0x13
+#define R_ARC_SDA_LDST1		0x14
+#define R_ARC_SDA_LDST2		0x15
+#define R_ARC_SDA16_LD		0x16
+#define R_ARC_SDA16_LD1		0x17
+#define R_ARC_SDA16_LD2		0x18
+#define R_ARC_S13_PCREL		0x19
+#define R_ARC_W			0x1A
+#define R_ARC_32_ME		0x1B
+#define R_ARC_N32_ME		0x1C
+#define R_ARC_SECTOFF_ME	0x1D
+#define R_ARC_SDA32_ME		0x1E
+#define R_ARC_W_ME		0x1F
+#define R_ARC_H30_ME		0x20
+#define R_ARC_SECTOFF_U8	0x21
+#define R_ARC_SECTOFF_S9	0x22
+#define R_AC_SECTOFF_U8		0x23
+#define R_AC_SECTOFF_U8_1	0x24
+#define R_AC_SECTOFF_U8_2	0x25
+#define R_AC_SECTOFF_S9		0x26
+#define R_AC_SECTOFF_S9_1	0x27
+#define R_AC_SECTOFF_S9_2	0x28
+#define R_ARC_SECTOFF_ME_1	0x29
+#define R_ARC_SECTOFF_ME_2	0x2A
+#define R_ARC_SECTOFF_1		0x2B
+#define R_ARC_SECTOFF_2		0x2C
+#define R_ARC_PC32		0x32
+#define R_ARC_GOTPC32		0x33
+#define R_ARC_PLT32		0x34
+#define R_ARC_COPY		0x35
+#define R_ARC_GLOB_DAT		0x36
+#define R_ARC_JMP_SLOT		0x37
+#define R_ARC_RELATIVE		0x38
+#define R_ARC_GOTOFF		0x39
+#define R_ARC_GOTPC		0x3A
+#define R_ARC_GOT32		0x3B
+#define R_ARC_NUM		0x3C
 
 #ifdef	__cplusplus
 }

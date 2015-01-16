@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Define the machine-dependent type `jmp_buf'.  m68k version.  */
 #ifndef _BITS_SETJMP_H
@@ -25,7 +24,7 @@
 # error "Never include <bits/setjmp.h> directly; use <setjmp.h> instead."
 #endif
 
-#ifndef _ASM
+#include <features.h>
 
 typedef struct
   {
@@ -37,32 +36,12 @@ typedef struct
     int *__fp;
     int *__sp;
 
-#if defined __HAVE_68881__ || defined __HAVE_FPU__
+#if defined __HAVE_68881__ || defined __UCLIBC_HAS_FPU__
     /* There are eight floating point registers which
        are saved in IEEE 96-bit extended format.  */
     char __fpregs[8 * (96 / 8)];
 #endif
 
   } __jmp_buf[1];
-
-#endif
-
-#define JB_REGS   0
-#define JB_DREGS  0
-#define JB_AREGS  24
-#define JB_PC     48
-#define JB_FPREGS 52
-
-#if defined __HAVE_68881__ || defined __HAVE_FPU__
-# define JB_SIZE 76
-#else
-# define JB_SIZE 52
-#endif
-
-
-/* Test if longjmp to JMPBUF would unwind the frame
-   containing a local variable at ADDRESS.  */
-#define _JMPBUF_UNWINDS(jmpbuf, address) \
-  ((void *) (address) < (void *) (jmpbuf)->__aregs[5])
 
 #endif	/* bits/setjmp.h */

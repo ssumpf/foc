@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-1993, 1995-2003, 2004 Free Software Foundation, Inc.
+/* Copyright (C) 1991-1993,1995-2004,2007,2009 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /*
  *	ISO C99 Standard: 7.21 String handling	<string.h>
@@ -36,12 +35,12 @@ __BEGIN_DECLS
 __BEGIN_NAMESPACE_STD
 /* Copy N bytes of SRC to DEST.  */
 extern void *memcpy (void *__restrict __dest,
-		     __const void *__restrict __src, size_t __n)
+		     const void *__restrict __src, size_t __n)
      __THROW __nonnull ((1, 2));
 libc_hidden_proto(memcpy)
 /* Copy N bytes of SRC to DEST, guaranteeing
    correct behavior for overlapping strings.  */
-extern void *memmove (void *__dest, __const void *__src, size_t __n)
+extern void *memmove (void *__dest, const void *__src, size_t __n)
      __THROW __nonnull ((1, 2));
 libc_hidden_proto(memmove)
 __END_NAMESPACE_STD
@@ -50,7 +49,7 @@ __END_NAMESPACE_STD
    Return the position in DEST one byte past where C was copied,
    or NULL if C was not found in the first N bytes of SRC.  */
 #if defined __USE_SVID || defined __USE_BSD || defined __USE_XOPEN
-extern void *memccpy (void *__restrict __dest, __const void *__restrict __src,
+extern void *memccpy (void *__restrict __dest, const void *__restrict __src,
 		      int __c, size_t __n)
      __THROW __nonnull ((1, 2));
 libc_hidden_proto(memccpy)
@@ -63,12 +62,12 @@ extern void *memset (void *__s, int __c, size_t __n) __THROW __nonnull ((1));
 libc_hidden_proto(memset)
 
 /* Compare N bytes of S1 and S2.  */
-extern int memcmp (__const void *__s1, __const void *__s2, size_t __n)
+extern int memcmp (const void *__s1, const void *__s2, size_t __n)
      __THROW __attribute_pure__ __nonnull ((1, 2));
 libc_hidden_proto(memcmp)
 
 /* Search N bytes of S for C.  */
-extern void *memchr (__const void *__s, int __c, size_t __n)
+extern void *memchr (const void *__s, int __c, size_t __n)
       __THROW __attribute_pure__ __nonnull ((1));
 libc_hidden_proto(memchr)
 __END_NAMESPACE_STD
@@ -76,12 +75,12 @@ __END_NAMESPACE_STD
 #ifdef __USE_GNU
 /* Search in S for C.  This is similar to `memchr' but there is no
    length limit.  */
-extern void *rawmemchr (__const void *__s, int __c)
+extern void *rawmemchr (const void *__s, int __c)
      __THROW __attribute_pure__ __nonnull ((1));
 libc_hidden_proto(rawmemchr)
 
 /* Search N bytes of S for the final occurrence of C.  */
-extern void *memrchr (__const void *__s, int __c, size_t __n)
+extern void *memrchr (const void *__s, int __c, size_t __n)
       __THROW __attribute_pure__ __nonnull ((1));
 libc_hidden_proto(memrchr)
 #endif
@@ -89,63 +88,62 @@ libc_hidden_proto(memrchr)
 
 __BEGIN_NAMESPACE_STD
 /* Copy SRC to DEST.  */
-extern char *strcpy (char *__restrict __dest, __const char *__restrict __src)
+extern char *strcpy (char *__restrict __dest, const char *__restrict __src)
      __THROW __nonnull ((1, 2));
 libc_hidden_proto(strcpy)
 /* Copy no more than N characters of SRC to DEST.  */
 extern char *strncpy (char *__restrict __dest,
-		      __const char *__restrict __src, size_t __n)
+		      const char *__restrict __src, size_t __n)
      __THROW __nonnull ((1, 2));
 libc_hidden_proto(strncpy)
 
 /* Append SRC onto DEST.  */
-extern char *strcat (char *__restrict __dest, __const char *__restrict __src)
+extern char *strcat (char *__restrict __dest, const char *__restrict __src)
      __THROW __nonnull ((1, 2));
 libc_hidden_proto(strcat)
 /* Append no more than N characters from SRC onto DEST.  */
-extern char *strncat (char *__restrict __dest, __const char *__restrict __src,
+extern char *strncat (char *__restrict __dest, const char *__restrict __src,
 		      size_t __n) __THROW __nonnull ((1, 2));
 libc_hidden_proto(strncat)
 
 /* Compare S1 and S2.  */
-extern int strcmp (__const char *__s1, __const char *__s2)
+extern int strcmp (const char *__s1, const char *__s2)
      __THROW __attribute_pure__ __nonnull ((1, 2));
 libc_hidden_proto(strcmp)
 /* Compare N characters of S1 and S2.  */
-extern int strncmp (__const char *__s1, __const char *__s2, size_t __n)
+extern int strncmp (const char *__s1, const char *__s2, size_t __n)
      __THROW __attribute_pure__ __nonnull ((1, 2));
 libc_hidden_proto(strncmp)
 
 /* Compare the collated forms of S1 and S2.  */
-extern int strcoll (__const char *__s1, __const char *__s2)
+extern int strcoll (const char *__s1, const char *__s2)
      __THROW __attribute_pure__ __nonnull ((1, 2));
 libc_hidden_proto(strcoll)
 /* Put a transformation of SRC into no more than N bytes of DEST.  */
 extern size_t strxfrm (char *__restrict __dest,
-		       __const char *__restrict __src, size_t __n)
+		       const char *__restrict __src, size_t __n)
      __THROW __nonnull ((2));
-libc_hidden_proto(strxfrm)
 __END_NAMESPACE_STD
 
-#if defined __USE_GNU && defined __UCLIBC_HAS_XLOCALE__
+#if defined __USE_XOPEN2K8 && defined __UCLIBC_HAS_XLOCALE__
 /* The following functions are equivalent to the both above but they
    take the locale they use for the collation as an extra argument.
    This is not standardsized but something like will come.  */
 # include <xlocale.h>
 
 /* Compare the collated forms of S1 and S2 using rules from L.  */
-extern int strcoll_l (__const char *__s1, __const char *__s2, __locale_t __l)
+extern int strcoll_l (const char *__s1, const char *__s2, __locale_t __l)
      __THROW __attribute_pure__ __nonnull ((1, 2, 3));
 libc_hidden_proto(strcoll_l)
 /* Put a transformation of SRC into no more than N bytes of DEST.  */
-extern size_t strxfrm_l (char *__dest, __const char *__src, size_t __n,
+extern size_t strxfrm_l (char *__dest, const char *__src, size_t __n,
 			 __locale_t __l) __THROW __nonnull ((2, 4));
 libc_hidden_proto(strxfrm_l)
 #endif
 
 #if defined __USE_SVID || defined __USE_BSD || defined __USE_XOPEN_EXTENDED
 /* Duplicate S, returning an identical malloc'd string.  */
-extern char *strdup (__const char *__s)
+extern char *strdup (const char *__s)
      __THROW __attribute_malloc__ __nonnull ((1));
 libc_hidden_proto(strdup)
 #endif
@@ -153,8 +151,8 @@ libc_hidden_proto(strdup)
 /* Return a malloc'd copy of at most N bytes of STRING.  The
    resultant string is terminated even if no null terminator
    appears before STRING[N].  */
-#if defined __USE_GNU
-extern char *strndup (__const char *__string, size_t __n)
+#if defined __USE_XOPEN2K8
+extern char *strndup (const char *__string, size_t __n)
      __THROW __attribute_malloc__ __nonnull ((1));
 libc_hidden_proto(strndup)
 #endif
@@ -164,7 +162,7 @@ libc_hidden_proto(strndup)
 # define strdupa(s)							      \
   (__extension__							      \
     ({									      \
-      __const char *__old = (s);					      \
+      const char *__old = (s);					      \
       size_t __len = strlen (__old) + 1;				      \
       char *__new = (char *) __builtin_alloca (__len);			      \
       (char *) memcpy (__new, __old, __len);				      \
@@ -174,7 +172,7 @@ libc_hidden_proto(strndup)
 # define strndupa(s, n)							      \
   (__extension__							      \
     ({									      \
-      __const char *__old = (s);					      \
+      const char *__old = (s);					      \
       size_t __len = strnlen (__old, (n));				      \
       char *__new = (char *) __builtin_alloca (__len + 1);		      \
       __new[__len] = '\0';						      \
@@ -184,11 +182,11 @@ libc_hidden_proto(strndup)
 
 __BEGIN_NAMESPACE_STD
 /* Find the first occurrence of C in S.  */
-extern char *strchr (__const char *__s, int __c)
+extern char *strchr (const char *__s, int __c)
      __THROW __attribute_pure__ __nonnull ((1));
 libc_hidden_proto(strchr)
 /* Find the last occurrence of C in S.  */
-extern char *strrchr (__const char *__s, int __c)
+extern char *strrchr (const char *__s, int __c)
      __THROW __attribute_pure__ __nonnull ((1));
 libc_hidden_proto(strrchr)
 __END_NAMESPACE_STD
@@ -196,7 +194,7 @@ __END_NAMESPACE_STD
 #ifdef __USE_GNU
 /* This function is similar to `strchr'.  But it returns a pointer to
    the closing NUL byte in case C is not found in S.  */
-extern char *strchrnul (__const char *__s, int __c)
+extern char *strchrnul (const char *__s, int __c)
      __THROW __attribute_pure__ __nonnull ((1));
 libc_hidden_proto(strchrnul)
 #endif
@@ -204,26 +202,26 @@ libc_hidden_proto(strchrnul)
 __BEGIN_NAMESPACE_STD
 /* Return the length of the initial segment of S which
    consists entirely of characters not in REJECT.  */
-extern size_t strcspn (__const char *__s, __const char *__reject)
+extern size_t strcspn (const char *__s, const char *__reject)
      __THROW __attribute_pure__ __nonnull ((1, 2));
 libc_hidden_proto(strcspn)
 /* Return the length of the initial segment of S which
    consists entirely of characters in ACCEPT.  */
-extern size_t strspn (__const char *__s, __const char *__accept)
+extern size_t strspn (const char *__s, const char *__accept)
      __THROW __attribute_pure__ __nonnull ((1, 2));
 libc_hidden_proto(strspn)
 /* Find the first occurrence in S of any character in ACCEPT.  */
-extern char *strpbrk (__const char *__s, __const char *__accept)
+extern char *strpbrk (const char *__s, const char *__accept)
      __THROW __attribute_pure__ __nonnull ((1, 2));
 libc_hidden_proto(strpbrk)
 /* Find the first occurrence of NEEDLE in HAYSTACK.  */
-extern char *strstr (__const char *__haystack, __const char *__needle)
+extern char *strstr (const char *__haystack, const char *__needle)
      __THROW __attribute_pure__ __nonnull ((1, 2));
 libc_hidden_proto(strstr)
 
 
 /* Divide S into tokens separated by characters in DELIM.  */
-extern char *strtok (char *__restrict __s, __const char *__restrict __delim)
+extern char *strtok (char *__restrict __s, const char *__restrict __delim)
      __THROW __nonnull ((2));
 libc_hidden_proto(strtok)
 __END_NAMESPACE_STD
@@ -232,12 +230,12 @@ __END_NAMESPACE_STD
    passed between calls are stored in SAVE_PTR.  */
 #if 0 /* uClibc: disabled */
 extern char *__strtok_r (char *__restrict __s,
-			 __const char *__restrict __delim,
+			 const char *__restrict __delim,
 			 char **__restrict __save_ptr)
      __THROW __nonnull ((2, 3));
 #endif
 #if defined __USE_POSIX || defined __USE_MISC
-extern char *strtok_r (char *__restrict __s, __const char *__restrict __delim,
+extern char *strtok_r (char *__restrict __s, const char *__restrict __delim,
 		       char **__restrict __save_ptr)
      __THROW __nonnull ((2, 3));
 libc_hidden_proto(strtok_r)
@@ -245,7 +243,7 @@ libc_hidden_proto(strtok_r)
 
 #ifdef __USE_GNU
 /* Similar to `strstr' but this function ignores the case of both strings.  */
-extern char *strcasestr (__const char *__haystack, __const char *__needle)
+extern char *strcasestr (const char *__haystack, const char *__needle)
      __THROW __attribute_pure__ __nonnull ((1, 2));
 libc_hidden_proto(strcasestr)
 #endif
@@ -254,20 +252,19 @@ libc_hidden_proto(strcasestr)
 /* Find the first occurrence of NEEDLE in HAYSTACK.
    NEEDLE is NEEDLELEN bytes long;
    HAYSTACK is HAYSTACKLEN bytes long.  */
-extern void *memmem (__const void *__haystack, size_t __haystacklen,
-		     __const void *__needle, size_t __needlelen)
+extern void *memmem (const void *__haystack, size_t __haystacklen,
+		     const void *__needle, size_t __needlelen)
      __THROW __attribute_pure__ __nonnull ((1, 3));
-libc_hidden_proto(memmem)
 
 /* Copy N bytes of SRC to DEST, return pointer to bytes after the
    last written byte.  */
 #if 0 /* uClibc: disabled */
 extern void *__mempcpy (void *__restrict __dest,
-			__const void *__restrict __src, size_t __n)
+			const void *__restrict __src, size_t __n)
      __THROW __nonnull ((1, 2));
 #endif
 extern void *mempcpy (void *__restrict __dest,
-		      __const void *__restrict __src, size_t __n)
+		      const void *__restrict __src, size_t __n)
      __THROW __nonnull ((1, 2));
 libc_hidden_proto(mempcpy)
 #endif
@@ -275,15 +272,15 @@ libc_hidden_proto(mempcpy)
 
 __BEGIN_NAMESPACE_STD
 /* Return the length of S.  */
-extern size_t strlen (__const char *__s)
+extern size_t strlen (const char *__s)
      __THROW __attribute_pure__ __nonnull ((1));
 libc_hidden_proto(strlen)
 __END_NAMESPACE_STD
 
-#ifdef	__USE_GNU
+#ifdef	__USE_XOPEN2K8
 /* Find the length of STRING, but scan at most MAXLEN characters.
    If no '\0' terminator is found in that many characters, return MAXLEN.  */
-extern size_t strnlen (__const char *__string, size_t __maxlen)
+extern size_t strnlen (const char *__string, size_t __maxlen)
      __THROW __attribute_pure__ __nonnull ((1));
 libc_hidden_proto(strnlen)
 #endif
@@ -331,6 +328,12 @@ extern char * __REDIRECT_NTH (strerror_r,
 # endif
 #endif
 
+#if 0 /*defined __USE_XOPEN2K8 && defined __UCLIBC_HAS_XLOCALE__*/
+/* Translate error number to string according to the locale L.  */
+extern char *strerror_l (int __errnum, __locale_t __l) __THROW;
+#endif
+
+
 /* We define this function always since `bzero' is sometimes needed when
    the namespace rules does not allow this.  */
 #if 0 /* uClibc: disabled */
@@ -340,22 +343,22 @@ extern void __bzero (void *__s, size_t __n) __THROW __nonnull ((1));
 #ifdef __USE_BSD
 # ifdef __UCLIBC_SUSV3_LEGACY__
 /* Copy N bytes of SRC to DEST (like memmove, but args reversed).  */
-extern void bcopy (__const void *__src, void *__dest, size_t __n)
+extern void bcopy (const void *__src, void *__dest, size_t __n)
      __THROW __nonnull ((1, 2));
 
 /* Set N bytes of S to 0.  */
 extern void bzero (void *__s, size_t __n) __THROW __nonnull ((1));
 
 /* Compare N bytes of S1 and S2 (same as memcmp).  */
-extern int bcmp (__const void *__s1, __const void *__s2, size_t __n)
+extern int bcmp (const void *__s1, const void *__s2, size_t __n)
      __THROW __attribute_pure__ __nonnull ((1, 2));
 
 /* Find the first occurrence of C in S (same as strchr).  */
-extern char *index (__const char *__s, int __c)
+extern char *index (const char *__s, int __c)
      __THROW __attribute_pure__ __nonnull ((1));
 
 /* Find the last occurrence of C in S (same as strrchr).  */
-extern char *rindex (__const char *__s, int __c)
+extern char *rindex (const char *__s, int __c)
      __THROW __attribute_pure__ __nonnull ((1));
 # else
 #  ifdef __UCLIBC_SUSV3_LEGACY_MACROS__
@@ -378,7 +381,7 @@ libc_hidden_proto(ffs)
 
 /* The following two functions are non-standard but necessary for non-32 bit
    platforms.  */
-# if 0 /*#ifdef __USE_GNU*/
+#ifdef __USE_GNU
 extern int ffsl (long int __l) __THROW __attribute__ ((__const__));
 #  ifdef __GNUC__
 __extension__ extern int ffsll (long long int __ll)
@@ -387,25 +390,25 @@ __extension__ extern int ffsll (long long int __ll)
 # endif
 
 /* Compare S1 and S2, ignoring case.  */
-extern int strcasecmp (__const char *__s1, __const char *__s2)
+extern int strcasecmp (const char *__s1, const char *__s2)
      __THROW __attribute_pure__ __nonnull ((1, 2));
 libc_hidden_proto(strcasecmp)
 
 /* Compare no more than N chars of S1 and S2, ignoring case.  */
-extern int strncasecmp (__const char *__s1, __const char *__s2, size_t __n)
+extern int strncasecmp (const char *__s1, const char *__s2, size_t __n)
      __THROW __attribute_pure__ __nonnull ((1, 2));
 libc_hidden_proto(strncasecmp)
 #endif /* Use BSD.  */
 
-#if defined __USE_GNU && defined __UCLIBC_HAS_XLOCALE__
+#if defined __USE_XOPEN2K8 && defined __UCLIBC_HAS_XLOCALE__
 /* Again versions of a few functions which use the given locale instead
    of the global one.  */
-extern int strcasecmp_l (__const char *__s1, __const char *__s2,
+extern int strcasecmp_l (const char *__s1, const char *__s2,
 			 __locale_t __loc)
      __THROW __attribute_pure__ __nonnull ((1, 2, 3));
 libc_hidden_proto(strcasecmp_l)
 
-extern int strncasecmp_l (__const char *__s1, __const char *__s2,
+extern int strncasecmp_l (const char *__s1, const char *__s2,
 			  size_t __n, __locale_t __loc)
      __THROW __attribute_pure__ __nonnull ((1, 2, 4));
 libc_hidden_proto(strncasecmp_l)
@@ -415,27 +418,22 @@ libc_hidden_proto(strncasecmp_l)
 /* Return the next DELIM-delimited token from *STRINGP,
    terminating it with a '\0', and update *STRINGP to point past it.  */
 extern char *strsep (char **__restrict __stringp,
-		     __const char *__restrict __delim)
+		     const char *__restrict __delim)
      __THROW __nonnull ((1, 2));
 libc_hidden_proto(strsep)
 #endif
 
-#ifdef	__USE_GNU
-/* Compare S1 and S2 as strings holding name & indices/version numbers.  */
-extern int strverscmp (__const char *__s1, __const char *__s2)
-     __THROW __attribute_pure__ __nonnull ((1, 2));
-libc_hidden_proto(strverscmp)
-
+#ifdef	__USE_XOPEN2K8
 /* Return a string describing the meaning of the signal number in SIG.  */
 extern char *strsignal (int __sig) __THROW;
 libc_hidden_proto(strsignal)
 
 /* Copy SRC to DEST, returning the address of the terminating '\0' in DEST.  */
 # if 0 /* uClibc: disabled */
-extern char *__stpcpy (char *__restrict __dest, __const char *__restrict __src)
+extern char *__stpcpy (char *__restrict __dest, const char *__restrict __src)
      __THROW __nonnull ((1, 2));
 # endif
-extern char *stpcpy (char *__restrict __dest, __const char *__restrict __src)
+extern char *stpcpy (char *__restrict __dest, const char *__restrict __src)
      __THROW __nonnull ((1, 2));
 libc_hidden_proto(stpcpy)
 
@@ -443,13 +441,19 @@ libc_hidden_proto(stpcpy)
    the last character written into DEST.  */
 # if 0 /* uClibc: disabled */
 extern char *__stpncpy (char *__restrict __dest,
-			__const char *__restrict __src, size_t __n)
+			const char *__restrict __src, size_t __n)
      __THROW __nonnull ((1, 2));
 # endif
 extern char *stpncpy (char *__restrict __dest,
-		      __const char *__restrict __src, size_t __n)
+		      const char *__restrict __src, size_t __n)
      __THROW __nonnull ((1, 2));
-libc_hidden_proto(stpncpy)
+#endif
+
+#ifdef __USE_GNU
+/* Compare S1 and S2 as strings holding name & indices/version numbers.  */
+extern int strverscmp (const char *__s1, const char *__s2)
+     __THROW __attribute_pure__ __nonnull ((1, 2));
+libc_hidden_proto(strverscmp)
 
 # if 0			/* uClibc does not support strfry or memfrob. */
 /* Sautee STRING briskly.  */
@@ -464,8 +468,7 @@ extern void *memfrob (void *__s, size_t __n) __THROW __nonnull ((1));
    declare the function if the `basename' macro is available (defined
    in <libgen.h>) which makes the XPG version of this function
    available.  */
-extern char *basename (__const char *__filename) __THROW __nonnull ((1));
-libc_hidden_proto(basename)
+extern char *basename (const char *__filename) __THROW __nonnull ((1));
 # endif
 #endif /* __USE_GNU */
 

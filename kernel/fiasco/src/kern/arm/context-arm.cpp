@@ -3,11 +3,18 @@ INTERFACE [arm]:
 EXTENSION class Context
 {
 public:
-  void set_ignore_mem_op_in_progress(bool val);
-  bool is_ignore_mem_op_in_progress() const { return _ignore_mem_op_in_progess; }
+  void set_ignore_mem_op_in_progress(bool);
+  bool is_ignore_mem_op_in_progress() const { return _kernel_mem_op.do_ignore; }
+  bool is_kernel_mem_op_hit_and_clear();
+  void set_kernel_mem_op_hit() { _kernel_mem_op.hit = 1; }
 
 private:
-  bool _ignore_mem_op_in_progess;
+  struct Kernel_mem_op
+  {
+    Unsigned8 do_ignore;
+    Unsigned8 hit;
+  };
+  Kernel_mem_op _kernel_mem_op;
 };
 
 // ------------------------------------------------------------------------
@@ -21,6 +28,7 @@ private:
 protected:
   Mword _tpidruro;
 };
+
 
 // ------------------------------------------------------------------------
 IMPLEMENTATION [arm]:
@@ -37,28 +45,6 @@ IMPLEMENTATION [arm]:
 #include "thread_state.h"
 #include "utcb_support.h"
 
-
-IMPLEMENT inline
-void
-Context::fill_user_state()
-{
-  // do not use 'Return_frame const *rf = regs();' here as it triggers an
-  // optimization bug in gcc-4.4(.1)
-  Entry_frame const *ef = regs();
-  asm volatile ("ldmia %[rf], {sp, lr}^"
-      : : "m"(ef->usp), "m"(ef->ulr), [rf] "r" (&ef->usp));
-}
-
-IMPLEMENT inline
-void
-Context::spill_user_state()
-{
-  Entry_frame *ef = regs();
-  assert_kdb (current() == this);
-  asm volatile ("stmia %[rf], {sp, lr}^"
-      : "=m"(ef->usp), "=m"(ef->ulr) : [rf] "r" (&ef->usp));
-}
-
 IMPLEMENT inline NEEDS[Context::spill_user_state, Context::store_tpidrurw,
                        Context::load_tpidrurw, Context::load_tpidruro]
 void
@@ -68,9 +54,11 @@ Context::switch_cpu(Context *t)
 
   spill_user_state();
   store_tpidrurw();
+  switch_vm_state(t);
   t->fill_user_state();
   t->load_tpidrurw();
   t->load_tpidruro();
+
 
   {
     register Mword _old_this asm("r1") = (Mword)this;
@@ -119,52 +107,72 @@ void Context::switchin_context(Context *from)
 {
   assert_kdb (this == current());
   assert_kdb (state() & Thread_ready_mask);
+  from->handle_lock_holder_preemption();
 
   // switch to our page directory if nessecary
   vcpu_aware_space()->switchin_context(from->vcpu_aware_space());
 
-  Utcb_support::current(current()->utcb().usr());
+  Utcb_support::current(this->utcb().usr());
 }
 
 IMPLEMENT inline
 void
 Context::set_ignore_mem_op_in_progress(bool val)
 {
-  _ignore_mem_op_in_progess = val;
+  _kernel_mem_op.do_ignore = val;
   Mem::barrier();
 }
+
+IMPLEMENT inline
+bool
+Context::is_kernel_mem_op_hit_and_clear()
+{
+  bool h = _kernel_mem_op.hit;
+  if (h)
+    _kernel_mem_op.hit = 0;
+  return h;
+}
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [arm && !hyp]:
+
+IMPLEMENT inline
+void
+Context::fill_user_state()
+{
+  // do not use 'Return_frame const *rf = regs();' here as it triggers an
+  // optimization bug in gcc-4.4(.1)
+  Entry_frame const *ef = regs();
+  asm volatile ("ldmia %[rf], {sp, lr}^"
+      : : "m"(ef->usp), "m"(ef->ulr), [rf] "r" (&ef->usp));
+}
+
+IMPLEMENT inline
+void
+Context::spill_user_state()
+{
+  Entry_frame *ef = regs();
+  assert_kdb (current() == this);
+  asm volatile ("stmia %[rf], {sp, lr}^"
+      : "=m"(ef->usp), "=m"(ef->ulr) : [rf] "r" (&ef->usp));
+}
+
+PUBLIC inline void Context::switch_vm_state(Context *) {}
 
 // ------------------------------------------------------------------------
 IMPLEMENTATION [armv6plus]:
 
 PROTECTED inline void Context::arch_setup_utcb_ptr()
 {
-  _tpidruro = reinterpret_cast<Mword>(utcb().usr().get());
+  _tpidrurw = _tpidruro = reinterpret_cast<Mword>(utcb().usr().get());
 }
 
-IMPLEMENT inline
-void
-Context::arch_load_vcpu_kern_state(Vcpu_state *vcpu, bool do_load)
-{
-  _tpidruro = vcpu->_tpidruro;
-  if (do_load)
-    load_tpidruro();
-}
-
-IMPLEMENT inline
-void
-Context::arch_load_vcpu_user_state(Vcpu_state *vcpu, bool do_load)
-{
-  _tpidruro = vcpu->_ts.tpidruro;
-  if (do_load)
-    load_tpidruro();
-}
 
 IMPLEMENT inline
 void
 Context::arch_update_vcpu_state(Vcpu_state *vcpu)
 {
-  vcpu->_tpidruro = _tpidruro;
+  vcpu->host_tpidruro = _tpidruro;
 }
 
 PRIVATE inline
@@ -203,6 +211,27 @@ Context::tpidruro() const
 }
 
 // ------------------------------------------------------------------------
+IMPLEMENTATION [armv6plus && !hyp]:
+
+IMPLEMENT inline
+void
+Context::arch_load_vcpu_kern_state(Vcpu_state *vcpu, bool do_load)
+{
+  _tpidruro = vcpu->host_tpidruro;
+  if (do_load)
+    load_tpidruro();
+}
+
+IMPLEMENT inline
+void
+Context::arch_load_vcpu_user_state(Vcpu_state *vcpu, bool do_load)
+{
+  _tpidruro = vcpu->user_tpidruro;
+  if (do_load)
+    load_tpidruro();
+}
+
+// ------------------------------------------------------------------------
 IMPLEMENTATION [!armv6plus]:
 
 PROTECTED inline void Context::arch_setup_utcb_ptr()
@@ -236,3 +265,4 @@ Context::tpidruro() const
 {
   return 0;
 }
+

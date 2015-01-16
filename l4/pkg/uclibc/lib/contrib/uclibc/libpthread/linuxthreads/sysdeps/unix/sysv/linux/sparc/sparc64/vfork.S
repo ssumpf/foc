@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <sysdep-cancel.h>
 
@@ -42,7 +41,7 @@ ENTRY(__vfork)
 #endif
 #if defined SHARED && !defined BROKEN_SPARC_WDISP22
 	cmp	%o0, 0
-	bne	HIDDEN_JUMPTARGET(__fork)
+	bne	HIDDEN_JUMPTARGET(fork)
 #else
 	brnz,pn	%o0, 1f
 #endif
@@ -55,7 +54,7 @@ ENTRY(__vfork)
 	 and	%o0, %o1, %o0
 #if !defined SHARED || defined BROKEN_SPARC_WDISP22
 1:	mov	%o7, %g1
-	call	HIDDEN_JUMPTARGET(__fork)
+	call	HIDDEN_JUMPTARGET(fork)
 	 mov	%g1, %o7
 #endif
 	SYSCALL_ERROR_HANDLER

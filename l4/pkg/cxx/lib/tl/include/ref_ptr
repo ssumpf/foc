@@ -66,7 +66,7 @@ public:
   explicit Ref_ptr(T *o) throw() : _p(o)
   { __take_ref(); }
 
-  /** The couterpart to release (dows not create a new reference).
+  /** The couterpart to release (does not create a new reference).
    */
   Ref_ptr(T *o, bool) throw() : _p(o) {}
 

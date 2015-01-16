@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _BITS_ATOMIC_H
 #define _BITS_ATOMIC_H	1
@@ -290,11 +289,11 @@ volatile unsigned char __sparc32_atomic_locks[64]
 	 __typeof (*(mem)) __acev_wval = (newval);		      \
 	 do							      \
 	   __acev_wret = *__acev_wmemp;				      \
-	 while (__builtin_expect				      \
+	 while (unlikely					      \
 		  (__v9_compare_and_exchange_val_32_acq (__acev_wmemp,\
 							 __acev_wval, \
 							 __acev_wret) \
-		   != __acev_wret, 0));				      \
+		   != __acev_wret));				      \
        }							      \
      else							      \
        __acev_wret = __v7_exchange_acq (mem, newval);		      \

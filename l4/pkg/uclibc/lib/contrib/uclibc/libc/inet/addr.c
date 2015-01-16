@@ -17,8 +17,6 @@
  * Changed to use _int10tostr.
  */
 
-#define __FORCE_GLIBC
-#include <features.h>
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
@@ -114,7 +112,7 @@ libc_hidden_def(inet_addr)
 
 #define INET_NTOA_MAX_LEN	16	/* max 12 digits + 3 '.'s + 1 nul */
 
-char *inet_ntoa_r(struct in_addr in, char buf[INET_NTOA_MAX_LEN])
+static char *__inet_ntoa_r(struct in_addr in, char buf[INET_NTOA_MAX_LEN])
 {
 	in_addr_t addr = ntohl(in.s_addr);
 	int i;
@@ -133,12 +131,12 @@ char *inet_ntoa_r(struct in_addr in, char buf[INET_NTOA_MAX_LEN])
 
 	return p+1;
 }
-libc_hidden_def(inet_ntoa_r)
+strong_alias(__inet_ntoa_r,inet_ntoa_r)
 
 char *inet_ntoa(struct in_addr in)
 {
 	static char buf[INET_NTOA_MAX_LEN];
-	return inet_ntoa_r(in, buf);
+	return __inet_ntoa_r(in, buf);
 }
 libc_hidden_def(inet_ntoa)
 #endif
@@ -153,18 +151,18 @@ libc_hidden_def(inet_ntoa)
  */
 struct in_addr inet_makeaddr(in_addr_t net, in_addr_t host)
 {
-	in_addr_t addr;
+	struct in_addr in;
 
 	if (net < 128)
-		addr = (net << IN_CLASSA_NSHIFT) | (host & IN_CLASSA_HOST);
+		in.s_addr = (net << IN_CLASSA_NSHIFT) | (host & IN_CLASSA_HOST);
 	else if (net < 65536)
-		addr = (net << IN_CLASSB_NSHIFT) | (host & IN_CLASSB_HOST);
+		in.s_addr = (net << IN_CLASSB_NSHIFT) | (host & IN_CLASSB_HOST);
 	else if (net < 16777216UL)
-		addr = (net << IN_CLASSC_NSHIFT) | (host & IN_CLASSC_HOST);
+		in.s_addr = (net << IN_CLASSC_NSHIFT) | (host & IN_CLASSC_HOST);
 	else
-		addr = net | host;
-	addr = htonl(addr);
-	return *(struct in_addr *)&addr;
+		in.s_addr = net | host;
+	in.s_addr = htonl(in.s_addr);
+	return in;
 }
 libc_hidden_def(inet_makeaddr)
 #endif

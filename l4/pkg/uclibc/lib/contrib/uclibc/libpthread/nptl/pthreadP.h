@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _PTHREADP_H
 #define _PTHREADP_H	1
@@ -179,7 +178,13 @@ extern struct pthread_key_struct __pthread_keys[PTHREAD_KEYS_MAX];
 hidden_proto (__pthread_keys)
 
 /* Number of threads running.  */
-extern unsigned int __nptl_nthreads attribute_hidden;
+extern unsigned int __nptl_nthreads
+#ifdef SHARED
+	attribute_hidden
+#else
+	__attribute ((weak))
+#endif
+	;
 
 #ifndef __ASSUME_SET_ROBUST_LIST
 /* Negative if we do not have the system call and we can use it.  */
@@ -215,7 +220,7 @@ extern int __pthread_debug attribute_hidden;
 /* Cancellation test.  */
 #define CANCELLATION_P(self) \
   do {									      \
-    int cancelhandling = THREAD_GETMEM (self, cancelhandling);		      \
+    cancelhandling = THREAD_GETMEM (self, cancelhandling);		      \
     if (CANCEL_ENABLED_AND_CANCELED (cancelhandling))			      \
       {									      \
 	THREAD_SETMEM (self, result, PTHREAD_CANCELED);			      \
@@ -274,6 +279,8 @@ __do_cancel (void)
 #define CANCEL_RESET(oldtype) \
   __pthread_disable_asynccancel (oldtype)
 
+#define __LABEL_PREFIX__ __stringify(__USER_LABEL_PREFIX__)
+
 #if !defined NOT_IN_libc
 /* Same as CANCEL_ASYNC, but for use in libc.so.  */
 # define LIBC_CANCEL_ASYNC() \
@@ -282,29 +289,29 @@ __do_cancel (void)
 # define LIBC_CANCEL_RESET(oldtype) \
   __libc_disable_asynccancel (oldtype)
 # define LIBC_CANCEL_HANDLED() \
-  __asm__ (".globl " __USER_LABEL_PREFIX__ "__libc_enable_asynccancel"); \
-  __asm__ (".globl " __USER_LABEL_PREFIX__ "__libc_disable_asynccancel")
+  __asm__ (".globl " __LABEL_PREFIX__ "__libc_enable_asynccancel"); \
+  __asm__ (".globl " __LABEL_PREFIX__ "__libc_disable_asynccancel")
 #elif defined NOT_IN_libc && defined IS_IN_libpthread
 # define LIBC_CANCEL_ASYNC() CANCEL_ASYNC ()
 # define LIBC_CANCEL_RESET(val) CANCEL_RESET (val)
 # define LIBC_CANCEL_HANDLED() \
-  __asm__ (".globl " __USER_LABEL_PREFIX__ "__pthread_enable_asynccancel"); \
-  __asm__ (".globl " __USER_LABEL_PREFIX__ "__pthread_disable_asynccancel")
+  __asm__ (".globl " __LABEL_PREFIX__ "__pthread_enable_asynccancel"); \
+  __asm__ (".globl " __LABEL_PREFIX__ "__pthread_disable_asynccancel")
 #elif defined NOT_IN_libc && defined IS_IN_librt
 # define LIBC_CANCEL_ASYNC() \
   __librt_enable_asynccancel ()
 # define LIBC_CANCEL_RESET(val) \
   __librt_disable_asynccancel (val)
 # define LIBC_CANCEL_HANDLED() \
-  __asm__ (".globl " __USER_LABEL_PREFIX__ "__librt_enable_asynccancel"); \
-  __asm__ (".globl " __USER_LABEL_PREFIX__ "__librt_disable_asynccancel")
+  __asm__ (".globl " __LABEL_PREFIX__ "__librt_enable_asynccancel"); \
+  __asm__ (".globl " __LABEL_PREFIX__ "__librt_disable_asynccancel")
 #else
 # define LIBC_CANCEL_ASYNC()	0 /* Just a dummy value.  */
 # define LIBC_CANCEL_RESET(val)	((void)(val)) /* Nothing, but evaluate it.  */
 # define LIBC_CANCEL_HANDLED()	/* Nothing.  */
 #endif
 
-/* The signal used for asynchronous cancelation.  */
+/* The signal used for asynchronous cancellation.  */
 #define SIGCANCEL	__SIGRTMIN
 
 
@@ -403,9 +410,9 @@ extern int __pthread_setschedparam (pthread_t thread_id, int policy,
 				    const struct sched_param *param);
 extern int __pthread_setcancelstate (int state, int *oldstate);
 extern int __pthread_mutex_init (pthread_mutex_t *__mutex,
-				 __const pthread_mutexattr_t *__mutexattr);
+				 const pthread_mutexattr_t *__mutexattr);
 extern int __pthread_mutex_init_internal (pthread_mutex_t *__mutex,
-					  __const pthread_mutexattr_t *__mutexattr)
+					  const pthread_mutexattr_t *__mutexattr)
      attribute_hidden;
 extern int __pthread_mutex_destroy (pthread_mutex_t *__mutex);
 extern int __pthread_mutex_destroy_internal (pthread_mutex_t *__mutex)
@@ -444,22 +451,22 @@ extern int __pthread_attr_getschedpolicy (const pthread_attr_t *attr,
 extern int __pthread_attr_setschedpolicy (pthread_attr_t *attr, int policy);
 extern int __pthread_attr_getscope (const pthread_attr_t *attr, int *scope);
 extern int __pthread_attr_setscope (pthread_attr_t *attr, int scope);
-extern int __pthread_attr_getstackaddr (__const pthread_attr_t *__restrict
+extern int __pthread_attr_getstackaddr (const pthread_attr_t *__restrict
 					__attr, void **__restrict __stackaddr);
 extern int __pthread_attr_setstackaddr (pthread_attr_t *__attr,
 					void *__stackaddr);
-extern int __pthread_attr_getstacksize (__const pthread_attr_t *__restrict
+extern int __pthread_attr_getstacksize (const pthread_attr_t *__restrict
 					__attr,
 					size_t *__restrict __stacksize);
 extern int __pthread_attr_setstacksize (pthread_attr_t *__attr,
 					size_t __stacksize);
-extern int __pthread_attr_getstack (__const pthread_attr_t *__restrict __attr,
+extern int __pthread_attr_getstack (const pthread_attr_t *__restrict __attr,
 				    void **__restrict __stackaddr,
 				    size_t *__restrict __stacksize);
 extern int __pthread_attr_setstack (pthread_attr_t *__attr, void *__stackaddr,
 				    size_t __stacksize);
 extern int __pthread_rwlock_init (pthread_rwlock_t *__restrict __rwlock,
-				  __const pthread_rwlockattr_t *__restrict
+				  const pthread_rwlockattr_t *__restrict
 				  __attr);
 extern int __pthread_rwlock_destroy (pthread_rwlock_t *__rwlock);
 extern int __pthread_rwlock_rdlock (pthread_rwlock_t *__rwlock);
@@ -561,7 +568,13 @@ extern void _pthread_cleanup_push_defer (struct _pthread_cleanup_buffer *buffer,
 extern void _pthread_cleanup_pop_restore (struct _pthread_cleanup_buffer *buffer,
                                           int execute);
 
-extern void __nptl_deallocate_tsd (void) attribute_hidden;
+extern void __nptl_deallocate_tsd (void)
+#ifdef SHARED
+	attribute_hidden
+#else
+	__attribute ((weak))
+#endif
+	;
 
 extern int __nptl_setxid (struct xid_command *cmdp) attribute_hidden;
 

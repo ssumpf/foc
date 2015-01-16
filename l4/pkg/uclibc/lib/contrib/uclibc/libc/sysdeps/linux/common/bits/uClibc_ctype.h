@@ -11,9 +11,8 @@
  *  Lesser General Public License for more details.
  *
  *  You should have received a copy of the GNU Lesser General Public
- *  License along with the GNU C Library; if not, write to the Free
- *  Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
- *  02111-1307 USA.
+ *  License along with the GNU C Library; see the file COPYING.LIB.  If
+ *  not, see <http://www.gnu.org/licenses/>.
  */
 
 /*  ATTENTION!   ATTENTION!   ATTENTION!   ATTENTION!   ATTENTION!
@@ -95,7 +94,7 @@
 /**********************************************************************/
 __BEGIN_DECLS
 
-#if defined _LIBC && (defined NOT_IN_libc || defined IS_IN_libc)
+#ifdef _LIBC
 /* These are uClibc-specific. */
 # define __isdigit_char(c) ((unsigned char)((c) - '0') <= 9)
 # define __isdigit_int(c)  ((unsigned int)((c) - '0') <= 9)

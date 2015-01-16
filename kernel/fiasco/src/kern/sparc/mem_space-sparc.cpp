@@ -41,7 +41,6 @@ public:
     Need_insert_tlb_flush = 0,
     Map_page_size = Config::PAGE_SIZE,
     Page_shift = Config::PAGE_SHIFT,
-    Map_max_address = Mem_layout::User_max,
     Whole_space = MWORD_BITS,
     Identity_map = 0,
   };
@@ -108,10 +107,11 @@ Mem_space::make_current()
 
 
 PROTECTED inline
-void
+int
 Mem_space::sync_kernel()
 {
   printf("%s FIXME\n", __func__);
+  return 0;
 }
 
 

@@ -13,7 +13,9 @@ public:
 // ---------------------------------------------------------------------
 IMPLEMENTATION [arm && (imx21 || imx35)]:
 
+#include <cassert>
 #include "io.h"
+#include "initcalls.h"
 #include "irq_chip_generic.h"
 #include "irq_mgr.h"
 #include "mmio_register_block.h"

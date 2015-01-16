@@ -12,12 +12,12 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* vfork() is just a special case of clone().  */
 
+#include <sys/syscall.h>
 #include <sys/asm.h>
 #include <sysdep.h>
 
@@ -34,6 +34,7 @@
 /* int vfork() */
 
 	.text
+	.hidden __vfork
 LOCALSZ= 1
 FRAMESZ= (((NARGSAVE+LOCALSZ)*SZREG)+ALSZ)&ALMASK
 GPOFF= FRAMESZ-(1*SZREG)
@@ -84,6 +85,7 @@ NESTED(__vfork,FRAMESZ,sp)
 
 	/* Something bad happened -- no child created.  */
 L(error):
+	move	a0, v0
 #ifdef __PIC__
 	PTR_LA		t9, __syscall_error
 	RESTORE_GP64
@@ -95,6 +97,6 @@ L(error):
 	END(__vfork)
 
 weak_alias(__vfork,vfork)
-libc_hidden_weak(vfork)
+libc_hidden_def(vfork)
 
 #endif

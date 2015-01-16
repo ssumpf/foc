@@ -40,8 +40,6 @@ static char sccsid[] = "@(#)svc_raw.c 1.15 87/08/11 Copyr 1984 Sun Micro";
  * Copyright (C) 1984, Sun Microsystems, Inc.
  */
 
-#define __FORCE_GLIBC
-#include <features.h>
 #include "rpc_private.h"
 #include <rpc/svc.h>
 
@@ -69,7 +67,7 @@ static bool_t svcraw_reply (SVCXPRT *, struct rpc_msg *);
 static bool_t svcraw_freeargs (SVCXPRT *, xdrproc_t, caddr_t);
 static void svcraw_destroy (SVCXPRT *);
 
-static struct xp_ops server_ops =
+static const struct xp_ops server_ops =
 {
   svcraw_recv,
   svcraw_stat,

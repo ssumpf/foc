@@ -41,7 +41,8 @@ IMPLEMENTATION [imx6]:
 
 #include "uart_imx.h"
 
-IMPLEMENT int Uart::irq() const { return 59; }
+IMPLEMENT int Uart::irq() const
+{ return CONFIG_PF_IMX_UART_NR + 57; }
 
 IMPLEMENT L4::Uart *Uart::uart()
 {

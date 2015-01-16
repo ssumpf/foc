@@ -13,8 +13,7 @@ Library General Public License for more details.
 
 You should have received a copy of the GNU Library General Public
 License along with this library; see the file COPYING.LIB.  If
-not, write to the Free Software Foundation, Inc., 675 Mass Ave,
-Cambridge, MA 02139, USA.
+not, see <http://www.gnu.org/licenses/>.
 
 */
 
@@ -39,6 +38,7 @@ void *__uc_malloc(size_t size)
 			return p;
 		if (!__uc_malloc_failed)
 			_exit(1);
+		free(p);
 		__uc_malloc_failed(size);
 	}
 }

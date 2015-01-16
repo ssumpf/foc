@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2003, 2004 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2003, 2004, 2007, 2009 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /*
  *	ISO C99 Standard: 7.14 Signal handling <signal.h>
@@ -87,15 +86,27 @@ typedef __sigset_t sigset_t;
 typedef __pid_t pid_t;
 #  define __pid_t_defined
 # endif
+#endif
+#ifdef __USE_XOPEN
 # ifndef __uid_t_defined
 typedef __uid_t uid_t;
 #  define __uid_t_defined
 # endif
 #endif	/* Unix98 */
 
+#if defined __USE_POSIX199309 && defined __UCLIBC_HAS_REALTIME__
+/* We need `struct timespec' later on.  */
+# define __need_timespec
+# include <time.h>
+
+/* Get the `siginfo_t' type plus the needed symbols.  */
+# include <bits/siginfo.h>
+#endif
+
 
 /* Type of a signal handler.  */
 typedef void (*__sighandler_t) (int);
+
 #if defined __UCLIBC_HAS_OBSOLETE_SYSV_SIGNAL__
 /* The X/Open definition of `signal' specifies the SVID semantic.  Use
    the additional function `sysv_signal' when X/Open compatibility is
@@ -156,19 +167,25 @@ extern int raise (int __sig) __THROW;
 libc_hidden_proto(raise)
 __END_NAMESPACE_STD
 
-#ifdef __USE_SVID
+#if 0 /*def __USE_SVID*/
 /* SVID names for the same things.  */
 extern __sighandler_t ssignal (int __sig, __sighandler_t __handler)
      __THROW;
 extern int gsignal (int __sig) __THROW;
 #endif /* Use SVID.  */
 
-#ifdef __USE_MISC
+/* glibc guards the next two wrong with __USE_XOPEN2K */
+#if defined __USE_MISC || defined __USE_XOPEN2K8
 /* Print a message describing the meaning of the given signal number.  */
-extern void psignal (int __sig, __const char *__s);
-#endif /* Use misc.  */
+extern void psignal (int __sig, const char *__s);
+#endif /* Use misc or POSIX 2008.  */
 
+#if 0 /*def __USE_XOPEN2K8*/
+/* Print a message describing the meaning of the given signal information.  */
+extern void psiginfo (const siginfo_t *__pinfo, const char *__s);
+#endif /* POSIX 2008.  */
 
+#ifdef __UCLIBC_SUSV4_LEGACY__
 /* The `sigpause' function has two different interfaces.  The original
    BSD definition defines the argument as a mask of the signal, while
    the more modern interface in X/Open defines it as the signal
@@ -177,23 +194,25 @@ extern void psignal (int __sig, __const char *__s);
 
    This function is a cancellation point and therefore not marked with
    __THROW.  */
-extern int __sigpause (int __sig_or_mask, int __is_sig);
-libc_hidden_proto(__sigpause)
+/*extern int __sigpause (int __sig_or_mask, int __is_sig);*/
 
 #ifdef __FAVOR_BSD
 /* Set the mask of blocked signals to MASK,
    wait for a signal to arrive, and then restore the mask.  */
-extern int sigpause (int __mask) __THROW __attribute_deprecated__;
-# define sigpause(mask) __sigpause ((mask), 0)
+/*extern int sigpause (int __mask) __THROW __attribute_deprecated__;
+# define sigpause(mask) __sigpause ((mask), 0)*/
+/* uClibc note: BSD sigpause is available as __bsd_sigpause.
+ * It is intentionally not prototyped */
 #else
 # ifdef __USE_XOPEN
 /* Remove a signal from the signal mask and suspend the process.  */
-#  define sigpause(sig) __sigpause ((sig), 1)
+extern int sigpause(int __sig);
+/*#  define sigpause(sig) __sigpause ((sig), 1)*/
 # endif
 #endif
+#endif /* __UCLIBC_SUSV4_LEGACY__ */
 
-
-#ifdef __USE_BSD
+#if 0 /*def __USE_BSD*/
 /* None of the following functions should be used anymore.  They are here
    only for compatibility.  A single word (`int') is not guaranteed to be
    enough to hold a complete signal mask and therefore these functions
@@ -203,14 +222,10 @@ extern int sigpause (int __mask) __THROW __attribute_deprecated__;
 # define sigmask(sig)	__sigmask(sig)
 
 /* Block signals in MASK, returning the old mask.  */
-extern int sigblock (int __mask) __THROW;
-/* collides with libc_hidden_proto: __attribute_deprecated__; */
-libc_hidden_proto(sigblock)
+extern int sigblock (int __mask) __THROW __attribute_deprecated__;
 
 /* Set the mask of blocked signals to MASK, returning the old mask.  */
-extern int sigsetmask (int __mask) __THROW;
-/* collides with libc_hidden_proto: __attribute_deprecated__; */
-libc_hidden_proto(sigsetmask)
+extern int sigsetmask (int __mask) __THROW __attribute_deprecated__;
 
 /* Return currently selected signal mask.  */
 extern int siggetmask (void) __THROW __attribute_deprecated__;
@@ -228,22 +243,11 @@ typedef __sighandler_t sig_t;
 
 #ifdef __USE_POSIX
 
-# ifdef __USE_POSIX199309
-/* We need `struct timespec' later on.  */
-#  define __need_timespec
-#  include <time.h>
-
-/* Get the `siginfo_t' type plus the needed symbols.  */
-#  include <bits/siginfo.h>
-# endif
-
 /* Clear all signals from SET.  */
 extern int sigemptyset (sigset_t *__set) __THROW __nonnull ((1));
-libc_hidden_proto(sigemptyset)
 
 /* Set all signals in SET.  */
 extern int sigfillset (sigset_t *__set) __THROW __nonnull ((1));
-libc_hidden_proto(sigfillset)
 
 /* Add SIGNO to SET.  */
 extern int sigaddset (sigset_t *__set, int __signo) __THROW __nonnull ((1));
@@ -254,20 +258,20 @@ extern int sigdelset (sigset_t *__set, int __signo) __THROW __nonnull ((1));
 libc_hidden_proto(sigdelset)
 
 /* Return 1 if SIGNO is in SET, 0 if not.  */
-extern int sigismember (__const sigset_t *__set, int __signo)
+extern int sigismember (const sigset_t *__set, int __signo)
      __THROW __nonnull ((1));
 
 # ifdef __USE_GNU
 /* Return non-empty value is SET is not empty.  */
-extern int sigisemptyset (__const sigset_t *__set) __THROW __nonnull ((1));
+extern int sigisemptyset (const sigset_t *__set) __THROW __nonnull ((1));
 
 /* Build new signal set by combining the two inputs set using logical AND.  */
-extern int sigandset (sigset_t *__set, __const sigset_t *__left,
-		      __const sigset_t *__right) __THROW __nonnull ((1, 2, 3));
+extern int sigandset (sigset_t *__set, const sigset_t *__left,
+		      const sigset_t *__right) __THROW __nonnull ((1, 2, 3));
 
 /* Build new signal set by combining the two inputs set using logical OR.  */
-extern int sigorset (sigset_t *__set, __const sigset_t *__left,
-		     __const sigset_t *__right) __THROW __nonnull ((1, 2, 3));
+extern int sigorset (sigset_t *__set, const sigset_t *__left,
+		     const sigset_t *__right) __THROW __nonnull ((1, 2, 3));
 # endif /* GNU */
 
 /* Get the system-specific definitions of `struct sigaction'
@@ -275,7 +279,7 @@ extern int sigorset (sigset_t *__set, __const sigset_t *__left,
 # include <bits/sigaction.h>
 
 /* Get and/or change the set of blocked signals.  */
-extern int sigprocmask (int __how, __const sigset_t *__restrict __set,
+extern int sigprocmask (int __how, const sigset_t *__restrict __set,
 			sigset_t *__restrict __oset) __THROW;
 libc_hidden_proto(sigprocmask)
 
@@ -284,13 +288,49 @@ libc_hidden_proto(sigprocmask)
 
    This function is a cancellation point and therefore not marked with
    __THROW.  */
-extern int sigsuspend (__const sigset_t *__set) __nonnull ((1));
+extern int sigsuspend (const sigset_t *__set) __nonnull ((1));
+#ifdef _LIBC
+extern __typeof(sigsuspend) __sigsuspend_nocancel attribute_hidden;
 libc_hidden_proto(sigsuspend)
+#endif
 
 /* Get and/or set the action for signal SIG.  */
-extern int sigaction (int __sig, __const struct sigaction *__restrict __act,
+extern int sigaction (int __sig, const struct sigaction *__restrict __act,
 		      struct sigaction *__restrict __oact) __THROW;
+#ifdef _LIBC
+# if 0 /* this is in headers */
+/* In uclibc, userspace struct sigaction is identical to
+ * "new" struct kernel_sigaction (one from the Linux 2.1.68 kernel).
+ * See sigaction.h
+ */
+struct old_kernel_sigaction;
+extern int __syscall_sigaction(int, const struct old_kernel_sigaction *,
+	struct old_kernel_sigaction *) attribute_hidden;
+# else /* this is how the function is built */
+extern __typeof(sigaction) __syscall_sigaction attribute_hidden;
+# endif
+# define __need_size_t
+# include <stddef.h>
+/* candidate for attribute_hidden, if NPTL would behave */
+extern int __syscall_rt_sigaction(int, const struct sigaction *,
+	struct sigaction *, size_t)
+# ifndef __UCLIBC_HAS_THREADS_NATIVE__
+		attribute_hidden
+# endif
+	;
+extern __typeof(sigaction) __libc_sigaction;
 libc_hidden_proto(sigaction)
+
+# ifdef __mips__
+#  define _KERNEL_NSIG_WORDS (_NSIG / _MIPS_SZLONG)
+typedef struct {
+	unsigned long sig[_KERNEL_NSIG_WORDS];
+} kernel_sigset_t;
+#  define __SYSCALL_SIGSET_T_SIZE (sizeof(kernel_sigset_t))
+# else
+#  define __SYSCALL_SIGSET_T_SIZE (_NSIG / 8)
+# endif
+#endif
 
 /* Put in SET all signals that are blocked and waiting to be delivered.  */
 extern int sigpending (sigset_t *__set) __THROW __nonnull ((1));
@@ -300,7 +340,7 @@ extern int sigpending (sigset_t *__set) __THROW __nonnull ((1));
 
    This function is a cancellation point and therefore not marked with
    __THROW.  */
-extern int sigwait (__const sigset_t *__restrict __set, int *__restrict __sig)
+extern int sigwait (const sigset_t *__restrict __set, int *__restrict __sig)
      __nonnull ((1, 2));
 
 # if defined __USE_POSIX199309 && defined __UCLIBC_HAS_REALTIME__
@@ -308,24 +348,29 @@ extern int sigwait (__const sigset_t *__restrict __set, int *__restrict __sig)
 
    This function is a cancellation point and therefore not marked with
    __THROW.  */
-extern int sigwaitinfo (__const sigset_t *__restrict __set,
+extern int sigwaitinfo (const sigset_t *__restrict __set,
 			siginfo_t *__restrict __info) __nonnull ((1));
-libc_hidden_proto(sigwaitinfo)
+#ifdef _LIBC
+extern __typeof(sigwaitinfo) __sigwaitinfo attribute_hidden;
+#endif
 
 /* Select any of pending signals from SET and place information in INFO.
    Wait the time specified by TIMEOUT if no signal is pending.
 
    This function is a cancellation point and therefore not marked with
    __THROW.  */
-extern int sigtimedwait (__const sigset_t *__restrict __set,
+extern int sigtimedwait (const sigset_t *__restrict __set,
 			 siginfo_t *__restrict __info,
-			 __const struct timespec *__restrict __timeout)
+			 const struct timespec *__restrict __timeout)
      __nonnull ((1));
+#ifdef _LIBC
+extern __typeof(sigtimedwait) __sigtimedwait_nocancel attribute_hidden;
 libc_hidden_proto(sigtimedwait)
+#endif
 
 /* Send signal SIG to the process PID.  Associate data in VAL with the
    signal.  */
-extern int sigqueue (__pid_t __pid, int __sig, __const union sigval __val)
+extern int sigqueue (__pid_t __pid, int __sig, const union sigval __val)
      __THROW;
 # endif	/* Use POSIX 199306.  */
 
@@ -337,9 +382,10 @@ extern int sigqueue (__pid_t __pid, int __sig, __const union sigval __val)
 /* Names of the signals.  This variable exists only for compatibility.
    Use `strsignal' instead (see <string.h>).  */
 #  define _sys_siglist sys_siglist
-extern __const char *__const sys_siglist[_NSIG];
+extern const char *const sys_siglist[_NSIG];
 # endif
 
+#ifndef __UCLIBC_STRICT_HEADERS__
 /* Structure passed to `sigvec'.  */
 struct sigvec
   {
@@ -354,27 +400,34 @@ struct sigvec
 # define SV_ONSTACK	(1 << 0)/* Take the signal on the signal stack.  */
 # define SV_INTERRUPT	(1 << 1)/* Do not restart system calls.  */
 # define SV_RESETHAND	(1 << 2)/* Reset handler to SIG_DFL on receipt.  */
+#endif
 
 
+#if 0
 /* If VEC is non-NULL, set the handler for SIG to the `sv_handler' member
    of VEC.  The signals in `sv_mask' will be blocked while the handler runs.
    If the SV_RESETHAND bit is set in `sv_flags', the handler for SIG will be
    reset to SIG_DFL before `sv_handler' is entered.  If OVEC is non-NULL,
    it is filled in with the old information for SIG.  */
-extern int sigvec (int __sig, __const struct sigvec *__vec,
+extern int sigvec (int __sig, const struct sigvec *__vec,
 		   struct sigvec *__ovec) __THROW;
+#endif
 
 
 /* Get machine-dependent `struct sigcontext' and signal subcodes.  */
 # include <bits/sigcontext.h>
 
+#if 0
 /* Restore the state saved in SCP.  */
 extern int sigreturn (struct sigcontext *__scp) __THROW;
+#endif
 
 #endif /*  use BSD.  */
 
 
 #if defined __USE_BSD || defined __USE_XOPEN_EXTENDED
+# define __need_size_t
+# include <stddef.h>
 
 # ifdef __UCLIBC_SUSV4_LEGACY__
 /* If INTERRUPT is nonzero, make signal SIG interrupt system calls
@@ -386,18 +439,21 @@ extern int siginterrupt (int __sig, int __interrupt) __THROW;
 # include <bits/sigstack.h>
 # ifdef __USE_XOPEN
 /* This will define `ucontext_t' and `mcontext_t'.  */
-#  include <ucontext.h>
+/* SuSv4 obsoleted include/ucontext.h */
+#  include <sys/ucontext.h>
 # endif
 
+# if 0
 /* Run signals handlers on the stack specified by SS (if not NULL).
    If OSS is not NULL, it is filled in with the old signal stack status.
    This interface is obsolete and on many platform not implemented.  */
 extern int sigstack (struct sigstack *__ss, struct sigstack *__oss)
      __THROW __attribute_deprecated__;
+# endif
 
 /* Alternate signal handler stack interface.
    This interface should always be preferred over `sigstack'.  */
-extern int sigaltstack (__const struct sigaltstack *__restrict __ss,
+extern int sigaltstack (const struct sigaltstack *__restrict __ss,
 			struct sigaltstack *__restrict __oss) __THROW;
 
 #endif /* use BSD or X/Open Unix.  */
@@ -433,6 +489,13 @@ extern int __libc_current_sigrtmin (void) __THROW;
 /* Return number of available real-time signal with lowest priority.  */
 extern int __libc_current_sigrtmax (void) __THROW;
 
+#ifdef _LIBC
+extern sigset_t _sigintr attribute_hidden;
+/* simplified version without parameter checking */
+# include <string.h>
+# undef __sigemptyset
+# define __sigemptyset(ss) (memset(ss, '\0', sizeof(sigset_t)), 0)
+#endif
 #endif /* signal.h  */
 
 __END_DECLS

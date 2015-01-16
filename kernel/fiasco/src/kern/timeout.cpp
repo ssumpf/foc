@@ -310,8 +310,9 @@ Timeout_q::do_timeouts()
       // now scan this queue for timeouts below current clock
       while (timeout != q.end() && timeout->_wakeup <= (Kip::k()->clock))
         {
-          reschedule |= timeout->expire();
+          Timeout *to = *timeout;
           timeout = q.erase(timeout);
+          reschedule |= to->expire();
         }
 
       // next queue

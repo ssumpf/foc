@@ -5,7 +5,7 @@ INTERFACE:
 #include <cxx/type_traits>
 
 /**
- * Interface used to manage harware IRQs on a platform.
+ * Interface used to manage hardware IRQs on a platform.
  *
  * The main purpose of this interface is to allow an
  * abstract mapping of global IRQ numbers to a chip
@@ -95,7 +95,12 @@ Irq_mgr::alloc(Irq_base *irq, Mword pin)
   if (!i.chip)
     return false;
 
-  return i.chip->alloc(irq, i.pin);
+  if (i.chip->alloc(irq, i.pin))
+    {
+      i.chip->set_cpu(i.pin, Cpu_number::boot_cpu());
+      return true;
+    }
+  return false;
 }
 
 PUBLIC inline

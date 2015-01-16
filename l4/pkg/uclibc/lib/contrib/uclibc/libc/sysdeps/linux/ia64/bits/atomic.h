@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <stdint.h>
 #include <ia64intrin.h>
@@ -92,12 +91,12 @@ typedef uintmax_t uatomic_max_t;
      do									      \
        {								      \
 	 __oldval = __val;						      \
-	 if (__builtin_expect (__val <= 0, 0))				      \
+	 if (unlikely (__val <= 0))					      \
 	   break;							      \
 	 __val = atomic_compare_and_exchange_val_acq (__memp,	__oldval - 1, \
 						      __oldval);	      \
        }								      \
-     while (__builtin_expect (__val != __oldval, 0));			      \
+     while (unlikely (__val != __oldval));				      \
      __oldval; })
 
 #define atomic_bit_test_set(mem, bit) \
@@ -113,7 +112,7 @@ typedef uintmax_t uatomic_max_t;
 						      __oldval | __mask,      \
 						      __oldval);	      \
        }								      \
-     while (__builtin_expect (__val != __oldval, 0));			      \
+     while (unlikely (__val != __oldval));				      \
      __oldval & __mask; })
 
 #define atomic_full_barrier() __sync_synchronize ()

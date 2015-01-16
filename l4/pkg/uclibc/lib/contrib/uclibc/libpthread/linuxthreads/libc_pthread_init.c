@@ -13,14 +13,13 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <locale.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef USE_TLS
+#ifdef __UCLIBC_HAS_TLS__
 #include <tls.h>
 #endif
 #include "internals.h"
@@ -31,8 +30,7 @@ strong_alias (__libc_multiple_threads, __librt_multiple_threads)
 
 
 int *
-__libc_pthread_init (functions)
-     const struct pthread_functions *functions;
+__libc_pthread_init(const struct pthread_functions *functions)
 {
 #ifdef SHARED
   /* We copy the content of the variable pointed to by the FUNCTIONS
@@ -42,7 +40,7 @@ __libc_pthread_init (functions)
 	  sizeof (__libc_pthread_functions));
 #endif
 
-#if !(USE_TLS && HAVE___THREAD)
+#ifndef __UCLIBC_HAS_TLS__
   /* Initialize thread-locale current locale to point to the global one.
      With __thread support, the variable's initializer takes care of this.  */
   __uselocale (LC_GLOBAL_LOCALE);

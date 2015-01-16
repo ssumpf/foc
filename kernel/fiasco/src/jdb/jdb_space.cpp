@@ -58,18 +58,14 @@ Jdb_space::kobject_type() const
 }
 
 PUBLIC
-int
-Jdb_space::show_kobject_short(char *buf, int max, Kobject_common *o)
+void
+Jdb_space::show_kobject_short(String_buffer *buf, Kobject_common *o)
 {
   Task *t = Kobject::dcast<Task*>(o);
-  int cnt = 0;
   if (t == Kernel_task::kernel_task())
-    {
-      cnt = snprintf(buf, max, " {KERNEL}");
-      max -= cnt;
-      buf += cnt;
-    }
-  return cnt + snprintf(buf, max, " R=%ld", t->ref_cnt());
+    buf->printf(" {KERNEL}");
+
+  buf->printf(" R=%ld", t->ref_cnt());
 }
 
 PRIVATE static

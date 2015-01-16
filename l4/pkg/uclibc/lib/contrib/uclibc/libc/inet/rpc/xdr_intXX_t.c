@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <rpc/types.h>
 #include <rpc/xdr.h>
@@ -47,6 +46,7 @@ xdr_int64_t (XDR *xdrs, int64_t *ip)
       return FALSE;
     }
 }
+strong_alias_untyped(xdr_int64_t,xdr_quad_t)
 
 /* XDR 64bit unsigned integers */
 bool_t
@@ -75,6 +75,7 @@ xdr_uint64_t (XDR *xdrs, uint64_t *uip)
       return FALSE;
     }
 }
+strong_alias_untyped(xdr_uint64_t,xdr_u_quad_t)
 
 /* XDR 32bit integers */
 bool_t

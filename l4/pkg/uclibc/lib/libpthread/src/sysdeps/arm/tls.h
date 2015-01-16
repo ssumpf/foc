@@ -19,6 +19,7 @@
 
 #ifndef _TLS_H
 #define _TLS_H	1
+
 #ifndef __ASSEMBLER__
 
 # include <stdbool.h>
@@ -76,7 +77,7 @@ typedef struct
 # define TLS_TCB_SIZE		sizeof (tcbhead_t)
 
 /* This is the size we need before TCB.  */
-# define TLS_PRE_TCB_SIZE	sizeof (struct _pthread_descr_struct)
+# define TLS_PRE_TCB_SIZE	sizeof (struct pthread)
 
 /* Alignment requirements for the TCB.  */
 # define TLS_TCB_ALIGN		16
@@ -108,7 +109,7 @@ typedef struct
   ({ asm volatile ("mcr p15, 0, %0, c13, c0, 2" : : "r" (tcbp)); NULL; })
 
 # define TLS_INIT_TP_generic(tcbp, secondcall) \
-  ({ l4_utcb_tcr()->user[0] = (l4_addr_t)tcbp - TLS_PRE_TCB_SIZE; NULL; })
+  ({ l4_utcb_tcr()->user[0] = (l4_addr_t)tcbp - TLS_PRE_TCB_SIZE; { void (*set_tls)(unsigned long tls); set_tls = (void (*)(unsigned long))0xffffff80; set_tls((l4_addr_t)tcbp - TLS_PRE_TCB_SIZE); } NULL; })
 
 # define TLS_INIT_TP(tcbp, secondcall) TLS_INIT_TP_generic(tcbp, secondcall)
 
@@ -129,9 +130,9 @@ typedef struct
 
 /* Return the thread descriptor for the current thread.  */
 # define THREAD_SELF_ORIG \
- ((struct _pthread_descr_struct *)__builtin_thread_pointer () - 1)
+ ((struct pthread *)__builtin_thread_pointer () - 1)
 # define THREAD_SELF \
- ((struct _pthread_descr_struct *)TLS_get_thread_pointer() - 1)
+ ((struct pthread *)TLS_get_thread_pointer() - 1)
 
 /* Magic for libthread_db to know how to do THREAD_SELF.  */
 # define DB_THREAD_SELF \
@@ -175,4 +176,5 @@ typedef struct
   GL(dl_wait_lookup_done) ()
 
 #endif /* __ASSEMBLER__ */
+
 #endif	/* tls.h */

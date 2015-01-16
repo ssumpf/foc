@@ -78,6 +78,11 @@ void Kip::print() const
   printf("KIP @ %p\n", this);
   printf("magic: %.4s  version: 0x%lx\n",(char*)&magic, version);
   printf("clock: " L4_X64_FMT " (%lld)\n", clock, clock);
+  printf("uptime: %lld day(s), %lld hour(s), %lld min(s), %lld sec(s)\n",
+          clock / (1000000ULL * 60 * 60 * 24),
+         (clock / (1000000ULL * 60 * 60))    % 24,
+         (clock / (1000000ULL * 60))         % 60,
+         (clock /  1000000ULL)               % 60);
   printf("freq_cpu: %ldkHz\n", frequency_cpu);
   printf("freq_bus: %ldkHz\n", frequency_bus);
 

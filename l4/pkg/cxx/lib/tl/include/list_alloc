@@ -206,8 +206,9 @@ List_alloc::free(void *block, unsigned long size, bool initial_free)
   if (initial_free)
     {
       // enforce alignment constraint on initial memory
-      block = (void*)(((unsigned long)block + mb_align) & ~mb_align);
-      size &= ~mb_align;
+      unsigned long nblock = ((unsigned long)block + mb_align) & ~mb_align;
+      size = (size - (nblock - (unsigned long)block)) & ~mb_align;
+      block = (void*)nblock;
     }
   else
     // blow up size to the minimum aligned size
@@ -277,7 +278,7 @@ List_alloc::alloc(unsigned long size, unsigned align)
       if (r_size < size)
 	continue;
 
-      if (a_start < n_start)
+      if (a_start > n_start)
 	{
 	  // have free space before the allocated block
 	  // shrink the block and set c to the next pointer of that

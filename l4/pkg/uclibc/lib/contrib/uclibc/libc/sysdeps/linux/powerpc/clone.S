@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <features.h>
 #define _ERRNO_H	1
@@ -51,7 +50,7 @@ __clone:
 #ifdef RESET_PID
 	stmw	r28,16(r1)
 #else
-# ifdef __ASSUME_FIXED_CLONE_SYSCALL
+# ifndef __ASSUME_FIXED_CLONE_SYSCALL
 	stmw	r29,16(r1)
 # else
 	stmw	r30,16(r1)

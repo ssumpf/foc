@@ -45,12 +45,12 @@ typedef struct l4_sched_cpu_set_t
   l4_umword_t offset;
 
   /**
-   * Bitmap of online CPUs.
+   * Bitmap of CPUs.
    */
   l4_umword_t map;
 
   /**
-   * One bit in map represents 2^granularity CPUs.
+   * One bit in #map represents 2^granularity CPUs.
    */
   unsigned char granularity;
 

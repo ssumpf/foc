@@ -11,9 +11,8 @@
  *  Lesser General Public License for more details.
  *
  *  You should have received a copy of the GNU Lesser General Public
- *  License along with the GNU C Library; if not, write to the Free
- *  Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
- *  02111-1307 USA.
+ *  License along with the GNU C Library; see the file COPYING.LIB.  If
+ *  not, see <http://www.gnu.org/licenses/>.
  */
 
 /*  ATTENTION!   ATTENTION!   ATTENTION!   ATTENTION!   ATTENTION!
@@ -93,7 +92,7 @@ typedef struct __uclibc_locale_struct *__locale_t;
 #ifdef _LIBC
 
 /* extern void _locale_set(const unsigned char *p); */
-/* extern void _locale_init(void); */
+extern void weak_function _locale_init(void) attribute_hidden;
 
 #include <stddef.h>
 #include <stdint.h>
@@ -338,7 +337,9 @@ extern int __locale_mbrtowc_l(wchar_t *__restrict dst,
 extern __locale_t __curlocale_var;
 # ifdef __UCLIBC_HAS_THREADS__
 extern __locale_t __curlocale(void)  __THROW __attribute__ ((__const__));
+libc_hidden_proto(__curlocale)
 extern __locale_t __curlocale_set(__locale_t newloc);
+libc_hidden_proto(__curlocale_set)
 #  define __UCLIBC_CURLOCALE  (__curlocale())
 # else
 #  define __UCLIBC_CURLOCALE  (__curlocale_var)

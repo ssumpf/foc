@@ -181,18 +181,18 @@ Jdb_kobject_irq::show_kobject(Kobject_common *, int)
 { return true; }
 
 PUBLIC
-int
-Jdb_kobject_irq::show_kobject_short(char *buf, int max, Kobject_common *o)
+void
+Jdb_kobject_irq::show_kobject_short(String_buffer *buf, Kobject_common *o)
 {
   Irq *i = Kobject::dcast<Irq*>(o);
   Kobject_common *w = follow_link(o);
   Irq_sender *t = Jdb_kobject_irq::dcast<Irq_sender*>(o);
 
-  return snprintf(buf, max, " I=%3lx %s L=%lx T=%lx F=%x Q=%d",
-                  i->pin(), i->chip()->chip_type(), i->obj_id(),
-                  w != o ?  w->dbg_info()->dbg_id() : 0,
-		  (unsigned)i->flags(),
-                  t ? t->queued() : -1);
+  buf->printf(" I=%3lx %s L=%lx T=%lx F=%x Q=%d",
+              i->pin(), i->chip()->chip_type(), i->obj_id(),
+              w != o ?  w->dbg_info()->dbg_id() : 0,
+              (unsigned)i->flags(),
+              t ? t->queued() : -1);
 }
 
 static

@@ -38,19 +38,6 @@
 #ifndef _RPC_RPC_H
 #define _RPC_RPC_H 1
 
-#ifdef _LIBC
-/* Some adjustments to make the libc source from glibc
- * compile more easily with uClibc... */
-#ifndef __FORCE_GLIBC
-#define __FORCE_GLIBC
-#endif
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-#define _(X)	X
-#include <features.h>
-#endif
-
 #include <rpc/types.h>		/* some typedefs */
 #include <netinet/in.h>
 
@@ -108,11 +95,6 @@ libc_hidden_proto(__rpc_thread_svc_pollfd)
 extern int *__rpc_thread_svc_max_pollfd (void) __attribute__ ((__const__));
 libc_hidden_proto(__rpc_thread_svc_max_pollfd)
 #define svc_max_pollfd (*__rpc_thread_svc_max_pollfd ())
-
-extern bool_t xdr_accepted_reply (XDR *xdrs, struct accepted_reply *ar);
-libc_hidden_proto(xdr_accepted_reply)
-extern bool_t xdr_rejected_reply (XDR *xdrs, struct rejected_reply *rr);
-libc_hidden_proto(xdr_rejected_reply)
 
 __END_DECLS
 

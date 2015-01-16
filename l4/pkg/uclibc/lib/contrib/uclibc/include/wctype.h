@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /*
  *	ISO C99 Standard: 7.25
@@ -157,12 +156,13 @@ extern int iswpunct (wint_t __wc) __THROW;
    set of wide characters for which none of `iswalnum', `iswgraph', or
    `iswpunct' is true.  */
 extern int iswspace (wint_t __wc) __THROW;
+libc_hidden_proto(iswspace)
 
 /* Test for any wide character that corresponds to an uppercase letter
    or is one of a locale-specific set of wide character for which none
    of `iswcntrl', `iswdigit', `iswpunct', or `iswspace' is true.  */
 extern int iswupper (wint_t __wc) __THROW;
-libc_hidden_proto(iswspace)
+libc_hidden_proto(iswupper)
 
 /* Test for any wide character that corresponds to a hexadecimal-digit
    character equivalent to that performed be the functions described
@@ -182,7 +182,7 @@ extern int iswblank (wint_t __wc) __THROW;
 
 /* Construct value that describes a class of wide characters identified
    by the string argument PROPERTY.  */
-extern wctype_t wctype (__const char *__property) __THROW;
+extern wctype_t wctype (const char *__property) __THROW;
 libc_hidden_proto(wctype)
 
 /* Determine whether the wide-character WC has the property described by
@@ -199,7 +199,7 @@ __END_NAMESPACE_C99
 __BEGIN_NAMESPACE_C99
 /* Scalar type that can hold values which represent locale-specific
    character mappings.  */
-/* uClibc note: glibc uses - typedef __const __int32_t *wctrans_t; */
+/* uClibc note: glibc uses - typedef const __int32_t *wctrans_t; */
 typedef unsigned int wctrans_t;
 __END_NAMESPACE_C99
 #ifdef __USE_GNU
@@ -234,7 +234,7 @@ __BEGIN_DECLS
 __BEGIN_NAMESPACE_C99
 /* Construct value that describes a mapping between wide characters
    identified by the string argument PROPERTY.  */
-extern wctrans_t wctrans (__const char *__property) __THROW;
+extern wctrans_t wctrans (const char *__property) __THROW;
 libc_hidden_proto(wctrans)
 
 /* Map the wide character WC using the mapping described by DESC.  */
@@ -303,9 +303,8 @@ extern int iswblank_l (wint_t __wc, __locale_t __locale) __THROW;
 
 /* Construct value that describes a class of wide characters identified
    by the string argument PROPERTY.  */
-extern wctype_t wctype_l (__const char *__property, __locale_t __locale)
+extern wctype_t wctype_l (const char *__property, __locale_t __locale)
      __THROW;
-libc_hidden_proto(wctype_l)
 
 /* Determine whether the wide-character WC has the property described by
    DESC.  */
@@ -328,7 +327,7 @@ libc_hidden_proto(towupper_l)
 
 /* Construct value that describes a mapping between wide characters
    identified by the string argument PROPERTY.  */
-extern wctrans_t wctrans_l (__const char *__property, __locale_t __locale)
+extern wctrans_t wctrans_l (const char *__property, __locale_t __locale)
      __THROW;
 
 /* Map the wide character WC using the mapping described by DESC.  */

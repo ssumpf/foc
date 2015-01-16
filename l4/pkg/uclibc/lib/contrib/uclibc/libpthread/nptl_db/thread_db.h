@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _THREAD_DB_H
 #define _THREAD_DB_H	1
@@ -355,10 +354,10 @@ extern td_err_e td_ta_clear_event (const td_thragent_t *__ta,
 extern td_err_e td_ta_event_getmsg (const td_thragent_t *__ta,
 				    td_event_msg_t *__msg);
 
-
+#ifdef __UCLIBC_SUSV4_LEGACY__
 /* Set suggested concurrency level for process associated with TA.  */
 extern td_err_e td_ta_setconcurrency (const td_thragent_t *__ta, int __level);
-
+#endif
 
 /* Enable collecting statistics for process associated with TA.  */
 extern td_err_e td_ta_enable_stats (const td_thragent_t *__ta, int __enable);

@@ -1,4 +1,4 @@
-/* Copyright (C) 1999, 2000, 2003, 2005 Free Software Foundation, Inc.
+/* Copyright (C) 1999,2000,2003,2005,2006 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -12,19 +12,17 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Define the machine-dependent type `jmp_buf'.  SH version. */
 #ifndef _BITS_SETJMP_H
-#define _BITS_SETJMP_H	1
+#define _BITS_SETJMP_H  1
 
 #if !defined _SETJMP_H && !defined _PTHREAD_H
 # error "Never include <bits/setjmp.h> directly; use <setjmp.h> instead."
 #endif
 
-#ifndef _ASM
 typedef struct
   {
     /* Callee-saved registers r8 through r15.  */
@@ -42,15 +40,5 @@ typedef struct
     /* Callee-saved floating point registers fr12 through fr15.  */
     int __fpregs[4];
   } __jmp_buf[1];
-#endif
 
-#if defined __USE_MISC || defined _ASM
-# define JB_SIZE		(4 * 15)
-#endif
-
-/* Test if longjmp to JMPBUF would unwind the frame
-   containing a local variable at ADDRESS.  */
-#define _JMPBUF_UNWINDS(jmpbuf, address) \
-  ((void *) (address) < (void *) (jmpbuf)[0].__regs[7])
-
-#endif	/* bits/setjmp.h */
+#endif  /* bits/setjmp.h */

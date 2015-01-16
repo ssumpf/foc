@@ -21,21 +21,17 @@ static __inline__ _syscall3(int, __syscall_signalfd, int, fd,
 		const sigset_t *, mask, size_t, sizemask)
 #endif
 
-#if defined __NR_signalfd4 || defined __NR_signalfd \
-	|| defined __UCLIBC_HAS_STUBS__
+#if defined __NR_signalfd4 || defined __NR_signalfd
 int signalfd (int fd, const sigset_t *mask, int flags)
 {
 #if defined __NR___syscall_signalfd4
-	return __syscall_signalfd4(fd, mask, _NSIG / 8, flags);
+	return __syscall_signalfd4(fd, mask, __SYSCALL_SIGSET_T_SIZE, flags);
 #elif defined __NR___syscall_signalfd
 	if (flags != 0) {
 		__set_errno(EINVAL);
 		return -1;
 	}
-	return __syscall_signalfd(fd, mask, _NSIG / 8);
-#elif defined __UCLIBC_HAS_STUBS__
-	__set_errno(ENOSYS);
-	return -1;
+	return __syscall_signalfd(fd, mask, __SYSCALL_SIGSET_T_SIZE);
 #endif
 }
 #endif

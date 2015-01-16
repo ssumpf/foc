@@ -49,7 +49,10 @@ typedef struct l4_vm_svm_vmcb_control_area
   l4_uint32_t intercept_instruction0;
   l4_uint32_t intercept_instruction1;
 
-  l4_uint8_t _reserved0[44];
+  l4_uint8_t _reserved0[40];
+
+  l4_uint16_t pause_filter_threshold;
+  l4_uint16_t pause_filter_count;
 
   l4_uint64_t iopm_base_pa;
   l4_uint64_t msrpm_base_pa;
@@ -145,7 +148,11 @@ typedef struct l4_vm_svm_vmcb_state_save_area
   l4_uint64_t lastexcpfrom;
   l4_uint64_t last_excpto;
 
-  l4_uint8_t _reserved6[2408];
+  // this field is _NOT_ part of the official VMCB specification
+  // a (userlevel) VMM needs this for proper FPU state virtualization
+  l4_uint64_t xcr0;
+
+  l4_uint8_t _reserved6[2400];
 } __attribute__((packed)) l4_vm_svm_vmcb_state_save_area_t;
 
 

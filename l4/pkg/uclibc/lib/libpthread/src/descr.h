@@ -22,24 +22,10 @@
 #include <sys/types.h>
 #include <tls.h>
 #include <l4/sys/utcb.h>
-
-/* Fast thread-specific data internal to libc.  */
-enum __libc_tsd_key_t { _LIBC_TSD_KEY_MALLOC = 0,
-			_LIBC_TSD_KEY_DL_ERROR,
-			_LIBC_TSD_KEY_RPC_VARS,
-			_LIBC_TSD_KEY_LOCALE,
-			_LIBC_TSD_KEY_CTYPE_B,
-			_LIBC_TSD_KEY_CTYPE_TOLOWER,
-			_LIBC_TSD_KEY_CTYPE_TOUPPER,
-			_LIBC_TSD_KEY_N };
-
-/* The type of thread descriptors */
-typedef struct _pthread_descr_struct *pthread_descr;
-
-
-/* Some more includes.  */
 #include <pt-machine.h>
-//#include <linuxthreads_db/thread_dbP.h>
+/* The type of thread descriptors */
+typedef struct pthread *pthread_descr;
+
 
 
 /* Arguments passed to thread creation routine */
@@ -84,14 +70,18 @@ typedef struct _pthread_rwlock_info {
   int pr_lock_count;
 } pthread_readlock_info;
 
+#ifndef TCB_ALIGNMENT
+# define TCB_ALIGNMENT	sizeof (double)
+#endif
+
 
 /* We keep thread specific data in a special data structure, a two-level
    array.  The top-level array contains pointers to dynamically allocated
    arrays of a certain number of data pointers.  So we can implement a
    sparse array.  Each dynamic second-level array has
-	PTHREAD_KEY_2NDLEVEL_SIZE
+        PTHREAD_KEY_2NDLEVEL_SIZE
    entries.  This value shouldn't be too large.  */
-#define PTHREAD_KEY_2NDLEVEL_SIZE	32
+#define PTHREAD_KEY_2NDLEVEL_SIZE       32
 
 /* We need to address PTHREAD_KEYS_MAX key with PTHREAD_KEY_2NDLEVEL_SIZE
    keys in each subarray.  */
@@ -102,27 +92,32 @@ typedef struct _pthread_rwlock_info {
 
 union dtv;
 
-struct _pthread_descr_struct
+struct pthread
 {
-#if !defined USE_TLS || !TLS_DTV_AT_TP || INCLUDE_TLS_PADDING
-  /* This overlaps tcbhead_t (see tls.h), as used for TLS without threads.  */
   union
   {
+#if !defined(TLS_DTV_AT_TP)
+    /* This overlaps the TCB as used for TLS without threads (see tls.h).  */
+    tcbhead_t header;
+#else
     struct
     {
-      void *tcb;		/* Pointer to the TCB.  This is not always
-				   the address of this thread descriptor.  */
-      union dtv *dtvp;
-      pthread_descr self;	/* Pointer to this structure */
       int multiple_threads;
-      uintptr_t sysinfo;
-    } data;
-    void *__padding[16];
-  } p_header;
-# define p_multiple_threads p_header.data.multiple_threads
-#elif defined TLS_MULTIPLE_THREADS_IN_TCB && TLS_MULTIPLE_THREADS_IN_TCB
-  int p_multiple_threads;
+      int gscope_flag;
+# ifndef CONFIG_L4
+# ifndef __ASSUME_PRIVATE_FUTEX
+      int private_futex;
+# endif
+# endif
+    } header;
 #endif
+
+    /* This extra padding has no special purpose, and this structure layout
+       is private and subject to change without affecting the official ABI.
+       We just have it here in case it might be convenient for some
+       implementation-specific instrumentation hack or suchlike.  */
+    void *__padding[24];
+  };
 
   pthread_descr p_nextlive, p_prevlive;
                                 /* Double chaining of active threads */
@@ -178,11 +173,7 @@ struct _pthread_descr_struct
   size_t p_alloca_cutoff;	/* Maximum size which should be allocated
 				   using alloca() instead of malloc().  */
   /* New elements must be added at the end.  */
-} __attribute__ ((aligned(32))); /* We need to align the structure so that
-				    doubles are aligned properly.  This is 8
-				    bytes on MIPS and 16 bytes on MIPS64.
-				    32 bytes might give better cache
-				    utilization.  */
+} __attribute__ ((aligned (TCB_ALIGNMENT)));
 
 
 
@@ -195,7 +186,7 @@ extern char *__pthread_initial_thread_bos;
 
 /* Descriptor of the initial thread */
 
-extern struct _pthread_descr_struct __pthread_initial_thread;
+extern struct pthread __pthread_initial_thread;
 
 /* Limits of the thread manager stack. */
 
@@ -204,7 +195,7 @@ extern char *__pthread_manager_thread_tos;
 
 /* Descriptor of the manager thread */
 
-extern struct _pthread_descr_struct __pthread_manager_thread;
+extern struct pthread __pthread_manager_thread;
 extern pthread_descr __pthread_manager_threadp L4_HIDDEN;
 
 /* Indicate whether at least one thread has a user-defined stack (if 1),

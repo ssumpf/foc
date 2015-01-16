@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _SYS_CACHECTL_H
 #define _SYS_CACHECTL_H 1
@@ -29,13 +28,15 @@
 __BEGIN_DECLS
 
 #ifdef __USE_MISC
-extern int cachectl (void *addr, __const int nbytes, __const int op) __THROW;
+extern int cachectl (void *addr, const int nbytes, const int op) __THROW;
 #endif
-extern int __cachectl (void *addr, __const int nbytes, __const int op) __THROW;
+#if 0
+extern int __cachectl (void *addr, const int nbytes, const int op) __THROW;
+#endif
 #ifdef __USE_MISC
-extern int cacheflush (void *addr, __const int nbytes, __const int op) __THROW;
+extern int cacheflush (void *addr, const int nbytes, const int op) __THROW;
 #endif
-extern int _flush_cache (char *addr, __const int nbytes, __const int op) __THROW;
+extern int _flush_cache (char *addr, const int nbytes, const int op) __THROW;
 
 __END_DECLS
 

@@ -12,19 +12,18 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the uClibc Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the uClibc Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
-#include <errno.h>
-#include <unistd.h>
 #include <sys/syscall.h>
 
 #ifdef __NR_cacheflush
+# include <sys/cachectl.h>
 _syscall3(int, cacheflush, void *, addr, const int, nbytes, const int, op)
-strong_alias(cacheflush, _flush_cache)
+strong_alias_untyped(cacheflush, _flush_cache)
 #endif
 
 #ifdef __NR_cachectl
+# include <sys/cachectl.h>
 _syscall3(int, cachectl, void *, addr, const int, nbytes, const int, op)
 #endif

@@ -20,8 +20,8 @@
 #include <setjmp.h>
 #include "pthread.h"
 #include "internals.h"
-#ifndef NO_PTR_DEMANGLE
 #include <jmpbuf-unwind.h>
+#ifndef NO_PTR_DEMANGLE
 #define __JMPBUF_UNWINDS(a,b,c) _JMPBUF_UNWINDS(a,b,c)
 #else
 #define __JMPBUF_UNWINDS(a,b,c) _JMPBUF_UNWINDS(a,b)
@@ -49,13 +49,13 @@ void __pthread_cleanup_upto (__jmp_buf target, char *targetframe)
        c != NULL && __JMPBUF_UNWINDS(target, c, demangle_ptr);
        c = c->__prev)
     {
-#if _STACK_GROWS_DOWN
+#ifdef _STACK_GROWS_DOWN
       if ((char *) c <= targetframe)
 	{
 	  c = NULL;
 	  break;
 	}
-#elif _STACK_GROWS_UP
+#elif defined _STACK_GROWS_UP
       if ((char *) c >= targetframe)
 	{
 	  c = NULL;

@@ -35,12 +35,6 @@ SECTIONS
     *(.module_info)
     _module_info_end = .;
 
-    . = ALIGN(4096);
-    _modules_start = .;
-    *(.module.data)
-    . = ALIGN(4096);
-    _modules_end = .;
-    
   } : common
 
   _edata  =  .;
@@ -65,7 +59,10 @@ SECTIONS
   . = RAM_BASE + MODADDR;
 #endif
   _module_data_start = .;
-  .module_data : { *(.module_data) } : mods
+  .module_data : {
+    *(EXCLUDE_FILE (*mod00.bin *mod01.bin *mod02.bin) .module_data)
+    *(.module_data)
+  } : mods
   _module_data_end = .;
 #endif
 

@@ -5,12 +5,13 @@ INTERFACE:
 #include "thread.h"
 
 class Tb_entry;
+class String_buffer;
 
 class Jdb_tbuf_output
 {
 private:
-  typedef unsigned (Format_entry_fn)(Tb_entry *tb, const char *tidstr,
-				     unsigned tidlen, char *buf, int maxlen);
+  typedef void (Format_entry_fn)(String_buffer *, Tb_entry *tb, const char *tidstr,
+                                 unsigned tidlen);
   static Format_entry_fn *_format_entry_fn[];
   static bool show_names;
 };
@@ -34,6 +35,7 @@ IMPLEMENTATION:
 #include "l4_types.h"
 #include "processor.h"
 #include "static_init.h"
+#include "string_buffer.h"
 #include "tb_entry.h"
 #include "terminate.h"
 #include "watchdog.h"
@@ -45,14 +47,15 @@ bool Jdb_tbuf_output::show_names;
 static void
 console_log_entry(Tb_entry *e, const char *)
 {
-  static char log_message[80];
+  static String_buf<80> log_message;
+  log_message.reset();
 
   // disable all interrupts to stop other threads
   Watchdog::disable();
   Proc::Status s = Proc::cli_save();
 
-  Jdb_tbuf_output::print_entry(e, log_message, sizeof(log_message));
-  printf("%s\n", log_message);
+  Jdb_tbuf_output::print_entry(&log_message, e);
+  printf("%s\n", log_message.begin());
 
   // do not use getchar here because we ran cli'd
   // and getchar may do halt
@@ -72,13 +75,10 @@ console_log_entry(Tb_entry *e, const char *)
 }
 
 PRIVATE static
-unsigned
-Jdb_tbuf_output::dummy_format_entry (Tb_entry *tb, const char *, unsigned,
-				     char *buf, int maxlen)
+void
+Jdb_tbuf_output::dummy_format_entry(String_buffer *buf, Tb_entry *tb, const char *, unsigned)
 {
-  int len = snprintf(buf, maxlen,
-      " << no format_entry_fn for type %d registered >>", tb->type());
-  return len >= maxlen ? maxlen-1 : len;
+  buf->printf(" << no format_entry_fn for type %d registered >>", tb->type());
 }
 
 STATIC_INITIALIZE(Jdb_tbuf_output);
@@ -133,12 +133,11 @@ Jdb_tbuf_output::toggle_names()
 }
 
 static
-unsigned
-formatter_default(Tb_entry *tb, const char *tidstr, unsigned tidlen,
-		 char *buf, int maxlen)
+void
+formatter_default(String_buffer *buf, Tb_entry *tb, const char *tidstr, unsigned tidlen)
 {
   if (tb->type() < Tbuf_dynentries)
-    return 0;
+    return;
 
   int idx = tb->type()-Tbuf_dynentries;
 
@@ -146,39 +145,31 @@ formatter_default(Tb_entry *tb, const char *tidstr, unsigned tidlen,
   char const *sc = _log_table[idx].name;
   sc += strlen(sc) + 1;
 
-  unsigned l = snprintf(buf, maxlen, "%-3s: %-*s ", sc, tidlen, tidstr);
-  buf += l;
-  maxlen -= l;
+  buf->printf("%-3s: %-*s ", sc, tidlen, tidstr);
 
   if (!fmt)
     {
       Tb_entry_ke_reg *e = static_cast<Tb_entry_ke_reg*>(tb);
-      char ip_buf[32];
-      snprintf(ip_buf, sizeof(ip_buf), " @ " L4_PTR_FMT, e->ip());
-      snprintf(buf, maxlen, "\"%s\" "
-               L4_PTR_FMT " " L4_PTR_FMT " " L4_PTR_FMT "%s",
-               e->msg(), e->v[0], e->v[1], e->v[2],
-               e->ip() ? ip_buf : "");
-
-      return maxlen;
+      buf->printf("\"%s\" " L4_PTR_FMT " " L4_PTR_FMT " " L4_PTR_FMT " @ " L4_PTR_FMT,
+               e->msg(), e->v[0], e->v[1], e->v[2], e->ip());
     }
 
-  return fmt->print(tb, maxlen, buf);
+  fmt->print(buf, tb);
 }
 
 PUBLIC static
 void
-Jdb_tbuf_output::print_entry(int e_nr, char *buf, int maxlen)
+Jdb_tbuf_output::print_entry(String_buffer *buf, int e_nr)
 {
   Tb_entry *tb = Jdb_tbuf::lookup(e_nr);
 
   if (tb)
-    print_entry(tb, buf, maxlen);
+    print_entry(buf, tb);
 }
 
 PUBLIC static
 void
-Jdb_tbuf_output::print_entry(Tb_entry *tb, char *buf, int maxlen)
+Jdb_tbuf_output::print_entry(String_buffer *buf, Tb_entry *tb)
 {
   assert(tb->type() < Tbuf_max);
 
@@ -198,25 +189,15 @@ Jdb_tbuf_output::print_entry(Tb_entry *tb, char *buf, int maxlen)
     }
 
   if (Config::Max_num_cpus > 1)
-    {
-      snprintf(buf, maxlen, Config::Max_num_cpus > 16 ? "%02d " : "%d ", tb->cpu());
-      buf    += 2 + (Config::Max_num_cpus > 16);
-      maxlen -= 2 + (Config::Max_num_cpus > 16);
-    }
-
-  unsigned len;
+    buf->printf(Config::Max_num_cpus > 16 ? "%02d " : "%d ", tb->cpu());
 
   if (tb->type() >= Tbuf_dynentries)
-    len = formatter_default(tb, tidstr, show_names ? 21 : 4, buf, maxlen);
+    formatter_default(buf, tb, tidstr, show_names ? 21 : 4);
   else
-    len = _format_entry_fn[tb->type()](tb, tidstr,
-                                       show_names ? 21 : 4, buf, maxlen);
+    _format_entry_fn[tb->type()](buf, tb, tidstr, show_names ? 21 : 4);
 
-  // terminate string
-  buf += maxlen-len;
-  while (len--)
-    *buf++ = ' ';
-  buf[-1] = '\0';
+  buf->fill(' ');
+  buf->terminate();
 }
 
 PUBLIC static
@@ -242,12 +223,12 @@ Jdb_tbuf_output::set_filter(const char *filter_str, Mword *entries)
   for (Mword n=0; n<Jdb_tbuf::unfiltered_entries(); n++)
     {
       Tb_entry *e = Jdb_tbuf::unfiltered_lookup(n);
-      char s[80];
+      String_buf<200> s;
 
-      print_entry(e, s, sizeof(s));
+      print_entry(&s, e);
       if (Jdb_regex::avail())
 	{
-	  if (Jdb_regex::find(s, 0, 0))
+	  if (Jdb_regex::find(s.begin(), 0, 0))
 	    {
 	      e->unhide();
 	      cnt++;
@@ -256,7 +237,7 @@ Jdb_tbuf_output::set_filter(const char *filter_str, Mword *entries)
 	}
       else
 	{
-	  if (strstr(s, filter_str))
+	  if (strstr(s.begin(), filter_str))
 	    {
 	      e->unhide();
 	      cnt++;

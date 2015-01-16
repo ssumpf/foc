@@ -56,10 +56,12 @@ mem_map(Space *from, L4_fpage const &fp_from,
 
   Mem_space::Attr attribs(fp_from.rights() | L4_fpage::Rights::U(), control.mem_type());
 
+  Mu::Auto_tlb_flush<Mem_space> tlb;
+
   return map<Mem_space>(mapdb_mem.get(),
                         from, from, snd_addr,
                         Pfc(1) << so, to, to,
-                        rcv_addr, control.is_grant(), attribs,
+                        rcv_addr, control.is_grant(), attribs, tlb,
                         (Mem_space::Reap_list**)0);
 }
 
@@ -86,10 +88,10 @@ mem_fpage_unmap(Space *space, L4_fpage fp, L4_map_mask mask)
   Mem_space::V_pfn start = fp.mem_address();
 
   start = cxx::mask_lsb(start, o);
-
+  Mu::Auto_tlb_flush<Mem_space> tlb;
   return unmap<Mem_space>(mapdb_mem.get(), space, space,
                start, size,
-               fp.rights(), mask, (Mem_space::Reap_list**)0);
+               fp.rights(), mask, tlb, (Mem_space::Reap_list**)0);
 }
 
 
@@ -121,7 +123,7 @@ init_mapdb_mem(Space *sigma0)
         c = last_bits - Page_order(12);
       else
         ++ps;
-
+      printf("MDB: use page size: %d\n", Page_order::val(c));
       assert_kdb (idx < Max_num_page_sizes);
       page_sizes[idx++] = Page_order::val(c) - Config::PAGE_SHIFT;
       last_bits = c;

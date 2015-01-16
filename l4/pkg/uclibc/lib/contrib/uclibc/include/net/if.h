@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _NET_IF_H
 #define _NET_IF_H	1
@@ -191,7 +190,7 @@ struct ifconf
 __BEGIN_DECLS
 
 /* Convert an interface name to an index, and vice versa.  */
-extern unsigned int if_nametoindex (__const char *__ifname) __THROW;
+extern unsigned int if_nametoindex (const char *__ifname) __THROW;
 libc_hidden_proto(if_nametoindex)
 extern char *if_indextoname (unsigned int __ifindex, char *__ifname) __THROW;
 

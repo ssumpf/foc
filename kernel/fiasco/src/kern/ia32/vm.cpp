@@ -87,40 +87,40 @@ IMPLEMENTATION [obj_space_virt]:
 //
 
 IMPLEMENT
-void __attribute__((__flatten__))
+void FIASCO_FLATTEN
 Vm::caps_free()
 { Vm_obj_space::caps_free(); }
 
 IMPLEMENT
 inline
-bool __attribute__((__flatten__))
+bool FIASCO_FLATTEN
 Vm::v_lookup(Obj_space::V_pfn const &virt, Obj_space::Phys_addr *phys,
              Obj_space::Page_order *size, Obj_space::Attr *attribs)
 { return Vm_obj_space::v_lookup(virt, phys, size, attribs); }
 
 IMPLEMENT
-inline __attribute__((__flatten__))
-Obj_space::Capability __attribute__((__flatten__))
+inline
+Obj_space::Capability FIASCO_FLATTEN
 Vm::lookup(Cap_index virt)
 { return Vm_obj_space::lookup(virt); }
 
 IMPLEMENT
-inline __attribute__((__flatten__))
-L4_fpage::Rights __attribute__((__flatten__))
+inline
+L4_fpage::Rights FIASCO_FLATTEN
 Vm::v_delete(Obj_space::V_pfn virt, Obj_space::Page_order size,
              L4_fpage::Rights page_attribs)
 { return Vm_obj_space::v_delete(virt, size, page_attribs); }
 
 IMPLEMENT
-inline __attribute__((__flatten__))
-Obj_space::Status __attribute__((__flatten__))
+inline
+Obj_space::Status FIASCO_FLATTEN
 Vm::v_insert(Obj_space::Phys_addr phys, Obj_space::V_pfn const &virt,
              Obj_space::Page_order size, Obj_space::Attr page_attribs)
 { return (Obj_space::Status)Vm_obj_space::v_insert(phys, virt, size, page_attribs); }
 
 IMPLEMENT
-inline __attribute__((__flatten__))
-Obj_space::V_pfn
+inline
+Obj_space::V_pfn FIASCO_FLATTEN
 Vm::obj_map_max_address() const
 { return Vm_obj_space::obj_map_max_address(); }
 

@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 
 #ifdef HAVE_CONFIG_H
@@ -30,11 +29,6 @@
 #else
 # define HAVE_INTTYPES_H 1
 # define HAVE_STDINT_H 1
-# define SHLIB_COMPAT(x,y,z) 0
-# undef libc_hidden_def
-# define libc_hidden_def(x)
-# undef strong_alias
-# define strong_alias(x,y)
 #endif
 #else
 # include "obstack.h"
@@ -112,19 +106,19 @@ enum
    `print_and_abort'.  */
 static void print_and_abort (void);
 static void (*__obstack_alloc_failed_handler) (void) = print_and_abort;
-weak_alias(__obstack_alloc_failed_handler,obstack_alloc_failed_handler)
+strong_alias(__obstack_alloc_failed_handler,obstack_alloc_failed_handler)
 
 /* Exit value used when `print_and_abort' is used.  */
 # include <stdlib.h>
 # ifdef _LIBC
 static int __obstack_exit_failure = EXIT_FAILURE;
-weak_alias(__obstack_exit_failure,obstack_exit_failure)
+strong_alias(__obstack_exit_failure,obstack_exit_failure)
 # else
 #  include "exitfail.h"
 #  define __obstack_exit_failure exit_failure
 # endif
 
-# ifdef _LIBC
+# if 0
 #  if SHLIB_COMPAT (libc, GLIBC_2_0, GLIBC_2_3_4)
 /* A looong time ago (before 1994, anyway; we're not sure) this global variable
    was used by non-GNU-C macros to avoid multiple evaluation.  The GNU C
@@ -328,9 +322,7 @@ _obstack_newchunk (struct obstack *h, int length)
   /* The new chunk certainly contains no empty object yet.  */
   h->maybe_empty_object = 0;
 }
-# ifdef _LIBC
-libc_hidden_def (_obstack_newchunk)
-# endif
+libc_hidden_def(_obstack_newchunk)
 
 /* Return nonzero if object OBJ has been allocated from obstack H.
    This is here for debugging.
@@ -393,7 +385,7 @@ obstack_free (struct obstack *h, void *obj)
     abort ();
 }
 
-# ifdef _LIBC
+# if 0
 /* Older versions of libc used a function _obstack_free intended to be
    called by non-GCC compilers.  */
 strong_alias (obstack_free, _obstack_free)
@@ -418,9 +410,6 @@ _obstack_memory_used (struct obstack *h)
 # else
 #  include "gettext.h"
 # endif
-/* NLS: Disable gettext in obstack for now: */
-# undef _
-# define _(Str) (Str)
 # ifndef _
 #  define _(msgid) gettext (msgid)
 # endif

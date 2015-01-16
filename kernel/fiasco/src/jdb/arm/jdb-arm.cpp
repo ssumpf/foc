@@ -1,3 +1,12 @@
+INTERFACE [arm]:
+
+EXTENSION class Jdb
+{
+public:
+  static int (*bp_test_log_only)(Cpu_number);
+  static int (*bp_test_break)(Cpu_number, String_buffer *);
+};
+
 IMPLEMENTATION [arm]:
 
 #include "globals.h"
@@ -8,12 +17,88 @@ IMPLEMENTATION [arm]:
 #include "mem_layout.h"
 #include "mem_unit.h"
 #include "static_init.h"
+#include "timer_tick.h"
 #include "watchdog.h"
 #include "cxx/cxx_int"
 
 STATIC_INITIALIZE_P(Jdb, JDB_INIT_PRIO);
 
 DEFINE_PER_CPU static Per_cpu<Proc::Status> jdb_irq_state;
+
+int (*Jdb::bp_test_log_only)(Cpu_number);
+int (*Jdb::bp_test_break)(Cpu_number, String_buffer *buf);
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [arm && !pic_gic]:
+
+PRIVATE static inline
+void
+Jdb::wfi_enter()
+{}
+
+PRIVATE static inline
+void
+Jdb::wfi_leave()
+{}
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [arm && pic_gic]:
+
+#include "gic.h"
+
+struct Jdb_wfi_gic
+{
+  unsigned orig_tt_prio;
+  unsigned orig_pmr;
+};
+static Jdb_wfi_gic wfi_gic;
+
+PRIVATE static
+void
+Jdb::wfi_enter()
+{
+  Jdb_core::wait_for_input = _wait_for_input;
+
+  Timer_tick *tt = Timer_tick::boot_cpu_timer_tick();
+  Gic *g = static_cast<Gic*>(tt->chip());
+
+  wfi_gic.orig_tt_prio = g->irq_prio(tt->pin());
+  wfi_gic.orig_pmr     = g->pmr();
+  g->pmr(0x20);
+  g->irq_prio(tt->pin(), 0x10);
+
+  Timer_tick::enable(Cpu_number::boot_cpu());
+}
+
+PRIVATE static
+void
+Jdb::wfi_leave()
+{
+  Timer_tick *tt = Timer_tick::boot_cpu_timer_tick();
+  Gic *g = static_cast<Gic*>(tt->chip());
+  g->irq_prio(tt->pin(), wfi_gic.orig_tt_prio);
+  g->pmr(wfi_gic.orig_pmr);
+}
+
+PRIVATE static
+void
+Jdb::_wait_for_input()
+{
+  Proc::halt();
+
+  Timer_tick *tt = Timer_tick::boot_cpu_timer_tick();
+  unsigned i = static_cast<Gic*>(tt->chip())->pending();
+  if (i == tt->pin())
+    {
+      tt->chip()->ack(i);
+      tt->ack();
+    }
+  else
+    printf("JDB: Unexpected interrupt %d\n", i);
+}
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [arm]:
 
 // disable interrupts before entering the kernel debugger
 IMPLEMENT
@@ -23,6 +108,11 @@ Jdb::save_disable_irqs(Cpu_number cpu)
   jdb_irq_state.cpu(cpu) = Proc::cli_save();
   if (cpu == Cpu_number::boot_cpu())
     Watchdog::disable();
+
+  Timer_tick::disable(cpu);
+
+  if (cpu == Cpu_number::boot_cpu())
+    wfi_enter();
 }
 
 // restore interrupts after leaving the kernel debugger
@@ -30,6 +120,11 @@ IMPLEMENT
 void
 Jdb::restore_irqs(Cpu_number cpu)
 {
+  if (cpu == Cpu_number::boot_cpu())
+    wfi_leave();
+
+  Timer_tick::enable(cpu);
+
   if (cpu == Cpu_number::boot_cpu())
     Watchdog::enable();
   Proc::sti_restore(jdb_irq_state.cpu(cpu));
@@ -45,15 +140,13 @@ void
 Jdb::leave_trap_handler(Cpu_number)
 {}
 
-PROTECTED static inline
-void
-Jdb::monitor_address(Cpu_number, void *)
-{}
-
 IMPLEMENT inline
 bool
-Jdb::handle_conditional_breakpoint(Cpu_number)
-{ return false; }
+Jdb::handle_conditional_breakpoint(Cpu_number cpu, Jdb_entry_frame *e)
+{
+  return Thread::is_debug_exception(e->error_code)
+         && bp_test_log_only && bp_test_log_only(cpu);
+}
 
 IMPLEMENT
 void
@@ -68,13 +161,18 @@ bool
 Jdb::handle_debug_traps(Cpu_number cpu)
 {
   Jdb_entry_frame *ef = entry_frame.cpu(cpu);
+  error_buffer.cpu(cpu).clear();
 
-  if (ef->error_code == 0x00e00000)
-    snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::first())), "%s",
-             (char const *)ef->r[0]);
+  if (Thread::is_debug_exception(ef->error_code)
+      && bp_test_break)
+    return bp_test_break(cpu, &error_buffer.cpu(cpu));
+
+  if (ef->error_code == (0x33UL << 26))
+    error_buffer.cpu(cpu).printf("%s",(char const *)ef->r[0]);
   else if (ef->debug_ipi())
-    snprintf(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(Cpu_number::first())),
-             "IPI ENTRY");
+    error_buffer.cpu(cpu).printf("IPI ENTRY");
+  else
+    error_buffer.cpu(cpu).printf("ENTRY");
 
   return true;
 }
@@ -91,7 +189,7 @@ Jdb::handle_user_request(Cpu_number cpu)
   if (ef->debug_ipi())
     return cpu != Cpu_number::boot_cpu();
 
-  if (ef->error_code == 0x00e00001)
+  if (ef->error_code == ((0x33UL << 26) | 1))
     return execute_command_ni(task, str);
 
   if (!peek(str, task, tmp) || tmp != '*')
@@ -166,8 +264,8 @@ Jdb::access_mem_task(Address virt, Space * task)
   if (addr == (Address)-1)
     {
       Mem_unit::flush_vdcache();
-      auto pte = static_cast<Mem_space*>(Kernel_task::kernel_task())
-        ->_dir->walk(Virt_addr(Mem_layout::Jdb_tmp_map_area), Pdir::Super_level);
+      auto pte = Kmem_space::kdir()
+        ->walk(Virt_addr(Mem_layout::Jdb_tmp_map_area), Pdir::Super_level);
 
       if (!pte.is_valid() || pte.page_addr() != cxx::mask_lsb(phys, pte.page_order()))
         {
@@ -176,7 +274,7 @@ Jdb::access_mem_task(Address virt, Space * task)
           pte.write_back_if(true, Mem_unit::Asid_kernel);
         }
 
-      Mem_unit::tlb_flush();
+      Mem_unit::kernel_tlb_flush();
 
       addr = Mem_layout::Jdb_tmp_map_area + (phys & (Config::SUPERPAGE_SIZE - 1));
     }
@@ -266,31 +364,20 @@ Jdb::leave_getchar()
 
 PUBLIC static
 void
-Jdb::write_tsc_s(Signed64 tsc, char *buf, int maxlen, bool sign)
+Jdb::write_tsc_s(String_buffer *buf, Signed64 tsc, bool sign)
 {
   if (sign)
-    {
-      *buf++ = (tsc < 0) ? '-' : (tsc == 0) ? ' ' : '+';
-      maxlen--;
-    }
-  snprintf(buf, maxlen, "%lld c", tsc);
+    buf->printf("%c", (tsc < 0) ? '-' : (tsc == 0) ? ' ' : '+');
+  buf->printf("%lld c", tsc);
 }
 
 PUBLIC static
 void
-Jdb::write_tsc(Signed64 tsc, char *buf, int maxlen, bool sign)
+Jdb::write_tsc(String_buffer *buf, Signed64 tsc, bool sign)
 {
-  write_tsc_s(tsc, buf, maxlen, sign);
+  write_tsc_s(buf, tsc, sign);
 }
 
-//----------------------------------------------------------------------------
-IMPLEMENTATION [arm && !mp]:
-
-PROTECTED static inline
-template< typename T >
-void
-Jdb::set_monitored_address(T *dest, T val)
-{ *dest = val; }
 
 //----------------------------------------------------------------------------
 IMPLEMENTATION [arm && mp]:
@@ -305,19 +392,18 @@ Jdb::send_nmi(Cpu_number cpu)
          cxx::int_value<Cpu_number>(cpu));
 }
 
-PROTECTED static inline
-template< typename T >
+IMPLEMENT inline template< typename T >
 void
 Jdb::set_monitored_address(T *dest, T val)
 {
-  *dest = val;
+  *const_cast<T volatile *>(dest) = val;
   Mem::dsb();
   asm volatile("sev");
 }
 
-PROTECTED static inline
-template< typename T >
-T Jdb::monitor_address(Cpu_number, T volatile *addr)
+IMPLEMENT inline template< typename T >
+T
+Jdb::monitor_address(Cpu_number, T volatile const *addr)
 {
   asm volatile("wfe");
   return *addr;

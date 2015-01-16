@@ -15,9 +15,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; see the file COPYING.LIB.  If not,
-   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   License along with the GNU C Library; see the file COPYING.LIB.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef _PT_MACHINE_H
 #define _PT_MACHINE_H   1
@@ -58,7 +57,7 @@ testandset (int *spinlock)
 #define CURRENT_STACK_FRAME  stack_pointer
 register char * stack_pointer __asm__ ("15");
 
-#ifdef USE_TLS
+#ifdef __UCLIBC_HAS_TLS__
 /* Return the thread descriptor for the current thread.  */
 # define THREAD_SELF ((pthread_descr) __builtin_thread_pointer ())
 

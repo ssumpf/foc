@@ -50,7 +50,7 @@ Mem_space::peek(T const *addr, bool user_space)
 //----------------------------------------------------------------------------
 IMPLEMENTATION[arm || ia32 || amd64]:
 
-IMPLEMENT inline NEEDS [<cassert>]
+IMPLEMENT_DEFAULT inline
 template< typename T >
 T
 Mem_space::peek_user(T const *addr)
@@ -58,7 +58,7 @@ Mem_space::peek_user(T const *addr)
   return *addr;
 }
 
-IMPLEMENT inline NEEDS [<cassert>]
+IMPLEMENT inline
 template< typename T >
 void
 Mem_space::poke_user(T *addr, T value)

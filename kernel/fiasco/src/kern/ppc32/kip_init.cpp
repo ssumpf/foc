@@ -68,6 +68,6 @@ void Kip_init::init()
   kinfo->add_mem_region(Mem_desc(0,(Address)&Mem_layout::end - 1,
                         Mem_desc::Reserved));
 
-  kinfo->add_mem_region(Mem_desc(0, Mem_layout::User_max - 1, 
+  kinfo->add_mem_region(Mem_desc(0, Mem_layout::User_max,
 	                Mem_desc::Conventional, true));
 }

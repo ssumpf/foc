@@ -20,9 +20,12 @@
 #include "support.h"
 
 namespace {
-class Platform_leon3 : public Platform_base
+class Platform_leon3 :
+  public Platform_base,
+  public Boot_modules_image_mode
 {
   bool probe() { return true; }
+  Boot_modules *modules() { return this; }
 
   enum {
       LEON3_NUM_DEVICE_INFO = 64,
@@ -106,7 +109,7 @@ class Platform_leon3 : public Platform_base
     printf("--------------------------------------\n");
   }
 
-  void setup_memory_map(l4util_mb_info_t *, Region_list *ram, Region_list *)
+  void setup_memory_map()
   {
     /* § 10.8.2
        SDRAM area is mapped into the upper half of the RAM area defined by BAR2
@@ -134,8 +137,8 @@ class Platform_leon3 : public Platform_base
     printf("RAM:   %4d kB\n", (8192 << ram_size) / 1024);
     printf("SDRAM: %4d MB\n", sdram_size);
 
-    ram->add(Region::n(sdram_base, sdram_base + (sdram_size << 20), ".sdram",
-                       Region::Ram));
+    mem_manager->ram->add(Region::n(sdram_base, sdram_base + (sdram_size << 20),
+                                    ".sdram", Region::Ram));
   }
 };
 }

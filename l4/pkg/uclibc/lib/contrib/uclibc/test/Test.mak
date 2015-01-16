@@ -35,7 +35,9 @@ endif
 CLEAN_TARGETS := $(U_TARGETS) $(G_TARGETS)
 CLEAN_TARGETS += $(TESTS_DISABLED) $(addsuffix _glibc,$(TESTS_DISABLED)) $(GLIBC_TESTS_DISABLED)
 COMPILE_TARGETS :=  $(TARGETS)
-RUN_TARGETS := $(addsuffix .exe,$(TARGETS))
+# We sort the targets so uClibc and host-libc tests are run adjacent
+RUN_TARGETS := $(sort $(addsuffix .exe,$(TARGETS)))
+COMPILE_TARGETS :=  $(sort $(COMPILE_TARGETS))
 # provide build rules even for disabled tests:
 U_TARGETS += $(TESTS_DISABLED)
 G_TARGETS += $(addsuffix _glibc,$(TESTS_DISABLED)) $(GLIBC_TESTS_DISABLED)
@@ -99,13 +101,15 @@ $(MAKE_SRCS): Makefile $(TESTDIR)Makefile $(TESTDIR)Rules.mak $(TESTDIR)Test.mak
 
 $(U_TARGETS): $(U_TARGET_SRCS) $(MAKE_SRCS)
 	$(showlink)
-	$(Q)$(CC) $(CFLAGS) $(EXTRA_CFLAGS) $(CFLAGS_$(notdir $(CURDIR))) $(CFLAGS_$@) -c $@.c -o $@.o
+	$(Q)$(CC) $(filter-out $(CFLAGS-OMIT-$@),$(CFLAGS)) $(EXTRA_CFLAGS) $(CFLAGS_$(notdir $(CURDIR))) $(CFLAGS_$@) -c $@.c -o $@.o
 	$(Q)$(CC) $(LDFLAGS) $@.o -o $@ $(EXTRA_LDFLAGS) $(LDFLAGS_$@)
 
 $(G_TARGETS): $(U_TARGET_SRCS) $(MAKE_SRCS)
 	$(showlink)
-	$(Q)$(HOSTCC) $(HOST_CFLAGS) $(CFLAGS_$(notdir $(CURDIR))) $(CFLAGS_$(patsubst %_glibc,%,$@)) -c $(patsubst %_glibc,%,$@).c -o $@.o
-	$(Q)$(HOSTCC) $(HOST_LDFLAGS) $@.o -o $@ $(EXTRA_LDFLAGS) $(LDFLAGS_$(patsubst %_glibc,%,$@))
+	$(Q)$(HOSTCC) $(filter-out $(HOST_CFLAGS-OMIT-$(patsubst %_glibc,%,$@)),$(HOST_CFLAGS)) \
+	$(CFLAGS_$(notdir $(CURDIR))) $(CFLAGS_$(patsubst %_glibc,%,$@)) \
+	-c $(patsubst %_glibc,%,$@).c -o $@.o
+	$(Q)$(HOSTCC) $(HOST_LDFLAGS) $@.o -o $@ $(EXTRA_LDFLAGS) $(LDFLAGS_$(patsubst %_glibc,%,$@)) $(LDFLAGS_$@)
 
 
 shell_%:
@@ -117,9 +121,11 @@ shell_%:
 %.so: %.c
 	$(showlink)
 	$(Q)$(CC) \
-		$(CFLAGS) $(EXTRA_CFLAGS) $(CFLAGS_$(patsubst %_glibc,%,$@)) \
+		$(filter-out $(CFLAGS-OMIT-$<),$(CFLAGS)) $(EXTRA_CFLAGS) \
+		$(CFLAGS_$(patsubst %_glibc,%,$@)) \
 		-fPIC -shared $< -o $@ -Wl,-soname,$@ \
-		$(LDFLAGS) $(EXTRA_LIBS) $(LDFLAGS_$(patsubst %_glibc,%,$@))
+		$(filter-out $(LDFLAGS-OMIT-$<),$(LDFLAGS)) $(EXTRA_LIBS) \
+		$(LDFLAGS_$(patsubst %_glibc,%,$@))
 
 clean:
 	$(showclean)

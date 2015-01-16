@@ -11,6 +11,7 @@ config FORCE_OPTIONS_FOR_ARCH
 	bool
 	default y
 	select ARCH_ANY_ENDIAN
+	select ARCH_HAS_DEPRECATED_SYSCALLS
 
 choice
 	prompt "Target Processor Type"
@@ -41,7 +42,6 @@ config CONFIG_SH3
 	bool "SH3"
 
 config CONFIG_SH4
-	select FORCE_SHAREABLE_TEXT_SEGMENTS
 	bool "SH4"
 
 endchoice

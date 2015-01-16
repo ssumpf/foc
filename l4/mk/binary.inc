@@ -56,10 +56,24 @@ ifneq ($(strip $(SRC_F)$(foreach t,$(TARGET),$(SRC_F_$(t)))),)
       $(info $(shell echo -e "\033[32mFortran compiler (gcc-4.6 or later) missing, skipping directory '$(SRC_DIR)'.\033[0m"))
       SYSTEMS =
     else
-      ifeq ($(filter 4.6 4.7 4.8,$(GCCVERSION)),)
+      ifeq ($(filter 4.6 4.7 4.8 4.9 5,$(GCCVERSION)),)
         $(info $(shell echo -e "\033[32mFortran compiler gcc version 4.6 or later required, skipping directory '$(SRC_DIR)'.\033[0m"))
         SYSTEMS =
       endif
+    endif
+  endif
+endif
+
+ifneq ($(SRC_CC_IS_CXX11),)
+  ifeq ($(SRC_CC_IS_CXX11),c++0x)
+    ifeq ($(filter 4.5 4.6 4.7 4.8 4.9 5,$(GCCVERSION)),)
+      $(info $(shell echo -e "\033[32mGCC too old to compile C++11 sources in directory '$(SRC_DIR)'. At least version 4.5 required.\033[0m"))
+      SYSTEMS =
+    endif
+  else
+    ifeq ($(filter 4.7 4.8 4.9 5,$(GCCVERSION)),)
+      $(info $(shell echo -e "\033[32mGCC too old to compile C++11 sources in directory '$(SRC_DIR)'. At least version 4.7 required.\033[0m"))
+      SYSTEMS =
     endif
   endif
 endif
@@ -130,15 +144,8 @@ $(foreach sys,$(TARGET_SYSTEMS),$(OBJ_DIR)/OBJ-$(sys)/$(BID_OBJ_Makefile)):$(OBJ
 	@echo 'ARCH=$(call SYSTEM_TO_ARCH,$*)'>>$@
 	@echo 'CPU=$(call SYSTEM_TO_CPU,$*)'>>$@
 	@echo 'L4API=$(call SYSTEM_TO_L4API,$*)'>>$@
-	@echo 'vpath %.c $(VPATH_SRC_BASE)'>>$@
-	@echo 'vpath %.cc $(VPATH_SRC_BASE)'>>$@
-	@echo 'vpath %.cpp $(VPATH_SRC_BASE)'>>$@
-	@for fext in $(FORTRAN_FILE_EXTENSIONS); do echo "vpath %$$fext $(VPATH_SRC_BASE)">>$@ ; done
-	@echo 'vpath %.S $(VPATH_SRC_BASE)'>>$@
-	@echo 'vpath %.y $(VPATH_SRC_BASE)'>>$@
-	@echo 'vpath %.l $(VPATH_SRC_BASE)'>>$@
-	@echo 'vpath %.ld $(VPATH_SRC_BASE)'>>$@
-	@echo 'vpath %.dpe $(VPATH_SRC_BASE)'>>$@
+	@for ext in .c .cc .cpp $(FORTRAN_FILE_EXTENSIONS) .S .y .l .ld .dpe; \
+	  do echo "vpath %$$ext $(VPATH_SRC_BASE)">>$@ ; done
 	@echo '.general.d: $(SRC_DIR)/$(if $(wildcard Make.rules),Make.rules,Makefile)'>>$@
 	@echo 'include $(SRC_DIR)/$(if $(wildcard Make.rules),Make.rules,Makefile)'>>$@
 	@echo 'include $$(L4DIR)/mk/$(ROLE)'>>$@
@@ -199,6 +206,16 @@ L4INCDIR ?=	$(addprefix $(OBJ_BASE)/include/$(ARCH)/,$(L4API)) \
                 $(DROPS_STDDIR)/include/$(ARCH) \
                 $(DROPS_STDDIR)/include
 
+L4INCDIR_SYS ?=	$(addprefix $(OBJ_BASE)/include/sys/$(ARCH)/,$(L4API)) \
+                $(addprefix $(OBJ_BASE)/include/sys/,$(L4API)) \
+                $(OBJ_BASE)/include/sys/$(ARCH)/ \
+                $(OBJ_BASE)/include/sys \
+		$(if $(USE_DICE),$(DICE_INCDIR),)
+                $(addprefix $(DROPS_STDDIR)/include/sys/$(ARCH)/,$(L4API))) \
+                $(addprefix $(DROPS_STDDIR)/include/sys/,$(L4API))) \
+                $(DROPS_STDDIR)/include/sys/$(ARCH) \
+                $(DROPS_STDDIR)/include/sys
+
 L4LIBDIR ?=	$(addprefix $(OBJ_BASE)/lib/$(ARCH)_$(CPU)/,$(L4API)) \
                 $(OBJ_BASE)/lib/$(ARCH)_$(CPU) \
                 $(OBJ_BASE)/lib \
@@ -212,6 +229,12 @@ L4INCDIR ?=	$(addprefix $(OBJ_BASE)/include/$(ARCH)/,$(L4API)) \
                 $(addprefix $(OBJ_BASE)/include/,$(L4API)) \
                 $(OBJ_BASE)/include/$(ARCH) \
                 $(OBJ_BASE)/include \
+		$(if $(USE_DICE),$(DICE_INCDIR),)
+
+L4INCDIR_SYS ?=	$(addprefix $(OBJ_BASE)/include/sys/$(ARCH)/,$(L4API)) \
+                $(addprefix $(OBJ_BASE)/include/sys/,$(L4API)) \
+                $(OBJ_BASE)/include/sys/$(ARCH) \
+                $(OBJ_BASE)/include/sys \
 		$(if $(USE_DICE),$(DICE_INCDIR),)
 
 L4LIBDIR ?=     $(addprefix $(OBJ_BASE)/lib/$(ARCH)_$(CPU)/,$(L4API)) \
@@ -231,12 +254,12 @@ endif
 # FFLAGS	- options for the fortran compiler
 # ASFLAGS	- options for the assembler
 #
-# Addtitionally, the following varibales are supported:
+# Additionally, the following variables are supported:
 # SRC_C, SRC_CC, SRC_F, SRC_S - .c, .cc, .f90, .S source files
 # CRT0, CRTN	- startup and finish code
 # LIBS		- additional libs to link (with -l), including paths (-L)
 # IDL		- interface definition files
-# TARGET	- targets to ge built
+# TARGET	- targets to be built
 #
 # These variables will be used for all operations with the corresponding
 # file types. More specific description is possible by using variables with
@@ -278,7 +301,6 @@ REQUIRES_LIBS += $(REQUIRES_LIBS_$(ARCH)) $(call BID_mode_var,REQUIRES_LIBS)
 # use the target to parameterize it and if it needs not to appear in the deps 
 #CRT0	=  $(word 1, $(CRT0_$@_$(OSYSTEM)) $(CRT0_$@) $(CRT0_$(OSYSTEM)))
 #CRTN	=  $(word 1, $(CRTN_$@_$(OSYSTEM)) $(CRTN_$@) $(CRTN_$(OSYSTEM)))
-LIBS	+= $(strip $(LIBS_$(OSYSTEM)) $(LIBS_$@) $(LIBS_$@_$(OSYSTEM)))
 
 LDFLAGS	+= $(strip $(LDFLAGS_$(OSYSTEM)) $(LDFLAGS_$@) $(LDFLAGS_$@_$(OSYSTEM)))
 CARCHFLAGS += $(CARCHFLAGS_$(ARCH)) $(CARCHFLAGS_$(ARCH)_$(CPU))
@@ -343,9 +365,26 @@ ifeq ($(BID_MISSING_PCS),)
  endif # SYSTEM
 endif
 
+ifneq ($(REQUIRE_HOST_TOOLS),)
+  CHECK_HOST_TOOLS = \
+     $(shell unset mis;                                     \
+	     for i in $(1); do                              \
+	       if ! command -v $$i >/dev/null 2>&1; then    \
+	         [ -n "$$mis" ] && mis="$$mis ";            \
+	         mis="$$mis$$i";                            \
+	       fi                                           \
+	     done; echo $$mis)
+
+  ifneq ($(call CHECK_HOST_TOOLS,$(REQUIRE_HOST_TOOLS)),)
+    $(info $(shell echo -e "\033[32mHost tool(s) missing: \033[1m$(REQUIRE_HOST_TOOLS)\033[22m needed in directory '$(SRC_DIR)'. Skipping.\033[0m"))
+    SYSTEMS :=
+    INSTALL_TARGET :=
+  endif
+endif
+
 # -----------------------
 
-# May 2007: force somewhat old hash-style as some(!, independant of the
+# May 2007: force somewhat old hash-style as some(!, independent of the
 #           actual version) ld now use an other format, no uclibc upstream fix
 #           available yet, until available, we need:
 ifeq ($(LD_HAS_HASH_STYLE_OPTION),y)
@@ -354,8 +393,16 @@ LDFLAGS += --hash-style=sysv
 endif
 endif
 
-OPTS	?= -g -O2 -fno-strict-aliasing
-WARNINGS?= -Wextra -Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations $(WARNINGS_$@)
+bid_flag_variants = $($(1)_$(OSYSTEM)) $($(1)_$@) $($(1)_$(@D)) $($(1)_$<) \
+                    $($(1)_$(<F)) $($(1)_$(<D)) $($(1)_$(<F)_$(OSYSTEM))
+
+OPTS	         ?= -g -O2 -fno-strict-aliasing
+
+WARNINGS_MINIMAL ?= -Wall $(call bid_flag_variants,WARNINGS)
+WARNINGS_MEDIUM  ?= -Wall -Wstrict-prototypes -Wmissing-prototypes \
+                    -Wmissing-declarations $(call bid_flag_variants,WARNINGS)
+WARNINGS_FULL    ?= -Wextra $(WARNINGS_MEDIUM)
+WARNINGS         ?= $(WARNINGS_FULL)
 
 ifeq ($(MODE),host)
 # never cross compile in host mode
@@ -369,6 +416,9 @@ LDFLAGS      += $(LDFLAGS_$(ARCH))
 L4_LIBS      += $(REQUIRES_LIBS_LIST)
 endif
 
+# additional libraries go after the requires-libs-list
+LIBS         += $(strip $(LIBS_$(OSYSTEM)) $(LIBS_$@) $(LIBS_$@_$(OSYSTEM)))
+
 # no link address if build a lib or we're compiling a host program and using
 # the host linker scripts
 ifeq ($(ROLE),lib.mk)
@@ -377,6 +427,22 @@ endif
 ifneq ($(HOST_LINK),)
 NO_DEFAULT_RELOC := y
 endif
+
+# stack protector support
+# check if uclibc signaled support for stack protector
+ifneq ($(filter bid_allow_stack_protector, $(BID_PKG_CONFIG_CFLAGS)),)
+  BID_PKG_CONFIG_CFLAGS := $(filter-out bid_allow_stack_protector, $(BID_PKG_CONFIG_CFLAGS))
+  ifdef CONFIG_BID_GCC_ENABLE_STACK_PROTECTOR # stack protector option was selected in make config
+    GCCSTACKPROTECTOROPT := $(if $(CONFIG_BID_GCC_STACK_PROTECTOR_ALL), $(GCCSTACKPROTALLOPT), \
+                                                                        $(GCCSTACKPROTOPT))
+    ifneq ('$(CONFIG_BID_GCC_STACK_PROTECTOR_ALL)$(CONFIG_BID_GCC_STACK_PROTECTOR)','y')
+      $(error invalid combination of CONFIG_BID_GCC_STACK_PROTECTOR... options)
+    endif
+  endif # CONFIG_BID_GCC_ENABLE_STACK_PROTECTOR
+else
+  # explicity disable the stack protector (some compilers enable stack protector by default)
+  GCCSTACKPROTECTOROPT = $(GCCNOSTACKPROTOPT)
+endif # stack protector
 
 default_reloc_base = $(firstword $(DEFAULT_RELOC_$(1)) \
                                  $(DEFAULT_RELOC_$(ARCH)) \
@@ -391,24 +457,24 @@ default_reloc = $(if $(call default_reloc_base,$(1)),\
 CFLAGS_C99 ?= -std=gnu99
 
 ifneq ($(MODE),host)
-CFLAGS_L4_GENERIC += $(CCXX_FLAGS) $(CARCHFLAGS) $(GCCNOSTACKPROTOPT)
+CFLAGS_L4_GENERIC += $(CCXX_FLAGS) $(CARCHFLAGS) $(GCCSTACKPROTECTOROPT)
 endif
 
+
 $(CLIENTIDL:.idl=-client.o): CFLAGS += -ffunction-sections
-CFLAGS  += $(if $(CONFIG_BID_GCC_OMIT_FP),-fomit-frame-pointer,)
-CFLAGS	+= $(CFLAGS_$(OSYSTEM)) $(CFLAGS_$<) $(CFLAGS_$(<F)) $(CFLAGS_$(<D)) $(CFLAGS_$(<F)_$(OSYSTEM))
-CFLAGS  += $(CFLAGS_$(L4API))
+CFLAGS  += $(if $(CONFIG_BID_GCC_OMIT_FP),-fomit-frame-pointer,-fno-omit-frame-pointer)
+CFLAGS	+= $(call bid_flag_variants,CFLAGS)
 CFLAGS	+= $(OPTS) $(WARNINGS)
 CFLAGS  += -fno-common
 CFLAGS  += $(CFLAGS_C99)
 CFLAGS  += $(CFLAGS_L4_GENERIC)
-DEFINES += $(DEFINES_$(OSYSTEM)) $(DEFINES_$<) $(DEFINES_$(<F)) $(DEFINES_$(<D)) $(DEFINES_$(<F)_$(OSYSTEM))
+DEFINES += $(call bid_flag_variants,DEFINES)
 DEFINES += -DSYSTEM_$(subst -,_,$(SYSTEM)) -DARCH_$(ARCH) -DCPUTYPE_$(CPU) -DL4API_$(L4API)
 DEFINES += $(DEFINES-y)
 DEFINES += -D_GNU_SOURCE $(if $(L4API),,-DL4_MINIMAL_LIBC)
 ifdef DEBUG
-ifeq (,$(filter 0 n N, $(DEBUG)))
-DEFINES	+= -DDEBUG
+ifneq (,$(filter 0 n N, $(DEBUG)))
+DEFINES	+= -DNDEBUG
 endif
 endif
 
@@ -419,7 +485,7 @@ CPPFLAGS-DEBUG_MODE = \
     -include $(OBJ_BASE)/include/l4/util/kprintf.h \
     $(if $(L4API),-include $(OBJ_BASE)/include/l4/sys/debugger.h)
 
-CPPFLAGS+= $(CPPFLAGS_$(OSYSTEM)) $(CPPFLAGS_$<) $(CPPFLAGS_$(<F)) $(CPPFLAGS_$(<D)) $(CPPFLAGS_$(<F)_$(OSYSTEM))
+CPPFLAGS+= $(call bid_flag_variants,CPPFLAGS)
 CPPFLAGS+= $(DEFINES)
 CPPFLAGS+= $(addprefix -I, $(PRIVATE_INCDIR) $(PRIVATE_INCDIR_$(OSYSTEM)) $(PRIVATE_INCDIR_$@) $(PRIVATE_INCDIR_$@_$(OSYSTEM)))
 CPPFLAGS+= $(if $(CONTRIB_INCDIR),$(addprefix -I$(OBJ_BASE)/include/contrib/,$(CONTRIB_INCDIR)))
@@ -427,6 +493,11 @@ CPPFLAGS+= $(BID_PKG_CONFIG_CFLAGS)
 #CPPFLAGS+= $(if $(CLIENTIDL)$(SERVERIDL)$(addprefix CLIENTIDL_,$(TARGET))$(addprefix SERVERIDL_,$(TARGET)),$(addprefix -I, $(IDL_PATH)))
 ifneq ($(MODE),host)
 CPPFLAGS+= $(addprefix -I, $(L4INCDIR))
+ifneq ($(BID_DISABLE_SYSTEM_HEADERS),)
+CPPFLAGS+= $(addprefix -I ,$(L4INCDIR_SYS))
+else
+CPPFLAGS+= $(addprefix -isystem ,$(L4INCDIR_SYS))
+endif
 endif
 CPPFLAGS+= $(if $(DEBUG_MODE),$(CPPFLAGS-DEBUG_MODE))
 CPPFLAGS+= $(LIBCINCDIR)
@@ -434,17 +505,23 @@ CPPFLAGS+= $(LIBCINCDIR)
 ifneq ($(MODE),host)
 CXXFLAGS_L4_GENERIC += $(CARCHFLAGS) $(CCXX_FLAGS)
 CXXFLAGS_L4_GENERIC += $(if $(GCC_HAS_ATOMICS),-DL4_GCC_HAS_ATOMICS)
-CXXFLAGS_L4_GENERIC += $(GCCNOSTACKPROTOPT)
+CXXFLAGS_L4_GENERIC += $(GCCSTACKPROTECTOROPT)
 CXXFLAGS_L4_GENERIC += -fuse-cxa-atexit
 endif
 
-CXXFLAGS+= $(if $(CONFIG_BID_GCC_OMIT_FP),-fomit-frame-pointer,)
-CXXFLAGS+= $(CXXFLAGS_$(OSYSTEM)) $(CXXFLAGS_$@) $(CXXFLAGS_$(@D)) $(CXXFLAGS_$<) $(CXXFLAGS_$(<F))  $(CXXFLAGS_$(<D)) $(CXXFLAGS_$(<F)_$(OSYSTEM))
-CXXFLAGS+= $(OPTS) $(filter-out -Wstrict-prototypes -Wmissing-prototypes -Wno-pointer-sign,$(WARNINGS))
+ifneq ($(SRC_CC_IS_CXX11),)
+  CXXFLAGS+= $(if $(filter 4.7 4.8 4.9 5,$(GCCVERSION)),-std=gnu++11,-std=gnu++0x)
+endif
+
+CXXFLAGS+= $(if $(CONFIG_BID_GCC_OMIT_FP),-fomit-frame-pointer,-fno-omit-frame-pointer)
+CXXFLAGS+= $(call bid_flag_variants,CXXFLAGS)
+CXXFLAGS+= $(OPTS) $(filter-out -Wstrict-prototypes -Wmissing-prototypes,$(WARNINGS))
 CXXFLAGS+= $(CXXFLAGS-y)
 CXXFLAGS+= -fno-common
 CXXFLAGS+= $(CXXFLAGS_L4_GENERIC)
 
+FFLAGS  += $(OPTS)
+FFLAGS  += $(call bid_flag_variants,FFLAGS)
 FFLAGS  += $(CFLAGS_L4_GENERIC)
 
 PICFLAGS += -fPIC -U__PIC__ -D__PIC__=1
@@ -455,6 +532,7 @@ endif
 
 ASFLAGS += $(OPTS) $(ASFLAGS_L4_GENERIC)
 ASFLAGS += $(ASFLAGS_$(ARCH)) $(ASFLAGS_$(@:.o=.S)) $(ASFLAGS_$(@:.o=.S)_$(OSYSTEM))
+
 OBJS	+= $(strip $(OBJS_$(OSYSTEM)) $(OBJS_$@) $(OBJS_$@_$(OSYSTEM)))
 ALLOBJS  = $(OBJS) $(foreach target,$(TARGET) $(TARGET_$(OSYSTEM)),\
                              $(OBJS_$(target)) $(OBJS_$(target)_$(OSYSTEM)))
@@ -503,6 +581,15 @@ vpath %-server.c $(IDL_PATH)
 vpath %-server.cc $(IDL_PATH)
 endif
 
+# adjust obj path in case an absolute path name is given,
+# for that to work we also need to explicitly list .o to .source relations
+# arg: 1 - file path
+gen_obj_path = $(foreach f,$(1),$(if $(filter /%,$(f)),$(OBJ_BASE)$(patsubst $(SRC_BASE)/%,/%,$(f)),$(f)))
+
+# check for absolute paths
+# arg: 1 - list of paths
+check_path = $(foreach f,$(1),$(if $(filter /%,$(f)),$(error Given paths must be relative.),$(f)))
+
 # convert list of c++ files names to .o files
 # arg: 1 - list of files
 #      2 - infix between the basename and the .o
@@ -519,15 +606,16 @@ convert_f_to_o_file = $(foreach e,$(FORTRAN_FILE_EXTENSIONS),$(patsubst %$e,%$(2
 # arg: 1 - target
 #      2 - infix between the basename and the .o
 #      3 - additional infix before .o in case of .cc files
-targetobjs_gen = $(SRC_C:.c=$(2).o) $(SRC_S:.S=$(2).o)                  \
-                 $(call convert_cc_to_o_file,$(SRC_CC),$(2)$(3))        \
-                 $(call convert_f_to_o_file,$(SRC_F),$(2)$(3))          \
-                 $(foreach inter, $(OSYSTEM) $(1) $(1)_$(OSYSTEM),	\
-                     $(SRC_C_$(inter):.c=$(2).o)			\
-                     $(SRC_S_$(inter):.S=$(2).o)			\
-                     $(call convert_cc_to_o_file,$(SRC_CC_$(inter)),$(2)$(3)) \
-                     $(call convert_f_to_o_file,$(SRC_F_$(inter)),$(2)$(3))) \
-                 $(patsubst %.c,%$(2).o,$(call IDL_SRC_Cfn,$(1)))
+targetobjs_gen = $(call check_path,                                            \
+		        $(SRC_C:.c=$(2).o) $(SRC_S:.S=$(2).o)                  \
+                        $(call convert_cc_to_o_file,$(SRC_CC),$(2)$(3))        \
+                        $(call convert_f_to_o_file,$(SRC_F),$(2)$(3))          \
+                        $(foreach inter, $(OSYSTEM) $(1) $(1)_$(OSYSTEM),      \
+                            $(SRC_C_$(inter):.c=$(2).o)	                       \
+                            $(SRC_S_$(inter):.S=$(2).o)	                       \
+                            $(call convert_cc_to_o_file,$(SRC_CC_$(inter)),$(2)$(3)) \
+                            $(call convert_f_to_o_file,$(SRC_F_$(inter)),$(2)$(3)))  \
+                        $(patsubst %.c,%$(2).o,$(call IDL_SRC_Cfn,$(1))))
 
 # a helper function to generate the object-files for a given target
 # arg: 1 - target
@@ -680,7 +768,7 @@ endif
 #
 # If we have ld.so, we use it to create our dependencies (see MAKEDEP
 # definition). Otherwise, we fall back to whatever we need. For
-# compilation with gcc, this is using "-MD" and postprocessing the
+# compilation with gcc, this is using "-MD" and post-processing the
 # generated files.
 
 ifeq ($(CONFIG_HAVE_LDSO),)
@@ -721,7 +809,8 @@ DEPEND_FLAG = -MD
 
 .PHONY: FORCE
 endif # CONFIG_HAVE_LDSO empty
-DEPFLAGS = -MD -MF $(@D)/.$(@F).d
+DEPFLAGS   = -MD -MP -MF $(@D)/.$(@F).d
+DEPFLAGS_F = -cpp
 
 include $(L4DIR)/mk/rules.inc
 
@@ -792,7 +881,7 @@ endif	# $(SYSTEM) is defined
 # General rules
 
 # scrub: delete temporary editor files and stuff like this
-#        can be extended by lokals
+#        can be extended by locals
 scrub cleanall::
 	$(VERBOSE)$(SCRUB)
 

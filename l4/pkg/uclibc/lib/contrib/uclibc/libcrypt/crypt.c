@@ -5,17 +5,26 @@
  * Licensed under the LGPL v2.1, see the file COPYING.LIB in this tarball.
  */
 
-#define __FORCE_GLIBC
-#include <crypt.h>
 #include <unistd.h>
+#include <crypt.h>
 #include "libcrypt.h"
 
 char *crypt(const char *key, const char *salt)
 {
-	/* First, check if we are supposed to be using the MD5 replacement
-	 * instead of DES...  */
-	if (salt[0]=='$' && salt[1]=='1' && salt[2]=='$')
-		return __md5_crypt((unsigned char*)key, (unsigned char*)salt);
-	else
-		return __des_crypt((unsigned char*)key, (unsigned char*)salt);
+	const unsigned char *ukey = (const unsigned char *)key;
+	const unsigned char *usalt = (const unsigned char *)salt;
+
+	if (salt[0] == '$' && salt[2] == '$') {
+		if (*++salt == '1')
+			return __md5_crypt(ukey, usalt);
+#ifdef __UCLIBC_HAS_SHA256_CRYPT_IMPL__
+		else if (*salt == '5')
+			return __sha256_crypt(ukey, usalt);
+#endif
+#ifdef __UCLIBC_HAS_SHA512_CRYPT_IMPL__
+		else if (*salt == '6')
+			return __sha512_crypt(ukey, usalt);
+#endif
+	}
+	return __des_crypt(ukey, usalt);
 }

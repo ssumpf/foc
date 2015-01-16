@@ -5,5 +5,6 @@ INTERFACE [arm]:
 EXTENSION class Vcpu_state
 {
 public:
-  Mword _tpidruro;
+  Mword host_tpidruro;
+  Mword user_tpidruro;
 };

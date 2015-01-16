@@ -274,7 +274,13 @@ Server<L>::internal_loop(DISPATCH dispatch)
  */
 class Server_object
 {
+private:
+  Server_object(Server_object const &);
+  Server_object &operator = (Server_object const &);
+
 public:
+  Server_object() {}
+
   /**
    * \brief The abstract handler for client requests to the object.
    * \param obj The object ID used for looking up the object.

@@ -52,11 +52,6 @@ private:
 public:
   static Device_map dev_map;
 
-  enum
-  {
-    mem_user_max = Mem_layout::User_max,
-  };
-
   static void init_pageing(Cpu const &boot_cpu);
   static void init_boot_cpu(Cpu const &boot_cpu);
   static void init_app_cpu(Cpu const &cpu);
@@ -283,7 +278,7 @@ IMPLEMENT inline NEEDS["mem_layout.h"]
 Mword
 Kmem::is_kmem_page_fault(Address addr, Mword /*error*/)
 {
-  return addr >= mem_user_max;
+  return addr > Mem_layout::User_max;
 }
 
 
@@ -312,6 +307,20 @@ Kmem::map_phys_page(Address phys, Address virt,
     *offs = phys - pte;
 }
 
+
+PUBLIC static
+Address
+Kmem::mmio_remap(Address phys)
+{
+  Address offs;
+  Address va = alloc_io_vmem(Config::PAGE_SIZE);
+
+  if (!va)
+    return ~0UL;
+
+  Kmem::map_phys_page(phys, va, false, true, &offs);
+  return va + offs;
+}
 
 PUBLIC static FIASCO_INIT
 void
@@ -571,3 +580,31 @@ Kmem::alloc_tss(Address size)
  * @return kernel's global page directory
  */
 PUBLIC static inline const Pdir* Kmem::dir() { return kdir; }
+
+
+//--------------------------------------------------------------------------
+IMPLEMENTATION [realmode && amd64]:
+
+PUBLIC
+static Address
+Kmem::get_realmode_startup_pdbr()
+{
+  // for amd64 we need to make sure that our boot-up page directory is below
+  // 4GB in physical memory
+  static char _boot_pdir_page[Config::PAGE_SIZE] __attribute__((aligned(4096)));
+  memcpy(_boot_pdir_page, dir(), sizeof(_boot_pdir_page));
+
+  return Kmem::virt_to_phys(_boot_pdir_page);
+}
+
+//--------------------------------------------------------------------------
+IMPLEMENTATION [realmode && ia32]:
+
+PUBLIC
+static Address
+Kmem::get_realmode_startup_pdbr()
+{
+  return Mem_layout::pmem_to_phys(Kmem::dir());
+}
+
+

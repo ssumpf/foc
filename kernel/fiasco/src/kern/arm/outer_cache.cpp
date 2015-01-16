@@ -5,6 +5,8 @@ INTERFACE:
 class Outer_cache
 {
 public:
+  static void platform_init_post();
+
   static void invalidate();
   static void invalidate(Address phys, bool sync = true);
   static void invalidate(Address start_phys, Address end_phys, bool do_sync = true);
@@ -19,6 +21,16 @@ public:
 
   static void sync();
 };
+
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION:
+
+IMPLEMENT_DEFAULT inline
+void
+Outer_cache::platform_init_post()
+{}
+
 
 // ------------------------------------------------------------------------
 IMPLEMENTATION [!outer_cache]:

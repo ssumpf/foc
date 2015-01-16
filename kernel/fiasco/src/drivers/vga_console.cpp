@@ -117,7 +117,7 @@ IMPLEMENTATION:
 IMPLEMENT
 Vga_console::Vga_console( Address vbase, unsigned width, unsigned height, 
 			  bool light_white, bool use_color )
-  : _video_base((VChar*)vbase), _width(width), _height(height),
+  : Console(ENABLED), _video_base((VChar*)vbase), _width(width), _height(height),
     _x(0), _y(height-1), _attribute(light_white ? 0x0f : 0x07), 
     wr(&Vga_console::normal_write), _light_white(light_white),
     _use_color(use_color), _is_working(false)

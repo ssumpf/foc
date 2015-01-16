@@ -347,7 +347,7 @@ l4_thread_switch_u(l4_cap_idx_t to_thread, l4_utcb_t *utcb) L4_NOTHROW;
 
 
 /**
- * \brief Get consumed timed of thread in µs.
+ * \brief Get consumed time of thread in µs.
  * \ingroup l4_thread_api
  * \param thread Thread to get the consumed time from.
  *
@@ -389,20 +389,24 @@ l4_thread_vcpu_resume_start_u(l4_utcb_t *utcb) L4_NOTHROW;
  * \brief Commit vCPU resume.
  * \ingroup l4_thread_api
  *
- * \param thread    Thread to be resumed, using the invalid cap can be used
+ * \param thread    Thread to be resumed, the invalid cap can be used
  *                  for the current thread.
  * \param tag       Tag to use, returned by l4_thread_vcpu_resume_start()
  *
  * \return System call result message tag. In extended vCPU mode and when
  * the virtual interrupts are cleared, the return code 1 flags an incoming
- * IPC message, whereas 0 indicates a VM exit.
+ * IPC message, whereas 0 indicates a VM exit. An error are returned upon:
+ *   - Insufficient rights on the given task capability (-L4_EPERM).
+ *   - Given task capability is invalid (-L4_ENOENT).
+ *   - A supplied mapping failed.
  *
  * To resume into another address space the capability to the target task
- * must be set in the vCPU-state. The task needs to be set only once,
- * consecutive resumes to the same address space should use an invalid
- * capability. The kernel resets the field to #L4_INVALID_CAP. To release a
- * task use a different task or use an invalid capability with
- * the #L4_SYSF_REPLY flag set.
+ * must be set in the vCPU-state, with all lower bits in the task
+ * capability cleared. The kernel adds the #L4_SYSF_SEND flag to this field
+ * to indicate that the capability has been referenced in the kernel.
+ * Consecutive resumes will not reference the task capability again until
+ * all bits are cleared again. To release a task use the different task
+ * capability or use an invalid capability with the #L4_SYSF_REPLY flag set.
  *
  * \see l4_vcpu_state_t
  */
@@ -586,18 +590,19 @@ l4_thread_modify_sender_commit_u(l4_cap_idx_t thread, l4_msgtag_t tag,
  */
 enum L4_thread_ops
 {
-  L4_THREAD_CONTROL_OP             = 0UL,    /**< Control operation */
-  L4_THREAD_EX_REGS_OP             = 1UL,    /**< Exchange registers operation */
-  L4_THREAD_SWITCH_OP              = 2UL,    /**< Do a thread switch */
-  L4_THREAD_STATS_OP               = 3UL,    /**< Thread statistics */
-  L4_THREAD_VCPU_RESUME_OP         = 4UL,    /**< VCPU resume */
-  L4_THREAD_REGISTER_DELETE_IRQ_OP = 5UL,    /**< Register an IPC-gate deletion IRQ */
-  L4_THREAD_MODIFY_SENDER_OP       = 6UL,    /**< Modify all senders IDs that match the given pattern */
-  L4_THREAD_VCPU_CONTROL_OP        = 7UL,    /**< Enable / disable VCPU feature */
-  L4_THREAD_VCPU_CONTROL_EXT_OP    = L4_THREAD_VCPU_CONTROL_OP | 0x10000,
-  L4_THREAD_GDT_X86_OP             = 0x10UL, /**< Gdt */
-  L4_THREAD_SET_FS_AMD64_OP        = 0x12UL, /**< Set FS/TLS */
-  L4_THREAD_OPCODE_MASK            = 0xffff, /**< Mask for opcodes */
+  L4_THREAD_CONTROL_OP                = 0UL,    /**< Control operation */
+  L4_THREAD_EX_REGS_OP                = 1UL,    /**< Exchange registers operation */
+  L4_THREAD_SWITCH_OP                 = 2UL,    /**< Do a thread switch */
+  L4_THREAD_STATS_OP                  = 3UL,    /**< Thread statistics */
+  L4_THREAD_VCPU_RESUME_OP            = 4UL,    /**< VCPU resume */
+  L4_THREAD_REGISTER_DELETE_IRQ_OP    = 5UL,    /**< Register an IPC-gate deletion IRQ */
+  L4_THREAD_MODIFY_SENDER_OP          = 6UL,    /**< Modify all senders IDs that match the given pattern */
+  L4_THREAD_VCPU_CONTROL_OP           = 7UL,    /**< Enable / disable VCPU feature */
+  L4_THREAD_VCPU_CONTROL_EXT_OP       = L4_THREAD_VCPU_CONTROL_OP | 0x10000,
+  L4_THREAD_X86_GDT_OP                = 0x10UL, /**< Gdt */
+  L4_THREAD_ARM_TPIDRURO_OP           = 0x10UL, /**< Set TPIDRURO register */
+  L4_THREAD_AMD64_SET_SEGMENT_BASE_OP = 0x12UL, /**< Set segment base */
+  L4_THREAD_OPCODE_MASK               = 0xffff, /**< Mask for opcodes */
 };
 
 /**

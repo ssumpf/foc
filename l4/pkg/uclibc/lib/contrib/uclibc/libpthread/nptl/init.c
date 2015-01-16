@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <assert.h>
 #include <errno.h>
@@ -35,7 +34,6 @@
 #include <lowlevellock.h>
 #include <bits/kernel-features.h>
 #include <stdio.h>
-extern __typeof(sigaction) __libc_sigaction;
 
 /* Size and alignment of static TLS block.  */
 size_t __static_tls_size;
@@ -257,6 +255,7 @@ extern void **__libc_dl_error_tsd (void) __attribute__ ((const));
 /* This can be set by the debugger before initialization is complete.  */
 static bool __nptl_initial_report_events __attribute_used__;
 
+void __pthread_initialize_minimal_internal (void) attribute_hidden;
 void
 __pthread_initialize_minimal_internal (void)
 {

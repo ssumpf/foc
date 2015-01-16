@@ -47,7 +47,7 @@ typedef enum l4vcpu_irq_state_t
   L4VCPU_IRQ_STATE_ENABLED  = L4_VCPU_F_IRQ, ///< IRQ/Event delivery enabled
 } l4vcpu_irq_state_t;
 
-typedef l4_umword_t l4vcpu_state_t;
+typedef l4_uint16_t l4vcpu_state_t;
 typedef void (*l4vcpu_event_hndl_t)(l4_vcpu_state_t *vcpu);
 typedef void (*l4vcpu_setup_ipc_t)(l4_utcb_t *utcb);
 
@@ -258,7 +258,7 @@ l4vcpu_wait(l4_vcpu_state_t *vcpu, l4_utcb_t *utcb,
   l4vcpu_irq_disable(vcpu);
   setup_ipc(utcb);
   vcpu->i.tag = l4_ipc_wait(utcb, &vcpu->i.label, to);
-  if (EXPECT_TRUE(!l4_msgtag_has_error(vcpu->i.tag)))
+  if (L4_LIKELY(!l4_msgtag_has_error(vcpu->i.tag)))
     do_event_work_cb(vcpu);
 }
 
@@ -279,7 +279,7 @@ l4vcpu_irq_enable(l4_vcpu_state_t *vcpu, l4_utcb_t *utcb,
       vcpu->state |= L4_VCPU_F_IRQ;
       l4_barrier();
 
-      if (EXPECT_TRUE(!(vcpu->sticky_flags & L4_VCPU_SF_IRQ_PENDING)))
+      if (L4_LIKELY(!(vcpu->sticky_flags & L4_VCPU_SF_IRQ_PENDING)))
         break;
 
       l4vcpu_wait(vcpu, utcb, L4_IPC_BOTH_TIMEOUT_0,
@@ -296,6 +296,8 @@ l4vcpu_irq_restore(l4_vcpu_state_t *vcpu, l4vcpu_irq_state_t s,
 {
   if (s & L4_VCPU_F_IRQ)
     l4vcpu_irq_enable(vcpu, utcb, do_event_work_cb, setup_ipc);
+  else if (vcpu->state & L4_VCPU_F_IRQ)
+    l4vcpu_irq_disable(vcpu);
 }
 
 L4_CV L4_INLINE

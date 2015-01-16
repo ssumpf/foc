@@ -127,6 +127,18 @@ extern "C"
 void irq_handler()
 { mgr->c.irq_handler(); }
 
+// ------------------------------------------------------------------------
+IMPLEMENTATION [arm && bcm2835 && arm_em_tz]:
+
+#include <cstdio>
+
+PUBLIC static
+void
+Pic::set_pending_irq(unsigned group32num, Unsigned32 val)
+{
+  printf("%s(%d, %x): Not implemented\n", __func__, group32num, val);
+}
+
 //---------------------------------------------------------------------------
 IMPLEMENTATION [debug && bcm2835]:
 

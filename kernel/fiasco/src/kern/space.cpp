@@ -169,8 +169,7 @@ PUBLIC static inline
 bool
 Space::is_user_memory(Address address, Mword len)
 {
-  return    address < Mem_layout::User_max
-         && address < address + len // prevent overflow
-         && address + len <= Mem_layout::User_max;
+  return    address <= Mem_layout::User_max && len > 0
+         && Mem_layout::User_max - address >= len - 1;
 }
 

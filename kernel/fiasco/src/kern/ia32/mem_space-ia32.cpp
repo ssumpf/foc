@@ -43,7 +43,6 @@ public:
     Need_insert_tlb_flush = 0,
     Map_page_size = Config::PAGE_SIZE,
     Page_shift = Config::PAGE_SHIFT,
-    Map_max_address = Mem_layout::User_max,
     Whole_space = MWORD_BITS,
     Identity_map = 0,
   };
@@ -117,18 +116,12 @@ Mem_space::has_superpages()
 }
 
 
-PUBLIC static inline NEEDS["mem_unit.h"]
+PUBLIC inline NEEDS["mem_unit.h"]
 void
 Mem_space::tlb_flush(bool = false)
 {
-  Mem_unit::tlb_flush();
-}
-
-PUBLIC static inline
-void
-Mem_space::tlb_flush_spaces(bool, Mem_space *, Mem_space *)
-{
-  tlb_flush();
+  if (_current.current() == this)
+    Mem_unit::tlb_flush();
 }
 
 
@@ -169,11 +162,11 @@ Mem_space::dir_shutdown()
   // free all page tables we have allocated for this address space
   // except the ones in kernel space which are always shared
   _dir->destroy(Virt_addr(0UL),
-                Virt_addr(Kmem::mem_user_max-1), 0, Pdir::Depth,
+                Virt_addr(Mem_layout::User_max), 0, Pdir::Depth,
                 Kmem_alloc::q_allocator(_quota));
 
   // free all unshared page table levels for the kernel space
-  _dir->destroy(Virt_addr(Kmem::mem_user_max),
+  _dir->destroy(Virt_addr(Mem_layout::User_max + 1),
                 Virt_addr(~0UL), 0, Pdir::Super_level,
                 Kmem_alloc::q_allocator(_quota));
 
@@ -428,14 +421,14 @@ Mem_space::switchin_context(Mem_space *from)
 }
 
 PROTECTED inline
-void
+int
 Mem_space::sync_kernel()
 {
-  _dir->sync(Virt_addr(Mem_layout::User_max), Kmem::dir(),
-             Virt_addr(Mem_layout::User_max),
-             Virt_size(-Mem_layout::User_max), Pdir::Super_level,
-             false,
-             Kmem_alloc::q_allocator(_quota));
+  return _dir->sync(Virt_addr(Mem_layout::User_max + 1), Kmem::dir(),
+                    Virt_addr(Mem_layout::User_max + 1),
+                    Virt_size(-(Mem_layout::User_max + 1)), Pdir::Super_level,
+                    false,
+                    Kmem_alloc::q_allocator(_quota));
 }
 
 // --------------------------------------------------------------------

@@ -41,24 +41,14 @@ static char sccsid[] = "@(#)svc_tcp.c 1.21 87/08/11 Copyr 1984 Sun Micro";
  * and a record/tcp stream.
  */
 
-#define __FORCE_GLIBC
-#include <features.h>
-
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
-#include <rpc/rpc.h>
+#include "rpc_private.h"
 #include <sys/socket.h>
 #include <sys/poll.h>
 #include <errno.h>
 #include <stdlib.h>
-
-#ifdef USE_IN_LIBIO
-# include <wchar.h>
-# include <libio/iolibio.h>
-# define fputs(s, f) _IO_fputs (s, f)
-#endif
-
 
 /*
  * Ops vector for TCP/IP based rpc service handle
@@ -180,12 +170,7 @@ svctcp_create (int sock, u_int sendsize, u_int recvsize)
   xprt = (SVCXPRT *) mem_alloc (sizeof (SVCXPRT));
   if (r == NULL || xprt == NULL)
     {
-#ifdef USE_IN_LIBIO
-      if (_IO_fwide (stderr, 0) > 0)
-	(void) __fwprintf (stderr, L"%s", _("svctcp_create: out of memory\n"));
-      else
-#endif
-	(void) fputs (_("svctcp_create: out of memory\n"), stderr);
+      (void) fputs (_("svctcp_create: out of memory\n"), stderr);
       mem_free (r, sizeof (*r));
       mem_free (xprt, sizeof (SVCXPRT));
       return NULL;
@@ -225,13 +210,7 @@ makefd_xprt (int fd, u_int sendsize, u_int recvsize)
   cd = (struct tcp_conn *) mem_alloc (sizeof (struct tcp_conn));
   if (xprt == (SVCXPRT *) NULL || cd == NULL)
     {
-#ifdef USE_IN_LIBIO
-      if (_IO_fwide (stderr, 0) > 0)
-	(void) __fwprintf (stderr, L"%s",
-			   _("svc_tcp: makefd_xprt: out of memory\n"));
-      else
-#endif
-	(void) fputs (_("svc_tcp: makefd_xprt: out of memory\n"), stderr);
+      (void) fputs (_("svc_tcp: makefd_xprt: out of memory\n"), stderr);
       mem_free (xprt, sizeof (SVCXPRT));
       mem_free (cd, sizeof (struct tcp_conn));
       return NULL;

@@ -14,26 +14,25 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <errno.h>
 #include <linuxthreads/internals.h>
 #include <sysdep-cancel.h>
 
-#if ! USE___THREAD && !RTLD_PRIVATE_ERRNO
+#if !defined __UCLIBC_HAS_TLS__ && !RTLD_PRIVATE_ERRNO
 #undef errno
 extern int errno;
 #endif
 
 int *
-#if ! USE___THREAD
+#ifndef __UCLIBC_HAS_TLS__
 weak_const_function
 #endif
 __errno_location (void)
 {
-#if ! USE___THREAD && !defined NOT_IN_libc
+#if !defined __UCLIBC_HAS_TLS__ && !defined NOT_IN_libc
   if (! SINGLE_THREAD_P)
     {
       pthread_descr self = thread_self();

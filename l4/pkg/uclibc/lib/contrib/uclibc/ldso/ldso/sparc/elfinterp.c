@@ -80,7 +80,7 @@ _dl_linux_resolver(struct elf_resolve *tpnt, int reloc_entry)
 	got_addr = (char **)instr_addr;
 
 	/* Get the address of the GOT entry */
-	new_addr = _dl_find_hash(symname, tpnt->symbol_scope, tpnt, ELF_RTYPE_CLASS_PLT, NULL);
+	new_addr = _dl_find_hash(symname, &_dl_loaded_modules->symbol_scope, tpnt, ELF_RTYPE_CLASS_PLT, NULL);
 	if (unlikely(!new_addr)) {
 		_dl_dprintf(2, "%s: Can't resolve symbol '%s'\n", _dl_progname, symname);
 		_dl_exit(1);
@@ -107,9 +107,9 @@ _dl_linux_resolver(struct elf_resolve *tpnt, int reloc_entry)
 }
 
 static int
-_dl_parse(struct elf_resolve *tpnt, struct dyn_elf *scope,
+_dl_parse(struct elf_resolve *tpnt, struct r_scope_elem *scope,
 		unsigned long rel_addr, unsigned long rel_size,
-		int (*reloc_fnc)(struct elf_resolve *tpnt, struct dyn_elf *scope,
+		int (*reloc_fnc)(struct elf_resolve *tpnt, struct r_scope_elem *scope,
 			   ELF_RELOC *rpnt, ElfW(Sym) *symtab, char *strtab))
 {
 	unsigned int i;
@@ -164,7 +164,7 @@ _dl_parse(struct elf_resolve *tpnt, struct dyn_elf *scope,
 }
 
 static int
-_dl_do_reloc(struct elf_resolve *tpnt, struct dyn_elf *scope,
+_dl_do_reloc(struct elf_resolve *tpnt, struct r_scope_elem *scope,
 			 ELF_RELOC *rpnt, ElfW(Sym) *symtab, char *strtab)
 {
 	int reloc_type;
@@ -199,6 +199,10 @@ _dl_do_reloc(struct elf_resolve *tpnt, struct dyn_elf *scope,
 			/* This may be non-fatal if called from dlopen. */
 			return 1;
 
+		}
+		if (_dl_trace_prelink) {
+			_dl_debug_lookup (symname, tpnt, &symtab[symtab_index],
+						&sym_ref, elf_machine_type_class(reloc_type));
 		}
 		tls_tpnt = sym_ref.tpnt;
 	} else {
@@ -271,8 +275,11 @@ _dl_do_reloc(struct elf_resolve *tpnt, struct dyn_elf *scope,
 				_dl_memcpy((char *)reloc_addr,
 					   (char *)symbol_addr,
 					   sym_ref.sym->st_size);
-			} else
+			}
+#if defined (__SUPPORT_LD_DEBUG__)
+			else
 				_dl_dprintf(_dl_debug_file, "no symbol_addr to copy !?\n");
+#endif
 			break;
 #if defined USE_TLS && USE_TLS
 		case R_SPARC_TLS_DTPMOD32:
@@ -310,7 +317,7 @@ _dl_do_reloc(struct elf_resolve *tpnt, struct dyn_elf *scope,
 #undef __SPARC_LAZY_RELOC_WORKS
 #ifdef __SPARC_LAZY_RELOC_WORKS
 static int
-_dl_do_lazy_reloc(struct elf_resolve *tpnt, struct dyn_elf *scope,
+_dl_do_lazy_reloc(struct elf_resolve *tpnt, struct r_scope_elem *scope,
 		  ELF_RELOC *rpnt, ElfW(Sym) *symtab, char *strtab)
 {
 	int reloc_type;
@@ -358,14 +365,16 @@ _dl_parse_lazy_relocation_information(struct dyn_elf *rpnt,
 #ifdef __SPARC_LAZY_RELOC_WORKS
 	(void)_dl_parse(rpnt->dyn, NULL, rel_addr, rel_size, _dl_do_lazy_reloc);
 #else
-	_dl_parse_relocation_information(rpnt, rel_addr, rel_size);
+	_dl_parse_relocation_information(rpnt, &_dl_loaded_modules->symbol_scope,
+									rel_addr, rel_size);
 #endif
 }
 
 int
 _dl_parse_relocation_information(struct dyn_elf *rpnt,
+				 struct r_scope_elem *scope,
 				 unsigned long rel_addr,
 				 unsigned long rel_size)
 {
-	return _dl_parse(rpnt->dyn, rpnt->dyn->symbol_scope, rel_addr, rel_size, _dl_do_reloc);
+	return _dl_parse(rpnt->dyn, scope, rel_addr, rel_size, _dl_do_reloc);
 }

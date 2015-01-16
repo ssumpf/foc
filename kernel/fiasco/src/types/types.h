@@ -11,6 +11,12 @@
 #include <cxx/type_traits>
 #include <new>
 
+template< typename T > inline
+T expect(T v, T expected)
+{
+  return static_cast<T>(__builtin_expect(static_cast<long>(v), static_cast<long>(expected)));
+}
+
 template< typename a, typename b > inline
 a nonull_static_cast( b p )
 {
@@ -43,13 +49,13 @@ void write_now(T *a, T const &val)
 template< typename T >
 class Static_object
 {
-private:
+public:
+#if 0 // GCC <= 4.5 does not allow this, when static objects are used in unions
   // prohibit copies
   Static_object(Static_object const &) = delete;
   Static_object &operator = (Static_object const &) = delete;
-
-public:
-  Static_object() {}
+  Static_object() = default;
+#endif
 
   T *get() const
   {

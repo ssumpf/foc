@@ -25,11 +25,20 @@ _start:
 
 	lss	_stack_seg, %esp
 #else
+#ifdef __PIC__
+	lea	_stack(%rip),%esp
+#else
 	lea	_stack,%esp
 #endif
+#endif
 
+#ifdef __PIC__
+	push	$_exit@plt
+	jmp	__main@plt
+#else
 	push	$_exit
 	jmp	__main
+#endif
 
 
         /* MultiBoot header - see multiboot.h.  */

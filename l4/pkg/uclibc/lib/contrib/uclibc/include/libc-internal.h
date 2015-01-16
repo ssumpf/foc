@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _LIBC_INTERNAL_H
 #define _LIBC_INTERNAL_H 1
@@ -29,6 +28,9 @@
 
 #ifdef __UCLIBC_HAS_TLS__
 # define attribute_tls_model_ie __attribute__ ((tls_model ("initial-exec")))
+#else
+# define attribute_tls_model_ie
+# define __thread
 #endif
 
 /* Pull in things like __attribute_used__ */
@@ -44,12 +46,12 @@
 #  include <stddef.h>
 
 /* sources are built w/ _GNU_SOURCE, this gets undefined */
-#ifdef __USE_GNU
-extern int __xpg_strerror_r (int __errnum, char *__buf, size_t __buflen);
-libc_hidden_proto(__xpg_strerror_r)
-#else
+#if defined __USE_XOPEN2K && !defined  __USE_GNU
 extern char *__glibc_strerror_r (int __errnum, char *__buf, size_t __buflen);
 libc_hidden_proto(__glibc_strerror_r)
+#else
+extern int __xpg_strerror_r (int __errnum, char *__buf, size_t __buflen);
+libc_hidden_proto(__xpg_strerror_r)
 #endif
 
 /* #include <pthread.h> */
@@ -65,9 +67,20 @@ libc_hidden_proto(__glibc_strerror_r)
 /* internal access to program name */
 extern const char *__uclibc_progname attribute_hidden;
 
+#  ifdef __UCLIBC_HAS_FORTIFY__
+extern void __chk_fail(void) attribute_noreturn;
+libc_hidden_proto(__chk_fail)
+#  endif
+
+#  ifdef __UCLIBC_HAS_SSP__
+extern void __stack_chk_fail(void) attribute_noreturn __cold;
+#  endif
+
 # endif /* IS_IN_libc */
 
 #endif /* __ASSEMBLER__ */
+
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 /* Some people like to build up uClibc with *-elf toolchains, so
  * a little grease here until we drop '#ifdef __linux__' checks

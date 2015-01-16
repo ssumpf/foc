@@ -156,7 +156,7 @@ Obj_space_virt<SPACE>::caps_free()
 
 IMPLEMENT  template< typename SPACE >
 inline  NEEDS[Obj_space_virt::cap_virt, Obj_space_virt::get_cap]
-bool __attribute__((__flatten__))
+bool FIASCO_FLATTEN
 Obj_space_virt<SPACE>::v_lookup(V_pfn const &virt, Phys_addr *phys,
                                    Page_order *size, Attr *attribs)
 {
@@ -196,7 +196,7 @@ Obj_space_virt<SPACE>::v_lookup(V_pfn const &virt, Phys_addr *phys,
 
 IMPLEMENT template< typename SPACE >
 inline NEEDS [Obj_space_virt::cap_virt, Obj_space_virt::get_cap]
-typename Obj_space_virt<SPACE>::Capability __attribute__((__flatten__))
+typename Obj_space_virt<SPACE>::Capability FIASCO_FLATTEN
 Obj_space_virt<SPACE>::lookup(Cap_index virt)
 {
   Capability *c;
@@ -228,7 +228,7 @@ Obj_space_virt<SPACE>::lookup_local(Cap_index virt, L4_fpage::Rights *rights)
 
 IMPLEMENT template< typename SPACE >
 inline NEEDS[<cassert>, Obj_space_virt::cap_virt, Obj_space_virt::get_cap]
-L4_fpage::Rights __attribute__((__flatten__))
+L4_fpage::Rights FIASCO_FLATTEN
 Obj_space_virt<SPACE>::v_delete(V_pfn virt, Order size,
                                    L4_fpage::Rights page_attribs)
 {
@@ -264,7 +264,7 @@ Obj_space_virt<SPACE>::v_delete(V_pfn virt, Order size,
 IMPLEMENT  template< typename SPACE >
 inline NEEDS[Obj_space_virt::cap_virt, Obj_space_virt::caps_alloc,
              Obj_space_virt::get_cap, "kdb_ke.h"]
-typename Obj::Insert_result __attribute__((__flatten__))
+typename Obj::Insert_result FIASCO_FLATTEN
 Obj_space_virt<SPACE>::v_insert(Phys_addr phys, V_pfn const &virt, Order size,
                                 Attr page_attribs)
 {

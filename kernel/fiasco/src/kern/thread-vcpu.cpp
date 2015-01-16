@@ -51,6 +51,7 @@ Thread::vcpu_pagefault(Address pfa, Mword err, Mword ip)
 	  l->state = vcpu->_saved_state;
 	  l->ip = ip;
 	  l->sp = pfa;
+          l->err = err;
 	  l->space = vcpu_user_space() ? static_cast<Task*>(vcpu_user_space())->dbg_id() : ~0;
 	  );
       vcpu->_ts.set_pagefault(pfa, err);

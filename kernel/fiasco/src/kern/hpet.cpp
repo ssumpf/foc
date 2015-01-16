@@ -157,7 +157,7 @@ Hpet::dump_acpi_infos()
   printf("  page_prot_and_oem_attr:  %x\n", _acpi_hpet->page_prot_and_oem_attr);
 }
 
-PUBLIC static FIASCO_INIT
+PUBLIC static FIASCO_INIT_CPU_AND_PM
 bool
 Hpet::init()
 {

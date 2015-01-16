@@ -35,7 +35,7 @@ L4_INLINE long
 fiasco_gdt_set(l4_cap_idx_t thread, void *desc, unsigned int size,
 	       unsigned int entry_number_start, l4_utcb_t *utcb)
 {
-  l4_utcb_mr_u(utcb)->mr[0] = L4_THREAD_GDT_X86_OP;
+  l4_utcb_mr_u(utcb)->mr[0] = L4_THREAD_X86_GDT_OP;
   l4_utcb_mr_u(utcb)->mr[1] = entry_number_start;
   __builtin_memcpy(&l4_utcb_mr_u(utcb)->mr[2], desc, size);
   return l4_error_u(l4_ipc_call(thread, utcb, l4_msgtag(L4_PROTO_THREAD, 2 + (size >> 2), 0, 0), L4_IPC_NEVER), utcb);

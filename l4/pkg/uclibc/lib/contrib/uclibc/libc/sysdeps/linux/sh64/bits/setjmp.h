@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Define the machine-dependent type `jmp_buf'.  SH-5 version. */
 #ifndef _BITS_SETJMP_H
@@ -33,8 +32,6 @@
 #define	__SETJMP_TRG(x)	(__SETJMP_NUM_INT+__SETJMP_NUM_DBL+(x))
 #define	__SETJMP_LR	(__SETJMP_NUM_INT+__SETJMP_NUM_DBL+__SETJMP_NUM_TRG)
 
-
-#ifndef _ASM
 typedef struct
   {
 	    /* Callee-saved registers.  */
@@ -45,6 +42,5 @@ typedef struct
     unsigned long long __trgs[__SETJMP_NUM_TRG];	/* traget registers */
     unsigned long long __lr;				/* linkage register */
   } __jmp_buf[1];
-#endif
 
 #endif	/* bits/setjmp.h */

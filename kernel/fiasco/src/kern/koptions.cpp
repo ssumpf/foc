@@ -15,10 +15,10 @@ namespace Koptions_ns
   Koptions::Options o __attribute__((section(".koptions"))) =
     {
       Koptions::Magic,
-      0,              // version
+      1,              // version
       0,              // flags
       0,              // kmemsize
-      { 0, 0, 0, 0 }, // uart
+      { 0, 0, 0, 0, 0, 0 }, // uart
       "",             // jdb_cmd
       0,              // tbuf_entries
       0,              // out_buf

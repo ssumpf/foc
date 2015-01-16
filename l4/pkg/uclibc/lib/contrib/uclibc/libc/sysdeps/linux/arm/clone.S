@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* clone() is even more special than fork() as it mucks with stacks
    and invokes a function in the right context after its all over.  */
@@ -25,6 +24,7 @@
 #include <bits/errno.h>
 #include <sys/syscall.h>
 #include <bits/arm_asm.h>
+#include <bits/arm_bx.h>
 
 #if defined(__NR_clone)
 /* int clone(int (*fn)(void *arg), void *child_stack, int flags, void *arg); */
@@ -111,8 +111,9 @@ __clone:
 	ldr	r4, [sp, #12]
 	DO_CALL (clone)
 	movs	a1, a1
-	blt	__error
+	IT(t, ne)
 	ldmnefd	sp!, {r4}
+	blt	__error
 	IT(t, ne)
 #if defined(__USE_BX__)
 	bxne	lr

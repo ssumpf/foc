@@ -1,7 +1,7 @@
 " Vim syntax file for modules.list configuration language
 " Language:    modules.list configuration language
 " Maintainer:  Adam Lackorzynski <adam@os.inf.tu-dresden.de>
-" Last Change: 2010 Apr 27
+" Last Change: 2013 Jul
 
 if exists("b:current_syntax")
   finish
@@ -11,11 +11,14 @@ syn clear
 syn case match
 
 setlocal iskeyword+=-
+setlocal iskeyword+=:
 syn keyword l4modsStatement       modaddr module bin bin-nostrip data data-nostrip kernel sigma0
 syn keyword l4modsStatement       roottask moe default-kernel default-sigma0 default-roottask default-bootstrap
-syn keyword l4modsStatement       module-group module-glob module-perl module-shell bootstrap initrd set
-syn keyword l4modsStatementTitle  entry group contained
-syn match   l4modsTitle           /^ *\(entry\|group\).*/ contains=l4modsStatementTitle
+syn keyword l4modsStatement       module-group module bootstrap initrd set
+syn keyword l4modsStatement       perl: glob: shell:
+syn keyword l4modsStatementTitle  entry title group contained
+syn keyword l4modsStatementTitle  include
+syn match   l4modsTitle           /^ *\(entry\|group\|title\).*/ contains=l4modsStatementTitle
 syn match   l4modsComment         /#.*/
 
 hi def link l4modsStatement      Statement

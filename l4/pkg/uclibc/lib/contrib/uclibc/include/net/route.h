@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Based on the 4.4BSD and Linux version of this file.  */
 
@@ -55,6 +54,7 @@ struct rtentry
 #define rt_mss	rt_mtu
 
 
+#if defined __UCLIBC_HAS_IPV6__ || !defined __UCLIBC_STRICT_HEADERS__
 struct in6_rtmsg
   {
     struct in6_addr rtmsg_dst;
@@ -68,6 +68,7 @@ struct in6_rtmsg
     u_int32_t rtmsg_flags;
     int rtmsg_ifindex;
   };
+#endif
 
 
 #define	RTF_UP		0x0001		/* Route usable.  */
@@ -129,6 +130,7 @@ struct in6_rtmsg
 #define RT_CLASS_MAX		255
 
 
+#if defined __UCLIBC_HAS_IPV6__ || !defined __UCLIBC_STRICT_HEADERS__
 #define RTMSG_ACK		NLMSG_ACK
 #define RTMSG_OVERRUN		NLMSG_OVERRUN
 
@@ -141,5 +143,6 @@ struct in6_rtmsg
 #define RTMSG_CONTROL		0x40
 
 #define RTMSG_AR_FAILED		0x51	/* Address Resolution failed.  */
+#endif
 
 #endif /* net/route.h */

@@ -20,18 +20,28 @@
 
 #include <l4/sys/types.h>
 
+typedef struct l4_vcpu_arch_state_t
+{
+  l4_umword_t host_fs_base;
+  l4_umword_t host_gs_base;
+  l4_uint16_t host_ds, host_es, host_fs, host_gs;
+
+  l4_umword_t user_fs_base;
+  l4_umword_t user_gs_base;
+  l4_uint16_t user_ds, user_es, user_fs, user_gs;
+
+  l4_uint16_t const user_ds32;
+  l4_uint16_t const user_cs64;
+  l4_uint16_t const user_cs32;
+} l4_vcpu_arch_state_t;
+
+
 /**
  * \brief vCPU registers.
  * \ingroup l4_vcpu_api
  */
 typedef struct l4_vcpu_regs_t
 {
-#if 0
-  l4_umword_t es;      /**< es register */
-  l4_umword_t ds;      /**< ds register */
-  l4_umword_t gs;      /**< gs register */
-  l4_umword_t fs;      /**< fs register */
-#endif
   l4_umword_t r15;     /**< r15 register */
   l4_umword_t r14;     /**< r14 register */
   l4_umword_t r13;     /**< r13 register */
@@ -54,7 +64,7 @@ typedef struct l4_vcpu_regs_t
   l4_umword_t err;     /**< error code */
 
   l4_umword_t ip;      /**< instruction pointer */
-  l4_umword_t dummy1;  /**< dummy \internal */
+  l4_umword_t cs;      /**< dummy \internal */
   l4_umword_t flags;   /**< eflags */
   l4_umword_t sp;      /**< stack pointer */
   l4_umword_t ss;
@@ -66,8 +76,8 @@ typedef struct l4_vcpu_regs_t
  */
 typedef struct l4_vcpu_ipc_regs_t
 {
-  l4_umword_t _res[10];
+  l4_umword_t _res[1];
   l4_umword_t label;
-  l4_umword_t _res2[3];
+  l4_umword_t _res2[5];
   l4_msgtag_t tag;
 } l4_vcpu_ipc_regs_t;

@@ -17,7 +17,7 @@ private:
   Unsigned16    _error;
   Mword         _cpsr, _sp;
 public:
-  unsigned print(int max, char *buf) const;
+  void print(String_buffer *buf) const;
 };
 
 // --------------------------------------------------------------------

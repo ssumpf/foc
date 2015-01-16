@@ -3,6 +3,8 @@ INTERFACE:
 #include "jdb_module.h"
 #include "jdb_list.h"
 #include "kobject.h"
+#include "string_buffer.h"
+
 #include <cxx/slist>
 
 class Kobject;
@@ -32,7 +34,7 @@ public:
   Jdb_kobject_handler(char const *type) : kobj_type(type) {}
   char const *kobj_type;
   virtual bool show_kobject(Kobject_common *o, int level) = 0;
-  virtual int show_kobject_short(char *, int, Kobject_common *) { return 0; }
+  virtual void show_kobject_short(String_buffer *, Kobject_common *) {}
   virtual Kobject_common *follow_link(Kobject_common *o) { return o; }
   virtual ~Jdb_kobject_handler() {}
   virtual bool invoke(Kobject_common *o, Syscall_frame *f, Utcb *utcb);
@@ -172,10 +174,10 @@ Jdb_kobject_list::Jdb_kobject_list()
 }
 
 PUBLIC
-int
-Jdb_kobject_list::show_item(char *buffer, int max, void *item) const
+void
+Jdb_kobject_list::show_item(String_buffer *buffer, void *item) const
 {
-  return Jdb_kobject::obj_description(buffer, max, false, static_cast<Kobject*>(item)->dbg_info());
+  Jdb_kobject::obj_description(buffer, false, static_cast<Kobject*>(item)->dbg_info());
 }
 
 PUBLIC
@@ -392,21 +394,18 @@ Jdb_kobject::kobject_type(Kobject_common *o)
 
 
 PUBLIC static
-int
-Jdb_kobject::obj_description(char *buffer, int max, bool dense, Kobject_dbg *o)
+void
+Jdb_kobject::obj_description(String_buffer *buffer, bool dense, Kobject_dbg *o)
 {
-  int pos = snprintf(buffer, max,
-                     dense ? "%lx %lx [%-*s]" : "%8lx %08lx [%-*s]",
-                     o->dbg_id(), (Mword)Kobject::from_dbg(o), 7, kobject_type(Kobject::from_dbg(o)));
+  buffer->printf(dense ? "%lx %lx [%-*s]" : "%8lx %08lx [%-*s]",
+                 o->dbg_id(), (Mword)Kobject::from_dbg(o), 7, kobject_type(Kobject::from_dbg(o)));
 
   for (Handler_iter h = module()->global_handlers.begin();
        h != module()->global_handlers.end(); ++h)
-    pos += h->show_kobject_short(buffer + pos, max-pos, Kobject::from_dbg(o));
+    h->show_kobject_short(buffer, Kobject::from_dbg(o));
 
   if (Jdb_kobject_handler *oh = Jdb_kobject::module()->find_handler(Kobject::from_dbg(o)))
-    pos += oh->show_kobject_short(buffer + pos, max-pos, Kobject::from_dbg(o));
-
-  return pos;
+    oh->show_kobject_short(buffer, Kobject::from_dbg(o));
 }
 
 PRIVATE static
@@ -489,7 +488,7 @@ Jdb_kobject::fmt_handler(char /*fmt*/, int *size, char const *cmd_str, void *arg
 
       if (pos < (int)sizeof(buffer) - 1)
 	{
-	  putchar(c);
+          Jdb_core::cmd_putchar(c);
 	  buffer[pos++] = c;
 	  buffer[pos] = 0;
 	}

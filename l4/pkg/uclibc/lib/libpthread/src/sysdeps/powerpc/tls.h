@@ -85,17 +85,17 @@ typedef struct
 # define TLS_INIT_TCB_SIZE	0
 
 /* Alignment requirements for the initial TCB.  */
-# define TLS_INIT_TCB_ALIGN	__alignof__ (struct _pthread_descr_struct) //pthread)
+# define TLS_INIT_TCB_ALIGN	__alignof__ (struct pthread)
 
 /* This is the size of the TCB.  */
 # define TLS_TCB_SIZE		0
 
 /* Alignment requirements for the TCB.  */
-# define TLS_TCB_ALIGN		__alignof__ (struct _pthread_descr_struct) //pthread)
+# define TLS_TCB_ALIGN		__alignof__ (struct pthread)
 
 /* This is the size we need before TCB.  */
 # define TLS_PRE_TCB_SIZE \
-  (sizeof (struct _pthread_descr_struct)						      \
+  (sizeof (struct pthread)						      \
    + ((sizeof (tcbhead_t) + TLS_TCB_ALIGN - 1) & ~(TLS_TCB_ALIGN - 1)))
 
 # ifndef __powerpc64__
@@ -139,7 +139,7 @@ register void *__thread_register __asm__ ("r13");
 
 /* Return the thread descriptor for the current thread.  */
 # define THREAD_SELF \
-    ((struct _pthread_descr_struct *) (__thread_register \
+    ((struct pthread *) (__thread_register \
 			 - TLS_TCB_OFFSET - TLS_PRE_TCB_SIZE))
 
 /* Magic for libthread_db to know how to do THREAD_SELF.  */

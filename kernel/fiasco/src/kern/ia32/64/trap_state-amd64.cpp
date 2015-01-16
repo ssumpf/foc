@@ -61,7 +61,9 @@ PUBLIC inline NEEDS["regdefs.h", "gdt.h"]
 void
 Trap_state::sanitize_user_state()
 {
-  _cs = Gdt::gdt_code_user | Gdt::Selector_user;
+  if (EXPECT_FALSE(   (_cs != (Gdt::gdt_code_user | Gdt::Selector_user))
+                   && (_cs != (Gdt::gdt_code_user32 | Gdt::Selector_user))))
+    _cs = Gdt::gdt_code_user | Gdt::Selector_user;
   _ss = Gdt::gdt_data_user | Gdt::Selector_user;
   _flags = (_flags & ~(EFLAGS_IOPL | EFLAGS_NT)) | EFLAGS_IF;
 }
@@ -91,7 +93,7 @@ Trap_state::trapno() const
 PUBLIC inline
 Mword
 Trap_state::error() const
-{ return 0; }
+{ return _err; }
 
 PUBLIC inline
 Mword

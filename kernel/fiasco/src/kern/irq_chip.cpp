@@ -180,7 +180,8 @@ protected:
   unsigned _flags;
 
   template<typename T>
-  static void handler_wrapper(Irq_base *irq, Upstream_irq const *ui)
+  static void FIASCO_FLATTEN
+  handler_wrapper(Irq_base *irq, Upstream_irq const *ui)
   { nonull_static_cast<T*>(irq)->handle(ui); }
 
 public:
@@ -316,7 +317,7 @@ public:
     Irq_base *obj;
     Irq_chip *chip;
     Mword pin;
-    unsigned print(int max, char *buf) const;
+    void print(String_buffer *buf) const;
   };
 };
 
@@ -328,21 +329,20 @@ IMPLEMENTATION [debug]:
 
 #include "logdefs.h"
 #include "kobject_dbg.h"
+#include "string_buffer.h"
 
 IMPLEMENT
-unsigned
-Irq_base::Irq_log::print(int maxlen, char *buf) const
+void
+Irq_base::Irq_log::print(String_buffer *buf) const
 {
   Kobject_dbg::Const_iterator irq = Kobject_dbg::pointer_to_obj(obj);
 
+  buf->printf("0x%lx/%lu @ chip %s(%p) ", pin, pin, chip->chip_type(), chip);
+
   if (irq != Kobject_dbg::end())
-    return snprintf(buf, maxlen, "0x%lx/%lu @ chip %s(%p) D:%lx",
-                    pin, pin, chip->chip_type(), chip,
-                    irq->dbg_id());
+    buf->printf("D:%lx", irq->dbg_id());
   else
-    return snprintf(buf, maxlen, "0x%lx/%lu @ chip %s(%p) irq=%p",
-                    pin, pin, chip->chip_type(), chip,
-                    obj);
+    buf->printf("irq=%p", obj);
 }
 
 PUBLIC inline NEEDS["logdefs.h"]

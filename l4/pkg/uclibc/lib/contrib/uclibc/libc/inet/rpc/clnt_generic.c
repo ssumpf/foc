@@ -30,9 +30,6 @@
  * Copyright (C) 1987, Sun Microsystems, Inc.
  */
 
-#define __FORCE_GLIBC
-#include <features.h>
-
 #include <alloca.h>
 #include <errno.h>
 #include <string.h>
@@ -119,7 +116,7 @@ clnt_create (const char *hostname, u_long prog, u_long vers,
   prttmpbuf = alloca (prtbuflen);
   while (getprotobyname_r (proto, &protobuf, prttmpbuf, prtbuflen, &p) != 0
 	 || p == NULL)
-	if (errno != ERANGE)
+    if (errno != ERANGE)
       {
 	struct rpc_createerr *ce = &get_rpc_createerr ();
 	ce->cf_stat = RPC_UNKNOWNPROTO;

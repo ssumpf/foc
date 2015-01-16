@@ -5,7 +5,6 @@
   DUMP_MEMBER1 (THREAD, Context, _sched_context,	SCHED_CONTEXT)
   DUMP_MEMBER1 (THREAD, Context, _sched,		SCHED)
   DUMP_MEMBER1 (THREAD, Context, _period,		PERIOD)
-  DUMP_MEMBER1 (THREAD, Context, _mode,			MODE)
   DUMP_MEMBER1 (THREAD, Context, _fpu_state,		FPU_STATE)
   DUMP_MEMBER1 (THREAD, Context, _consumed_time,	CONSUMED_TIME)
   DUMP_MEMBER1 (THREAD, Thread, _caller,		REPLY_CAP)
@@ -13,11 +12,6 @@
   DUMP_MEMBER1 (THREAD, Receiver, _rcv_regs,		RCV_REGS)
   DUMP_MEMBER1 (THREAD, Thread, _timeout,		TIMEOUT)
   DUMP_MEMBER1 (THREAD, Thread, _space,		SPACE)
-  DUMP_MEMBER1 (THREAD, Thread, _thread_lock,	THREAD_LOCK)
-  DUMP_MEMBER1 (THREAD, Thread,	_thread_lock._lock_owner,
-                THREAD_LOCK__SWITCH_LOCK__LOCK_OWNER)
-  DUMP_MEMBER1 (THREAD, Thread,	_thread_lock._switch_hint,
-                THREAD_LOCK__SWITCH_HINT)
   DUMP_MEMBER1 (THREAD, Thread, _pager,			PAGER)
   DUMP_MEMBER1 (THREAD, Thread, _recover_jmpbuf,	RECOVER_JMPBUF)
 #if defined(CONFIG_ARM)
@@ -28,6 +22,7 @@
   DUMP_OFFSET  (THREAD, MAX, sizeof (Thread))
 
   DUMP_MEMBER1 (THREAD, Context, _vcpu_state._u,        USER_VCPU)
+  DUMP_MEMBER1 (THREAD, Context, _vcpu_state._k,        KERN_VCPU)
 #if defined(CONFIG_ARM)
   DUMP_OFFSET  (THREAD, UTCB_SIZE, sizeof(Utcb))
 #else

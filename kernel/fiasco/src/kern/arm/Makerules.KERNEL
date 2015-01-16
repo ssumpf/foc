@@ -2,6 +2,7 @@
 # vim:se ft=make:
 
 ivt.o: $(TCBOFFSET)
+hvt.o: $(TCBOFFSET)
 tramp-mp.o: $(TCBOFFSET)
 
 # Add future prerequisites somewhere among the list of libraries.

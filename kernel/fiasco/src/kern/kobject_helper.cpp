@@ -4,8 +4,11 @@ INTERFACE:
 #include "thread.h"
 #include <cxx/type_traits>
 
+template<typename T, typename Base = Kobject> class Kobject_h;
+
 class Kobject_helper_base
 {
+  template<typename T, typename Base> friend class Kobject_h;
 protected:
   static Mword _utcb_dummy[];
   static Utcb *utcb_dummy()
@@ -14,16 +17,18 @@ protected:
     return reinterpret_cast<Utcb*>(x);
   }
 
-  static L4_msg_tag no_reply() { return L4_msg_tag(L4_msg_tag::Schedule); }
-  static bool have_receive(Utcb *rcv) { return rcv != utcb_dummy(); }
 };
 
-template<typename T, typename Base = Kobject>
-class Kobject_h : public Base, protected Kobject_helper_base
+template<typename T, typename Base>
+class Kobject_h : public Base
 {
 private:
   static Sender *_sender(Thread *, Sender *t) { return t; }
   static Sender *_sender(Thread *ct, ...) { return ct; }
+
+protected:
+  static L4_msg_tag no_reply() { return L4_msg_tag(L4_msg_tag::Schedule); }
+  static bool have_receive(Utcb *rcv) { return rcv != Kobject_helper_base::utcb_dummy(); }
 
 public:
 
@@ -37,7 +42,7 @@ public:
     L4_msg_tag res(no_reply());
     if (EXPECT_TRUE(self.op() & L4_obj_ref::Ipc_send))
       res = static_cast<T*>(this)->T::kinvoke(self, rights, f, (Utcb const *)u,
-                                              self.have_recv() ? u : utcb_dummy());
+                                              self.have_recv() ? u : Kobject_helper_base::utcb_dummy());
 
     if (EXPECT_FALSE(res.has_error()))
       {

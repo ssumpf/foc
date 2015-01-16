@@ -19,7 +19,7 @@
 #include "math_private.h"
 #include <errno.h>
 
-double attribute_hidden __ieee754_scalb(double x, double fn)
+double __ieee754_scalb(double x, double fn)
 {
 	if (isnan(x)||isnan(fn)) return x*fn;
 	if (!isfinite(fn)) {
@@ -55,5 +55,6 @@ double scalb(double x, double fn)
 #else
 strong_alias(__ieee754_scalb, scalb)
 #endif
+libm_hidden_def(scalb)
 
 #endif /* UCLIBC_SUSV3_LEGACY */

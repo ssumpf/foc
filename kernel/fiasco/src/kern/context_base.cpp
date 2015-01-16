@@ -18,8 +18,15 @@ public:
   virtual ~Context_base() = 0;
 
 protected:
-  friend Cpu_number &__cpu_of(const void *);
   Mword _state;
+};
+
+INTERFACE [mp]:
+
+EXTENSION class Context_base
+{
+private:
+  friend Cpu_number current_cpu();
   Cpu_number _cpu;
 };
 
@@ -43,18 +50,6 @@ inline NEEDS [context_of, "processor.h"]
 Context *current()
 { return context_of((void *)Proc::stack_pointer()); }
 
-inline NEEDS ["config.h"]
-Cpu_number &__cpu_of(const void *ptr)
-{ return reinterpret_cast<Context_base*>(context_of(ptr))->_cpu; }
-
-inline NEEDS [__cpu_of]
-void set_cpu_of(const void *ptr, Cpu_number cpu)
-{ __cpu_of(ptr) = cpu; }
-
-
-inline NEEDS [__cpu_of]
-Cpu_number cpu_of(const void *ptr)
-{ return __cpu_of(ptr); }
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [!mp]:
@@ -63,10 +58,33 @@ inline
 Cpu_number current_cpu()
 { return Cpu_number::boot_cpu(); }
 
+PUBLIC inline
+void
+Context_base::set_current_cpu(Cpu_number)
+{}
+
+PUBLIC inline
+Cpu_number
+Context_base::get_current_cpu() const
+{ return Cpu_number::boot_cpu(); }
+
+
 //---------------------------------------------------------------------------
 IMPLEMENTATION [mp]:
 
-inline NEEDS [current, cpu_of]
-Cpu_number current_cpu()
-{ return cpu_of(current()); }
+#include "processor.h"
+
+PUBLIC inline
+void
+Context_base::set_current_cpu(Cpu_number cpu)
+{ _cpu = cpu; }
+
+PUBLIC inline
+Cpu_number
+Context_base::get_current_cpu() const
+{ return _cpu; }
+
+inline NEEDS ["processor.h"]
+Cpu_number FIASCO_PURE current_cpu()
+{ return reinterpret_cast<Context_base *>(Proc::stack_pointer() & ~(Context_base::Size - 1))->_cpu; }
 

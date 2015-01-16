@@ -10,11 +10,13 @@ INTERFACE[svm]:
 #include "per_cpu_data.h"
 #include "virt.h"
 #include "cpu_lock.h"
+#include "pm.h"
 
-EXTENSION class Svm
+EXTENSION class Svm : public Pm_object
 {
 public:
   static Per_cpu<Svm> cpus;
+  Unsigned64 const host_xcr0;
 
   enum Msr_perms
   {
@@ -67,10 +69,29 @@ IMPLEMENTATION[svm]:
 #include "warn.h"
 #include <cstring>
 
-DEFINE_PER_CPU Per_cpu<Svm> Svm::cpus(true);
+DEFINE_PER_CPU_LATE Per_cpu<Svm> Svm::cpus(Per_cpu_data::Cpu_num);
+
+PUBLIC
+void
+Svm::pm_on_suspend(Cpu_number)
+{
+  // FIXME: Handle VMCB caching stuff iff enabled
+}
+
+PUBLIC
+void
+Svm::pm_on_resume(Cpu_number)
+{
+  Unsigned64 efer = Cpu::rdmsr(MSR_EFER);
+  efer |= 1 << 12;
+  Cpu::wrmsr(efer, MSR_EFER);
+  Unsigned64 vm_hsave_pa = Kmem::virt_to_phys(_vm_hsave_area);
+  Cpu::wrmsr(vm_hsave_pa, MSR_VM_HSAVE_PA);
+}
 
 PUBLIC
 Svm::Svm(Cpu_number cpu)
+: host_xcr0(Cpu::cpus.cpu(cpu).has_xsave() ? Cpu::xgetbv(0) : 0)
 {
   Cpu &c = Cpu::cpus.cpu(cpu);
   _svm_enabled = false;
@@ -80,7 +101,7 @@ Svm::Svm(Cpu_number cpu)
   _flush_all_asids = true;
   _has_npt = false;
 
-  if (!c.svm())
+  if (!c.online() || !c.svm())
     return;
 
   Unsigned64 efer, vmcr;
@@ -88,11 +109,11 @@ Svm::Svm(Cpu_number cpu)
   vmcr = c.rdmsr(MSR_VM_CR);
   if (vmcr & (1 << 4)) // VM_CR.SVMDIS
     {
-      printf("SVM supported but locked.\n");
+      printf("SVM: supported but locked.\n");
       return;
     }
 
-  printf("Enabling SVM support\n");
+  printf("SVM: enabled\n");
 
   efer = c.rdmsr(MSR_EFER);
   efer |= 1 << 12;
@@ -102,10 +123,10 @@ Svm::Svm(Cpu_number cpu)
   c.cpuid (0x8000000a, &eax, &ebx, &ecx, &edx);
   if (edx & 1)
     {
-      printf("Nested Paging supported\n");
+      printf("SVM: nested paging supported\n");
       _has_npt = true;
     }
-  printf("NASID: 0x%x\n", ebx);
+  printf("SVM: NASID: %u\n", ebx);
   _max_asid = ebx - 1;
 
   // FIXME: MUST NOT PANIC ON CPU HOTPLUG
@@ -150,6 +171,7 @@ Svm::Svm(Cpu_number cpu)
   Unsigned64 vm_hsave_pa = Kmem::virt_to_phys(_vm_hsave_area);
 
   c.wrmsr(vm_hsave_pa, MSR_VM_HSAVE_PA);
+  register_pm(cpu);
 }
 
 PUBLIC
@@ -210,34 +232,34 @@ Svm::has_npt()
 
 PUBLIC
 bool
-Svm::asid_valid (Unsigned32 asid, Unsigned32 generation)
+Svm::asid_valid(Unsigned32 asid, Unsigned32 generation)
 {
   return ((asid > 0) &&
           (asid <= _max_asid) &&
           (generation <= _global_asid_generation));
 }
 
-PUBLIC
-bool
-Svm::flush_all_asids()
-{ return _flush_all_asids; }
-
-PUBLIC
+PUBLIC inline
 void
-Svm::flush_all_asids(bool val)
-{ _flush_all_asids = val; }
+Svm::flush_asids_if_needed()
+{
+  if (EXPECT_TRUE(!_flush_all_asids))
+    return;
 
-PUBLIC
+  _flush_all_asids = false;
+  _kernel_vmcb->control_area.guest_asid_tlb_ctl |= (1ULL << 32);
+}
+
+PUBLIC inline
 Unsigned32
-Svm::global_asid_generation()
+Svm::global_asid_generation() const
 { return _global_asid_generation; }
 
 PUBLIC
 Unsigned32
-Svm::next_asid ()
+Svm::next_asid()
 {
-  assert(cpu_lock.test());
-  _flush_all_asids = false;
+  assert (cpu_lock.test());
   if (_next_asid > _max_asid)
     {
       _global_asid_generation++;

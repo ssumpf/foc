@@ -13,17 +13,13 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
-
-#define __FORCE_GLIBC
-#include <features.h>
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/time.h>
-#include <rpc/rpc.h>
+#include "rpc_private.h"
 
 
 /* The RPC code is not threadsafe, but new code should be threadsafe. */
@@ -34,7 +30,6 @@ __UCLIBC_MUTEX_STATIC(mylock, PTHREAD_MUTEX_INITIALIZER);
 static smallint is_initialized;
 static struct drand48_data __rpc_lrand48_data;
 
-u_long _create_xid (void) attribute_hidden;
 u_long _create_xid (void)
 {
   long res;

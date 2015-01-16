@@ -85,7 +85,7 @@ public:
   /** Virtuel memory layout -- user address space. */
   enum
   {
-    User_max           = 0xc0000000 - Host_as_offset,
+    User_max           = 0xbfffffff - Host_as_offset,
     Tbuf_ubuffer_area  = 0xbfd00000 - Host_as_offset,  ///< % 1MB   size 2MB
     Utcb_addr          = 0xbff00000 - Host_as_offset,  ///< % 4KB   UTCB map address
     Utcb_ptr_page_user = 0xbfff0000 - Host_as_offset,  ///< % 4KB

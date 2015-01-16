@@ -5,6 +5,7 @@
 # Licensed under the LGPL v2.1, see the file COPYING.LIB in this tarball.
 #
 
+top_srcdir=../
 top_builddir=../
 include Rules.mak
 
@@ -35,7 +36,7 @@ endif
 ifneq ($(UCLIBC_HAS_LOCALE),y)
 	DIRS := $(filter-out locale,$(DIRS))
 endif
-ifneq ($(UCLIBC_HAS_CRYPT),y)
+ifneq ($(UCLIBC_HAS_CRYPT_IMPL),y)
 	DIRS := $(filter-out crypt,$(DIRS))
 endif
 ifeq ($(HAS_NO_THREADS),y)
@@ -46,9 +47,9 @@ test check all: run
 
 run: compile subdirs_run
 
-compile: $(top_builddir)/$(LOCAL_INSTALL_PATH) subdirs_compile
+compile: $(top_builddir)$(LOCAL_INSTALL_PATH) subdirs_compile
 
-$(top_builddir)/$(LOCAL_INSTALL_PATH):
+$(top_builddir)$(LOCAL_INSTALL_PATH):
 	$(Q)$(MAKE) -C $(top_builddir) $(LOCAL_INSTALL_PATH)
 
 tags:
@@ -62,13 +63,16 @@ subdirs_run: $(patsubst %, _dirrun_%, $(DIRS))
 subdirs_clean: $(patsubst %, _dirclean_%, $(ALL_SUBDIRS))
 
 $(patsubst %, _dir_%, $(DIRS)) : dummy
-	$(Q)$(MAKE) -C $(patsubst _dir_%, %, $@)
+	$(Q)$(MAKE) -C $(patsubst _dir_%, %, $@) \
+		KCONFIG_CONFIG=$(KCONFIG_CONFIG)
 
 $(patsubst %, _dirrun_%, $(DIRS)) : dummy
-	$(Q)$(MAKE) -C $(patsubst _dirrun_%, %, $@) run
+	$(Q)$(MAKE) -C $(patsubst _dirrun_%, %, $@) run \
+		KCONFIG_CONFIG=$(KCONFIG_CONFIG)
 
 $(patsubst %, _dircompile_%, $(DIRS)) : dummy
-	$(Q)$(MAKE) -C $(patsubst _dircompile_%, %, $@) compile
+	$(Q)$(MAKE) -C $(patsubst _dircompile_%, %, $@) compile \
+		KCONFIG_CONFIG=$(KCONFIG_CONFIG)
 
 $(patsubst %, _dirclean_%, $(ALL_SUBDIRS)) : dummy
 	$(Q)$(MAKE) -C $(patsubst _dirclean_%, %, $@) clean

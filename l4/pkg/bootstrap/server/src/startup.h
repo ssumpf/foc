@@ -20,20 +20,21 @@
 typedef struct
 {
   unsigned long kernel_start;
-  unsigned long sigma0_start, sigma0_stack;
-  unsigned long roottask_start, roottask_stack;
+  unsigned long sigma0_start;
+  unsigned long roottask_start;
   unsigned long mbi_low, mbi_high;
 } boot_info_t;
 
-extern l4_addr_t _mod_end;
-
-const char * get_cmdline(l4util_mb_info_t *mbi);
+//const char * get_cmdline(l4util_mb_info_t *mbi);
 
 #ifdef __cplusplus
 #include "koptions-def.h"
-char *check_arg(l4util_mb_info_t *mbi, const char *arg);
+char const *check_arg(char const *cmdline, const char *arg);
 extern L4_kernel_options::Uart kuart;
 extern unsigned int kuart_flags;
+extern "C" void startup(char const *cmdline);
+#else
+extern void startup(char const *cmdline);
 #endif
 
 #endif /* ! __STARTUP_H__ */

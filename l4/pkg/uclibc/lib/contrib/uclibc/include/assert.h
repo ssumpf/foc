@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /*
  *	ISO C99 Standard: 7.2 Diagnostics	<assert.h>
@@ -72,7 +71,7 @@ __END_DECLS
 #  if defined __STDC_VERSION__ && __STDC_VERSION__ >= 199901L
 #   define __ASSERT_FUNCTION	__func__
 #  else
-#   define __ASSERT_FUNCTION	((__const char *) 0)
+#   define __ASSERT_FUNCTION	((const char *) 0)
 #  endif
 # endif
 

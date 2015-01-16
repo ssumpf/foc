@@ -12,18 +12,19 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /*
  * Peter S. Mazinger ps.m[@]gmx.net
  * copied stack_chk_fail_local.c from glibc and adapted for uClibc
  */
 
-#include <features.h>
+#if defined __SSP__ || defined __SSP_ALL__
+# error "file must not be compiled with stack protection enabled on it. Use -fno-stack-protector"
+#endif
 
-extern void __stack_chk_fail (void) attribute_noreturn;
+#include <features.h>
 
 /* On some architectures, this helps needless PIC pointer setup
    that would be needed just for the __stack_chk_fail call.  */
@@ -31,5 +32,5 @@ extern void __stack_chk_fail (void) attribute_noreturn;
 void __stack_chk_fail_local (void) attribute_noreturn attribute_hidden;
 void __stack_chk_fail_local (void)
 {
-  __stack_chk_fail ();
+	__stack_chk_fail ();
 }

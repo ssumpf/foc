@@ -63,6 +63,7 @@ private:
   Unsigned32 _brand;
   Unsigned32 _features;
   Unsigned32 _ext_features;
+  Unsigned32 _ext_07_ebx;
   Unsigned32 _ext_8000_0001_ecx;
   Unsigned32 _ext_8000_0001_edx;
   Unsigned32 _local_features;
@@ -140,6 +141,10 @@ public:
   unsigned ext_features() const { return _ext_features; }
   bool has_monitor_mwait() const { return _ext_features & (1 << 3); }
   bool has_monitor_mwait_irq() const { return _monitor_mwait_ecx & 3; }
+
+  bool __attribute__((const)) has_smep() const
+  { return _ext_07_ebx & FEATX_SMEP; }
+
   unsigned ext_8000_0001_ecx() const { return _ext_8000_0001_ecx; }
   unsigned ext_8000_0001_edx() const { return _ext_8000_0001_edx; }
   unsigned local_features() const { return _local_features; }
@@ -167,6 +172,9 @@ public:
   static bool have_syscall() { return boot_cpu()->syscall(); }
   static bool have_fxsr() { return boot_cpu()->features() & FEAT_FXSR; }
   static bool have_pge() { return boot_cpu()->features() & FEAT_PGE; }
+  static bool have_xsave() { return boot_cpu()->ext_features() & FEATX_XSAVE; }
+
+  bool has_xsave() const { return ext_features() & FEATX_XSAVE; }
 
 private:
 
@@ -218,6 +226,8 @@ INTERFACE [ia32, amd64]:
 #include "initcalls.h"
 #include "per_cpu_data.h"
 #include "gdt.h"
+#include "lock_guard.h"
+#include "spin_lock.h"
 
 class Gdt;
 class Tss;
@@ -308,7 +318,7 @@ IMPLEMENTATION[ia32,amd64,ux]:
 #include "panic.h"
 #include "processor.h"
 
-DEFINE_PER_CPU_P(0) Per_cpu<Cpu> Cpu::cpus(true);
+DEFINE_PER_CPU_P(0) Per_cpu<Cpu> Cpu::cpus(Per_cpu_data::Cpu_num);
 Cpu *Cpu::_boot_cpu;
 
 
@@ -668,6 +678,7 @@ Cpu::Cpu(Cpu_number cpu)
   if (cpu == Cpu_number::boot_cpu())
     {
       _boot_cpu = this;
+      set_present(1);
       set_online(1);
     }
 
@@ -689,11 +700,11 @@ Cpu::exception_string(Mword trapno)
   return exception_strings[trapno];
 }
 
-PUBLIC static inline FIASCO_INIT_CPU
+PUBLIC static inline FIASCO_INIT_CPU_AND_PM
 void
-Cpu::cpuid(Unsigned32 const mode,
-           Unsigned32 *const eax, Unsigned32 *const ebx,
-           Unsigned32 *const ecx, Unsigned32 *const edx)
+Cpu::cpuid(Unsigned32 mode,
+           Unsigned32 *eax, Unsigned32 *ebx,
+           Unsigned32 *ecx, Unsigned32 *edx)
 {
   asm volatile ("cpuid" : "=a" (*eax), "=b" (*ebx), "=c" (*ecx), "=d" (*edx)
                         : "a" (mode));
@@ -701,12 +712,12 @@ Cpu::cpuid(Unsigned32 const mode,
 
 PUBLIC static inline FIASCO_INIT_CPU
 void
-Cpu::cpuid_0xd(Unsigned32 const ecx_val,
-               Unsigned32 *const eax, Unsigned32 *const ebx,
-               Unsigned32 *const ecx, Unsigned32 *const edx)
+Cpu::cpuid(Unsigned32 mode, Unsigned32 ecx_val,
+           Unsigned32 *eax, Unsigned32 *ebx,
+           Unsigned32 *ecx, Unsigned32 *edx)
 {
   asm volatile ("cpuid" : "=a" (*eax), "=b" (*ebx), "=c" (*ecx), "=d" (*edx)
-                        : "a" (0xd), "c" (ecx_val));
+                        : "a" (mode), "c" (ecx_val));
 }
 
 PUBLIC
@@ -926,7 +937,7 @@ Cpu::get_features()
     return 0;
 
   Unsigned32 dummy, dummy1, dummy2, features;
-  cpuid (1, &dummy, &dummy1, &dummy2, &features);
+  cpuid(1, &dummy, &dummy1, &dummy2, &features);
 
   return features;
 }
@@ -996,6 +1007,12 @@ Cpu::identify()
     if (max >= 5 && has_monitor_mwait())
       cpuid(5, &_monitor_mwait_eax, &_monitor_mwait_ebx,
                &_monitor_mwait_ecx, &_monitor_mwait_edx);
+
+    if (max >= 7 && _vendor == Vendor_intel)
+      {
+        Unsigned32 dummy1, dummy2, dummy3;
+        cpuid(0x7, 0, &dummy1, &_ext_07_ebx, &dummy2, &dummy3);
+      }
 
     if (_vendor == Vendor_intel)
       {
@@ -1246,6 +1263,44 @@ IMPLEMENTATION[ia32, amd64]:
 #include "regdefs.h"
 #include "tss.h"
 
+EXTENSION class Cpu
+{
+private:
+  Unsigned64 _suspend_tsc;
+};
+
+PUBLIC FIASCO_INIT_AND_PM
+void
+Cpu::pm_suspend()
+{
+  Gdt_entry tss_entry;
+  tss_entry = (*gdt)[Gdt::gdt_tss / 8];
+  tss_entry.access &= 0xfd;
+  (*gdt)[Gdt::gdt_tss / 8] = tss_entry;
+  _suspend_tsc = rdtsc();
+}
+
+PUBLIC FIASCO_INIT_AND_PM
+void
+Cpu::pm_resume()
+{
+  if (id() != Cpu_number::boot_cpu())
+    {
+      // the boot CPU restores some state in asm already
+      set_gdt();
+      set_ldt(0);
+      set_ds(Gdt::data_segment());
+      set_es(Gdt::data_segment());
+      set_ss(Gdt::gdt_data_kernel | Gdt::Selector_kernel);
+      set_fs(Gdt::gdt_data_user   | Gdt::Selector_user);
+      set_gs(Gdt::gdt_data_user   | Gdt::Selector_user);
+      set_cs();
+
+      set_tss();
+    }
+  init_sysenter();
+  wrmsr(_suspend_tsc, MSR_TSC);
+}
 
 PUBLIC static inline
 void
@@ -1277,6 +1332,27 @@ PUBLIC static inline
 void
 Cpu::set_tr(Unsigned16 val)
 { asm volatile ("ltr %0" : : "rm" (val)); }
+
+PUBLIC static inline
+void
+Cpu::xsetbv(Unsigned64 val, Unsigned32 xcr)
+{
+  asm volatile ("xsetbv" : : "a" ((Mword)val),
+                             "d" ((Mword)(val >> 32)),
+                             "c" (xcr));
+}
+
+PUBLIC static inline
+Unsigned64
+Cpu::xgetbv(Unsigned32 xcr)
+{
+  Unsigned32 eax, edx;
+  asm volatile("xgetbv"
+               : "=a" (eax),
+                 "=d" (edx)
+               : "c" (xcr));
+  return eax | ((Unsigned64)edx << 32);
+}
 
 PUBLIC static inline
 Mword
@@ -1527,9 +1603,6 @@ Cpu::init()
 
   calibrate_tsc();
 
-  if (scaler_tsc_to_ns)
-    _frequency = ns_to_tsc(1000000000UL);
-
   Unsigned32 cr4 = get_cr4();
 
   if (features() & FEAT_FXSR)
@@ -1537,6 +1610,10 @@ Cpu::init()
 
   if (features() & FEAT_SSE)
     cr4 |= CR4_OSXMMEXCPT;
+
+  // enable SMEP if available
+  if (has_smep())
+    cr4 |= CR4_SMEP;
 
   set_cr4 (cr4);
 
@@ -1552,7 +1629,7 @@ Cpu::init()
 
 PUBLIC
 void
-Cpu::print() const
+Cpu::print_infos() const
 {
   if (if_show_infos())
     printf("CPU[%u]: %s (%X:%X:%X:%X)[%08x] Model: %s at %lluMHz\n\n",
@@ -1560,41 +1637,9 @@ Cpu::print() const
            vendor_str(), family(), model(), stepping(), brand(),
            _version, model_str(),
            div32(frequency(), 1000000));
+
+  show_cache_tlb_info("");
 }
-
-PUBLIC
-void
-Cpu::set_sysenter(void (*func)(void))
-{
-  // Check for Sysenter/Sysexit Feature
-  if (sysenter())
-    wrmsr((Mword) func, 0, MSR_SYSENTER_EIP);
-}
-
-
-PUBLIC
-void
-Cpu::set_fast_entry(void (*func)(void))
-{
-  set_sysenter(func);
-}
-
-extern "C" void entry_sys_fast_ipc (void);
-extern "C" void entry_sys_fast_ipc_c (void);
-
-PUBLIC FIASCO_INIT_CPU
-void
-Cpu::init_sysenter()
-{
-  // Check for Sysenter/Sysexit Feature
-  if (sysenter())
-    {
-      wrmsr (Gdt::gdt_code_kernel, 0, MSR_SYSENTER_CS);
-      wrmsr ((unsigned long)&kernel_sp(), 0, MSR_SYSENTER_ESP);
-      set_sysenter(entry_sys_fast_ipc_c);
-    }
-}
-
 
 // Return 2^32 / (tsc clocks per usec)
 FIASCO_INIT_CPU
@@ -1607,12 +1652,16 @@ Cpu::calibrate_tsc()
   if (! (features() & FEAT_TSC))
     goto bad_ctc;
 
+  // only do once
+  if (scaler_tsc_to_ns)
+    return;
+
   Unsigned64 tsc_start, tsc_end;
   Unsigned32 count, tsc_to_ns_div, dummy;
 
     {
-      // disable interrupts
-      Proc::Status o = Proc::cli_save();
+      static Spin_lock<> _l;
+      auto guard = lock_guard(_l);
 
       Pit::setup_channel2_to_20hz();
 
@@ -1624,9 +1673,6 @@ Cpu::calibrate_tsc()
 	}
       while ((Io::in8 (0x61) & 0x20) == 0);
       tsc_end = rdtsc ();
-
-      // restore flags
-      Proc::sti_restore(o);
     }
 
   // Error: ECTCNEVERSET
@@ -1657,10 +1703,12 @@ Cpu::calibrate_tsc()
   scaler_ns_to_tsc  = muldiv(1 << 31, ((Unsigned32)tsc_end),
                              calibrate_time * 1000 >> 1 * 1 << 5);
 
+  if (scaler_tsc_to_ns)
+    _frequency = ns_to_tsc(1000000000UL);
+
   return;
 
 bad_ctc:
-  // FIXME: must not panic at cpu hotplug
   if (Config::Kip_timer_uses_rdtsc)
     panic("Can't calibrate tsc");
 }

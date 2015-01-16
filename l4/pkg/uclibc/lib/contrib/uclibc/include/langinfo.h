@@ -1,5 +1,5 @@
 /* Access to locale-dependent parameters.
-   Copyright (C) 1995-2002,2003,2004,2005 Free Software Foundation, Inc.
+   Copyright (C) 1995-2002,2003,2004,2005,2009 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _LANGINFO_H
 #define	_LANGINFO_H 1
@@ -352,6 +351,7 @@ enum
   _NL_CTYPE_TRANSLIT_IGNORE_LEN,
   _NL_CTYPE_TRANSLIT_IGNORE,
   _NL_CTYPE_MAP_TO_NONASCII,
+  _NL_CTYPE_NONASCII_CASE,
   _NL_CTYPE_EXTRA_MAP_1,
   _NL_CTYPE_EXTRA_MAP_2,
   _NL_CTYPE_EXTRA_MAP_3,
@@ -620,7 +620,7 @@ extern char *nl_langinfo (nl_item __item) __THROW;
 libc_hidden_proto(nl_langinfo)
 
 
-#if defined __USE_GNU && defined __UCLIBC_HAS_XLOCALE__
+#if defined __USE_XOPEN2K && defined __UCLIBC_HAS_XLOCALE__
 /* This interface is for the extended locale model.  See <locale.h> for
    more information.  */
 
@@ -628,7 +628,7 @@ libc_hidden_proto(nl_langinfo)
 # include <xlocale.h>
 
 /* Just like nl_langinfo but get the information from the locale object L.  */
-extern char *nl_langinfo_l (nl_item __item, __locale_t l);
+extern char *nl_langinfo_l (nl_item __item, __locale_t __l);
 libc_hidden_proto(nl_langinfo_l)
 #endif
 

@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef	_SYS_IO_H
 
@@ -23,6 +22,7 @@
 
 __BEGIN_DECLS
 
+#if defined __UCLIBC_LINUX_SPECIFIC__
 /* If TURN_ON is TRUE, request for permission to do direct i/o on the
    port numbers in the range [FROM,FROM+NUM-1].  Otherwise, turn I/O
    permission off for that range.  This call requires root privileges.
@@ -32,12 +32,12 @@ __BEGIN_DECLS
    E.g., Linux/Alpha for Alpha PCs supports this.  */
 extern int ioperm (unsigned long int __from, unsigned long int __num,
 		   int __turn_on) __THROW;
-libc_hidden_proto(ioperm)
 
 /* Set the I/O privilege level to LEVEL.  If LEVEL>3, permission to
    access any I/O port is granted.  This call requires root
    privileges. */
 extern int iopl (int __level) __THROW;
+#endif /* __UCLIBC_LINUX_SPECIFIC__ */
 
 /* Return the physical address of the DENSE I/O memory or NULL if none
    is available (e.g. on a jensen).  */

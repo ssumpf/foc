@@ -99,6 +99,7 @@ IMPLEMENTATION[(ia32,amd64) && mp]:
 #include "processor.h"
 #include "per_cpu_data_alloc.h"
 #include "perf_cnt.h"
+#include "platform_control.h"
 #include "spin_lock.h"
 #include "utcb_init.h"
 
@@ -122,34 +123,44 @@ int FIASCO_FASTCALL boot_ap_cpu()
              cxx::int_value<Cpu_number>(_cpu));
       _tramp_mp_spinlock.clear();
       while (1)
-	Proc::halt();
+        Proc::halt();
     }
-  Per_cpu_data::run_ctors(_cpu);
+
+  if (cpu_is_new)
+    Per_cpu_data::run_ctors(_cpu);
+
   Cpu &cpu = Cpu::cpus.cpu(_cpu);
 
-  Kmem::init_cpu(cpu);
   Idt::load();
 
-  Apic::init_ap();
-  Apic::apic.cpu(_cpu).construct();
-  Ipi::init(_cpu);
+  if (cpu_is_new)
+    {
+      Kmem::init_cpu(cpu);
+      Apic::init_ap();
+      Apic::apic.cpu(_cpu).construct(_cpu);
+      Ipi::init(_cpu);
+    }
+  else
+    {
+      cpu.pm_resume();
+      Pm_object::run_on_resume_hooks(_cpu);
+    }
+
   Timer::init(_cpu);
-  Apic::check_still_getting_interrupts();
 
-
-  // caution: no stack variables in this function because we're going
-  // to change the stack pointer!
-  cpu.print();
-  cpu.show_cache_tlb_info("");
+  if (cpu_is_new)
+    {
+      Apic::check_still_getting_interrupts();
+      Platform_control::init(_cpu);
+    }
 
   if (Koptions::o()->opt(Koptions::F_loadcnt))
     Perf_cnt::init_ap();
 
-  puts("");
 
   // create kernel thread
   Kernel_thread *kernel = App_cpu_thread::may_be_create(_cpu, cpu_is_new);
 
-  main_switch_ap_cpu_stack(kernel);
+  main_switch_ap_cpu_stack(kernel, !cpu_is_new);
   return 0;
 }

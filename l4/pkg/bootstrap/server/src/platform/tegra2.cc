@@ -18,7 +18,7 @@
 /* Init-code from http://android.git.kernel.org/?p=kernel/tegra.git */
 
 #include "support.h"
-#include <l4/drivers/uart_pxa.h>
+#include "mmio_16550.h"
 
 namespace {
 class Platform_arm_tegra2 : public Platform_single_region_ram
@@ -67,12 +67,13 @@ class Platform_arm_tegra2 : public Platform_single_region_ram
 
     some_delay(5000);
 
-    static L4::Uart_16550 _uart(13478400);
-    static L4::Io_register_block_mmio r(0x70006300, 2);
-    _uart.startup(&r);
-    _uart.change_mode(3, 115200);
-    set_stdio_uart(&_uart);
-  }
+    kuart.base_address = 0x70006300;
+    kuart.reg_shift    = 2;
+    kuart.base_baud    = 13478400;
+    kuart.baud         = 115200;
+    kuart.irqno        = 122;
+    setup_16550_mmio_uart();
+ }
 };
 }
 

@@ -17,6 +17,12 @@ SECTIONS
   }
   _image_end = .;
 
+  /* Value of DEFAULT_RELOC_amd64 */
+  .sixtyfour 0x2d0000 :
+  {
+    . = . + 500000;
+  }
+
   /DISCARD/ : {
     *(.interp)
     *(.comment)

@@ -93,13 +93,13 @@ Cpu::init()
 
 PUBLIC
 void
-Cpu::print() const
+Cpu::print_infos() const
 {
-  printf ("CPU[%u:%u]: %s (%X:%X:%X:%X) Model: %s at %llu MHz\n\n",
-          cxx::int_value<Cpu_number>(id()),
-          cxx::int_value<Cpu_phys_id>(phys_id()),
-          vendor_str(), family(), model(), stepping(), brand(), model_str(),
-          div32(frequency(), 1000000));
+  printf("CPU[%u:%u]: %s (%X:%X:%X:%X) Model: %s at %llu MHz\n\n",
+         cxx::int_value<Cpu_number>(id()),
+         cxx::int_value<Cpu_phys_id>(phys_id()),
+         vendor_str(), family(), model(), stepping(), brand(), model_str(),
+         div32(frequency(), 1000000));
 }
 
 PUBLIC inline

@@ -12,9 +12,7 @@
  */
 
 #include <features.h>
-#define _ASM
-#define _SETJMP_H
-#include <bits/setjmp.h>
+#include <jmpbuf-offsets.h>
 
 .globl __sigsetjmp
 .type  __sigsetjmp,@function
@@ -35,7 +33,7 @@ __sigsetjmp:
     stw     fp, JB_FP(r4)
     stw     gp, JB_GP(r4)
     
-#if defined(__HAVE_FPU__)
+#ifdef __UCLIBC_HAS_FPU__
     SAVE_FPU r4 JB_FPREGS
 #endif
 

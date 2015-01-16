@@ -1,5 +1,5 @@
 /* Header file for mounting/unmount Linux filesystems.
-   Copyright (C) 1996,1997,1998,1999,2000,2004 Free Software Foundation, Inc.
+   Copyright (C) 1996-2000, 2004, 2010, 2012 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* This is taken from /usr/include/linux/fs.h.  */
 
@@ -47,23 +46,46 @@ enum
 #define MS_REMOUNT	MS_REMOUNT
   MS_MANDLOCK = 64,		/* Allow mandatory locks on an FS.  */
 #define MS_MANDLOCK	MS_MANDLOCK
-  S_WRITE = 128,		/* Write on file/directory/symlink.  */
-#define S_WRITE		S_WRITE
-  S_APPEND = 256,		/* Append-only file.  */
-#define S_APPEND	S_APPEND
-  S_IMMUTABLE = 512,		/* Immutable file.  */
-#define S_IMMUTABLE	S_IMMUTABLE
+  MS_DIRSYNC = 128,		/* Directory modifications are synchronous.  */
+#define MS_DIRSYNC	MS_DIRSYNC
   MS_NOATIME = 1024,		/* Do not update access times.  */
 #define MS_NOATIME	MS_NOATIME
   MS_NODIRATIME = 2048,		/* Do not update directory access times.  */
 #define MS_NODIRATIME	MS_NODIRATIME
   MS_BIND = 4096,		/* Bind directory at different place.  */
 #define MS_BIND		MS_BIND
+  MS_MOVE = 8192,
+#define MS_MOVE		MS_MOVE
+  MS_REC = 16384,
+#define MS_REC		MS_REC
+  MS_SILENT = 32768,
+#define MS_SILENT	MS_SILENT
+  MS_POSIXACL = 1 << 16,	/* VFS does not apply the umask.  */
+#define MS_POSIXACL	MS_POSIXACL
+  MS_UNBINDABLE = 1 << 17,	/* Change to unbindable.  */
+#define MS_UNBINDABLE	MS_UNBINDABLE
+  MS_PRIVATE = 1 << 18,		/* Change to private.  */
+#define MS_PRIVATE	MS_PRIVATE
+  MS_SLAVE = 1 << 19,		/* Change to slave.  */
+#define MS_SLAVE	MS_SLAVE
+  MS_SHARED = 1 << 20,		/* Change to shared.  */
+#define MS_SHARED	MS_SHARED
+  MS_RELATIME = 1 << 21,	/* Update atime relative to mtime/ctime.  */
+#define MS_RELATIME	MS_RELATIME
+  MS_KERNMOUNT = 1 << 22,	/* This is a kern_mount call.  */
+#define MS_KERNMOUNT	MS_KERNMOUNT
+  MS_I_VERSION =  1 << 23,	/* Update inode I_version field.  */
+#define MS_I_VERSION	MS_I_VERSION
+  MS_STRICTATIME = 1 << 24,	/* Always perform atime updates.  */
+#define MS_STRICTATIME	MS_STRICTATIME
+  MS_ACTIVE = 1 << 30,
+#define MS_ACTIVE	MS_ACTIVE
+  MS_NOUSER = 1 << 31
+#define MS_NOUSER	MS_NOUSER
 };
 
 /* Flags that can be altered by MS_REMOUNT  */
-#define MS_RMT_MASK (MS_RDONLY|MS_SYNCHRONOUS|MS_MANDLOCK|MS_NOATIME \
-		     |MS_NODIRATIME)
+#define MS_RMT_MASK (MS_RDONLY|MS_SYNCHRONOUS|MS_MANDLOCK|MS_I_VERSION)
 
 
 /* Magic mount flag number. Has to be or-ed to the flag values.  */
@@ -100,23 +122,28 @@ enum
 #define MNT_FORCE MNT_FORCE
   MNT_DETACH = 2,		/* Just detach from the tree.  */
 #define MNT_DETACH MNT_DETACH
-  MNT_EXPIRE = 4		/* Mark for expiry.  */
+  MNT_EXPIRE = 4,		/* Mark for expiry.  */
 #define MNT_EXPIRE MNT_EXPIRE
+  UMOUNT_NOFOLLOW = 8		/* Don't follow symlink on umount.  */
+#define UMOUNT_NOFOLLOW UMOUNT_NOFOLLOW
 };
 
 
 __BEGIN_DECLS
 
 /* Mount a filesystem.  */
-extern int mount (__const char *__special_file, __const char *__dir,
-		  __const char *__fstype, unsigned long int __rwflag,
-		  __const void *__data) __THROW;
+extern int mount (const char *__special_file, const char *__dir,
+		  const char *__fstype, unsigned long int __rwflag,
+		  const void *__data) __THROW;
 
 /* Unmount a filesystem.  */
-extern int umount (__const char *__special_file) __THROW;
+extern int umount (const char *__special_file) __THROW;
 
+#ifdef __UCLIBC_LINUX_SPECIFIC__
 /* Unmount a filesystem.  Force unmounting if FLAGS is set to MNT_FORCE.  */
-extern int umount2 (__const char *__special_file, int __flags) __THROW;
+extern int umount2 (const char *__special_file, int __flags) __THROW;
+libc_hidden_proto(umount2)
+#endif
 
 __END_DECLS
 

@@ -69,6 +69,14 @@ public:
   { return l4_vcon_read_u(cap(), buf, size, utcb); }
 
   /**
+   * \copydoc l4_vcon_read_with_flags()
+   * \note \a vcon is the implicit \a this pointer.
+   */
+  int
+  read_with_flags(char *buf, int size, l4_utcb_t *utcb = l4_utcb()) const throw()
+  { return l4_vcon_read_with_flags_u(cap(), buf, size, utcb); }
+
+  /**
    * \copydoc l4_vcon_set_attr()
    * \note \a vcon is the implicit \a this pointer.
    */

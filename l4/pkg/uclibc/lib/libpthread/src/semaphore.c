@@ -22,8 +22,6 @@
 #include "restart.h"
 #include "queue.h"
 
-#include <bits/uClibc_errno.h>
-
 int sem_init(sem_t *sem, int pshared, unsigned int value)
 {
   if (value > SEM_VALUE_MAX) {

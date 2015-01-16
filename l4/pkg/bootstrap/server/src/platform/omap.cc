@@ -32,13 +32,29 @@ class Platform_arm_omap : public Platform_single_region_ram
     static L4::Io_register_block_mmio r(0x4806a000);
 #elif defined(PLATFORM_TYPE_omap3_am33xx)
     static L4::Io_register_block_mmio r(0x44e09000);
-#elif defined(PLATFORM_TYPE_pandaboard)
+#elif defined(PLATFORM_TYPE_pandaboard) || defined(PLATFORM_TYPE_omap5)
     static L4::Io_register_block_mmio r(0x48020000);
 #else
 #error Unknown platform
 #endif
     _uart.startup(&r);
     set_stdio_uart(&_uart);
+  }
+
+  void arm_switch_to_hyp()
+  {
+    register l4_umword_t f asm("r12") = 0x102;
+    asm volatile("mcr p15, 0, sp, c13, c0, 2\n"
+                 "push {fp}                 \n"
+                 "mov r0, pc                \n"
+                 ".inst 0xe1600070          \n"
+                 "pop {fp}                  \n"
+                 "mrc p15, 0, sp, c13, c0, 2\n"
+                 :
+                 : "r" (f)
+                 : "r0", "r1", "r2", "r3", "r4",
+                   "r5", "r6", "r7", "r8", "r9",
+                   "r10", "memory");
   }
 };
 }

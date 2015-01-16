@@ -8,7 +8,6 @@
 #include "_stdio.h"
 #include <printf.h>
 
-uintmax_t _load_inttype(int desttype, register const void *src, int uflag) attribute_hidden;
 uintmax_t _load_inttype(int desttype, register const void *src, int uflag)
 {
 	if (uflag >= 0) {			/* unsigned */
@@ -57,7 +56,7 @@ uintmax_t _load_inttype(int desttype, register const void *src, int uflag)
 		{
 			int x;
 			x = *((int *) src);
-			if (desttype == __PA_FLAG_CHAR) x = (char) x;
+			if (desttype == __PA_FLAG_CHAR) x = (signed char) x;
 #if SHRT_MAX != INT_MAX
 			if (desttype == PA_FLAG_SHORT) x = (short int) x;
 #endif

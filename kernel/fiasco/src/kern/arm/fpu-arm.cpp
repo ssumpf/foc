@@ -12,16 +12,16 @@ public:
     Mword fpinst2;
   };
 
+  struct Fpu_regs
+  {
+    Mword fpexc, fpscr, fpinst, fpinst2;
+    Mword state[64];
+  };
+
   enum
   {
     FPEXC_EN  = 1 << 30,
     FPEXC_EX  = 1 << 31,
-  };
-
-  struct Fpu_regs
-  {
-    Mword fpexc, fpscr;
-    Mword state[32 * 4]; // 4*32 bytes for each FP-reg
   };
 
   struct Fpsid
@@ -45,6 +45,7 @@ public:
 
 private:
   Fpsid _fpsid;
+  static bool save_32r;
 };
 
 // ------------------------------------------------------------------------
@@ -65,7 +66,7 @@ IMPLEMENTATION [arm && !fpu]:
 
 PUBLIC static inline NEEDS["trap_state.h"]
 void
-Fpu::save_user_exception_state(Trap_state *, Exception_state_user *)
+Fpu::save_user_exception_state(bool, Fpu_state *, Trap_state *, Exception_state_user *)
 {}
 
 // ------------------------------------------------------------------------
@@ -77,7 +78,7 @@ Fpu::copro_enable()
 {}
 
 // ------------------------------------------------------------------------
-IMPLEMENTATION [arm && fpu && armv6plus]:
+IMPLEMENTATION [arm && fpu && armv6plus && !hyp]:
 
 PRIVATE static inline
 void
@@ -91,6 +92,21 @@ Fpu::copro_enable()
 }
 
 // ------------------------------------------------------------------------
+IMPLEMENTATION [arm && fpu && armv6plus && hyp]:
+
+PRIVATE static inline
+void
+Fpu::copro_enable()
+{
+  asm volatile("mrc  p15, 0, %0, c1, c0, 2\n"
+               "orr  %0, %0, %1           \n"
+               "mcr  p15, 0, %0, c1, c0, 2\n"
+               : : "r" (0), "I" (0x00f00000));
+  Mem::isb();
+  fpexc((fpexc() | FPEXC_EN)); // & ~FPEXC_EX);
+}
+
+// ------------------------------------------------------------------------
 IMPLEMENTATION [arm && fpu]:
 
 #include <cassert>
@@ -98,10 +114,13 @@ IMPLEMENTATION [arm && fpu]:
 #include <cstring>
 
 #include "fpu_state.h"
+#include "kdb_ke.h"
 #include "mem.h"
 #include "processor.h"
 #include "static_assert.h"
 #include "trap_state.h"
+
+bool Fpu::save_32r;
 
 PUBLIC static inline
 Mword
@@ -165,35 +184,26 @@ Fpu::fpinst2()
   return i;
 }
 
-PUBLIC static inline
+PUBLIC static inline NEEDS[Fpu::fpexc]
 bool
 Fpu::exc_pending()
 {
   return fpexc() & FPEXC_EX;
 }
 
-IMPLEMENT
-void
-Fpu::enable()
-{
-  fpexc((fpexc() | FPEXC_EN) & ~FPEXC_EX);
-}
-
-IMPLEMENT
-void
-Fpu::disable()
-{
-  fpexc(fpexc() & ~FPEXC_EN);
-}
 
 PUBLIC static inline
 int
 Fpu::is_emu_insn(Mword opcode)
 {
-  return (opcode & 0x0ff00f90) == 0x0ef00a10;
+  if ((opcode & 0x0ff00f90) != 0x0ef00a10)
+    return false;
+
+  unsigned reg = (opcode >> 16) & 0xf;
+  return reg == 0 || reg == 6 || reg == 7;
 }
 
-PUBLIC static inline
+PUBLIC static inline NEEDS[<cassert>]
 bool
 Fpu::emulate_insns(Mword opcode, Trap_state *ts)
 {
@@ -216,7 +226,7 @@ Fpu::emulate_insns(Mword opcode, Trap_state *ts)
       ts->r[rt] = Fpu::mvfr0();
       break;
     default:
-      break;
+      assert(0);
     }
 
   if (ts->psr & Proc::Status_thumb)
@@ -225,18 +235,11 @@ Fpu::emulate_insns(Mword opcode, Trap_state *ts)
   return true;
 }
 
-
-
-IMPLEMENT
+PRIVATE static
 void
-Fpu::init(Cpu_number cpu)
+Fpu::show(Cpu_number cpu)
 {
-  copro_enable();
-
-  const Fpsid s(fpsid_read());
-
-  fpu.cpu(cpu)._fpsid = s;
-
+  const Fpsid s = fpu.cpu(cpu)._fpsid;
   unsigned arch = s.arch_version();
   printf("FPU%d: Arch: %s(%x), Part: %s(%x), r: %x, v: %x, i: %x, t: %s, p: %s\n",
          cxx::int_value<Cpu_number>(cpu),
@@ -252,59 +255,91 @@ Fpu::init(Cpu_number cpu)
          (int)s.rev(), (int)s.variant(), (int)s.implementer(),
          (int)s.hw_sw() ? "soft" : "hard",
          (int)s.precision() ? "sngl" : "dbl/sngl");
-
-  disable();
-
-  fpu.cpu(cpu).set_owner(0);
 }
 
-IMPLEMENT inline NEEDS ["fpu_state.h", "mem.h", "static_assert.h", <cstring>]
+
+IMPLEMENT
 void
-Fpu::init_state (Fpu_state *s)
+Fpu::init(Cpu_number cpu, bool resume)
 {
-  Fpu_regs *fpu_regs = reinterpret_cast<Fpu_regs *>(s->state_buffer());
-  static_assert(!(sizeof (*fpu_regs) % sizeof(Mword)),
-                "Non-mword size of Fpu_regs");
-  Mem::memset_mwords(fpu_regs, 0, sizeof (*fpu_regs) / sizeof(Mword));
+  copro_enable();
+
+  Fpu &f = fpu.cpu(cpu);
+  f._fpsid = Fpsid(fpsid_read());
+  if (cpu == Cpu_number::boot_cpu() && f._fpsid.arch_version() > 1)
+    save_32r = (mvfr0() & 0xf) == 2;
+
+  if (!resume)
+    show(cpu);
+
+  f.disable();
+  f.set_owner(0);
+}
+
+PRIVATE static inline
+void
+Fpu::save_fpu_regs(Fpu_regs *r)
+{
+  Mword tmp;
+  asm volatile("stc p11, cr0, [%0], #128     \n"
+               "cmp    %2, #0                \n"
+               "stcnel p11, cr0, [%0], #128  \n"
+               : "=r" (tmp) : "0" (r->state), "r" (save_32r));
+}
+
+PRIVATE static inline
+void
+Fpu::restore_fpu_regs(Fpu_regs *r)
+{
+  Mword tmp;
+  asm volatile("ldc    p11, cr0, [%0], #128 \n"
+               "cmp    %2, #0               \n"
+               "ldcnel p11, cr0, [%0], #128 \n"
+               : "=r" (tmp) : "0" (r->state), "r" (save_32r));
 }
 
 IMPLEMENT
 void
 Fpu::save_state(Fpu_state *s)
 {
-  assert(s->state_buffer());
   Fpu_regs *fpu_regs = reinterpret_cast<Fpu_regs *>(s->state_buffer());
+  Mword tmp;
 
-  asm volatile ("stc p11, cr0, [%0], #32*4     \n"
-                : : "r" (fpu_regs->state));
-  asm volatile ("mrc p10, 7, %0, cr8,  cr0, 0  \n"
-                "mrc p10, 7, %1, cr1,  cr0, 0  \n"
-                : "=r" (fpu_regs->fpexc),
-                  "=r" (fpu_regs->fpscr));
+  assert(fpu_regs);
+
+  asm volatile ("mrc p10, 7, %[fpexc], cr8,  cr0, 0  \n"
+                "orr %[tmp], %[fpexc], #0x40000000   \n"
+                "mcr p10, 7, %[tmp], cr8,  cr0, 0    \n" // enable FPU to store full state
+                "mrc p10, 7, %[fpscr], cr1,  cr0, 0   \n"
+                "tst %[fpexc], #0x80000000           \n"
+                "mrcne p10, 7, %[tmp], cr9, cr0, 0   \n"
+                "strne %[tmp], %[fpinst]               \n"
+                "mrcne p10, 7, %[tmp], cr10, cr0, 0  \n"
+                "strne %[tmp], %[fpinst2]              \n"
+                : [tmp] "=&r" (tmp),
+                  [fpexc] "=&r" (fpu_regs->fpexc),
+                  [fpscr] "=&r" (fpu_regs->fpscr),
+                  [fpinst] "=m" (fpu_regs->fpinst),
+                  [fpinst2] "=m" (fpu_regs->fpinst2));
+
+  save_fpu_regs(fpu_regs);
 }
 
-IMPLEMENT
+IMPLEMENT_DEFAULT
 void
 Fpu::restore_state(Fpu_state *s)
 {
-  assert (s->state_buffer());
   Fpu_regs *fpu_regs = reinterpret_cast<Fpu_regs *>(s->state_buffer());
 
-  asm volatile ("ldc p11, cr0, [%0], #32*4     \n"
-                : : "r" (fpu_regs->state));
+  assert(fpu_regs);
+
+  restore_fpu_regs(fpu_regs);
+
   asm volatile ("mcr p10, 7, %0, cr8,  cr0, 0  \n"
                 "mcr p10, 7, %1, cr1,  cr0, 0  \n"
                 :
-                : "r" (fpu_regs->fpexc | FPEXC_EN),
+                : "r" ((fpu_regs->fpexc | FPEXC_EN) & ~FPEXC_EX),
                   "r" (fpu_regs->fpscr));
-
-#if 0
-  asm volatile("mcr p10, 7, %2, cr9,  cr0, 0  \n"
-               "mcr p10, 7, %3, cr10, cr0, 0  \n"
-               :
-               : "r" (fpu_regs->fpinst),
-                 "r" (fpu_regs->fpinst2));
-#endif
 }
 
 IMPLEMENT inline
@@ -317,6 +352,65 @@ unsigned
 Fpu::state_align()
 { return 4; }
 
+PUBLIC static inline NEEDS["trap_state.h", "kdb_ke.h", Fpu::fpexc]
+void
+Fpu::save_user_exception_state(bool owner, Fpu_state *s, Trap_state *ts, Exception_state_user *esu)
+{
+  if (!(ts->hsr().ec() == 7 && ts->hsr().cpt_cpnr() == 10))
+    return;
+
+  if (owner)
+    {
+      if (Proc::Is_hyp && !is_enabled())
+        fpu.current().enable();
+
+      Mword exc = Fpu::fpexc();
+
+      esu->fpexc = exc;
+      if (exc & 0x80000000)
+        {
+          esu->fpinst  = Fpu::fpinst();
+          esu->fpinst2 = Fpu::fpinst2();
+
+          if (!Proc::Is_hyp)
+            Fpu::fpexc(exc & ~0x80000000);
+        }
+      return;
+    }
+
+  if (!s->state_buffer())
+    {
+      esu->fpexc = 0;
+      return;
+    }
+
+  assert_kdb (s->state_buffer());
+
+  Fpu_regs *fpu_regs = reinterpret_cast<Fpu_regs *>(s->state_buffer());
+  esu->fpexc = fpu_regs->fpexc;
+  if (fpu_regs->fpexc & 0x80000000)
+    {
+      esu->fpinst  = fpu_regs->fpinst;
+      esu->fpinst2 = fpu_regs->fpinst2;
+
+      if (!Proc::Is_hyp)
+        fpu_regs->fpexc &= ~0x80000000;
+    }
+}
+
+
+IMPLEMENTATION [arm && fpu && !hyp]:
+
+IMPLEMENT inline NEEDS ["fpu_state.h", "mem.h", "static_assert.h", <cstring>]
+void
+Fpu::init_state(Fpu_state *s)
+{
+  Fpu_regs *fpu_regs = reinterpret_cast<Fpu_regs *>(s->state_buffer());
+  static_assert(!(sizeof (*fpu_regs) % sizeof(Mword)),
+                "Non-mword size of Fpu_regs");
+  Mem::memset_mwords(fpu_regs, 0, sizeof (*fpu_regs) / sizeof(Mword));
+}
+
 PUBLIC static
 bool
 Fpu::is_enabled()
@@ -324,17 +418,113 @@ Fpu::is_enabled()
   return fpexc() & FPEXC_EN;
 }
 
-PUBLIC static inline NEEDS["trap_state.h"]
+
+PUBLIC static inline
 void
-Fpu::save_user_exception_state(Trap_state *ts, Exception_state_user *esu)
+Fpu::enable()
 {
-  if ((ts->error_code & 0x01f00000) == 0x01100000)
+  fpexc((fpexc() | FPEXC_EN)); // & ~FPEXC_EX);
+}
+
+PUBLIC static inline
+void
+Fpu::disable()
+{
+  fpexc(fpexc() & ~FPEXC_EN);
+}
+
+//------------------------------------------------------------------------------
+IMPLEMENTATION [arm && fpu && hyp]:
+
+EXTENSION class Fpu
+{
+private:
+  Mword _fpexc;
+};
+
+IMPLEMENT inline NEEDS ["fpu_state.h", "mem.h", "static_assert.h", <cstring>]
+void
+Fpu::init_state(Fpu_state *s)
+{
+  Fpu_regs *fpu_regs = reinterpret_cast<Fpu_regs *>(s->state_buffer());
+  static_assert(!(sizeof (*fpu_regs) % sizeof(Mword)),
+                "Non-mword size of Fpu_regs");
+  Mem::memset_mwords(fpu_regs, 0, sizeof (*fpu_regs) / sizeof(Mword));
+  fpu_regs->fpexc |= FPEXC_EN;
+}
+
+PUBLIC static
+bool
+Fpu::is_enabled()
+{
+  Mword dummy; __asm__ __volatile__ ("mrc p15, 4, %0, c1, c1, 2" : "=r"(dummy));
+  return !(dummy & 0xc00);
+}
+
+
+PUBLIC inline
+void
+Fpu::enable()
+{
+  Mword dummy;
+  __asm__ __volatile__ (
+      "mrc p15, 4, %0, c1, c1, 2 \n"
+      "bic %0, %0, #0xc00        \n"
+      "mcr p15, 4, %0, c1, c1, 2 \n" : "=&r" (dummy) );
+  fpexc(_fpexc);
+}
+
+PUBLIC inline
+void
+Fpu::disable()
+{
+  Mword dummy;
+  if (!is_enabled())
     {
-      esu->fpexc = Fpu::fpexc();
-      if (ts->error_code == 0x03100000)
-	{
-	  esu->fpinst  = Fpu::fpinst();
-	  esu->fpinst2 = Fpu::fpinst2();
-	}
+      if (!(_fpexc & FPEXC_EN))
+        {
+          enable();
+          fpexc(_fpexc | FPEXC_EN);
+        }
     }
+  else
+    {
+      _fpexc = fpexc();
+      if (!(_fpexc & FPEXC_EN))
+        fpexc(_fpexc | FPEXC_EN);
+    }
+  __asm__ __volatile__ (
+      "mrc p15, 4, %0, c1, c1, 2 \n"
+      "orr %0, %0, #0xc00        \n"
+      "mcr p15, 4, %0, c1, c1, 2 \n" : "=&r" (dummy) );
+}
+
+
+IMPLEMENT
+void
+Fpu::restore_state(Fpu_state *s)
+{
+  Fpu_regs *fpu_regs = reinterpret_cast<Fpu_regs *>(s->state_buffer());
+
+  assert(fpu_regs);
+
+  Mword dummy;
+  asm volatile ("mcr p10, 7, %[fpexc], cr8,  cr0, 0   \n"
+                "mcr p10, 7, %[fpscr], cr1,  cr0, 0   \n"
+                "tst %[fpexc], #0x80000000            \n"
+                "ldrne %[tmp], %[fpinst]              \n"
+                "mcrne p10, 7, %[tmp], cr9,  cr0, 0   \n"
+                "ldrne %[tmp], %[fpinst2]             \n"
+                "mcrne p10, 7, %[tmp], cr10,  cr0, 0  \n"
+                : [tmp] "=&r" (dummy)
+                : [fpexc] "r" (fpu_regs->fpexc | FPEXC_EN),
+                  [fpscr] "r" (fpu_regs->fpscr),
+                  [fpinst] "m" (fpu_regs->fpinst),
+                  [fpinst2] "m" (fpu_regs->fpinst2));
+
+  restore_fpu_regs(fpu_regs);
+
+  asm volatile ("mcr p10, 7, %0, cr8,  cr0, 0  \n"
+                :
+                : "r" (fpu_regs->fpexc));
 }

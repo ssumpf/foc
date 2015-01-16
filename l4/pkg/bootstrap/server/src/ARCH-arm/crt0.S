@@ -28,7 +28,7 @@ _start:
 	b 10f
 	.word 0x016f2818
 	.word _start
-	.word _edata
+	.word _module_data_end
 10:
 #endif
 	/*

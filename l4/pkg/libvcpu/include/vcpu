@@ -95,7 +95,11 @@ public:
    * \return Pointer to state word in the vCPU
    */
   State *state() throw()
-  { return reinterpret_cast<State *>(&(l4_vcpu_state_t::state)); }
+  {
+    static_assert(sizeof(State) == sizeof(l4_vcpu_state_t::state),
+                  "size mismatch");
+    return reinterpret_cast<State *>(&(l4_vcpu_state_t::state));
+  }
 
   /**
    * \brief Get state word
@@ -109,8 +113,11 @@ public:
    * \return Pointer to saved_state word in the vCPU
    */
   State *saved_state() throw()
-  { return reinterpret_cast<State *>(&(l4_vcpu_state_t::saved_state)); }
-
+  {
+    static_assert(sizeof(State) == sizeof(l4_vcpu_state_t::saved_state),
+                  "size mismatch");
+    return reinterpret_cast<State *>(&(l4_vcpu_state_t::saved_state));
+  }
   /**
    * \brief Get saved_state word
    * \return Pointer to saved_state word in the vCPU

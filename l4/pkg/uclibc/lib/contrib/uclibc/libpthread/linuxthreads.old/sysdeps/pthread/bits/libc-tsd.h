@@ -13,14 +13,11 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; see the file COPYING.LIB.  If not,
-   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   License along with the GNU C Library; see the file COPYING.LIB.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef _BITS_LIBC_TSD_H
 #define _BITS_LIBC_TSD_H 1
-
-#include <libc-internal.h>
 
 /* Fast thread-specific data internal to libc.  */
 enum __libc_tsd_key_t { _LIBC_TSD_KEY_MALLOC = 0,
@@ -32,12 +29,11 @@ enum __libc_tsd_key_t { _LIBC_TSD_KEY_MALLOC = 0,
 			_LIBC_TSD_KEY_CTYPE_TOUPPER,
 			_LIBC_TSD_KEY_N };
 
-#include <sys/cdefs.h>
-#include <tls.h>
-
+#include <features.h>
 #include <linuxthreads.old/internals.h>
 
-#if defined(USE_TLS) && USE_TLS && HAVE___THREAD
+#ifdef __UCLIBC_HAS_TLS__
+#include <tls.h>
 
 /* When __thread works, the generic definition is what we want.  */
 # include <sysdeps/generic/bits/libc-tsd.h>

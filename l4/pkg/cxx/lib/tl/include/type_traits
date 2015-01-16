@@ -268,5 +268,25 @@ template<> struct make_unsigned<signed long int>   { typedef unsigned long int t
 template<> struct make_unsigned<unsigned long long int> { typedef unsigned long long int type; };
 template<> struct make_unsigned<signed long long int>   { typedef unsigned long long int type; };
 
+
+template<typename From, typename To>
+struct is_convertible
+{
+private:
+  struct _true { char x[2]; };
+  struct _false {};
+
+  static _true _helper(To const *);
+  static _false _helper(...);
+public:
+  enum
+  {
+    value = sizeof(_true) == sizeof(_helper(static_cast<From*>(0)))
+            ? true : false
+  };
+
+  typedef bool value_type;
+};
+
 }
 

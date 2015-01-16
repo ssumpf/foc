@@ -5,8 +5,8 @@
  * GNU Lesser General Public License version 2.1 or later.
  */
 
-#ifndef _LD_DEFS_H
-#define _LD_DEFS_H
+#ifndef _DL_DEFS_H
+#define _DL_DEFS_H
 
 #define FLAG_ANY             -1
 #define FLAG_TYPE_MASK       0x00ff
@@ -70,6 +70,11 @@ typedef struct {
 #endif
 #endif	/* __LDSO_CACHE_SUPPORT__ */
 
+#endif
+
+#ifdef _LIBC
+/* arch specific defines */
+#include <dl-sysdep.h>
 #endif
 
 /* Provide a means for a port to pass additional arguments to the _dl_start
@@ -179,6 +184,14 @@ typedef struct {
 #define DL_LOOKUP_ADDRESS(ADDRESS) (ADDRESS)
 #endif
 
+/* On some architectures dladdr can't use st_size of all symbols this way.  */
+#define DL_ADDR_SYM_MATCH(SYM_ADDR, SYM, MATCHSYM, ADDR)				\
+  ((ADDR) >= (SYM_ADDR)													\
+   && ((((SYM)->st_shndx == SHN_UNDEF || (SYM)->st_size == 0)			\
+        && (ADDR) == (SYM_ADDR))										\
+       || (ADDR) < (SYM_ADDR) + (SYM)->st_size)							\
+   && (!(MATCHSYM) || MATCHSYM < (SYM_ADDR)))
+
 /* Use this macro to convert a pointer to a function's entry point to
  * a pointer to function.  The pointer is assumed to have already been
  * relocated.  LOADADDR is passed because it may contain additional
@@ -225,7 +238,7 @@ typedef struct {
 /* Similar to DL_LOADADDR_UNMAP, but used for libraries that have been
    dlopen()ed successfully, when they're dlclose()d.  */
 #ifndef DL_LIB_UNMAP
-# define DL_LIB_UNMAP(LIB, LEN) (DL_LOADADDR_UNMAP ((LIB)->loadaddr, (LEN)))
+# define DL_LIB_UNMAP(LIB, LEN) (DL_LOADADDR_UNMAP ((LIB)->mapaddr, (LEN)))
 #endif
 
 /* Define this to verify that a library named LIBNAME, whose ELF
@@ -251,4 +264,26 @@ typedef struct {
 # define DL_MAP_SEGMENT(EPNT, PPNT, INFILE, FLAGS) 0
 #endif
 
-#endif	/* _LD_DEFS_H */
+/* Define this to declare the library offset. */
+#ifndef DL_DEF_LIB_OFFSET
+# define DL_DEF_LIB_OFFSET static unsigned long _dl_library_offset
+#endif
+
+/* Define this to get the library offset. */
+#ifndef DL_GET_LIB_OFFSET
+# define DL_GET_LIB_OFFSET() _dl_library_offset
+#endif
+
+/* Define this to set the library offset  as difference beetwen the mapped
+   library address and the smallest virtual address of the first PT_LOAD
+   segment. */
+#ifndef DL_SET_LIB_OFFSET
+# define DL_SET_LIB_OFFSET(offset) (_dl_library_offset = (offset))
+#endif
+
+/* Define this to get the real object's runtime address. */
+#ifndef DL_GET_RUN_ADDR
+# define DL_GET_RUN_ADDR(loadaddr, mapaddr) (mapaddr)
+#endif
+
+#endif	/* _DL_DEFS_H */

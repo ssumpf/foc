@@ -42,13 +42,10 @@ size_t attribute_hidden __stdio_WRITE(register FILE *stream,
 
 	todo = bufsize;
 
-	do {
-		if (todo == 0) {		/* Done? */
-			__STDIO_STREAM_VALIDATE(stream);
-			return bufsize;
-		}
+	while (todo != 0) {
 		stodo = (todo <= SSIZE_MAX) ? todo : SSIZE_MAX;
-		if ((rv = __WRITE(stream, (char *) buf, stodo)) >= 0) {
+		rv = __WRITE(stream, (char *) buf, stodo);
+		if (rv >= 0) {
 #ifdef __UCLIBC_MJN3_ONLY__
 #warning TODO: Make custom stream write return check optional.
 #endif
@@ -60,26 +57,44 @@ size_t attribute_hidden __stdio_WRITE(register FILE *stream,
 #endif
 			todo -= rv;
 			buf += rv;
-		} else
-#ifdef __UCLIBC_MJN3_ONLY__
-#warning EINTR?
-#endif
-/* 		if (errno != EINTR) */
-		{
+		} else {
+
 			__STDIO_STREAM_SET_ERROR(stream);
 
+			/* We buffer data on "transient" errors, but discard it
+			 * on "hard" ones. Example of a hard error:
+			 *
+			 * close(fileno(stdout));
+			 * printf("Hi there 1\n"); // EBADF
+			 * dup2(good_fd, fileno(stdout));
+			 * printf("Hi there 2\n"); // buffers new data
+			 *
+			 * This program should not print "Hi there 1" to good_fd.
+			 * The rationale is that the caller of writing operation
+			 * should check for error and act on it.
+			 * If he didn't, then future users of the stream
+			 * have no idea what to do.
+			 * It's least confusing to at least not burden them with
+			 * some hidden buffered crap in the buffer.
+			 */
+			if (errno != EINTR && errno != EAGAIN) {
+				/* do we have other "soft" errors? */
+				break;
+			}
 #ifdef __STDIO_BUFFERS
-			if ((stodo = __STDIO_STREAM_BUFFER_SIZE(stream)) != 0) {
+			stodo = __STDIO_STREAM_BUFFER_SIZE(stream);
+			if (stodo != 0) {
 				unsigned char *s;
 
 				if (stodo > todo) {
 					stodo = todo;
 				}
 
-				s  = stream->__bufstart;
+				s = stream->__bufstart;
 
 				do {
-					if (((*s = *buf) == '\n')
+					*s = *buf;
+					if ((*s == '\n')
 						&& __STDIO_STREAM_IS_LBF(stream)
 						) {
 						break;
@@ -94,8 +109,11 @@ size_t attribute_hidden __stdio_WRITE(register FILE *stream,
 			}
 #endif /* __STDIO_BUFFERS */
 
-			__STDIO_STREAM_VALIDATE(stream);
-			return bufsize - todo;
+			bufsize -= todo;
+			break;
 		}
-	} while (1);
+	}
+
+	__STDIO_STREAM_VALIDATE(stream);
+	return bufsize;
 }

@@ -11,8 +11,8 @@
  *  Library General Public License for more details.
  *
  *  You should have received a copy of the GNU Library General Public
- *  License along with this library; if not, write to the Free
- *  Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  License along with this library; if not, see
+ *  <http://www.gnu.org/licenses/>.
  */
 
 /* Aug 1, 2003
@@ -43,7 +43,6 @@
  * standards and from an official C standard defect report.
  */
 
-#define _ISOC99_SOURCE			/* for LLONG_MAX primarily... */
 #include <features.h>
 #include "_stdio.h"
 #include <stdlib.h>
@@ -77,14 +76,6 @@
 #include <bits/uClibc_fpmax.h>
 #endif /* __UCLIBC_HAS_FLOATS__ */
 
-#ifdef __UCLIBC_HAS_SCANF_GLIBC_A_FLAG__
-#ifdef L_vfscanf
-/* only emit this once */
-#warning Forcing undef of __UCLIBC_HAS_SCANF_GLIBC_A_FLAG__ until implemented!
-#endif
-#undef __UCLIBC_HAS_SCANF_GLIBC_A_FLAG__
-#endif
-
 #undef __STDIO_HAS_VSSCANF
 #if defined(__STDIO_BUFFERS) || !defined(__UCLIBC_HAS_WCHAR__) || defined(__UCLIBC_HAS_GLIBC_CUSTOM_STREAMS__)
 #define __STDIO_HAS_VSSCANF 1
@@ -98,8 +89,6 @@ typedef struct {
 #endif
 
 #endif
-
-extern void _store_inttype(void *dest, int desttype, uintmax_t val);
 
 #if defined(ULLONG_MAX) && (LLONG_MAX > LONG_MAX)
 
@@ -198,7 +187,6 @@ int vscanf(const char * __restrict format, va_list arg)
 {
 	return vfscanf(stdin, format, arg);
 }
-libc_hidden_def(vscanf)
 
 #endif
 /**********************************************************************/
@@ -210,7 +198,7 @@ libc_hidden_def(vscanf)
 
 #ifdef __STDIO_BUFFERS
 
-int vsscanf(__const char *sp, __const char *fmt, va_list ap)
+int vsscanf(const char *sp, const char *fmt, va_list ap)
 {
 	FILE f;
 
@@ -254,7 +242,7 @@ libc_hidden_def(vsscanf)
 
 #elif !defined(__UCLIBC_HAS_WCHAR__)
 
-int vsscanf(__const char *sp, __const char *fmt, va_list ap)
+int vsscanf(const char *sp, const char *fmt, va_list ap)
 {
 	__FILE_vsscanf f;
 
@@ -293,7 +281,7 @@ libc_hidden_def(vsscanf)
 
 #elif defined(__UCLIBC_HAS_GLIBC_CUSTOM_STREAMS__)
 
-int vsscanf(__const char *sp, __const char *fmt, va_list ap)
+int vsscanf(const char *sp, const char *fmt, va_list ap)
 {
 	FILE *f;
 	int rv = EOF;
@@ -389,9 +377,9 @@ int vswscanf(const wchar_t * __restrict str, const wchar_t * __restrict format,
 	FILE f;
 
 	f.__bufstart =
-	f.__bufpos = (char *) str;
+	f.__bufpos = (unsigned char *) str;
 	f.__bufread =
-	f.__bufend = (char *)(str + wcslen(str));
+	f.__bufend = (unsigned char *)(str + wcslen(str));
 	__STDIO_STREAM_DISABLE_GETC(&f);
 	__STDIO_STREAM_DISABLE_PUTC(&f);
 
@@ -434,18 +422,19 @@ libc_hidden_def(vswscanf)
 
 
 /* float layout          0123456789012345678901  repeat n for "l[" */
-#define SPEC_CHARS		"npxXoudifFeEgGaACSncs["
-/*                       npxXoudif eEgG  CS cs[ */
+#define SPEC_CHARS		"npxXoudifFeEgGaACSnmcs["
+/*                       npxXoudif eEgG  CS  cs[ */
+/* NOTE: the 'm' flag must come before any convs that support it */
 
-/* NOTE: Ordering is important!  In particular, CONV_LEFTBRACKET
- * must immediately precede CONV_c. */
+/* NOTE: Ordering is important!  The CONV_{C,S,LEFTBRACKET} must map
+   simply to their lowercase equivalents.  */
 
 enum {
 	CONV_n = 0,
 	CONV_p,
 	CONV_x, CONV_X,	CONV_o,	CONV_u,	CONV_d,	CONV_i,
 	CONV_f, CONV_F, CONV_e, CONV_E, CONV_g, CONV_G, CONV_a, CONV_A,
-	CONV_C, CONV_S, CONV_LEFTBRACKET, CONV_c, CONV_s, CONV_leftbracket,
+	CONV_C, CONV_S, CONV_LEFTBRACKET, CONV_m, CONV_c, CONV_s, CONV_leftbracket,
 	CONV_percent, CONV_whitespace /* not in SPEC_* and no flags */
 };
 
@@ -475,7 +464,7 @@ enum {
 	FLAG_SURPRESS   =   0x10,	/* MUST BE 1ST!!  See DO_FLAGS. */
 	FLAG_THOUSANDS	=	0x20,
 	FLAG_I18N		=	0x40,	/* only works for d, i, u */
-	FLAG_MALLOC     =   0x80,	/* only works for s, S, and [ (and l[)*/
+	FLAG_MALLOC     =   0x80,	/* only works for c, s, S, and [ (and l[)*/
 };
 
 
@@ -492,7 +481,7 @@ enum {
 	/* fFeEgGaA */	(0x0c|FLAG_SURPRESS|FLAG_THOUSANDS|FLAG_I18N), \
 	/* C */			(   0|FLAG_SURPRESS), \
 	/* S and l[ */	(   0|FLAG_SURPRESS|FLAG_MALLOC), \
-	/* c */			(0x04|FLAG_SURPRESS), \
+	/* c */			(0x04|FLAG_SURPRESS|FLAG_MALLOC), \
 	/* s and [ */	(0x04|FLAG_SURPRESS|FLAG_MALLOC), \
 }
 
@@ -550,7 +539,7 @@ enum {
 #elif defined(LLONG_MAX) && (INTMAX_MAX == LLONG_MAX)
 #define IMS		8
 #else
-#error fix QUAL_CHARS ptrdiff_t entry 't'!
+#error fix QUAL_CHARS intmax_t entry 'j'!
 #endif
 
 #define QUAL_CHARS		{ \
@@ -905,17 +894,17 @@ int attribute_hidden __psfs_parse_spec(register psfs_t *psfs)
 		if (*psfs->fmt == *p) {
 			int p_m_spec_chars = p - spec_chars;
 
-#ifdef __UCLIBC_HAS_SCANF_GLIBC_A_FLAG__
-#error implement gnu a flag
-			if ((*p == 'a')
-				&& ((psfs->fmt[1] == '[') || ((psfs->fmt[1]|0x20) == 's'))
-				) {		/* Assumes ascii for 's' and 'S' test. */
-				psfs->flags |= FLAG_MALLOC;
+			if (*p == 'm' &&
+				(psfs->fmt[1] == '[' || psfs->fmt[1] == 'c' ||
+				 /* Assumes ascii for 's' and 'S' test. */
+				 (psfs->fmt[1] | 0x20) == 's'))
+			{
+				if (psfs->store)
+					psfs->flags |= FLAG_MALLOC;
 				++psfs->fmt;
 				++p;
-				continue; /* The related conversions follow 'a'. */
+				continue; /* The related conversions follow 'm'. */
 			}
-#endif /* __UCLIBC_HAS_SCANF_GLIBC_A_FLAG__ */
 
 			for (p = spec_ranges; p_m_spec_chars > *p ; ++p) {}
 			if (((psfs->dataargtype >> 8) | psfs->flags)
@@ -924,9 +913,12 @@ int attribute_hidden __psfs_parse_spec(register psfs_t *psfs)
 				goto ERROR_EINVAL;
 			}
 
-			if ((p_m_spec_chars >= CONV_c)
+			if (p_m_spec_chars == CONV_p) {
+				/* a pointer has the same size as 'long int'  */
+				psfs->dataargtype = PA_FLAG_LONG;
+			} else if ((p_m_spec_chars >= CONV_c)
 				&& (psfs->dataargtype & PA_FLAG_LONG)) {
-				p_m_spec_chars -= 3; /* lc -> C, ls -> S, l[ -> ?? */
+				p_m_spec_chars -= CONV_c - CONV_C; /* lc -> C, ls -> S, l[ -> ?? */
 			}
 
 			psfs->conv_num = p_m_spec_chars;
@@ -1263,12 +1255,6 @@ int VFSCANF (FILE *__restrict fp, const Wchar *__restrict format, va_list arg)
 				while (*wf && __isascii(*wf) && (b < buf + sizeof(buf) - 1)) {
 					*b++ = *wf++;
 				}
-#ifdef __UCLIBC_HAS_SCANF_GLIBC_A_FLAG__
-#error this is wrong... we need to ched in __psfs_parse_spec instead since this checks last char in buffer and conversion my have stopped before it.
-				if ((*b == 'a') && ((*wf == '[') || ((*wf|0x20) == 's'))) {
-					goto DONE;	/* Spec was excessively long. */
-				}
-#endif /* __UCLIBC_HAS_SCANF_GLIBC_A_FLAG__ */
 				*b = 0;
 				if (b == buf) { /* Bad conversion specifier! */
 					goto DONE;
@@ -1388,13 +1374,36 @@ int VFSCANF (FILE *__restrict fp, const Wchar *__restrict format, va_list arg)
 				}
 
 				if (psfs.conv_num == CONV_s) {
+					/* We might have to handle the allocation ourselves */
+					int len;
+					/* With 'm', we actually got a pointer to a pointer */
+					unsigned char **ptr = (void *)b;
+
+					i = 0;
+					if (psfs.flags & FLAG_MALLOC) {
+						len = 0;
+						b = NULL;
+					} else
+						len = -1;
+
 					/* Yes, believe it or not, a %s conversion can store nuls. */
 					while ((__scan_getc(&sc) >= 0) && !isspace(sc.cc)) {
 						zero_conversions = 0;
-						*b = sc.cc;
-						b += psfs.store;
+						if (i == len) {
+							/* Pick a size that won't trigger a lot of
+							 * mallocs early on ... */
+							len += 256;
+							b = realloc(b, len + 1);
+						}
+						b[i] = sc.cc;
+						i += psfs.store;
 						fail = 0;
 					}
+
+					if (psfs.flags & FLAG_MALLOC)
+						*ptr = b;
+					/* The code below takes care of terminating NUL */
+					b += i;
 				} else {
 #ifdef __UCLIBC_HAS_WCHAR__
 					assert((psfs.conv_num == CONV_LEFTBRACKET) || \

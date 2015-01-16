@@ -127,7 +127,8 @@ Apic::init_ap()
   disable_external_ints();
 
   // get timer going on this CPU
-  init_timer();
+  timer_set_divisor(1);
+  enable_errors();
 }
 
 PUBLIC static

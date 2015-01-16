@@ -12,17 +12,17 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
-#include <features.h>
+#include <_lfs_64.h>
 #define _ERRNO_H
 #include <bits/errno.h>
 #include <sys/syscall.h>
 #include <bits/arm_asm.h>
+#include <bits/arm_bx.h>
 
-#if defined __UCLIBC_HAS_LFS__ && defined __NR_mmap2
+#ifdef __NR_mmap2
 
 /* The mmap2 system call takes six arguments, all in registers.  */
 .text

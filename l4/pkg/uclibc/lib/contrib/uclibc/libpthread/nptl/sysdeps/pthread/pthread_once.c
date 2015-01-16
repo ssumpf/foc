@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include "pthreadP.h"
 #include <lowlevellock.h>
@@ -38,7 +37,7 @@ __pthread_once (
       lll_lock (once_lock, LLL_PRIVATE);
 
       /* XXX This implementation is not complete.  It doesn't take
-	 cancelation and fork into account.  */
+	 cancellation and fork into account.  */
       if (*once_control == PTHREAD_ONCE_INIT)
 	{
 	  init_routine ();

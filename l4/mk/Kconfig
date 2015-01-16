@@ -319,12 +319,10 @@ menu "Custom Platform Definition"
 
 config PLATFORM_TYPE
 	string "Name of your platform"
-	depends on PLATFORM_TYPE_custom
 
 config PLATFORM_RAM_BASE
 	hex "Start of RAM"
 	default 0x0
-	depends on PLATFORM_TYPE_custom
 	help
 	  Hexadecimal physical address where RAM memory starts on the
 	  platform.
@@ -332,7 +330,10 @@ config PLATFORM_RAM_BASE
 config PLATFORM_RAM_SIZE_MB
 	int "RAM-Memory available on the platform in MB"
 	default 128
-	depends on PLATFORM_TYPE_custom
+
+config PLATFORM_UART_NR
+	int "Select UART to use"
+	default 0
 
 endmenu # Custom platform
 endif
@@ -400,7 +401,6 @@ config INT_LD_NAME
 
 config BID_STRIP_PROGS
 	bool "Strip binaries on install"
-	default n
 	help
 	  If enabled, binaries will be stripped on installation into
 	  $(L4DIR)/bin or $(DROPS_STDDIR)/bin. If you want to load them with
@@ -411,19 +411,51 @@ config BID_STRIP_PROGS
 
 config BID_GCC_OMIT_FP
 	bool "GCC: Omit Frame-pointers"
-	default n
+	default y
 	help
 	  If enabled, gcc will be passed the '-fomit-frame-pointer' cmdline
 	  option, adding an additional register to the register set for the
 	  generated code. Programs will be faster, but backtraces cannot be
 	  done, seriously hindering debugging.
 
-	  If unsure, say 'N'.
+	  If unsure, say 'Y'.
 
+config BID_GCC_ENABLE_STACK_PROTECTOR
+    bool "GCC: enable stack protector"
+    default y if BUILD_ARCH_x86 || BUILD_ARCH_amd64 || BUILD_ARCH_arm
+    help
+      If enabled, support for the gcc stack protector will be enabled.
+      The stack protector uses stack canaries to detect stack smashing
+      attacks (see "man gcc" for details). In L4Re the stack protector is
+      enabled only for packages that are linked against the full uclibc.
+      Enabling this feature will add some overhead, but increase security.
+
+      If unsure, say 'Y'.
+
+choice
+    prompt "GCC: Enable stack protector"
+    depends on BID_GCC_ENABLE_STACK_PROTECTOR
+    default BID_GCC_STACK_PROTECTOR
+
+config BID_GCC_STACK_PROTECTOR_ALL
+    bool "on all functions"
+    help
+        If enabled, '-fstack-protector-all' flag is used for gcc. This
+        option adds significant overhead, as the stack canary is checked on
+        every function return. See "man gcc" for details.
+
+config BID_GCC_STACK_PROTECTOR
+    bool "exclusively for functions with vulnerable objects"
+    help
+        If enabled, '-fstack-protector' flag is passed to gcc. If this
+        flag is set, gcc will add stack canaries to vulnerable functions, such as
+        functions that call "alloca", and functions with buffers larger than 8
+        bytes.
+
+endchoice
 
 config BID_GENERATE_MAPFILE
 	bool #"Generate Map-files for binaries"
-	default n
 	help
 	  Enabling this option will generate map-files together with the
 	  binaries. This might be handy for debugging purposes. See ld(1)
@@ -433,7 +465,6 @@ config BID_GENERATE_MAPFILE
 
 config BID_BUILD_DOC
 	bool "Build doc directories"
-	default n
 	help
 	  Say Y if you also want to build the doc directories.
 

@@ -8,16 +8,10 @@
  */
 
 #include <sys/syscall.h>
-#include <fcntl.h>
 
-#ifdef __NR_vmsplice
+#if defined __NR_vmsplice && defined __USE_GNU
+# include <fcntl.h>
+
 _syscall4(ssize_t, vmsplice, int, __fdout, const struct iovec *, __iov,
-	size_t, __count, unsigned int, __flags)
-#else
-ssize_t vmsplice(int __fdout, const struct iovec *__iov, size_t __count,
-	unsigned int __flags)
-{
-	__set_errno(ENOSYS);
-	return -1;
-}
+	  size_t, __count, unsigned int, __flags)
 #endif

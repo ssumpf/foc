@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef	_SYS_STATVFS_H
 #define	_SYS_STATVFS_H	1
@@ -49,14 +48,14 @@ __BEGIN_DECLS
 
 /* Return information about the filesystem on which FILE resides.  */
 #ifndef __USE_FILE_OFFSET64
-extern int statvfs (__const char *__restrict __file,
+extern int statvfs (const char *__restrict __file,
 		    struct statvfs *__restrict __buf)
      __THROW __nonnull ((1, 2));
 libc_hidden_proto(statvfs)
 #else
 # ifdef __REDIRECT_NTH
 extern int __REDIRECT_NTH (statvfs,
-			   (__const char *__restrict __file,
+			   (const char *__restrict __file,
 			    struct statvfs *__restrict __buf), statvfs64)
      __nonnull ((1, 2));
 # else
@@ -64,7 +63,7 @@ extern int __REDIRECT_NTH (statvfs,
 # endif
 #endif
 #ifdef __USE_LARGEFILE64
-extern int statvfs64 (__const char *__restrict __file,
+extern int statvfs64 (const char *__restrict __file,
 		      struct statvfs64 *__restrict __buf)
      __THROW __nonnull ((1, 2));
 #endif

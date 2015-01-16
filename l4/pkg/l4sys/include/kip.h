@@ -69,14 +69,14 @@ enum l4_kernel_info_consts_t
 
 /**
  * \brief  Get the kernel version.
- * \param kip Kernel Interface Page.
+ * \param kip Kernel Info Page.
  * \return Kernel version string. 0 if KIP could not be mapped.
  */
 L4_INLINE l4_umword_t l4_kip_version(l4_kernel_info_t *kip) L4_NOTHROW;
 
 /**
  * \brief  Get the kernel version string.
- * \param kip Kernel Interface Page.
+ * \param kip Kernel Info Page.
  * \return Kernel version string.
  */
 L4_INLINE const char *l4_kip_version_string(l4_kernel_info_t *kip) L4_NOTHROW;
@@ -84,13 +84,33 @@ L4_INLINE const char *l4_kip_version_string(l4_kernel_info_t *kip) L4_NOTHROW;
 /**
  * \brief Return offset in bytes of version_strings relative to the KIP base.
  *
- * \param kip	Pointer to the kernel into page (KIP).
+ * \param kip	Pointer to the kernel info page (KIP).
  *
  * \return offset of version_strings relative to the KIP base address, in
  *         bytes.
  */
 L4_INLINE int
 l4_kernel_info_version_offset(l4_kernel_info_t *kip) L4_NOTHROW;
+
+/**
+ * \brief Return clock value from the KIP.
+ *
+ * \param kip	Pointer to the kernel info page (KIP).
+ *
+ * \return Value of the clock field in the KIP.
+ */
+L4_INLINE l4_cpu_time_t
+l4_kip_clock(l4_kernel_info_t *kip) L4_NOTHROW;
+
+/**
+ * \brief Return least significant machine word of clock value from the KIP.
+ *
+ * \param kip	Pointer to the kernel info page (KIP).
+ *
+ * \return Lower machine word of clock value from the KIP.
+ */
+L4_INLINE l4_umword_t
+l4_kip_clock_lw(l4_kernel_info_t *kip) L4_NOTHROW;
 
 /*@}*/
 
@@ -109,3 +129,33 @@ l4_kip_version_string(l4_kernel_info_t *k) L4_NOTHROW
 L4_INLINE int
 l4_kernel_info_version_offset(l4_kernel_info_t *kip) L4_NOTHROW
 { return kip->offset_version_strings << 4; }
+
+L4_INLINE l4_cpu_time_t
+l4_kip_clock(l4_kernel_info_t *kip) L4_NOTHROW
+{
+  unsigned long h1, l;
+  unsigned long *c = (unsigned long *)&kip->_clock_val;
+
+  if (sizeof(unsigned long) == 8)
+    return kip->_clock_val;
+
+  do
+    {
+      h1 = c[1];
+      l4_mb();
+      l  = c[0];
+      l4_mb();
+    }
+  while (h1 != c[1]);
+
+  return ((unsigned long long)h1 << 32) | l;
+}
+
+L4_INLINE l4_umword_t
+l4_kip_clock_lw(l4_kernel_info_t *kip) L4_NOTHROW
+{
+  /* We do the casting because the clock field is volatile */
+  unsigned long *c = (unsigned long *)&kip->_clock_val;
+  l4_mb();
+  return c[0];
+}

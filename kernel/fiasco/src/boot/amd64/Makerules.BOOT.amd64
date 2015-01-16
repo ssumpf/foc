@@ -25,7 +25,7 @@ boot_img.x2:	boot_img.x1
 
 kernel.amd64.lds: linking.h
 
-$(KERNEL):	kernel.amd64.lds boot_img.o $(CRT0) $(OBJ_KERNEL) $(JDB) $(LIBK) $(KERNEL_EXTRA_LIBS) $(ABI) $(JABI) libdrivers.a $(CXXLIB) $(LIBKERN) $(MINILIBC) libgluedriverslibc.a
+$(KERNEL):	kernel.amd64.lds boot_img.o $(CRT0) $(OBJ_KERNEL) $(JDB) $(LIBK) $(KERNEL_EXTRA_LIBS) $(ABI) $(JABI) libdrivers.a $(LIBUART) $(CXXLIB) $(LIBKERN) $(MINILIBC) libgluedriverslibc.a
 		$(LINK_MESSAGE)
 		$(VERBOSE)$(LD) -m elf_x86_64 -N -T $< -gc-sections \
 		-o $@ $(filter-out $<,$+) $(LIBGCC) $(KERNEL_UNRES_SYMS)

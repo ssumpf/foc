@@ -3,6 +3,11 @@ IMPLEMENTATION [ia32,ux]:
 #include "mem_layout.h"
 #include "tss.h"
 
+EXTENSION class Cpu
+{
+  Mword _sysenter_eip;
+};
+
 PUBLIC static inline
 Mword
 Cpu::stack_align(Mword stack)
@@ -202,3 +207,43 @@ Cpu::init_gdt(Address gdt_mem, Address user_max)
                     Gdt_entry::Access_data_write |
                     Gdt_entry::Accessed, Gdt_entry::Size_32);
 }
+
+PRIVATE inline
+void
+Cpu::set_sysenter(void (*func)(void))
+{
+  _sysenter_eip = (Mword) func;
+  wrmsr((Mword) func, 0, MSR_SYSENTER_EIP);
+}
+
+
+PUBLIC
+void
+Cpu::set_fast_entry(void (*func)(void))
+{
+  if (sysenter())
+    set_sysenter(func);
+}
+
+extern "C" void entry_sys_fast_ipc_c (void);
+
+PUBLIC inline
+void
+Cpu::setup_sysenter() const
+{
+  wrmsr(Gdt::gdt_code_kernel, 0, MSR_SYSENTER_CS);
+  wrmsr((unsigned long)&kernel_sp(), 0, MSR_SYSENTER_ESP);
+  wrmsr(_sysenter_eip, 0, MSR_SYSENTER_EIP);
+}
+
+PUBLIC FIASCO_INIT_AND_PM
+void
+Cpu::init_sysenter()
+{
+  if (sysenter())
+    {
+      _sysenter_eip = (Mword)entry_sys_fast_ipc_c;
+      setup_sysenter();
+    }
+}
+

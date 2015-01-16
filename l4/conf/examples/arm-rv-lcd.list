@@ -13,4 +13,4 @@ module io
 module ned
 module fb-drv
 module mag
-module ex_fb_spectrum
+module ex_fb_spectrum_cc

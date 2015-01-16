@@ -78,9 +78,6 @@ typedef struct
 /* Get the thread descriptor definition.  */
 # include <descr.h>
 
-// al -- uhh...
-#define pthread _pthread_descr_struct
-
 //al//register struct pthread *__thread_self __asm__("%g7");
 
 /* This is the size of the initial TCB.  Can't be just sizeof (tcbhead_t),

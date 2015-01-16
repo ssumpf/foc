@@ -1,11 +1,12 @@
 INTERFACE:
 
 #include <types.h>
+#include <pm.h>
 
 /**
  * Encapsulation of the platforms interrupt controller
  */
-class Pic
+class Pic : public Pm_object
 {
 public:
   /**
@@ -74,4 +75,21 @@ public:
    * @param cpu Logical CPU.
    */
   static void set_cpu(unsigned irq, Cpu_number cpu);
+
+  /**
+   * Make Pic power management aware.
+   */
+  void pm_on_suspend(Cpu_number)
+    {
+      saved_state = disable_all_save();
+    }
+
+  void pm_on_resume(Cpu_number)
+    {
+      restore_all(saved_state);
+    }
+
+private:
+  Status saved_state;
 };
+

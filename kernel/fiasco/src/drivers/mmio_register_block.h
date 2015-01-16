@@ -27,6 +27,18 @@ public:
     write<T>(tmp, reg);
   }
 
+  template< typename T >
+  void clear(T clear_bits, Address reg) const
+  {
+    modify<T>(0, clear_bits, reg);
+  }
+
+  template< typename T >
+  void set(T set_bits, Address reg) const
+  {
+    modify<T>(set_bits, 0, reg);
+  }
+
   Address get_mmio_base() const { return _base; }
   void set_mmio_base(Address base) { _base = base; }
 

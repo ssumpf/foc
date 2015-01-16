@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.
+   License along with the GNU C Library; see the file COPYING.LIB.  If
+   not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -23,8 +22,6 @@
  * 	- initial uClibc port
  */
 
-#define __FORCE_GLIBC
-#include <features.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,10 +35,12 @@ struct ether_addr *ether_aton_r(const char *asc, struct ether_addr *addr)
 
 	for (cnt = 0; cnt < 6; ++cnt) {
 		unsigned char number;
-		char ch;
+		char ch = *asc++;
 
+		if (ch < 0x20)
+			return NULL;
 		/* | 0x20 is cheap tolower(), valid for letters/numbers only */
-		ch = (*asc++) | 0x20;
+		ch |= 0x20;
 		if ((ch < '0' || ch > '9') && (ch < 'a' || ch > 'f'))
 			return NULL;
 		number = !(ch > '9') ? (ch - '0') : (ch - 'a' + 10);

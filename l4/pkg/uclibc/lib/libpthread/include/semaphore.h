@@ -24,7 +24,7 @@
 
 #ifndef _PTHREAD_DESCR_DEFINED
 /* Thread descriptors.  Needed for `sem_t' definition.  */
-typedef struct _pthread_descr_struct *_pthread_descr;
+typedef struct pthread *_pthread_descr;
 # define _PTHREAD_DESCR_DEFINED
 #endif
 

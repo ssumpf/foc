@@ -30,6 +30,11 @@ enum Thread_state
 
   Thread_dead                 = 0x200,// tcb allocated, but inactive (not in any q)
   Thread_suspended            = 0x400,// thread must not execute user code
+
+  Thread_finish_migration     = 0x1000,
+  Thread_need_resched         = 0x2000,
+  Thread_switch_hazards       = Thread_finish_migration | Thread_need_resched,
+
   // 0x800, 0x1000 are free
   //Thread_delayed_deadline     = 0x2000, // delayed until periodic deadline
   //Thread_delayed_ipc          = 0x4000, // delayed until periodic ipc event

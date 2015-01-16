@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _DLFCN_H
 # error "Never use <bits/dlfcn.h> directly; include <dlfcn.h> instead."
@@ -27,7 +26,9 @@
 #define RTLD_NOW	0x0002	/* Immediate function call binding.  */
 #define RTLD_BINDING_MASK  0x3	/* Mask of binding time value.  */
 #define RTLD_NOLOAD	0x00008	/* Do not load the object.  */
+#if 0 /* uClibc doesnt support these */
 #define RTLD_DEEPBIND	0x00010	/* Use deep binding.  */
+#endif
 
 /* If the following bit is set in the MODE argument to `dlopen',
    the symbols of the loaded object and its dependencies are made

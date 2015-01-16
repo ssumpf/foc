@@ -2,15 +2,8 @@
 # error Never include <bits/uClibc_config.h> directly; use <features.h> instead
 #endif
 
-#ifndef libc_hidden_proto
-#define libc_hidden_proto(x)
-#endif
-#ifndef libm_hidden_proto
-#define libm_hidden_proto(x)
-#endif
-#ifndef librt_hidden_proto
-#define librt_hidden_proto(x)
-#endif
+// L4 added
+#include <bits/l4-libc-symbols.h>
 
 #define __UCLIBC_MAJOR__ 0
 #define __UCLIBC_MINOR__ 9

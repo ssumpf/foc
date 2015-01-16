@@ -39,26 +39,16 @@ static char sccsid[] = "@(#)svc_udp.c 1.24 87/08/11 Copyr 1984 Sun Micro";
  * Copyright (C) 1984, Sun Microsystems, Inc.
  */
 
-#define __FORCE_GLIBC
-#include <features.h>
-
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
-#include <rpc/rpc.h>
+#include "rpc_private.h"
 #include <sys/socket.h>
 #include <errno.h>
 
 #ifdef IP_PKTINFO
 #include <sys/uio.h>
 #endif
-
-#ifdef USE_IN_LIBIO
-# include <wchar.h>
-# include <libio/iolibio.h>
-# define fputs(s, f) _IO_fputs (s, f)
-#endif
-
 
 #define rpc_buffer(xprt) ((xprt)->xp_p1)
 #ifndef MAX
@@ -151,12 +141,7 @@ svcudp_bufcreate (int sock, u_int sendsz, u_int recvsz)
   buf = mem_alloc (((MAX (sendsz, recvsz) + 3) / 4) * 4);
   if (xprt == NULL || su == NULL || buf == NULL)
     {
-#ifdef USE_IN_LIBIO
-      if (_IO_fwide (stderr, 0) > 0)
-	(void) fwprintf (stderr, L"%s", _("svcudp_create: out of memory\n"));
-      else
-#endif
-	(void) fputs (_("svcudp_create: out of memory\n"), stderr);
+      (void) fputs (_("svcudp_create: out of memory\n"), stderr);
       mem_free (xprt, sizeof (SVCXPRT));
       mem_free (su, sizeof (*su));
       mem_free (buf, ((MAX (sendsz, recvsz) + 3) / 4) * 4);
@@ -177,13 +162,7 @@ svcudp_bufcreate (int sock, u_int sendsz, u_int recvsz)
        + sizeof(struct cmsghdr) + sizeof (struct in_pktinfo))
       > sizeof (xprt->xp_pad))
     {
-# ifdef USE_IN_LIBIO
-      if (_IO_fwide (stderr, 0) > 0)
-	(void) fwprintf (stderr, L"%s",
-			   _("svcudp_create: xp_pad is too small for IP_PKTINFO\n"));
-      else
-# endif
-	(void) fputs (_("svcudp_create: xp_pad is too small for IP_PKTINFO\n"),
+      (void) fputs (_("svcudp_create: xp_pad is too small for IP_PKTINFO\n"),
 		      stderr);
       return NULL;
     }
@@ -378,16 +357,8 @@ svcudp_destroy (SVCXPRT *xprt)
 
 #define SPARSENESS 4		/* 75% sparse */
 
-#ifdef USE_IN_LIBIO
-# define CACHE_PERROR(msg)	\
-	if (_IO_fwide (stderr, 0) > 0)					      \
-		(void) __fwprintf(stderr, L"%s\n", msg);		      \
-	else								      \
-		(void) fprintf(stderr, "%s\n", msg)
-#else
-# define CACHE_PERROR(msg)	\
+#define CACHE_PERROR(msg)	\
 	(void) fprintf(stderr,"%s\n", msg)
-#endif
 
 #define ALLOC(type, size)	\
 	(type *) mem_alloc((unsigned) (sizeof(type) * (size)))

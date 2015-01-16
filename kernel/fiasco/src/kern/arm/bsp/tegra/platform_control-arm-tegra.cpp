@@ -165,3 +165,15 @@ Platform_control::boot_ap_cpus(Address phys_reset_vector)
 
   init_cpus();
 }
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [arm && mp && tegra && arm_em_ns]:
+
+#include <cstdio>
+
+PUBLIC static
+void
+Platform_control::boot_ap_cpus(Address)
+{
+  printf("Platform_control::boot_ap_cpus: Implement.\n");
+}

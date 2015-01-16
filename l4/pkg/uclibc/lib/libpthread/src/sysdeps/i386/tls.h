@@ -112,16 +112,16 @@ struct x86_descr {
 /* This is the size of the initial TCB.  Can't be just sizeof (tcbhead_t),
    because NPTL getpid, __libc_alloca_cutoff etc. need (almost) the whole
    struct pthread even when not linked with -lpthread.  */
-# define TLS_INIT_TCB_SIZE sizeof (struct _pthread_descr_struct)
+# define TLS_INIT_TCB_SIZE sizeof (struct pthread)
 
 /* Alignment requirements for the initial TCB.  */
-# define TLS_INIT_TCB_ALIGN __alignof__ (struct _pthread_descr_struct)
+# define TLS_INIT_TCB_ALIGN __alignof__ (struct pthread)
 
 /* This is the size of the TCB.  */
-# define TLS_TCB_SIZE sizeof (struct _pthread_descr_struct)
+# define TLS_TCB_SIZE sizeof (struct pthread)
 
 /* Alignment requirements for the TCB.  */
-# define TLS_TCB_ALIGN __alignof__ (struct _pthread_descr_struct)
+# define TLS_TCB_ALIGN __alignof__ (struct pthread)
 
 /* The TCB can have any size and the memory following the address the
    thread pointer points to is unspecified.  Allocate the TCB there.  */
@@ -134,9 +134,9 @@ struct x86_descr {
   ((tcbhead_t *) (descr))->dtv = (dtvp) + 1
 
 /* Install new dtv for current thread.  */
-# define INSTALL_NEW_DTV(dtvpx) \
-  ({ struct _pthread_descr_struct *__pd;						      \
-     THREAD_SETMEM (__pd, p_header.data.dtvp, (dtvpx)); })
+# define INSTALL_NEW_DTV(dtvp) \
+  ({ struct pthread *__pd;						      \
+     THREAD_SETMEM (__pd, header.dtv, (dtvp)); })
 
 /* Return dtv of given thread descriptor.  */
 # define GET_DTV(descr) \
@@ -283,8 +283,8 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
 #endif
 /* Return the address of the dtv for the current thread.  */
 # define THREAD_DTV() \
-  ({ struct _pthread_descr_struct *__pd;						      \
-     THREAD_GETMEM (__pd, p_header.data.dtvp); })
+  ({ struct pthread *__pd;						      \
+     THREAD_GETMEM (__pd, header.dtv); })
 
 
 /* Return the thread descriptor for the current thread.
@@ -294,9 +294,9 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
         pthread_descr self = thread_self();
    do not get optimized away.  */
 # define THREAD_SELF \
-  ({ struct _pthread_descr_struct *__self;						      \
+  ({ struct pthread *__self;						      \
      __asm__ ("movl %%gs:%c1,%0" : "=r" (__self)				    \
-	  : "i" (offsetof (struct _pthread_descr_struct, p_header.data.self)));		      \
+	  : "i" (offsetof (struct pthread, header.self)));		      \
      __self;})
 
 /* Magic for libthread_db to know how to do THREAD_SELF.  */
@@ -311,11 +311,11 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
      if (sizeof (__value) == 1)						      \
        __asm__ __volatile__ ("movb %%gs:%P2,%b0"				    \
 		     : "=q" (__value)					      \
-		     : "0" (0), "i" (offsetof (struct _pthread_descr_struct, member)));     \
+		     : "0" (0), "i" (offsetof (struct pthread, member)));     \
      else if (sizeof (__value) == 4)					      \
        __asm__ __volatile__ ("movl %%gs:%P1,%0"					    \
 		     : "=r" (__value)					      \
-		     : "i" (offsetof (struct _pthread_descr_struct, member)));	      \
+		     : "i" (offsetof (struct pthread, member)));	      \
      else								      \
        {								      \
 	 if (sizeof (__value) != 8)					      \
@@ -326,8 +326,8 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
 	 __asm__ __volatile__ ("movl %%gs:%P1,%%eax\n\t"			      \
 		       "movl %%gs:%P2,%%edx"				      \
 		       : "=A" (__value)					      \
-		       : "i" (offsetof (struct _pthread_descr_struct, member)),	      \
-			 "i" (offsetof (struct _pthread_descr_struct, member) + 4));	      \
+		       : "i" (offsetof (struct pthread, member)),	      \
+			 "i" (offsetof (struct pthread, member) + 4));	      \
        }								      \
      __value; })
 
@@ -338,12 +338,12 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
      if (sizeof (__value) == 1)						      \
        __asm__ __volatile__ ("movb %%gs:%P2(%3),%b0"				      \
 		     : "=q" (__value)					      \
-		     : "0" (0), "i" (offsetof (struct _pthread_descr_struct, member[0])),   \
+		     : "0" (0), "i" (offsetof (struct pthread, member[0])),   \
 		     "r" (idx));					      \
      else if (sizeof (__value) == 4)					      \
        __asm__ __volatile__ ("movl %%gs:%P1(,%2,4),%0"				      \
 		     : "=r" (__value)					      \
-		     : "i" (offsetof (struct _pthread_descr_struct, member[0])),	      \
+		     : "i" (offsetof (struct pthread, member[0])),	      \
 		       "r" (idx));					      \
      else								      \
        {								      \
@@ -355,7 +355,7 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
 	 __asm__ __volatile__  ("movl %%gs:%P1(,%2,8),%%eax\n\t"		      \
 			"movl %%gs:4+%P1(,%2,8),%%edx"			      \
 			: "=&A" (__value)				      \
-			: "i" (offsetof (struct _pthread_descr_struct, member[0])),	      \
+			: "i" (offsetof (struct pthread, member[0])),	      \
 			  "r" (idx));					      \
        }								      \
      __value; })
@@ -366,11 +366,11 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
   ({ if (sizeof (descr->member) == 1)					      \
        __asm__ __volatile__ ("movb %b0,%%gs:%P1" :				      \
 		     : "iq" (value),					      \
-		       "i" (offsetof (struct _pthread_descr_struct, member)));	      \
+		       "i" (offsetof (struct pthread, member)));	      \
      else if (sizeof (descr->member) == 4)				      \
        __asm__ __volatile__ ("movl %0,%%gs:%P1" :				      \
 		     : "ir" (value),					      \
-		       "i" (offsetof (struct _pthread_descr_struct, member)));	      \
+		       "i" (offsetof (struct pthread, member)));	      \
      else								      \
        {								      \
 	 if (sizeof (descr->member) != 8)				      \
@@ -381,8 +381,8 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
 	 __asm__ __volatile__ ("movl %%eax,%%gs:%P1\n\t"			      \
 		       "movl %%edx,%%gs:%P2" :				      \
 		       : "A" (value),					      \
-			 "i" (offsetof (struct _pthread_descr_struct, member)),	      \
-			 "i" (offsetof (struct _pthread_descr_struct, member) + 4));	      \
+			 "i" (offsetof (struct pthread, member)),	      \
+			 "i" (offsetof (struct pthread, member) + 4));	      \
        }})
 
 
@@ -391,12 +391,12 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
   ({ if (sizeof (descr->member[0]) == 1)				      \
        __asm__ __volatile__ ("movb %b0,%%gs:%P1(%2)" :				      \
 		     : "iq" (value),					      \
-		       "i" (offsetof (struct _pthread_descr_struct, member)),		      \
+		       "i" (offsetof (struct pthread, member)),		      \
 		       "r" (idx));					      \
      else if (sizeof (descr->member[0]) == 4)				      \
        __asm__ __volatile__ ("movl %0,%%gs:%P1(,%2,4)" :			      \
 		     : "ir" (value),					      \
-		       "i" (offsetof (struct _pthread_descr_struct, member)),		      \
+		       "i" (offsetof (struct pthread, member)),		      \
 		       "r" (idx));					      \
      else								      \
        {								      \
@@ -408,7 +408,7 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
 	 __asm__ __volatile__ ("movl %%eax,%%gs:%P1(,%2,8)\n\t"			      \
 		       "movl %%edx,%%gs:4+%P1(,%2,8)" :			      \
 		       : "A" (value),					      \
-			 "i" (offsetof (struct _pthread_descr_struct, member)),	      \
+			 "i" (offsetof (struct pthread, member)),	      \
 			 "r" (idx));					      \
        }})
 
@@ -421,7 +421,7 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
        __asm__ __volatile__ (LOCK_PREFIX "cmpxchgl %2, %%gs:%P3"		      \
 		     : "=a" (__ret)					      \
 		     : "0" (__old), "r" (newval),			      \
-		       "i" (offsetof (struct _pthread_descr_struct, member)));	      \
+		       "i" (offsetof (struct pthread, member)));	      \
      else								      \
        /* Not necessary for other sizes in the moment.  */		      \
        abort ();							      \
@@ -432,7 +432,7 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
 #define THREAD_ATOMIC_AND(descr, member, val) \
   (void) ({ if (sizeof ((descr)->member) == 4)				      \
 	      __asm__ __volatile__ (LOCK_PREFIX "andl %1, %%gs:%P0"		      \
-			    :: "i" (offsetof (struct _pthread_descr_struct, member)),	      \
+			    :: "i" (offsetof (struct pthread, member)),	      \
 			       "ir" (val));				      \
 	    else							      \
 	      /* Not necessary for other sizes in the moment.  */	      \
@@ -443,7 +443,7 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
 #define THREAD_ATOMIC_BIT_SET(descr, member, bit) \
   (void) ({ if (sizeof ((descr)->member) == 4)				      \
 	      __asm__ __volatile__ (LOCK_PREFIX "orl %1, %%gs:%P0"		      \
-			    :: "i" (offsetof (struct _pthread_descr_struct, member)),	      \
+			    :: "i" (offsetof (struct pthread, member)),	      \
 			       "ir" (1 << (bit)));			      \
 	    else							      \
 	      /* Not necessary for other sizes in the moment.  */	      \
@@ -461,8 +461,8 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
 		   "call *%%gs:%P3\n\t"					      \
 		   "addl $16, %%esp"					      \
 		   : "=a" (__res), "=c" (__ignore1), "=d" (__ignore2)	      \
-		   : "i" (offsetof (struct _pthread_descr_struct, start_routine)),	      \
-		     "i" (offsetof (struct _pthread_descr_struct, arg)));		      \
+		   : "i" (offsetof (struct pthread, start_routine)),	      \
+		     "i" (offsetof (struct pthread, arg)));		      \
      __res; })
 
 
@@ -491,7 +491,7 @@ static inline char const *TLS_INIT_TP(void *thrdescr, int secondcall)
     { int __res;							      \
       __asm__ __volatile__ ("xchgl %0, %%gs:%P1"				      \
 		    : "=r" (__res)					      \
-		    : "i" (offsetof (struct _pthread_descr_struct, header.gscope_flag)),    \
+		    : "i" (offsetof (struct pthread, header.gscope_flag)),    \
 		      "0" (THREAD_GSCOPE_FLAG_UNUSED));			      \
       if (__res == THREAD_GSCOPE_FLAG_WAIT)				      \
 	lll_futex_wake (&THREAD_SELF->header.gscope_flag, 1, LLL_PRIVATE);    \

@@ -7,19 +7,19 @@
  * Licensed under the LGPL v2.1, see the file COPYING.LIB in this tarball.
  */
 
-#include <unistd.h>
-#include <sys/syscall.h>
-#define _SIGNAL_H
-#include <bits/signum.h>
 
 /* Xtensa doesn't provide a 'fork' system call, so we use 'clone'.  */
+#include <sys/syscall.h>
 
-extern __typeof(fork) __libc_fork;
+#if defined __NR_clone && defined __ARCH_USE_MMU__
+# include <unistd.h>
+# include <signal.h>
+# include <cancel.h>
 
-libc_hidden_proto(fork)
-pid_t __libc_fork(void)
+pid_t fork(void)
 {
 	return (pid_t) INLINE_SYSCALL(clone, 2, SIGCHLD, 0);
 }
-weak_alias(__libc_fork, fork)
-libc_hidden_weak(fork)
+lt_strong_alias(fork)
+lt_libc_hidden(fork)
+#endif

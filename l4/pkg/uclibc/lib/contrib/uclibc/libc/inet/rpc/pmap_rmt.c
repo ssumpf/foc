@@ -39,12 +39,9 @@ static char sccsid[] = "@(#)pmap_rmt.c 1.21 87/08/27 Copyr 1984 Sun Micro";
  * Copyright (C) 1984, Sun Microsystems, Inc.
  */
 
-#define __FORCE_GLIBC
-#include <features.h>
-
 #include <unistd.h>
 #include <string.h>
-#include <rpc/rpc.h>
+#include "rpc_private.h"
 #include <rpc/pmap_prot.h>
 #include <rpc/pmap_clnt.h>
 #include <rpc/pmap_rmt.h>
@@ -52,16 +49,11 @@ static char sccsid[] = "@(#)pmap_rmt.c 1.21 87/08/27 Copyr 1984 Sun Micro";
 #include <sys/socket.h>
 #include <stdio.h>
 #include <errno.h>
-#undef	 _POSIX_SOURCE		/* Ultrix <sys/param.h> needs --roland@gnu */
 #include <sys/param.h>		/* Ultrix needs before net/if --roland@gnu */
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <arpa/inet.h>
 #define MAX_BROADCAST_SIZE 1400
-
-
-
-extern u_long _create_xid (void) attribute_hidden;
 
 static const struct timeval timeout = {3, 0};
 

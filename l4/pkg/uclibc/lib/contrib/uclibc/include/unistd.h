@@ -1,4 +1,4 @@
-/* Copyright (C) 1991-2002,2003,2004,2005,2006 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2006, 2007, 2008, 2009 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /*
  *	POSIX Standard: 2.10 Symbolic Constants		<unistd.h>
@@ -30,33 +29,67 @@ __BEGIN_DECLS
 /* These may be used to determine what facilities are present at compile time.
    Their values can be obtained at run time from `sysconf'.  */
 
+#ifdef __USE_XOPEN2K8
+/* POSIX Standard approved as ISO/IEC 9945-1 as of September 2008.  */
+# define _POSIX_VERSION	200809L
+#elif defined __USE_XOPEN2K
 /* POSIX Standard approved as ISO/IEC 9945-1 as of December 2001.  */
-#define	_POSIX_VERSION	200112L
+# define _POSIX_VERSION	200112L
+#elif defined __USE_POSIX199506
+/* POSIX Standard approved as ISO/IEC 9945-1 as of June 1995.  */
+# define _POSIX_VERSION	199506L
+#elif defined __USE_POSIX199309
+/* POSIX Standard approved as ISO/IEC 9945-1 as of September 1993.  */
+# define _POSIX_VERSION	199309L
+#else
+/* POSIX Standard approved as ISO/IEC 9945-1 as of September 1990.  */
+# define _POSIX_VERSION	199009L
+#endif
 
 /* These are not #ifdef __USE_POSIX2 because they are
    in the theoretically application-owned namespace.  */
 
+#ifdef __USE_XOPEN2K8
+# define __POSIX2_THIS_VERSION	200809L
 /* The utilities on GNU systems also correspond to this version.  */
-#define _POSIX2_VERSION	200112L
+#elif defined __USE_XOPEN2K
+/* The utilities on GNU systems also correspond to this version.  */
+# define __POSIX2_THIS_VERSION	200112L
+#elif defined __USE_POSIX199506
+/* The utilities on GNU systems also correspond to this version.  */
+# define __POSIX2_THIS_VERSION	199506L
+#else
+/* The utilities on GNU systems also correspond to this version.  */
+# define __POSIX2_THIS_VERSION	199209L
+#endif
+
+/* The utilities on GNU systems also correspond to this version.  */
+#define _POSIX2_VERSION	__POSIX2_THIS_VERSION
 
 /* If defined, the implementation supports the
    C Language Bindings Option.  */
-#define	_POSIX2_C_BIND	200112L
+#define	_POSIX2_C_BIND	__POSIX2_THIS_VERSION
 
 /* If defined, the implementation supports the
    C Language Development Utilities Option.  */
-#define	_POSIX2_C_DEV	200112L
+#define	_POSIX2_C_DEV	__POSIX2_THIS_VERSION
 
 /* If defined, the implementation supports the
    Software Development Utilities Option.  */
-#define	_POSIX2_SW_DEV	200112L
+#define	_POSIX2_SW_DEV	__POSIX2_THIS_VERSION
 
+#if 0 /* uClibc does not provide the utility */
 /* If defined, the implementation supports the
    creation of locales with the localedef utility.  */
-#define _POSIX2_LOCALEDEF       200112L
+#define _POSIX2_LOCALEDEF       __POSIX2_THIS_VERSION
+#endif
 
 /* X/Open version number to which the library conforms.  It is selectable.  */
-#ifdef __USE_UNIX98
+#ifdef __USE_XOPEN2K8
+# define _XOPEN_VERSION	700
+#elif defined __USE_XOPEN2K
+# define _XOPEN_VERSION	600
+#elif defined __USE_UNIX98
 # define _XOPEN_VERSION	500
 #else
 # define _XOPEN_VERSION	4
@@ -169,6 +202,8 @@ __BEGIN_DECLS
    */
 
 #include <bits/posix_opt.h>
+/* keep it after posix_opt.h, it overwrites based on uClibc's config options */
+#include <bits/uClibc_posix_opt.h>
 
 /* Get the environment definitions from Unix98.  */
 #ifdef __USE_UNIX98
@@ -253,16 +288,16 @@ typedef __socklen_t socklen_t;
 #define	F_OK	0		/* Test for existence.  */
 
 /* Test for access to NAME using the real UID and real GID.  */
-extern int access (__const char *__name, int __type) __THROW __nonnull ((1));
+extern int access (const char *__name, int __type) __THROW __nonnull ((1));
 
 #if 0 /*def __USE_GNU*/
 /* Test for access to NAME using the effective UID and GID
    (as normal file operations use).  */
-extern int euidaccess (__const char *__name, int __type)
+extern int euidaccess (const char *__name, int __type)
      __THROW __nonnull ((1));
 
 /* An alias for `euidaccess', used by some other systems.  */
-extern int eaccess (__const char *__name, int __type)
+extern int eaccess (const char *__name, int __type)
      __THROW __nonnull ((1));
 #endif
 
@@ -270,8 +305,9 @@ extern int eaccess (__const char *__name, int __type)
 /* Test for access to FILE relative to the directory FD is open on.
    If AT_EACCESS is set in FLAG, then use effective IDs like `eaccess',
    otherwise use real IDs like `access'.  */
-extern int faccessat (int __fd, __const char *__file, int __type, int __flag)
+extern int faccessat (int __fd, const char *__file, int __type, int __flag)
      __THROW __nonnull ((2)) __wur;
+libc_hidden_proto(faccessat)
 #endif /* Use GNU.  */
 
 
@@ -297,7 +333,10 @@ extern int faccessat (int __fd, __const char *__file, int __type, int __flag)
    Return the new file position.  */
 #ifndef __USE_FILE_OFFSET64
 extern __off_t lseek (int __fd, __off_t __offset, int __whence) __THROW;
+# ifdef _LIBC
+extern __typeof(lseek) __lseek_nocancel attribute_hidden;
 libc_hidden_proto(lseek)
+# endif
 #else
 # ifdef __REDIRECT_NTH
 extern __off64_t __REDIRECT_NTH (lseek,
@@ -310,7 +349,10 @@ extern __off64_t __REDIRECT_NTH (lseek,
 #ifdef __USE_LARGEFILE64
 extern __off64_t lseek64 (int __fd, __off64_t __offset, int __whence)
      __THROW;
+# ifdef _LIBC
+extern __typeof(lseek64) __lseek64_nocancel attribute_hidden;
 libc_hidden_proto(lseek64)
+# endif
 #endif
 
 /* Close the file descriptor FD.
@@ -318,7 +360,11 @@ libc_hidden_proto(lseek64)
    This function is a cancellation point and therefore not marked with
    __THROW.  */
 extern int close (int __fd);
+#ifdef _LIBC
+extern __typeof(close) __close_nocancel attribute_hidden;
+extern void __close_nocancel_no_status(int) attribute_hidden;
 libc_hidden_proto(close)
+#endif
 
 /* Read NBYTES into BUF from FD.  Return the
    number read, -1 for errors or 0 for EOF.
@@ -326,14 +372,20 @@ libc_hidden_proto(close)
    This function is a cancellation point and therefore not marked with
    __THROW.  */
 extern ssize_t read (int __fd, void *__buf, size_t __nbytes) __wur;
+#ifdef _LIBC
+extern __typeof(read) __read_nocancel attribute_hidden;
 libc_hidden_proto(read)
+#endif
 
 /* Write N bytes of BUF to FD.  Return the number written, or -1.
 
    This function is a cancellation point and therefore not marked with
    __THROW.  */
-extern ssize_t write (int __fd, __const void *__buf, size_t __n) __wur;
+extern ssize_t write (int __fd, const void *__buf, size_t __n) __wur;
+#ifdef _LIBC
+extern __typeof(write) __write_nocancel attribute_hidden;
 libc_hidden_proto(write)
+#endif
 
 #ifdef __USE_UNIX98
 # ifndef __USE_FILE_OFFSET64
@@ -351,14 +403,14 @@ extern ssize_t pread (int __fd, void *__buf, size_t __nbytes,
 
    This function is a cancellation point and therefore not marked with
    __THROW.  */
-extern ssize_t pwrite (int __fd, __const void *__buf, size_t __n,
+extern ssize_t pwrite (int __fd, const void *__buf, size_t __n,
 		       __off_t __offset) __wur;
 # else
 #  ifdef __REDIRECT
 extern ssize_t __REDIRECT (pread, (int __fd, void *__buf, size_t __nbytes,
 				   __off64_t __offset),
 			   pread64) __wur;
-extern ssize_t __REDIRECT (pwrite, (int __fd, __const void *__buf,
+extern ssize_t __REDIRECT (pwrite, (int __fd, const void *__buf,
 				    size_t __nbytes, __off64_t __offset),
 			   pwrite64) __wur;
 #  else
@@ -375,7 +427,7 @@ extern ssize_t pread64 (int __fd, void *__buf, size_t __nbytes,
 			__off64_t __offset) __wur;
 /* Write N bytes of BUF to FD at the given position OFFSET without
    changing the file pointer.  Return the number written, or -1.  */
-extern ssize_t pwrite64 (int __fd, __const void *__buf, size_t __n,
+extern ssize_t pwrite64 (int __fd, const void *__buf, size_t __n,
 			 __off64_t __offset) __wur;
 # endif
 #endif
@@ -386,6 +438,13 @@ extern ssize_t pwrite64 (int __fd, __const void *__buf, size_t __n,
    Returns 0 if successful, -1 if not.  */
 extern int pipe (int __pipedes[2]) __THROW __wur;
 libc_hidden_proto(pipe)
+
+#if defined __UCLIBC_LINUX_SPECIFIC__ && defined __USE_GNU
+/* Same as pipe but apply flags passed in FLAGS to the new file
+   descriptors.  */
+extern int pipe2 (int __pipedes[2], int __flags) __THROW __wur;
+libc_hidden_proto(pipe2)
+#endif
 
 /* Schedule an alarm.  In SECONDS seconds, the process will get a SIGALRM.
    If SECONDS is zero, any currently scheduled alarm will be cancelled.
@@ -437,7 +496,7 @@ extern int pause (void);
 
 
 /* Change the owner and group of FILE.  */
-extern int chown (__const char *__file, __uid_t __owner, __gid_t __group)
+extern int chown (const char *__file, __uid_t __owner, __gid_t __group)
      __THROW __nonnull ((1)) __wur;
 libc_hidden_proto(chown)
 
@@ -448,7 +507,7 @@ extern int fchown (int __fd, __uid_t __owner, __gid_t __group) __THROW __wur;
 
 /* Change owner and group of FILE, if it is a symbolic
    link the ownership of the symbolic link is changed.  */
-extern int lchown (__const char *__file, __uid_t __owner, __gid_t __group)
+extern int lchown (const char *__file, __uid_t __owner, __gid_t __group)
      __THROW __nonnull ((1)) __wur;
 
 #endif /* Use BSD || X/Open Unix.  */
@@ -456,13 +515,14 @@ extern int lchown (__const char *__file, __uid_t __owner, __gid_t __group)
 #ifdef __USE_ATFILE
 /* Change the owner and group of FILE relative to the directory FD is open
    on.  */
-extern int fchownat (int __fd, __const char *__file, __uid_t __owner,
+extern int fchownat (int __fd, const char *__file, __uid_t __owner,
 		     __gid_t __group, int __flag)
      __THROW __nonnull ((2)) __wur;
+libc_hidden_proto(fchownat)
 #endif /* Use GNU.  */
 
 /* Change the process's working directory to PATH.  */
-extern int chdir (__const char *__path) __THROW __nonnull ((1)) __wur;
+extern int chdir (const char *__path) __THROW __nonnull ((1)) __wur;
 libc_hidden_proto(chdir)
 
 #if defined __USE_BSD || defined __USE_XOPEN_EXTENDED
@@ -504,6 +564,13 @@ extern int dup (int __fd) __THROW __wur;
 extern int dup2 (int __fd, int __fd2) __THROW;
 libc_hidden_proto(dup2)
 
+#ifdef __USE_GNU
+/* Duplicate FD to FD2, closing FD2 and making it open on the same
+   file while setting flags according to FLAGS.  */
+extern int dup3 (int __fd, int __fd2, int __flags) __THROW;
+libc_hidden_proto(dup3)
+#endif
+
 /* NULL-terminated array of "NAME=VALUE" environment variables.  */
 extern char **__environ;
 #ifdef __USE_GNU
@@ -513,47 +580,55 @@ extern char **environ;
 
 /* Replace the current process, executing PATH with arguments ARGV and
    environment ENVP.  ARGV and ENVP are terminated by NULL pointers.  */
-extern int execve (__const char *__path, char *__const __argv[],
-		   char *__const __envp[]) __THROW __nonnull ((1));
+extern int execve (const char *__path, char *const __argv[],
+		   char *const __envp[]) __THROW __nonnull ((1));
 libc_hidden_proto(execve)
 
-#if 0 /*def __USE_GNU*/
+#if 0 /*def __USE_XOPEN2K8*/
 /* Execute the file FD refers to, overlaying the running program image.
    ARGV and ENVP are passed to the new program, as for `execve'.  */
-extern int fexecve (int __fd, char *__const __argv[], char *__const __envp[])
+extern int fexecve (int __fd, char *const __argv[], char *const __envp[])
      __THROW;
 #endif
 
 
 /* Execute PATH with arguments ARGV and environment from `environ'.  */
-extern int execv (__const char *__path, char *__const __argv[])
+extern int execv (const char *__path, char *const __argv[])
      __THROW __nonnull ((1));
 libc_hidden_proto(execv)
 
 /* Execute PATH with all arguments after PATH until a NULL pointer,
    and the argument after that for environment.  */
-extern int execle (__const char *__path, __const char *__arg, ...)
+extern int execle (const char *__path, const char *__arg, ...)
      __THROW __nonnull ((1));
 libc_hidden_proto(execle)
 
 /* Execute PATH with all arguments after PATH until
    a NULL pointer and environment from `environ'.  */
-extern int execl (__const char *__path, __const char *__arg, ...)
+extern int execl (const char *__path, const char *__arg, ...)
      __THROW __nonnull ((1));
 libc_hidden_proto(execl)
 
 /* Execute FILE, searching in the `PATH' environment variable if it contains
    no slashes, with arguments ARGV and environment from `environ'.  */
-extern int execvp (__const char *__file, char *__const __argv[])
+extern int execvp (const char *__file, char *const __argv[])
      __THROW __nonnull ((1));
 libc_hidden_proto(execvp)
 
 /* Execute FILE, searching in the `PATH' environment variable if
    it contains no slashes, with all arguments after FILE until a
    NULL pointer and environment from `environ'.  */
-extern int execlp (__const char *__file, __const char *__arg, ...)
+extern int execlp (const char *__file, const char *__arg, ...)
      __THROW __nonnull ((1));
 libc_hidden_proto(execlp)
+
+#ifdef __USE_GNU
+/* Execute FILE, searching in the `PATH' environment variable if it contains
+   no slashes, with arguments ARGV and environment from a pointer */
+extern int execvpe (__const char *__file, char *__const __argv[], char *__const __envp[])
+     __THROW __nonnull ((1));
+libc_hidden_proto(execvpe)
+#endif
 
 
 #if defined __USE_MISC || defined __USE_XOPEN
@@ -573,7 +648,7 @@ libc_hidden_proto(_exit)
 #include <bits/confname.h>
 
 /* Get file-specific configuration information about PATH.  */
-extern long int pathconf (__const char *__path, int __name)
+extern long int pathconf (const char *__path, int __name)
      __THROW __nonnull ((1));
 
 /* Get file-specific configuration about descriptor FD.  */
@@ -758,7 +833,12 @@ libc_hidden_proto(setresgid)
    Return -1 for errors, 0 to the new process,
    and the process ID of the new process to the old process.  */
 extern __pid_t fork (void) __THROW;
+# ifdef _LIBC
+# ifdef __UCLIBC_HAS_THREADS__
+extern __typeof(fork) __libc_fork;
+# endif
 libc_hidden_proto(fork)
+# endif
 #endif
 
 #if defined __USE_BSD || defined __USE_XOPEN_EXTENDED
@@ -770,8 +850,10 @@ extern __pid_t vfork (void) __THROW;
 libc_hidden_proto(vfork)
 #endif /* Use BSD. */
 
+#if 0 /* psm: seems unused , exit-thread.S is not compiled */
 /* Special exit function which only terminates the current thread.  */
 extern void __exit_thread (int val) __attribute__ ((__noreturn__));
+#endif
 
 /* Return the pathname of the terminal FD is open on, or NULL on errors.
    The returned storage is good only until the next call to this function.  */
@@ -788,7 +870,6 @@ libc_hidden_proto(ttyname_r)
 extern int isatty (int __fd) __THROW;
 libc_hidden_proto(isatty)
 
-
 #if 0 /*defined __USE_BSD \
     || (defined __USE_XOPEN_EXTENDED && !defined __USE_UNIX98)*/
 /* Return the index into the active-logins file (utmp) for
@@ -798,26 +879,27 @@ extern int ttyslot (void) __THROW;
 
 
 /* Make a link to FROM named TO.  */
-extern int link (__const char *__from, __const char *__to)
+extern int link (const char *__from, const char *__to)
      __THROW __nonnull ((1, 2)) __wur;
 
 #ifdef __USE_ATFILE
 /* Like link but relative paths in TO and FROM are interpreted relative
    to FROMFD and TOFD respectively.  */
-extern int linkat (int __fromfd, __const char *__from, int __tofd,
-		   __const char *__to, int __flags)
+extern int linkat (int __fromfd, const char *__from, int __tofd,
+		   const char *__to, int __flags)
      __THROW __nonnull ((2, 4)) __wur;
+libc_hidden_proto(linkat)
 #endif
 
 #if defined __USE_BSD || defined __USE_XOPEN_EXTENDED || defined __USE_XOPEN2K
 /* Make a symbolic link to FROM named TO.  */
-extern int symlink (__const char *__from, __const char *__to)
+extern int symlink (const char *__from, const char *__to)
      __THROW __nonnull ((1, 2)) __wur;
 
 /* Read the contents of the symbolic link PATH into no more than
    LEN bytes of BUF.  The contents are not null-terminated.
    Returns the number of characters read, or -1 for errors.  */
-extern ssize_t readlink (__const char *__restrict __path,
+extern ssize_t readlink (const char *__restrict __path,
 			 char *__restrict __buf, size_t __len)
      __THROW __nonnull ((1, 2)) __wur;
 libc_hidden_proto(readlink)
@@ -825,27 +907,30 @@ libc_hidden_proto(readlink)
 
 #ifdef __USE_ATFILE
 /* Like symlink but a relative path in TO is interpreted relative to TOFD.  */
-extern int symlinkat (__const char *__from, int __tofd,
-		      __const char *__to) __THROW __nonnull ((1, 3)) __wur;
+extern int symlinkat (const char *__from, int __tofd,
+		      const char *__to) __THROW __nonnull ((1, 3)) __wur;
+libc_hidden_proto(symlinkat)
 
 /* Like readlink but a relative PATH is interpreted relative to FD.  */
-extern ssize_t readlinkat (int __fd, __const char *__restrict __path,
+extern ssize_t readlinkat (int __fd, const char *__restrict __path,
 			   char *__restrict __buf, size_t __len)
      __THROW __nonnull ((2, 3)) __wur;
+libc_hidden_proto(readlinkat)
 #endif
 
 /* Remove the link NAME.  */
-extern int unlink (__const char *__name) __THROW __nonnull ((1));
+extern int unlink (const char *__name) __THROW __nonnull ((1));
 libc_hidden_proto(unlink)
 
 #ifdef __USE_ATFILE
 /* Remove the link NAME relative to FD.  */
-extern int unlinkat (int __fd, __const char *__name, int __flag)
+extern int unlinkat (int __fd, const char *__name, int __flag)
      __THROW __nonnull ((2));
+libc_hidden_proto(unlinkat)
 #endif
 
 /* Remove the directory PATH.  */
-extern int rmdir (__const char *__path) __THROW __nonnull ((1));
+extern int rmdir (const char *__path) __THROW __nonnull ((1));
 libc_hidden_proto(rmdir)
 
 
@@ -875,7 +960,7 @@ extern int getlogin_r (char *__name, size_t __name_len) __nonnull ((1));
 
 #if 0 /*def	__USE_BSD*/
 /* Set the login name returned by `getlogin'.  */
-extern int setlogin (__const char *__name) __THROW __nonnull ((1));
+extern int setlogin (const char *__name) __THROW __nonnull ((1));
 #endif
 
 
@@ -901,12 +986,13 @@ libc_hidden_proto(gethostname)
 #if defined __USE_BSD || (defined __USE_XOPEN && !defined __USE_UNIX98)
 /* Set the name of the current host to NAME, which is LEN bytes long.
    This call is restricted to the super-user.  */
-extern int sethostname (__const char *__name, size_t __len)
+extern int sethostname (const char *__name, size_t __len)
      __THROW __nonnull ((1)) __wur;
 
 /* Set the current machine's Internet number to ID.
    This call is restricted to the super-user.  */
 extern int sethostid (long int __id) __THROW __wur;
+
 
 #if defined __UCLIBC_BSD_SPECIFIC__ || defined _LIBC
 /* Get and set the NIS (aka YP) domain name, if any.
@@ -917,9 +1003,10 @@ extern int getdomainname (char *__name, size_t __len)
 libc_hidden_proto(getdomainname)
 #endif
 #if defined __UCLIBC_BSD_SPECIFIC__
-extern int setdomainname (__const char *__name, size_t __len)
+extern int setdomainname (const char *__name, size_t __len)
      __THROW __nonnull ((1)) __wur;
 #endif
+
 
 #if defined __UCLIBC_LINUX_SPECIFIC__
 /* Revoke access permissions to all processes currently communicating
@@ -930,7 +1017,7 @@ extern int vhangup (void) __THROW;
 
 #if 0
 /* Revoke the access of all descriptors currently open on FILE.  */
-extern int revoke (__const char *__file) __THROW __nonnull ((1)) __wur;
+extern int revoke (const char *__file) __THROW __nonnull ((1)) __wur;
 
 
 /* Enable statistical profiling, writing samples of the PC into at most
@@ -947,13 +1034,15 @@ extern int profil (unsigned short int *__sample_buffer, size_t __size,
 /* Turn accounting on if NAME is an existing file.  The system will then write
    a record for each process as it terminates, to this file.  If NAME is NULL,
    turn accounting off.  This call is restricted to the super-user.  */
-extern int acct (__const char *__name) __THROW;
+extern int acct (const char *__name) __THROW;
 
 
 /* Successive calls return the shells listed in `/etc/shells'.  */
 extern char *getusershell (void) __THROW;
 extern void endusershell (void) __THROW; /* Discard cached info.  */
+libc_hidden_proto(endusershell)
 extern void setusershell (void) __THROW; /* Rewind and re-read the file.  */
+libc_hidden_proto(setusershell)
 
 
 /* Put the program in the background, and dissociate from the controlling
@@ -966,21 +1055,21 @@ extern int daemon (int __nochdir, int __noclose) __THROW __wur;
 #if defined __USE_BSD || (defined __USE_XOPEN && !defined __USE_XOPEN2K)
 /* Make PATH be the root directory (the starting point for absolute paths).
    This call is restricted to the super-user.  */
-extern int chroot (__const char *__path) __THROW __nonnull ((1)) __wur;
+extern int chroot (const char *__path) __THROW __nonnull ((1)) __wur;
 
 /* Prompt with PROMPT and read a string from the terminal without echoing.
    Uses /dev/tty if possible; otherwise stderr and stdin.  */
-extern char *getpass (__const char *__prompt) __nonnull ((1));
+extern char *getpass (const char *__prompt) __nonnull ((1));
 #endif /* Use BSD || X/Open.  */
 
 
-#if defined __USE_BSD || defined __USE_XOPEN
+#if defined __USE_BSD || defined __USE_XOPEN || defined __USE_XOPEN2K
 /* Make all changes done to FD actually appear on disk.
 
    This function is a cancellation point and therefore not marked with
    __THROW.  */
 extern int fsync (int __fd);
-#endif /* Use BSD || X/Open.  */
+#endif /* Use BSD || X/Open || Unix98.  */
 
 
 #if defined __USE_BSD || defined __USE_XOPEN_EXTENDED
@@ -1006,21 +1095,22 @@ libc_hidden_proto(getdtablesize)
 
 /* Truncate FILE to LENGTH bytes.  */
 # ifndef __USE_FILE_OFFSET64
-extern int truncate (__const char *__file, __off_t __length)
+extern int truncate (const char *__file, __off_t __length)
      __THROW __nonnull ((1)) __wur;
 libc_hidden_proto(truncate)
 # else
 #  ifdef __REDIRECT_NTH
 extern int __REDIRECT_NTH (truncate,
-			   (__const char *__file, __off64_t __length),
+			   (const char *__file, __off64_t __length),
 			   truncate64) __nonnull ((1)) __wur;
 #  else
 #   define truncate truncate64
 #  endif
 # endif
 # ifdef __USE_LARGEFILE64
-extern int truncate64 (__const char *__file, __off64_t __length)
+extern int truncate64 (const char *__file, __off64_t __length)
      __THROW __nonnull ((1)) __wur;
+libc_hidden_proto(truncate64)
 # endif
 
 #endif /* Use BSD || X/Open Unix.  */
@@ -1109,7 +1199,6 @@ extern int __REDIRECT (lockf, (int __fd, int __cmd, __off64_t __len),
 # endif
 # ifdef __USE_LARGEFILE64
 extern int lockf64 (int __fd, int __cmd, __off64_t __len) __wur;
-libc_hidden_proto(lockf64)
 # endif
 #endif /* Use misc and F_LOCK not already defined.  */
 
@@ -1131,7 +1220,7 @@ libc_hidden_proto(lockf64)
 	&& defined __UCLIBC_HAS_REALTIME__
 /* Synchronize at least the data part of a file with the underlying
    media.  */
-extern int fdatasync (int __fildes) __THROW;
+extern int fdatasync (int __fildes);
 #endif /* Use POSIX199309 */
 
 
@@ -1140,7 +1229,7 @@ extern int fdatasync (int __fildes) __THROW;
 #ifdef	__USE_XOPEN
 # if defined __UCLIBC_HAS_CRYPT__
 /* Encrypt at most 8 characters from KEY using salt to perturb DES.  */
-extern char *crypt (__const char *__key, __const char *__salt)
+extern char *crypt (const char *__key, const char *__salt)
      __THROW __nonnull ((1, 2));
 
 /* Encrypt data in BLOCK in place if EDFLAG is zero; otherwise decrypt
@@ -1153,7 +1242,7 @@ extern void encrypt (char *__block, int __edflag) __THROW __nonnull ((1));
    FROM and copy the result to TO.  The value of TO must not be in the
    range [FROM - N + 1, FROM - 1].  If N is odd the first byte in FROM
    is without partner.  */
-extern void swab (__const void *__restrict __from, void *__restrict __to,
+extern void swab (const void *__restrict __from, void *__restrict __to,
 		  ssize_t __n) __THROW __nonnull ((1, 2));
 #endif
 
@@ -1167,7 +1256,7 @@ extern char *ctermid (char *__s) __THROW;
 
 
 /* Define some macros helping to catch buffer overflows.  */
-#if __USE_FORTIFY_LEVEL > 0 && !defined __cplusplus
+#if __USE_FORTIFY_LEVEL > 0 && defined __extern_always_inline
 # include <bits/unistd.h>
 #endif
 
@@ -1180,6 +1269,7 @@ __END_DECLS
 #endif
 typedef signed smallint_type smallint;
 typedef unsigned smallint_type smalluint;
+extern size_t __pagesize attribute_hidden;
 #endif
 
 

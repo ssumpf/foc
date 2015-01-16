@@ -84,7 +84,8 @@ Kernel_thread::bootstrap_arch()
 //--------------------------------------------------------------------------
 IMPLEMENTATION [!mp]:
 
-static void inline
+PUBLIC
+static inline void
 Kernel_thread::boot_app_cpus()
 {}
 
@@ -92,6 +93,7 @@ Kernel_thread::boot_app_cpus()
 //--------------------------------------------------------------------------
 IMPLEMENTATION [mp]:
 
+PUBLIC
 static void
 Kernel_thread::boot_app_cpus()
 {

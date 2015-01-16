@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #ifndef _TERMIOS_H
 # error "Never include <bits/termios.h> directly; use <termios.h> instead."
@@ -220,6 +219,7 @@ struct termios {
 #define	TCSADRAIN	1
 #define	TCSAFLUSH	2
 
+#ifndef __UCLIBC_STRICT_HEADERS__
 struct sgttyb {
 	char	sg_ispeed;
 	char	sg_ospeed;
@@ -227,6 +227,7 @@ struct sgttyb {
 	char	sg_kill;
 	short	sg_flags;
 };
+#endif
 
 struct tchars {
 	char	t_intrc;

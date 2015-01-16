@@ -14,9 +14,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <link.h>
 #include "thread_dbP.h"
@@ -27,7 +26,7 @@ td_thr_tls_get_addr (const td_thrhandle_t *th __attribute__ ((unused)),
 		     size_t offset __attribute__ ((unused)),
 		     void **address __attribute__ ((unused)))
 {
-#if USE_TLS
+#ifdef __UCLIBC_HAS_TLS__
   /* Read the module ID from the link_map.  */
   size_t modid;
   if (ps_pdread (th->th_ta_p->ph,

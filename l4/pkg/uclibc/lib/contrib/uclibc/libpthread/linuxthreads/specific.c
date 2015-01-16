@@ -212,7 +212,7 @@ void __pthread_destroy_specifics()
   __pthread_unlock(THREAD_GETMEM(self, p_lock));
 }
 
-#if !(USE_TLS && HAVE___THREAD)
+#if !defined __UCLIBC_HAS_TLS__ && defined __UCLIBC_HAS_RPC__
 
 /* Thread-specific data for libc. */
 

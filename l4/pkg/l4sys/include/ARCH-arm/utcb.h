@@ -104,12 +104,12 @@ L4_INLINE l4_umword_t l4_utcb_exc_typeval(l4_exc_regs_t *u) L4_NOTHROW
 
 L4_INLINE int l4_utcb_exc_is_pf(l4_exc_regs_t *u) L4_NOTHROW
 {
-  return u->err & 0x00010000;
+  return ((u->err >> 26) & 0x30) == 0x20;
 }
 
 L4_INLINE l4_addr_t l4_utcb_exc_pfa(l4_exc_regs_t *u) L4_NOTHROW
 {
-  return (u->pfa & ~3) | (!(u->err & 0x00020000) << 1);
+  return (u->pfa & ~7) | ((u->err >> 5) & 2);
 }
 
 #endif /* ! __L4_SYS__INCLUDE__ARCH_ARM__UTCB_H__ */

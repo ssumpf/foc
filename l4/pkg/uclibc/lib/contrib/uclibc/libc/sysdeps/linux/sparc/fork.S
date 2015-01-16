@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Code taken from glibc2.2.2/sysdeps/unix/sysv/linux/sparc/vfork.S */
 
@@ -23,11 +22,14 @@
 #include <sys/syscall.h>
 
 .text
-.global	__libc_fork
-.type	__libc_fork,%function
+.global	fork
+#ifdef __UCLIBC_HAS_THREADS__
+.weak   fork
+#endif
+.type	fork,%function
 .align 4
 
-__libc_fork:
+fork:
 	mov __NR_fork, %g1
 	ta	0x10
 	bcc,a	9000f
@@ -44,6 +46,8 @@ __libc_fork:
 	retl
 	and	%o0, %o1, %o0
 
-.size __libc_fork,.-__libc_fork
-weak_alias(__libc_fork,fork)
-libc_hidden_weak(fork)
+.size fork,.-fork
+#ifdef __UCLIBC_HAS_THREADS__
+strong_alias(fork,__libc_fork)
+#endif
+libc_hidden_def(fork)

@@ -149,6 +149,6 @@ PUBLIC static FIASCO_INIT
 void
 Kip_init::setup_user_virtual(Kip *kinfo)
 {
-  kinfo->add_mem_region(Mem_desc(0, Mem_layout::User_max - 1,
+  kinfo->add_mem_region(Mem_desc(0, Mem_layout::User_max,
                         Mem_desc::Conventional, true));
 }

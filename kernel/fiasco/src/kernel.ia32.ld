@@ -29,19 +29,26 @@ PHDRS {
 
 SECTIONS {
   . = FIASCO_MP_TRAMP_PAGE;
-  .mp_tramp : {
-      KEEP(*(.mp_tramp))
+  .realmode_tramp : {
+      *(.realmode_tramp*)
       . = ALIGN(0x1000);
   } : tramp
 
   . = _boot_sys_start;
   .text_boot : ALIGN(0x1000) {
+    *(.bootstrap.init)
     *(.bootstrap.text .bootstrap.text.* .bootstrap.gnu.linkonce.t.*)
+    *(.bootstrap.fini)
+
+    *(.bootstrap.rodata .bootstrap.rodata.* .bootstrap.gnu.linkonce.r.*)
+    *(.bootstrap.data .bootstrap.data.* .bootstrap.gnu.linkonce.d.*)
+    *(.bootstrap.anno)
+
   } : btext
   
   . = ALIGN(0x10);
   .bss_boot : {
-    *(.bootstrap.bss)
+      *(.bootstrap.bss .bootstrap.gnu.linkonce.b.*)
   . = ALIGN(0x1000);
   PROVIDE(_boot_sys_end = .);
   } : bdata

@@ -15,13 +15,15 @@
 /* Redefine siglongjmp and longjmp so that they interact correctly
    with cleanup handlers */
 
+#ifndef ARCH_arm
 #define NO_PTR_DEMANGLE
+#endif
 
 #include <setjmp.h>
 #include "pthread.h"
 #include "internals.h"
-#ifndef NO_PTR_DEMANGLE
 #include <jmpbuf-unwind.h>
+#ifndef NO_PTR_DEMANGLE
 #define __JMPBUF_UNWINDS(a,b,c) _JMPBUF_UNWINDS(a,b,c)
 #else
 #define __JMPBUF_UNWINDS(a,b,c) _JMPBUF_UNWINDS(a,b)

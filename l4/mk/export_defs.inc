@@ -23,6 +23,7 @@ ifneq ($(SYSTEM),)
 L4_SYSTEM                    = $(ARCH)_$(CPU)
 L4_CC                        = $(CC)
 L4_CXX                       = $(CXX)
+L4_LD                        = $(LD)
 L4_CRT0_STATIC               = $(CRT0)
 L4_CRTN_STATIC               = $(CRTN)
 L4_LDFLAGS_LD_STATIC         = $(filter-out -l%,$(BID_LDFLAGS_FOR_LINKING_LD))
@@ -71,6 +72,7 @@ all::
 	@$(call do_output_all,L4_SYSTEM)
 	@$(call do_output_all,L4_CC)
 	@$(call do_output_all,L4_CXX)
+	@$(call do_output_all,L4_LD)
 	@$(call do_output_all,L4_CRT0_STATIC)
 	@$(call do_output_all,L4_CRTN_STATIC)
 	@$(call do_output_all,L4_LDFLAGS_LD_STATIC)
@@ -101,6 +103,31 @@ endif
 include $(L4DIR)/mk/prog.mk
 
 endif # called for static
+
+#   ----------------------------------------------------
+
+ifeq ($(CALLED_FOR),minimal)
+
+MODE = sigma0
+
+ifneq ($(SYSTEM),)
+REQUIRES_LIBS = libc_minimal
+
+L4_CPPFLAGS_MINIMAL = $(CPPFLAGS)
+L4_CFLAGS_MINIMAL   = $(CFLAGS)
+L4_CXXFLAGS_MINIMAL = $(CXXFLAGS)
+
+all::
+	@$(call do_output_all,L4_CPPFLAGS_MINIMAL)
+	@$(call do_output_all,L4_CFLAGS_MINIMAL)
+	@$(call do_output_all,L4_CXXFLAGS_MINIMAL)
+else
+all::
+endif
+
+include $(L4DIR)/mk/prog.mk
+
+endif # called for minimal
 
 #   ----------------------------------------------------
 

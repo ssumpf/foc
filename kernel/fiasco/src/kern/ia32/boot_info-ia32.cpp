@@ -5,7 +5,6 @@ INTERFACE[ia32,amd64]:
 EXTENSION class Boot_info
 {
 private:
-  static unsigned _flag;
   static unsigned _checksum_ro;
   static unsigned _checksum_rw;
 };
@@ -21,7 +20,6 @@ IMPLEMENTATION[ia32,amd64]:
 
 // these members needs to be initialized with some
 // data to go into the data section and not into bss
-unsigned Boot_info::_flag          = 3;
 unsigned Boot_info::_checksum_ro   = 15;
 unsigned Boot_info::_checksum_rw   = 16;
 
@@ -37,10 +35,6 @@ unsigned Boot_info::_checksum_rw   = 16;
 //@{
 
 PUBLIC inline static
-void Boot_info::set_flags(unsigned aflags)
-{  _flag = aflags; }
-
-PUBLIC inline static
 void Boot_info::set_checksum_ro(unsigned ro_cs)
 {  _checksum_ro = ro_cs; }
 
@@ -54,13 +48,6 @@ IMPLEMENT
 void
 Boot_info::init()
 {}
-
-PUBLIC inline static
-unsigned
-Boot_info::get_flags(void)
-{
-  return _flag;
-}
 
 PUBLIC inline static
 unsigned

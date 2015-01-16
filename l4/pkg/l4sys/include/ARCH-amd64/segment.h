@@ -93,6 +93,24 @@ enum L4_task_ldt_x86_consts
 L4_INLINE long
 fiasco_amd64_set_fs(l4_cap_idx_t thread, l4_umword_t base, l4_utcb_t *utcb);
 
+enum L4_sys_segment
+{
+  L4_AMD64_SEGMENT_FS = 0,
+  L4_AMD64_SEGMENT_GS = 1
+};
+
+/**
+ * Set the FS register.
+ * \param  thread    Thread to get info from.
+ * \param  segr      Segment register to set (one of L4_sys_segment).
+ * \param  base      Base address.
+ * \param  utcb      UTCB of the caller.
+ * \return System call error
+ */
+L4_INLINE long
+fiasco_amd64_set_segment_base(l4_cap_idx_t thread, enum L4_sys_segment segr,
+                              l4_umword_t base, l4_utcb_t *utcb);
+
 
 /*****************************************************************************
  *** Implementation
@@ -117,7 +135,7 @@ fiasco_ldt_set(l4_cap_idx_t task, void *ldt, unsigned int num_desc,
 L4_INLINE unsigned
 fiasco_gdt_get_entry_offset(l4_cap_idx_t thread, l4_utcb_t *utcb)
 {
-  l4_utcb_mr_u(utcb)->mr[0] = L4_THREAD_GDT_X86_OP;
+  l4_utcb_mr_u(utcb)->mr[0] = L4_THREAD_X86_GDT_OP;
   if (l4_error_u(l4_ipc_call(thread, utcb, l4_msgtag(L4_PROTO_THREAD, 1, 0, 0), L4_IPC_NEVER), utcb))
     return -1;
   return l4_utcb_mr_u(utcb)->mr[0];

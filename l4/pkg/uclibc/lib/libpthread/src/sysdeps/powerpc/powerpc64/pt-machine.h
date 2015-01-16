@@ -51,8 +51,8 @@ extern int __compare_and_swap32 (int *p, int oldval, int newval);
 register char * stack_pointer __asm__ ("r1");
 
 /* Register r13 (tp) is reserved by the ABI as "thread pointer". */
-struct _pthread_descr_struct;
-register struct _pthread_descr_struct *__thread_self __asm__("r13");
+struct pthread;
+register struct pthread *__thread_self __asm__("r13");
 
 #ifdef NOT_FOR_L4
 /* Return the thread descriptor for the current thread.  */

@@ -12,18 +12,16 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 
+#include <_lfs_64.h>
 #define _ERRNO_H	1
-#include <features.h>
 #include <bits/errno.h>
 #include <sys/syscall.h>
 
-#if defined __UCLIBC_HAS_LFS__ && defined __NR_mmap2
-
+#ifdef __NR_mmap2
 
 #define LINKAGE     4
 #define PTR_SIZE    4

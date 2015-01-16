@@ -14,7 +14,7 @@ private:
   Address _ip;
   Mword   _flags;
   Mword   _sp;
-  Mword   _ss;
+  Unsigned16 _ss, _cs;
 
 public:
   Continuation() : _ip(~0UL) {}
@@ -39,13 +39,15 @@ public:
     _flags = regs->flags();
     _sp = regs->sp();
     _ss = regs->ss();
+    _cs = regs->cs();
   }
 
   void activate(Return_frame *regs, void *cont_func)
   {
     save(regs);
     regs->ip(Mword(cont_func));
-    regs->flags(regs->flags() & ~EFLAGS_TF); // do not singlestep inkernel code
+    // interrupts must stay off, do not singlestep in kernel code
+    regs->flags(regs->flags() & ~(EFLAGS_TF | EFLAGS_IF));
     regs->sp((Address)(regs + 1));
     regs->ss(Gdt::gdt_data_kernel | Gdt::Selector_kernel);
     regs->cs(Gdt::gdt_code_kernel | Gdt::Selector_kernel);
@@ -73,7 +75,7 @@ public:
     regs->flags(_flags);
     regs->sp(_sp);
     regs->ss(_ss);
-    regs->cs(Gdt::gdt_code_user | Gdt::Selector_user);
+    regs->cs(_cs);
     clear();
   }
 

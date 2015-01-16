@@ -162,8 +162,8 @@ PUBLIC inline
 void
 Receiver::enqueue_timeout_again()
 {
-  if (_timeout)
-    _timeout->set_again(cpu());
+  if (_timeout && Cpu::online(home_cpu()))
+    _timeout->set_again(home_cpu());
 }
 
 PUBLIC inline
@@ -298,20 +298,20 @@ struct Ipc_remote_dequeue_request
 };
 
 PRIVATE static
-unsigned
+Context::Drq::Result
 Receiver::handle_remote_abort_send(Drq *, Context *, void *_rq)
 {
   Ipc_remote_dequeue_request *rq = (Ipc_remote_dequeue_request*)_rq;
   if (rq->sender->in_sender_list())
     {
-      // really cancled IPC
+      // really cancel IPC
       rq->state = Abt_ipc_cancel;
       rq->sender->sender_dequeue(rq->partner->sender_list());
       rq->partner->vcpu_update_state();
     }
   else if (rq->partner->in_ipc(rq->sender))
     rq->state = Abt_ipc_in_progress;
-  return 0;
+  return Drq::done();
 }
 
 PUBLIC
@@ -322,7 +322,7 @@ Receiver::abort_send(Sender *sender)
   rq.partner = this;
   rq.sender = sender;
   rq.state = Abt_ipc_done;
-  if (current_cpu() != cpu())
+  if (current_cpu() != home_cpu())
     drq(handle_remote_abort_send, &rq);
   else
     handle_remote_abort_send(0, 0, &rq);

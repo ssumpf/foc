@@ -37,11 +37,12 @@ obj_map(Space *from, L4_fpage const &fp_from,
 
   Obj_space::Attr attribs(fp_from.rights(), L4_msg_item::C_weak_ref ^ control.attr());
 
+  Mu::Auto_tlb_flush<Obj_space> tlb;
   return map<Obj_space>((Kobject_mapdb*)0,
                         from, from, Obj_space::V_pfn(snd_addr),
                         snd_size,
                         to, to, Obj_space::V_pfn(rcv_addr),
-                        control.is_grant(), attribs,
+                        control.is_grant(), attribs, tlb,
                         reap_list);
 }
 
@@ -56,9 +57,10 @@ obj_fpage_unmap(Space * space, L4_fpage fp, L4_map_mask mask,
 
   // XXX prevent unmaps when a task has no caps enabled
 
+  Mu::Auto_tlb_flush<Obj_space> tlb;
   return unmap<Obj_space>((Kobject_mapdb*)0, space, space,
                Obj_space::V_pfn(addr), Obj_space::V_pfc(1) << size,
-               fp.rights(), mask, reap_list);
+               fp.rights(), mask, tlb, reap_list);
 }
 
 
@@ -71,11 +73,12 @@ obj_map(Space *from, Cap_index snd_addr, unsigned long snd_size,
   assert_opt (from);
   assert_opt (to);
 
+  Mu::Auto_tlb_flush<Obj_space> tlb;
   return map<Obj_space>((Kobject_mapdb*)0,
 	     from, from, Obj_space::V_pfn(snd_addr),
 	     Cap_diff(snd_size),
 	     to, to, Obj_space::V_pfn(rcv_addr),
-	     grant, attribs, reap_list);
+	     grant, attribs, tlb, reap_list);
 }
 
 bool
@@ -99,9 +102,10 @@ map(Kobject_iface *o, Obj_space* to, Space *to_id, Cap_index rcv_addr,
   Obj_space::Attr r_attribs;
 
   Addr ra(rcv_addr);
+  Mu::Auto_tlb_flush<Obj_space> tlb;
   if (to->v_lookup(ra, &r_phys, &r_size, &r_attribs))
     unmap((Kobject_mapdb*)0, to, to_id, ra, Obj_space::V_pfc(1) << r_size,
-          L4_fpage::Rights::FULL(), L4_map_mask::full(), reap_list);
+          L4_fpage::Rights::FULL(), L4_map_mask::full(), tlb, reap_list);
 
   // Do the actual insertion.
   Obj_space::Status status = to->v_insert(o, ra, Size(0), Obj_space::Attr::Full());

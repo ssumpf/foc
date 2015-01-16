@@ -23,7 +23,7 @@ public:
   template < typename T > static T peek(T const *addr, Address_type user);
 
   static int (*bp_test_log_only)();
-  static int (*bp_test_break)(char *errbuf, size_t bufsize);
+  static int (*bp_test_break)(String_buffer *buf);
 
 private:
   static unsigned short rows, cols;
@@ -62,7 +62,7 @@ IMPLEMENTATION [ux]:
 #include "vkey.h"
 
 int (*Jdb::bp_test_log_only)();
-int (*Jdb::bp_test_break)(char *errbuf, size_t bufsize);
+int (*Jdb::bp_test_break)(String_buffer *buf);
 
 unsigned short Jdb::rows, Jdb::cols;
 
@@ -92,11 +92,6 @@ Jdb::leave_trap_handler(Cpu_number)
   fflush (NULL);
 
 }
-
-PROTECTED static inline
-void
-Jdb::monitor_address(Cpu_number, void *)
-{}
 
 IMPLEMENT inline
 bool
@@ -172,6 +167,7 @@ Jdb::int3_extension()
   Address_type user = (entry_frame->cs() & 3) ? ADDR_USER : ADDR_KERNEL;
   Unsigned8    todo = peek ((Unsigned8 *) addr, user);
   Space *space = NULL; //get_task_id(0);
+  error_buffer.cpu(Cpu_number::boot_cpu()).clear();
 
   if (todo == 0x3c && peek ((Unsigned8 *) (addr+1), user) == 13)
     {
@@ -183,7 +179,7 @@ Jdb::int3_extension()
     }
   else if (todo != 0xeb)
     {
-      snprintf (error_buffer.cpu(Cpu_number::boot_cpu()), sizeof (error_buffer.cpu(Cpu_number::boot_cpu())), "INT 3");
+      error_buffer.cpu(Cpu_number::boot_cpu()).printf("INT 3");
       return 0;
     }
 
@@ -203,10 +199,9 @@ Jdb::int3_extension()
 	return 1; // => leave Jdb
     }
 
-  len = len < sizeof(error_buffer.cpu(Cpu_number::boot_cpu()))-1 ? len : sizeof(error_buffer.cpu(Cpu_number::boot_cpu()))-1;
   for (i = 0; i < len; i++)
-    error_buffer.cpu(Cpu_number::boot_cpu())[i] = peek ((Unsigned8 *) ++addr, user);
-  error_buffer.cpu(Cpu_number::boot_cpu())[i] = 0;
+    error_buffer.cpu(Cpu_number::boot_cpu()).append(peek ((Unsigned8 *) ++addr, user));
+  error_buffer.cpu(Cpu_number::boot_cpu()).terminate();
   return 0;
 }
 
@@ -219,10 +214,11 @@ IMPLEMENT
 bool
 Jdb::handle_debug_traps(Cpu_number cpu)
 {
+  error_buffer.cpu(cpu).clear();
   switch (entry_frame.cpu(cpu)->_trapno)
     {
       case 1:
-        snprintf (error_buffer.cpu(cpu), sizeof (error_buffer.cpu(cpu)), "Interception");
+        error_buffer.cpu(cpu).printf("Interception");
         break;
       case 3:
 	if (int3_extension())
@@ -233,7 +229,7 @@ Jdb::handle_debug_traps(Cpu_number cpu)
 	    if (bp_test_log_only && bp_test_log_only())
 	      return false;
 	    if (bp_test_break
-		&& bp_test_break(error_buffer.cpu(cpu), sizeof(error_buffer.cpu(cpu))))
+		&& bp_test_break(&error_buffer.cpu(cpu)))
 	      break;
 	  }
 #endif
@@ -251,7 +247,7 @@ Jdb::handle_nested_trap(Jdb_entry_frame *e)
 
 IMPLEMENT inline
 bool
-Jdb::handle_conditional_breakpoint(Cpu_number)
+Jdb::handle_conditional_breakpoint(Cpu_number, Jdb_entry_frame *)
 { return false; }
 
 
@@ -432,19 +428,6 @@ Jdb::leave_getchar()
 {
   if (!--getchar_entered)
     tcsetattr (fileno (stdin), TCSAFLUSH, &raw);
-}
-
-PROTECTED static inline
-template< typename T >
-void
-Jdb::set_monitored_address(T *dest, T val)
-{ *dest = val; }
-
-PROTECTED static inline
-template< typename T >
-T Jdb::monitor_address(Cpu_number, T volatile *addr)
-{
-  return *addr;
 }
 
 //----------------------------------------------------------------------------

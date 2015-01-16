@@ -49,7 +49,6 @@ public:
     Need_insert_tlb_flush = 0,
     Map_page_size = Config::PAGE_SIZE,
     Page_shift = Config::PAGE_SHIFT,
-    Map_max_address = Mem_layout::User_max,
     Whole_space = MWORD_BITS,
     Identity_map = 0,
   };
@@ -100,10 +99,9 @@ Mem_space::initialize()
 }
 
 PROTECTED inline
-void
+int
 Mem_space::sync_kernel()
-{
-}
+{ return 0; }
 
 PUBLIC
 Mem_space::Mem_space(Ram_quota *q, Dir_type* pdir)
@@ -273,7 +271,7 @@ Mem_space::try_htab_fault(Address virt)
   //Address pte_ptr, phys;
   Dir_type *dir = _dir;
 
-  if(virt >= Mem_layout::User_max)
+  if(virt > Mem_layout::User_max)
     dir = Kmem::kdir();
 
 #ifdef FIX_THIS

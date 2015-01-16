@@ -13,8 +13,6 @@ resume_vm_vmx:
 	push	%r14
 	push	%r15
 	push	%rbp
-	push	%gs
-	push	%fs
 
 	push	%rdi               // store pointer to register struct
 	mov	$0x6c14, %eax      // save rsp in vmcs
@@ -46,7 +44,7 @@ resume_vm_vmx:
 	vmread	%rax, %rsp
 	pushf
 	pop	%rax
-	add	$24, %rsp        // pushed regs pointer and gs+fs
+	add	$8, %rsp        // pushed regs pointer
 	pop	%rbp
 	pop	%r15
 	pop	%r14
@@ -79,8 +77,6 @@ vm_vmx_exit_vec:
 	add	$8, %rsp           // adjust stack after regs pointer push on stack
 
         // restore callee saved registers
-	pop	%fs
-	pop	%gs
 	pop	%rbp
 	pop	%r15
 	pop	%r14

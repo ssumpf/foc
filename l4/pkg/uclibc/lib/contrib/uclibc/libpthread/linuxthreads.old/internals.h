@@ -252,17 +252,25 @@ extern pthread_descr __pthread_main_thread;
    Initially 0, meaning that the current thread is (by definition)
    the initial thread. */
 
-/* For non-MMU systems also remember to stack top of the initial thread.
- * This is adapted when other stacks are malloc'ed since we don't know
- * the bounds a-priori. -StS */
-
 extern char *__pthread_initial_thread_bos;
 #ifndef __ARCH_USE_MMU__
-extern char *__pthread_initial_thread_tos;
+/* For non-MMU systems, we have no idea the bounds of the initial thread
+ * stack, so we have to track it on the fly relative to other stacks.  Do
+ * so by scaling back our assumptions on the limits of the bos/tos relative
+ * to the known mid point.  See also the comments in pthread_initialize(). */
+extern char *__pthread_initial_thread_tos, *__pthread_initial_thread_mid;
 #define NOMMU_INITIAL_THREAD_BOUNDS(tos,bos) \
-	if ((tos)>=__pthread_initial_thread_bos \
-	    && (bos)<__pthread_initial_thread_tos) \
-		__pthread_initial_thread_bos = (tos)+1
+	do { \
+		char *__tos = (tos); \
+		char *__bos = (bos); \
+		if (__tos >= __pthread_initial_thread_bos && \
+		    __bos < __pthread_initial_thread_tos) { \
+			if (__bos < __pthread_initial_thread_mid) \
+				__pthread_initial_thread_bos = __tos; \
+			else \
+				__pthread_initial_thread_tos = __bos; \
+		} \
+	} while (0)
 #else
 #define NOMMU_INITIAL_THREAD_BOUNDS(tos,bos) /* empty */
 #endif /* __ARCH_USE_MMU__ */
@@ -319,32 +327,28 @@ static __inline__ int invalid_handle(pthread_handle h, pthread_t id)
 
 /* The page size we can get from the system.  This should likely not be
    changed by the machine file but, you never know.  */
-extern size_t __pagesize;
-#include <bits/uClibc_page.h>
-#ifndef PAGE_SIZE
-#define PAGE_SIZE  (sysconf (_SC_PAGESIZE))
-#endif
+#define __PAGE_SIZE  (sysconf (_SC_PAGESIZE))
 
 /* The max size of the thread stack segments.  If the default
    THREAD_SELF implementation is used, this must be a power of two and
-   a multiple of PAGE_SIZE.  */
+   a multiple of __PAGE_SIZE.  */
 #ifndef STACK_SIZE
 #ifdef __ARCH_USE_MMU__
 #define STACK_SIZE  (2 * 1024 * 1024)
 #else
-#define STACK_SIZE  (4 * __pagesize)
+#define STACK_SIZE  (4 * __PAGE_SIZE)
 #endif
 #endif
 
-/* The initial size of the thread stack.  Must be a multiple of PAGE_SIZE.  */
+/* The initial size of the thread stack.  Must be a multiple of __PAGE_SIZE.  */
 #ifndef INITIAL_STACK_SIZE
-#define INITIAL_STACK_SIZE  (4 * __pagesize)
+#define INITIAL_STACK_SIZE  (4 * __PAGE_SIZE)
 #endif
 
 /* Size of the thread manager stack. The "- 32" avoids wasting space
    with some malloc() implementations. */
 #ifndef THREAD_MANAGER_STACK_SIZE
-#define THREAD_MANAGER_STACK_SIZE  (2 * __pagesize - 32)
+#define THREAD_MANAGER_STACK_SIZE  (2 * __PAGE_SIZE - 32)
 #endif
 
 /* The base of the "array" of thread stacks.  The array will grow down from
@@ -377,7 +381,7 @@ extern size_t __pagesize;
 
 /* Recover thread descriptor for the current thread */
 
-extern pthread_descr __pthread_find_self (void) __attribute__ ((const));
+extern pthread_descr __pthread_find_self (void) __attribute__ ((const)) attribute_hidden;
 
 static __inline__ pthread_descr thread_self (void) __attribute__ ((const));
 static __inline__ pthread_descr thread_self (void)
@@ -447,18 +451,18 @@ extern int __librt_multiple_threads;
 /* Internal global functions */
 
 void __pthread_do_exit (void *retval, char *currentframe)
-     __attribute__ ((__noreturn__));
-void __pthread_destroy_specifics(void);
-void __pthread_perform_cleanup(char *currentframe);
-int __pthread_initialize_manager(void);
+     __attribute__ ((__noreturn__)) attribute_hidden;
+void __pthread_destroy_specifics(void) attribute_hidden;
+void __pthread_perform_cleanup(char *currentframe) attribute_hidden;
+int __pthread_initialize_manager(void) attribute_hidden;
 void __pthread_message(char * fmt, ...)
-     __attribute__ ((__format__ (printf, 1, 2)));
-int __pthread_manager(void *reqfd);
-int __pthread_manager_event(void *reqfd);
-void __pthread_manager_sighandler(int sig);
-void __pthread_reset_main_thread(void);
-void __fresetlockfiles(void);
-void __pthread_manager_adjust_prio(int thread_prio);
+     __attribute__ ((__format__ (printf, 1, 2))) attribute_hidden;
+int __pthread_manager(void *reqfd) attribute_hidden;
+int __pthread_manager_event(void *reqfd) attribute_hidden;
+void __pthread_manager_sighandler(int sig) attribute_hidden;
+void __pthread_reset_main_thread(void) attribute_hidden;
+void __fresetlockfiles(void) attribute_hidden;
+void __pthread_manager_adjust_prio(int thread_prio) attribute_hidden;
 void __pthread_initialize_minimal (void);
 
 extern void __pthread_exit (void *retval)
@@ -467,45 +471,47 @@ extern void __pthread_exit (void *retval)
 #endif
 	;
 
-extern int __pthread_attr_setguardsize __P ((pthread_attr_t *__attr,
-					     size_t __guardsize));
-extern int __pthread_attr_getguardsize __P ((__const pthread_attr_t *__attr,
-					     size_t *__guardsize));
-extern int __pthread_attr_setstackaddr __P ((pthread_attr_t *__attr,
-					     void *__stackaddr));
-extern int __pthread_attr_getstackaddr __P ((__const pthread_attr_t *__attr,
-					     void **__stackaddr));
-extern int __pthread_attr_setstacksize __P ((pthread_attr_t *__attr,
-					     size_t __stacksize));
-extern int __pthread_attr_getstacksize __P ((__const pthread_attr_t *__attr,
-					     size_t *__stacksize));
-extern int __pthread_getconcurrency __P ((void));
-extern int __pthread_setconcurrency __P ((int __level));
-extern void __pthread_kill_other_threads_np __P ((void));
+extern int __pthread_attr_setguardsize(pthread_attr_t *__attr,
+				       size_t __guardsize) attribute_hidden;
+extern int __pthread_attr_getguardsize(const pthread_attr_t *__attr,
+				       size_t *__guardsize) attribute_hidden;
+extern int __pthread_attr_setstackaddr(pthread_attr_t *__attr,
+				       void *__stackaddr) attribute_hidden;
+extern int __pthread_attr_getstackaddr(const pthread_attr_t *__attr,
+				       void **__stackaddr) attribute_hidden;
+extern int __pthread_attr_setstacksize(pthread_attr_t *__attr,
+				       size_t __stacksize) attribute_hidden;
+extern int __pthread_attr_getstacksize(const pthread_attr_t *__attr,
+				       size_t *__stacksize) attribute_hidden;
+extern int __pthread_getconcurrency(void) attribute_hidden;
+extern int __pthread_setconcurrency(int __level) attribute_hidden;
+extern void __pthread_kill_other_threads_np(void) attribute_hidden;
 
-extern void __pthread_restart_old(pthread_descr th);
-extern void __pthread_suspend_old(pthread_descr self);
-extern int __pthread_timedsuspend_old(pthread_descr self, const struct timespec *abstime);
+extern void __pthread_restart_old(pthread_descr th) attribute_hidden;
+extern void __pthread_suspend_old(pthread_descr self) attribute_hidden;
+extern int __pthread_timedsuspend_old(pthread_descr self, const struct timespec *abstime) attribute_hidden;
 
-extern void __pthread_restart_new(pthread_descr th);
-extern void __pthread_suspend_new(pthread_descr self);
-extern int __pthread_timedsuspend_new(pthread_descr self, const struct timespec *abstime);
+extern void __pthread_restart_new(pthread_descr th) attribute_hidden;
+extern void __pthread_suspend_new(pthread_descr self) attribute_hidden;
+extern int __pthread_timedsuspend_new(pthread_descr self, const struct timespec *abstime) attribute_hidden;
 
-extern void __pthread_wait_for_restart_signal(pthread_descr self);
+extern void __pthread_wait_for_restart_signal(pthread_descr self) attribute_hidden;
 
 /* Global pointers to old or new suspend functions */
 
-extern void (*__pthread_restart)(pthread_descr);
-extern void (*__pthread_suspend)(pthread_descr);
+extern void (*__pthread_restart)(pthread_descr) attribute_hidden;
+extern void (*__pthread_suspend)(pthread_descr) attribute_hidden;
 
+#if defined NOT_IN_libc && defined IS_IN_libpthread
 extern __typeof(pthread_mutex_init) __pthread_mutex_init attribute_hidden;
 extern __typeof(pthread_mutex_destroy) __pthread_mutex_destroy attribute_hidden;
 extern __typeof(pthread_mutex_lock) __pthread_mutex_lock attribute_hidden;
 extern __typeof(pthread_mutex_trylock) __pthread_mutex_trylock attribute_hidden;
-extern __typeof(pthread_mutex_unlock) __pthread_mutex_attribute_hidden;
+extern __typeof(pthread_mutex_unlock) __pthread_mutex_unlock attribute_hidden;
+#endif
 
 /* Prototypes for some of the new semaphore functions.  */
-extern int __new_sem_post (sem_t * sem);
+/*extern int __new_sem_post (sem_t * sem);*/
 
 /* TSD.  */
 extern int __pthread_internal_tsd_set (int key, const void * pointer);
@@ -514,12 +520,10 @@ extern void ** __attribute__ ((__const__))
   __pthread_internal_tsd_address (int key);
 
 /* The functions called the signal events.  */
-extern void __linuxthreads_create_event (void);
-extern void __linuxthreads_death_event (void);
-extern void __linuxthreads_reap_event (void);
+extern void __linuxthreads_create_event (void) attribute_hidden;
+extern void __linuxthreads_death_event (void) attribute_hidden;
+extern void __linuxthreads_reap_event (void) attribute_hidden;
 
 #include <pthread-functions.h>
-
-extern int * __libc_pthread_init (const struct pthread_functions *functions);
 
 #endif /* internals.h */

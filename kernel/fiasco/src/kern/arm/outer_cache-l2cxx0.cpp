@@ -45,20 +45,28 @@ private:
       DEBUG_CONTROL_REGISTER         = 0xf40,
     };
 
+    enum
+    {
+      Pwr_ctrl_standby_mode_en       = 1 << 0,
+      Pwr_ctrl_dynamic_clk_gating_en = 1 << 1,
+    };
+
     Spin_lock<> _lock;
 
     explicit L2cxx0(Address virt) : Mmio_register_block(virt) {}
 
-    void write_op(Address reg, Mword val, bool before = false)
+    void write_op(Address reg, Mword val)
     {
-      auto guard = lock_guard(_lock);
-      if (before)
-        while (read<Mword>(reg) & 1)
-          ;
       Mmio_register_block::write<Mword>(val, reg);
-      if (!before)
-        while (read<Mword>(reg) & 1)
-          ;
+      while (read<Mword>(reg) & 1)
+        ;
+    }
+
+    void write_way_op(Address reg, Mword val)
+    {
+      Mmio_register_block::write<Mword>(val, reg);
+      while (read<Mword>(reg) & val)
+        ;
     }
   };
 
@@ -86,7 +94,6 @@ IMPLEMENTATION [arm && outer_cache_l2cxx0]:
 
 Static_object<Outer_cache::L2cxx0> Outer_cache::l2cxx0;
 
-//Spin_lock<> Outer_cache::_lock;
 bool Outer_cache::need_sync;
 unsigned Outer_cache::waymask;
 
@@ -102,7 +109,8 @@ IMPLEMENT inline
 void
 Outer_cache::clean()
 {
-  l2cxx0->write_op(L2cxx0::CLEAN_BY_WAY, waymask);
+  auto guard = lock_guard(l2cxx0->_lock);
+  l2cxx0->write_way_op(L2cxx0::CLEAN_BY_WAY, waymask);
   sync();
 }
 
@@ -110,6 +118,7 @@ IMPLEMENT inline
 void
 Outer_cache::clean(Mword phys_addr, bool do_sync = true)
 {
+  auto guard = lock_guard(l2cxx0->_lock);
   l2cxx0->write_op(L2cxx0::CLEAN_LINE_BY_PA, phys_addr & (~0UL << Cache_line_shift));
   if (need_sync && do_sync)
     sync();
@@ -119,7 +128,8 @@ IMPLEMENT inline
 void
 Outer_cache::flush()
 {
-  l2cxx0->write_op(L2cxx0::CLEAN_AND_INV_BY_WAY, waymask);
+  auto guard = lock_guard(l2cxx0->_lock);
+  l2cxx0->write_way_op(L2cxx0::CLEAN_AND_INV_BY_WAY, waymask);
   sync();
 }
 
@@ -127,6 +137,7 @@ IMPLEMENT inline
 void
 Outer_cache::flush(Mword phys_addr, bool do_sync = true)
 {
+  auto guard = lock_guard(l2cxx0->_lock);
   l2cxx0->write_op(L2cxx0::CLEAN_AND_INV_LINE_BY_PA, phys_addr & (~0UL << Cache_line_shift));
   if (need_sync && do_sync)
     sync();
@@ -136,7 +147,8 @@ IMPLEMENT inline
 void
 Outer_cache::invalidate()
 {
-  l2cxx0->write_op(L2cxx0::INVALIDATE_BY_WAY, waymask);
+  auto guard = lock_guard(l2cxx0->_lock);
+  l2cxx0->write_way_op(L2cxx0::INVALIDATE_BY_WAY, waymask);
   sync();
 }
 
@@ -144,6 +156,7 @@ IMPLEMENT inline
 void
 Outer_cache::invalidate(Address phys_addr, bool do_sync = true)
 {
+  auto guard = lock_guard(l2cxx0->_lock);
   l2cxx0->write_op(L2cxx0::INVALIDATE_LINE_BY_PA, phys_addr & (~0UL << Cache_line_shift));
   if (need_sync && do_sync)
     sync();
@@ -186,6 +199,8 @@ Outer_cache::initialize(bool v)
       invalidate();
       l2cxx0->write<Mword>(1, L2cxx0::CONTROL);
     }
+
+  platform_init_post();
 
   if (v)
     show_info(ways, cache_id, aux);
@@ -241,5 +256,6 @@ Outer_cache::show_info(unsigned ways, Mword cache_id, Mword aux)
     }
 
   unsigned waysize = 16 << (((aux >> 17) & 7) - 1);
-  printf("L2: Type L2C-%s Size = %dkB\n", type, ways * waysize);
+  printf("L2: Type L2C-%s Size = %dkB  Ways=%d Waysize=%d\n",
+         type, ways * waysize, ways, waysize);
 }

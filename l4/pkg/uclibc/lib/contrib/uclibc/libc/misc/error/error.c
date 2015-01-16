@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Written by David MacKenzie <djm@gnu.ai.mit.edu>.  */
 /* Adjusted slightly by Erik Andersen <andersen@uclibc.org> */
@@ -37,8 +36,7 @@ int error_one_per_line;
    function without parameters instead.  */
 void (*error_print_progname) (void) = NULL;
 
-extern __typeof(error) __error attribute_hidden;
-void __error (int status, int errnum, const char *message, ...)
+void error (int status, int errnum, const char *message, ...)
 {
     va_list args;
 
@@ -60,11 +58,9 @@ void __error (int status, int errnum, const char *message, ...)
     if (status)
 	exit (status);
 }
-weak_alias(__error,error)
 
-extern __typeof(error_at_line) __error_at_line attribute_hidden;
-void __error_at_line (int status, int errnum, const char *file_name,
-	       unsigned int line_number, const char *message, ...)
+void error_at_line (int status, int errnum, const char *file_name,
+		    unsigned int line_number, const char *message, ...)
 {
     va_list args;
 
@@ -103,4 +99,3 @@ void __error_at_line (int status, int errnum, const char *file_name,
     if (status)
 	exit (status);
 }
-weak_alias(__error_at_line,error_at_line)

@@ -30,6 +30,7 @@ private:
   static char direct_enable;
   static int  screen_height;
   static int  screen_width;
+  static unsigned input_time_block_sec;
 };
 
 char Jdb_pcm::subcmd;
@@ -37,6 +38,7 @@ char Jdb_pcm::prompt_color;
 char Jdb_pcm::direct_enable;
 int  Jdb_pcm::screen_height;
 int  Jdb_pcm::screen_width;
+unsigned Jdb_pcm::input_time_block_sec;
 
 static Jdb_pcm jdb_pcm INIT_PRIORITY(JDB_MODULE_INIT_PRIO);
 
@@ -139,6 +141,14 @@ Jdb_pcm::action(int cmd, void *&args, char const *&fmt, int &)
                  Jdb_screen::width(), Jdb_screen::height(),
                  Jdb_screen::cols());
           return NOTHING;
+        case 'b':
+          args = &input_time_block_sec;
+          fmt  = " seconds=%d";
+          return EXTRA_INPUT;
+        case 'B':
+          printf("\nJDB: Ignoring input, enable again by typing 'input'\n");
+          Kconsole::console()->set_ignore_input();
+          return LEAVE;
 	default:
 	  return ERROR;
         }
@@ -175,6 +185,12 @@ Jdb_pcm::action(int cmd, void *&args, char const *&fmt, int &)
 	Kconsole::console()->change_state(Console::DIRECT, 0,
 					  ~Console::OUTENABLED, 0);
     }
+  else if (args == &input_time_block_sec)
+    {
+      printf("\nJDB: Ignoring input for %u seconds\n", input_time_block_sec);
+      Kconsole::console()->set_ignore_input(input_time_block_sec * 1000000);
+      return LEAVE;
+    }
 
   return NOTHING;
 }
@@ -200,7 +216,8 @@ Jdb_module::Cmd const * Jdb_pcm::cmds() const
 	   "Jw\tset Jdb screen width\n"
 	   "JS\tdetect screen size using ESCape sequence ESC [ 6 n\n"
            "Ji\tshow screen information\n"
-	   "Jo\tlist attached consoles",
+	   "Jo\tlist attached consoles\n"
+           "J{B,b}\tJB: block input, Jb: for specified time",
 	   &subcmd }
     };
 

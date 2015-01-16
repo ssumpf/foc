@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <sysdep-cancel.h>
 #define _ERRNO_H	1
@@ -42,7 +41,7 @@ ENTRY (__vfork)
   ld  10,.LC0@toc(2)
   ld  10,0(10)
   cmpwi  10,0
-  bne-  HIDDEN_JUMPTARGET(__fork)
+  bne-  HIDDEN_JUMPTARGET(fork)
 # else
   .weak  pthread_create
 	lis  10,pthread_create@highest
@@ -80,7 +79,7 @@ ENTRY (__vfork)
 
 # ifndef SHARED
 .Lhidden_fork:
-	b	HIDDEN_JUMPTARGET(__fork)
+	b	HIDDEN_JUMPTARGET(fork)
 .Lsyscall_error:
 	b	JUMPTARGET(__syscall_error)
 # endif

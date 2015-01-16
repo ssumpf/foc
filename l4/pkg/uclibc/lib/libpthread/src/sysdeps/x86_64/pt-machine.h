@@ -38,6 +38,10 @@
 # define CURRENT_STACK_FRAME  stack_pointer
 register char * stack_pointer __asm__ ("%rsp") __attribute_used__;
 
+#ifndef L4_TO_ADDED_AVOID_WARNINGS
+extern long int testandset (int *spinlock);
+extern int __compare_and_swap (long int *p, long int oldval, long int newval);
+#endif
 
 /* Spinlock implementation; required.  */
 PT_EI long int

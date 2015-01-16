@@ -19,6 +19,15 @@ public:
 };
 
 // --------------------------------------------------------------------------
+INTERFACE [arm && realview_vexpress_a15 && arm_generic_timer]:
+
+EXTENSION class Timer
+{
+public:
+  static unsigned irq() { return 27; }
+};
+
+// --------------------------------------------------------------------------
 INTERFACE [arm && sp804 && !realview_vexpress_a15]:
 
 EXTENSION class Timer
@@ -55,16 +64,6 @@ void Timer::init(Cpu_number)
   sp804->enable(Timer_sp804::Ctrl_periodic | Timer_sp804::Ctrl_ie);
 }
 
-static inline
-Unsigned64
-Timer::timer_to_us(Unsigned32 /*cr*/)
-{ return 0; }
-
-static inline
-Unsigned64
-Timer::us_to_timer(Unsigned64 us)
-{ (void)us; return 0; }
-
 PUBLIC static inline
 void
 Timer::acknowledge()
@@ -88,3 +87,10 @@ Timer::system_clock()
   else
     return Kip::k()->clock;
 }
+
+// --------------------------------------------------------------------------
+IMPLEMENTATION [arm && realview_vexpress_a15 && arm_generic_timer]:
+
+IMPLEMENT
+void Timer::bsp_init(Cpu_number)
+{}

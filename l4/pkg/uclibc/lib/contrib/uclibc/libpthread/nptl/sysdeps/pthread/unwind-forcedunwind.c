@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; see the file COPYING.LIB.  If not,
-   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   License along with the GNU C Library; see the file COPYING.LIB.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #include <dlfcn.h>
 #include <stdio.h>
@@ -109,6 +108,11 @@ _Unwind_Resume (struct _Unwind_Exception *exc)
   resume (exc);
 }
 
+_Unwind_Reason_Code
+__gcc_personality_v0 (int version, _Unwind_Action actions,
+		      _Unwind_Exception_Class exception_class,
+                      struct _Unwind_Exception *ue_header,
+                      struct _Unwind_Context *context);
 _Unwind_Reason_Code
 __gcc_personality_v0 (int version, _Unwind_Action actions,
 		      _Unwind_Exception_Class exception_class,

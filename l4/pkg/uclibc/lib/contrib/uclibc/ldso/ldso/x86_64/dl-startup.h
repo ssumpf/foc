@@ -10,6 +10,7 @@ __asm__ (
 	"	.text\n"
 	"	.global _start\n"
 	"	.type   _start,%function\n"
+	"	.hidden _start\n"
 	"_start:\n"
 	"	movq %rsp, %rdi\n"
 	"	call _dl_start\n"
@@ -58,6 +59,9 @@ void PERFORM_BOOTSTRAP_RELOC(ELF_RELOC *rpnt, ElfW(Addr) *reloc_addr,
 		case R_X86_64_TPOFF64:
 			*reloc_addr = sym->st_value + rpnt->r_addend - symbol_addr;
 			break;
+/*TODO:		case R_X86_64_RELATIVE:
+			*reloc_addr = load_addr + rpnt->r_addend;
+			break; */
 		/* Start: added by aw11 */
 		case R_X86_64_RELATIVE:
 			*reloc_addr += load_addr;

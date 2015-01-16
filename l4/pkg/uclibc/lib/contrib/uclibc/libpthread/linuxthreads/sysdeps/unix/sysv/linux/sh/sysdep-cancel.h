@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <sysdep.h>
 #include <tls.h>
@@ -155,7 +154,7 @@
 # endif
 
 # ifndef __ASSEMBLER__
-#  if defined FLOATING_STACKS && USE___THREAD && defined __PIC__
+#  if defined FLOATING_STACKS && defined __UCLIBC_HAS_TLS__ && defined __PIC__
 #   define SINGLE_THREAD_P \
   __builtin_expect (THREAD_GETMEM (THREAD_SELF, p_multiple_threads) == 0, 1)
 #  else
@@ -172,7 +171,7 @@ extern int __local_multiple_threads attribute_hidden;
 	.align 2; \
      1: .long __local_multiple_threads; \
      2:
-#  elif defined FLOATING_STACKS && USE___THREAD
+#  elif defined FLOATING_STACKS && defined __UCLIBC_HAS_TLS__
 #   define SINGLE_THREAD_P \
 	stc gbr,r0; \
 	mov.w 0f,r1; \

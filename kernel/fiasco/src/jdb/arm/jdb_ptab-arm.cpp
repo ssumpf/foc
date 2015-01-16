@@ -42,7 +42,7 @@ Jdb_ptab::is_cached(Mword entry, unsigned level)
   if (level == 0)
     {
       if ((entry & 3) == 2)
-        return (entry & 0x700c) == 0x5004;
+        return (entry & Page::Section_cache_mask) == Page::Section_cachable_bits;
       return true;
     }
 

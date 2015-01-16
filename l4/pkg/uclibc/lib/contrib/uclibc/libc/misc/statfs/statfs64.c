@@ -13,18 +13,19 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <_lfs_64.h>
 
 #include <string.h>
 #include <stddef.h>
 #include <sys/statfs.h>
+#include <sys/syscall.h>
 
 extern __typeof(statfs) __libc_statfs;
 
+#if defined __NR_statfs
 /* Return information about the filesystem on which FILE resides.  */
 int statfs64 (const char *file, struct statfs64 *buf)
 {
@@ -42,8 +43,21 @@ int statfs64 (const char *file, struct statfs64 *buf)
     buf->f_ffree = buf32.f_ffree;
     buf->f_fsid = buf32.f_fsid;
     buf->f_namelen = buf32.f_namelen;
+#ifdef _STATFS_F_FRSIZE
+    buf->f_frsize = buf32.f_frsize;
+#endif
+#ifdef _STATFS_F_FLAGS
+    buf->f_flags = buf32.f_flags;
+#endif
     memcpy (buf->f_spare, buf32.f_spare, sizeof (buf32.f_spare));
 
     return 0;
 }
+#else
+int statfs64 (const char *file, struct statfs64 *buf)
+{
+    return INLINE_SYSCALL(statfs64, 3, file, sizeof(*buf), buf);
+}
+#endif
+
 libc_hidden_def(statfs64)

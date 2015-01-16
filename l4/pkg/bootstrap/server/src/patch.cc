@@ -174,10 +174,10 @@ patch_module(const char **str, l4util_mb_info_t *mbi)
  * Get a pointer to new argument and return the size.
  */
 char *
-get_arg_module(l4util_mb_info_t *mbi, const char *name, unsigned *size)
+get_arg_module(char *cmdline, const char *name, unsigned *size)
 {
   char *val_beg = NULL, *val_end;
-  char *s = (char *)get_cmdline(mbi);
+  char *s = cmdline;
 
   if (!s)
     return 0;

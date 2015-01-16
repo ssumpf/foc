@@ -257,7 +257,7 @@ s_spsr:	.word	0
 undef_entry:
 	switch_to_kernel 0 0 1
 	exceptionframe
-	enter_slowtrap 0x00100000
+	enter_slowtrap GET_HSR(0x00)
 
 /**************************************************************************
  * Exception swi ()
@@ -271,7 +271,7 @@ swi_entry:
 	exceptionframe
 	enter_sys_call no_sys_call
 no_sys_call:
-	enter_slowtrap 0x00200000
+	enter_slowtrap GET_HSR(0x11)
 
 .align 4
 
@@ -302,8 +302,8 @@ prefetch_abort: @ A real prefetch abort occured --- handled as a page fault
 	bne	kernel_prefetch_abort	@ Kernel abort?
 	/* user prefetch abort */
 	mrc     p15, 0, r1, c5, c0, 1	@ Load IFSR into r1
-	bic	r1, r1, #0x00ff0000
-	orr	r1, r1, #0x00330000     @ Set read bit and prefetch abort
+	bic	r1, r1, #GET_HSR(0x3f)
+	orr	r1, r1, #GET_HSR(0x20)  @ Set read bit and prefetch abort
 #if defined(CONFIG_ARM_V6PLUS) && !defined(CONFIG_ARM_1136) && !defined(CONFIG_ARM_MPCORE)
 	mrc	p15, 0, r0, c6, c0, 2   @ Read fault address, for T2: pfa != pc
 #else
@@ -312,6 +312,7 @@ prefetch_abort: @ A real prefetch abort occured --- handled as a page fault
 	mov	r2, r0
 	add 	r3, sp, #(5*4)
 	stmdb	sp!, {r0, r1}
+	align_and_save_sp r12           @ use r12 as scratch
 	adr	lr, pagefault_return
 	ldr	pc,  .LCpagefault_entry	@ Jump to C code
 
@@ -322,7 +323,13 @@ kernel_prefetch_abort:			@ Kernel generated IAbort
 	b	kern_kdebug_entry
 
 
+kernel_prefetch_abort_label: .string "Kernel prefetch abort"
 
+/*****************************************************************************/
+/* The syscall table stuff                                                   */
+/*****************************************************************************/
+GEN_SYSCALL_TABLE
+GEN_LEAVE_BY_TRIGGER_EXCEPTION
 
 
 /****************************************************************************
@@ -370,6 +377,7 @@ kernel_prefetch_abort:			@ Kernel generated IAbort
 1:
 .endm
 
+.p2align 2
 data_abort_entry:
 	switch_to_kernel 8 0 1
 
@@ -379,7 +387,10 @@ data_abort_entry:
 	/* user data abort */
 #ifdef CONFIG_ARM_V6PLUS
 	mrc     p15, 0, r1, c5, c0, 0	@ Load DFSR into r1
-	bic	r1, r1, #0x00ff0000
+        bic     r1, r1, #(1 << 6)       @ HSR WnR
+        and     r2, r1, #(1 << 11)      @ FSR WnR
+        orr     r1, r1, r2, lsr #5      @ make HSR.Wnr from FSR.WnR
+	bic	r1, r1, #GET_HSR(0x3f)
 	mrc     p15, 0, r0, c6, c0, 0	@ Load DFAR into r0
 
 	ldr	r2, [sp, #RF(PC,  5*4)] @ Load PC into r2
@@ -388,17 +399,18 @@ data_abort_entry:
 	ands	lr, lr, #0x0f		@ Mask all but relevant mode bits
 					@ NE -> kernel
 	add 	r3, sp, #(5*4)
-	orreq	r1, r1, #0x00010000
-	orr	r1, r1, #0x00400000     @ Set error code to data abort
+	orrne   r1, r1, #GET_HSR(0x01)
+	orr	r1, r1, #GET_HSR(0x24)  @ Set error code to data abort
 
 	stmdb	sp!, {r0, r1}
+	align_and_save_sp r12           @ use r12 as scratch
 	adr	lr, pagefault_return	@ set return address
 
 	ldr	pc, .LCpagefault_entry	@ page fault	
 #else
 	mrc     p15, 0, r1, c5, c0, 0	@ Load FSR into r1
-	bic	r1, r1, #(1 << 11)	@ clear bit 11 (write indicator)
-	bic	r1, r1, #0x00ff0000
+	bic	r1, r1, #(1 << 6)	@ clear bit 6 (write indicator)
+	bic	r1, r1, #GET_HSR(0x3f)
 	mrc     p15, 0, r0, c6, c0, 0	@ Load FAR into r0
 	ldr	r2, [sp, #RF(PC,  5*4)] @ Load PC into r2
 	ldr	lr, [sp, #RF(PSR, 5*4)]	@ load spsr, from stack 
@@ -408,16 +420,17 @@ data_abort_entry:
 	ldr	r3, [r2]		@ Load faulting insn
 	check_ldrd_insn .LCwas_ldrd
 	tst	r3, #(1<<20)
-	orreq	r1, r1, #(1 << 11)	@ Set FSR write bit
+	orreq	r1, r1, #(1 << 6)	@ Set FSR write bit
 .LCret_handle_thumb:
 .LCwas_ldrd:
 	atomic_fixup r2 1
 	ands	lr, lr, #0x0f		@ Mask all but relevant mode bits
 					@ NE -> kernel
 	add 	r3, sp, #(5*4)
-	orreq	r1, r1, #0x00010000
-	orr	r1, r1, #0x00400000     @ Set error code to data abort
+	orrne	r1, r1, #GET_HSR(0x01)
+	orr	r1, r1, #GET_HSR(0x24)  @ Set error code to data abort
 	stmdb	sp!, {r0, r1}
+	align_and_save_sp r12           @ use r12 as scratch
 	adr	lr, pagefault_return	@ set return address
 
 	ldr	pc, .LCpagefault_entry	@ page fault
@@ -429,7 +442,7 @@ data_abort_entry:
 	teq     r3, #0x5600
 	beq     .LCret_handle_thumb
 	tst     r3, #(1<<11)
-	orreq   r1, r1, #(1 << 11)	@ Set FSR write bit
+	orreq   r1, r1, #(1 << 6)	@ Set FSR write bit
 	b .LCret_handle_thumb
 #endif
 
@@ -465,6 +478,7 @@ data_abort_entry:
  *
  */	
 pagefault_return:
+	ldr	sp, [sp]
 	cmp 	r0, #0
 	ldmia	sp!, {r12, lr}
 	beq	slowtrap_from_pagefault
@@ -479,14 +493,15 @@ slowtrap_from_pagefault:
 	stmdb 	sp!, {r0 - r11}
 	make_tpidruro_space sp
 	stmdb 	sp!, {r12, lr}
-	mov	r0, sp
+	align_and_save_sp r0
 	adr   	lr, exception_return
 	ldr	pc, .LCslowtrap_entry	@ slow trap
 
-	.global __return_from_exception
-__return_from_exception:
+	.global __return_from_user_invoke
 exception_return:
 	msr	cpsr_c, #0xd3 // disable IRQs
+	ldr	sp, [sp]
+__return_from_user_invoke:
 	add	sp, sp, #12   // pfa, err & tpidruro
 	ldmia	sp!, {r0 - r12}
 	return_from_exception
@@ -508,9 +523,11 @@ irq_entry:
 	exceptionframe
 
 	stmdb   sp!, {r0 - r3, r12}   	@ Stack rest of user state
+	align_and_save_sp r12
 	@ add r0, sp, #(5*4) @ debug
         mov     lr, pc
         ldr     pc, 1f
+	ldr	sp, [sp]
 	ldmia	sp, {r0 - r3, r12}		@ Restore user state
         msr	cpsr_c, #0xd3 // disable IRQs
 	add	sp, sp, #20
@@ -564,8 +581,14 @@ fiq_entry:
 
 8:
 	sub	r12, lr, #4
+#ifdef CONFIG_ARM_1176
+	mov	r11, #(fiq_b_vector - exception_vector)
+	orr	r11, #0xff000000
+	orr	r11, #0x00ff0000
+#else
 	movw	r11, #(fiq_b_vector - exception_vector)
 	movt	r11, #0xffff
+#endif
 	cmp	r12, r11
 	subge	r12, r12, r11
 	lsrge	r12, #1
@@ -596,8 +619,10 @@ fiq_entry:
 	exceptionframe
 7:
 	stmdb	sp!, {r0 - r3, r12}   	@ Stack rest of user state
+	align_and_save_sp r12
 	mov	lr, pc
 	ldr	pc, 1f
+	ldr	sp, [sp]
 	ldmia	sp, {r0 - r3, r12}		@ Restore user state
 	msr	cpsr_c, #0xd3 // disable IRQs
 	add	sp, sp, #20
@@ -619,7 +644,7 @@ alien_syscall: @ Do it for an alien ---------------------------------------
 	ldr	lr, [sp, #RF(SVC_LR, 13*4)] @ read orig exception PC
 	sub	lr, lr, #4                  @ adjust pc to be on insn
 	str	lr, [sp, #RF(PC,     13*4)] @ store to entry_stack_PC
-	enter_slowtrap_w_stack 0x00300000
+	enter_slowtrap_w_stack GET_HSR(0x20)
 	@ Never reach this -- end up in user land after exception reply
 
 1:	@ Resume the alien system call ------------------------------------
@@ -633,17 +658,11 @@ alien_syscall: @ Do it for an alien ---------------------------------------
 	msr	cpsr_c, #0xd3 // disable IRQs
 	@ Trap after the resumed alien system call ------------------------
 	@ The trap occurs at the insn where the system call returns to.
-	@ Set the bit 0x00010000 to indicate a trap after the resumed 
+	@ Set the bit 0x00000040 to indicate a trap after the resumed 
 	@ system call.
-	enter_slowtrap_w_stack 0x00310000
+	enter_slowtrap_w_stack GET_HSR(0x20), 0x40
 
 	
-/*****************************************************************************/
-/* The syscall table stuff                                                   */
-/*****************************************************************************/
-GEN_SYSCALL_TABLE
-GEN_LEAVE_BY_TRIGGER_EXCEPTION
-
 .macro LOAD_USR_SP vcpu_ptr
         add  r0, \vcpu_ptr, #(OFS__VCPU_STATE__ENTRY_SP)
         ldm  r0, {sp}^
@@ -653,9 +672,8 @@ GEN_LEAVE_BY_TRIGGER_EXCEPTION
         mov  \reg, \kvcpu
 .endm
 
-GEN_VCPU_UPCALL OFS__THREAD__USER_VCPU, LOAD_USR_SP, LOAD_USR_VCPU
+GEN_VCPU_UPCALL OFS__THREAD__USER_VCPU, LOAD_USR_SP, LOAD_USR_VCPU, 1
 
-kernel_prefetch_abort_label: .string "Kernel prefetch abort"
 missed_excpt_ret_label:      .string "ERROR in exception return"
 fiq_label:	             .string "FIQ entry"
 
@@ -786,31 +804,31 @@ GEN_DEBUGGER_ENTRIES
 	cps	#0x12
 	ldmia	r0!, {sp, lr}
 	ldmia	r0!, {r1}
-	msr	spsr, r1
+	msr	spsr_cfsx, r1
 
 	// fiq
 	cps	#0x11
 	ldmia	r0!, {r8 - r12, sp, lr}
 	ldmia	r0!, {r1}
-	msr	spsr, r1
+	msr	spsr_cfsx, r1
 
 	// abt
 	cps	#0x17
 	ldmia	r0!, {sp, lr}
 	ldmia	r0!, {r1}
-	msr	spsr, r1
+	msr	spsr_cfsx, r1
 
 	// und
 	cps	#0x1b
 	ldmia	r0!, {sp, lr}
 	ldmia	r0!, {r1}
-	msr	spsr, r1
+	msr	spsr_cfsx, r1
 	
 	// svc
 	cps	#0x13
 	ldmia	r0!, {sp, lr}
 	ldmia	r0!, {r1}
-	msr	spsr, r1
+	msr	spsr_cfsx, r1
 
 	cps	#0x16
 
@@ -874,7 +892,12 @@ GEN_DEBUGGER_ENTRIES
 .endm
 
 .macro SWITCH_TO_NONSECURE_MODE reg
+#ifdef CONFIG_ARM_1176
+	mov	\reg, #0x100
+	orr	\reg, #0x02d
+#else
 	movw	\reg, #0x12d
+#endif
 	mcr	p15, 0, \reg, c1, c1, 0
 	ISB_OP	\reg
 .endm
@@ -955,7 +978,7 @@ go_nonsecure:
 	RESTORE_AND_SWITCH_TO_NONSECURE_STATE 20
 
 	ldr	lr, [sp, #-4]
-	msr	spsr, lr		@ set spsr_mon with unsecure spsr
+	msr	spsr_cfsx, lr		@ set spsr_mon with unsecure spsr
 	ldr	lr, [sp, #-8]		@ set lr_mon with unsecure ip
 	movs	pc, lr
 #endif /* TRUSTZONE */
@@ -969,7 +992,7 @@ vcpu_resume:
 	add	lr, r0, #12			@ pfa, err + tpidruro
 #if !defined(CONFIG_ARM_V6PLUS)
 	ldr	r1, [lr, #RF(PSR, 13*4)]	@ Unstack SPSR
-	msr	spsr, r1			@ Load SPSR from kernel_lr
+	msr	spsr_cfsx, r1			@ Load SPSR from kernel_lr
 #endif
 	ldmia	lr!, {r0 - r12}
 	ldmia	lr, {sp,lr}^			@ restore user sp and lr (now lazy)

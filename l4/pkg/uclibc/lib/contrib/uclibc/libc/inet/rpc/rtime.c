@@ -43,9 +43,6 @@ static char sccsid[] = "@(#)rtime.c	2.2 88/08/10 4.0 RPCSRC; from 1.8 88/02/08 S
  * what unix uses.
  */
 
-#define __FORCE_GLIBC
-#include <features.h>
-
 #include <stdio.h>
 #include <unistd.h>
 #include <rpc/rpc.h>
@@ -150,4 +147,3 @@ rtime (struct sockaddr_in *addrp, struct rpc_timeval *timep,
   timep->tv_usec = 0;
   return 0;
 }
-libc_hidden_def (rtime)

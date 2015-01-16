@@ -50,7 +50,7 @@ Console_buffer::at_jdb_leave()
 }
 
 PUBLIC
-Console_buffer::Console_buffer()
+Console_buffer::Console_buffer() : Console(ENABLED)
 {
   static Jdb_handler enter(at_jdb_enter);
   static Jdb_handler leave(at_jdb_leave);

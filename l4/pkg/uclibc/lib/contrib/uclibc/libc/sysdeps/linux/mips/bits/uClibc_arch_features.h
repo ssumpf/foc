@@ -4,6 +4,7 @@
 
 #ifndef _BITS_UCLIBC_ARCH_FEATURES_H
 #define _BITS_UCLIBC_ARCH_FEATURES_H
+#include <sgidefs.h>
 
 /* instruction used when calling abort() to kill yourself */
 #define __UCLIBC_ABORT_INSTRUCTION__ "break 255"
@@ -11,8 +12,12 @@
 /* can your target use syscall6() for mmap ? */
 #define __UCLIBC_MMAP_HAS_6_ARGS__
 
-/* does your target use syscall4() for truncate64 ? (32bit arches only) */
-#define __UCLIBC_TRUNCATE64_HAS_4_ARGS__
+/* does your target align 64bit values in register pairs ? (32bit arches only) */
+#if _MIPS_SIM == _ABIO32
+#define __UCLIBC_SYSCALL_ALIGN_64BIT__
+#else
+#undef __UCLIBC_SYSCALL_ALIGN_64BIT__
+#endif
 
 /* does your target have a broken create_module() ? */
 #undef __UCLIBC_BROKEN_CREATE_MODULE__

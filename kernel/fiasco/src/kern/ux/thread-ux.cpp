@@ -263,7 +263,7 @@ Thread::invoke_arch(L4_msg_tag tag, Utcb *utcb)
             }
 
           if (this == current_thread())
-            switch_gdt_user_entries(this);
+            load_gdt_user_entries();
 
           return commit_result(((utcb->values[1] + Emulation::host_tls_base()) << 3) + 3);
         }

@@ -1,8 +1,7 @@
 INTERFACE [ppc32 && mpc52xx]:
 
 #include "types.h"
-
-class Irq_chip_icu;
+#include "irq_chip.h"
 
 EXTENSION class Pic
 {

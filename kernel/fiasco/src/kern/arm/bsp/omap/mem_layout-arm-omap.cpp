@@ -73,3 +73,21 @@ public:
     Prm_phys_base           = 0x4a306000,
   };
 };
+
+INTERFACE [arm && omap5]: //-----------------------------------------------
+
+EXTENSION class Mem_layout
+{
+public:
+  enum Phys_layout_omap5 : Address {
+    Uart_phys_base          = 0x48020000,
+    Gic_dist_phys_base      = 0x48211000,
+    Gic_cpu_phys_base       = 0x48212000,
+    Gic_h_phys_base         = 0x48214000,
+    Gic_v_phys_base         = 0x48216000,
+
+    Prm_phys_base           = 0x4ae06000,
+
+    Mp_scu_phys_base        = 0,
+  };
+};

@@ -109,13 +109,9 @@ SECTIONS
   . = ALIGN(4096);
   .data.m :
   {
-    _modules_start = .;
-    *(.module.data)
-    . = ALIGN(4096);
-    _modules_end   = .;
-
     . = ALIGN(4096);
     _module_data_start = .;
+    *(EXCLUDE_FILE (*mod00.bin *mod01.bin *mod02.bin) .module_data)
     *(.module_data)
     _module_data_end = .;
 #ifndef SINGLE_SECTION

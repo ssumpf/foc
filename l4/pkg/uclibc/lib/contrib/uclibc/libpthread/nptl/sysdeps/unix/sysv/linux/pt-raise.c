@@ -13,9 +13,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <errno.h>
 #include <signal.h>
@@ -28,7 +27,7 @@ int
 raise (
      int sig)
 {
-#if __ASSUME_TGKILL || defined __NR_tgkill
+#if (defined(__ASSUME_TGKILL) && __ASSUME_TGKILL) || defined __NR_tgkill
   /* raise is an async-safe function.  It could be called while the
      fork function temporarily invalidated the PID field.  Adjust for
      that.  */
@@ -37,7 +36,7 @@ raise (
     pid = -pid;
 #endif
 
-#if __ASSUME_TGKILL
+#if defined(__ASSUME_TGKILL) && __ASSUME_TGKILL
   return INLINE_SYSCALL (tgkill, 3, pid, THREAD_GETMEM (THREAD_SELF, tid),
 			 sig);
 #else

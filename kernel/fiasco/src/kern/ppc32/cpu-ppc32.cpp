@@ -40,7 +40,7 @@ IMPLEMENTATION [ppc32]:
 
 #include <cstdio>
 
-DEFINE_PER_CPU Per_cpu<Cpu> Cpu::cpus(true);
+DEFINE_PER_CPU Per_cpu<Cpu> Cpu::cpus(Per_cpu_data::Cpu_num);
 Cpu *Cpu::_boot_cpu;
 unsigned long Cpu::_ns_per_cycle;
 
@@ -53,6 +53,7 @@ Cpu::init(bool is_boot_cpu)
   if (is_boot_cpu)
     {
       _boot_cpu = this;
+      set_present(1);
       set_online(1);
     }
   _phys_id = Cpu_phys_id(0); //Proc::cpu_id();

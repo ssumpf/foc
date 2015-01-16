@@ -12,9 +12,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include <sysdep-cancel.h>
 #define _ERRNO_H	1
@@ -70,7 +69,7 @@ ENTRY (__vfork)
 	 nop
 1:
 	.align 2
-.L2:	.long	HIDDEN_JUMPTARGET(__fork)-1b
+.L2:	.long	HIDDEN_JUMPTARGET(fork)-1b
 
 PSEUDO_END (__vfork)
 libc_hidden_def (__vfork)

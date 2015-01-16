@@ -15,8 +15,7 @@
 
    You should have received a copy of the GNU Library General Public
    License along with the GNU C Library; see the file COPYING.LIB.  If not,
-   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   see <http://www.gnu.org/licenses/>.  */
 
 #include <errno.h>
 #include <time.h>
@@ -99,6 +98,7 @@ unsigned int sleep (unsigned int seconds)
     /* This is not necessary but some buggy programs depend on this.  */
     if (seconds == 0) {
 #  ifdef CANCELLATION_P
+	int cancelhandling;
 	CANCELLATION_P (THREAD_SELF);
 #  endif
 	return 0;

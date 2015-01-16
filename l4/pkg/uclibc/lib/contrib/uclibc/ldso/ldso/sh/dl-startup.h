@@ -6,6 +6,7 @@ __asm__(
     "	.text\n"
     "	.globl	_start\n"
     "	.type	_start,@function\n"
+    "	.hidden	_start\n"
     "_start:\n"
     "	mov	r15, r4\n"
     "	mov.l   .L_dl_start, r0\n"
@@ -16,12 +17,22 @@ __asm__(
     "	mov.l   .L_got, r12   ! Load the GOT on r12\n"
     "	mova    .L_got, r0\n"
     "	add     r0, r12\n"
+    "	mov.l .L_dl_skip_args,r0\n"
+    "	mov.l @(r0,r12),r0\n"
+    "	mov.l @r0,r0\n"
+    "	mov.l @r15,r5         ! Get the original argument count\n"
+    "	sub r0,r5             ! Subtract _dl_skip_args from it\n"
+    "	shll2 r0\n"
+    "	add r0,r15 ! Adjust the stack pointer to skip _dl_skip_args words\n"
+    "	mov.l r5,@r15         ! Store back the modified argument count\n"
     "	mov.l   .L_dl_fini, r0\n"
     "	mov.l   @(r0,r12), r4 ! Pass the finalizer in r4\n"
     "	jmp     @r8\n"
     "	nop\n"
     ".L_dl_start:\n"
     "	.long   _dl_start-.jmp_loc\n"
+    ".L_dl_skip_args:\n"
+    "	.long   _dl_skip_args@GOT\n"
     ".L_dl_fini:\n"
     "	.long	_dl_fini@GOT\n"
     ".L_got:\n"
@@ -48,7 +59,7 @@ __asm__(
  * load address.
  */
 #define PERFORM_BOOTSTRAP_RELOC(RELP,REL,SYMBOL,LOAD,SYMTAB)	\
-	switch(ELF32_R_TYPE((RELP)->r_info)){			\
+	switch(ELF_R_TYPE((RELP)->r_info)){			\
 	case R_SH_REL32:					\
 		*(REL)  = (SYMBOL) + (RELP)->r_addend		\
 			    - (unsigned long)(REL);		\
