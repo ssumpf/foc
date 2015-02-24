@@ -441,6 +441,7 @@ alien_sys_call:
 	.p2align
 	.globl	leave_by_trigger_exception
 leave_by_trigger_exception:
+	cli
         sub $40, %rsp
 	pushq	$0x00
 	pushq	$0xff
