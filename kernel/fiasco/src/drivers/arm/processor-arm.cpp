@@ -75,7 +75,8 @@ void Proc::stack_pointer(Mword sp)
 IMPLEMENT static inline
 Mword Proc::program_counter()
 {
-  register Mword pc asm ("pc");
+  Mword pc;
+  asm ("mov %0, pc" : "=r" (pc));
   return pc;
 }
 

@@ -43,8 +43,8 @@ Sys_call_page::init()
                               Vmem_alloc::NO_ZERO_FILL, Vmem_alloc::User))
     panic("FIASCO: can't allocate system-call page.\n");
 
-  for (unsigned i = 0; i < Config::PAGE_SIZE; i += sizeof(Mword))
-    *(sys_calls++) = 0xef000000; // svc
+  for (unsigned i = 0; i < Config::PAGE_SIZE / sizeof(Mword); i++)
+    sys_calls[i] = 0xef000000; // svc
 
   set_utcb_get_code((Mword*)(Mem_layout::Syscalls + 0xf00));
 
