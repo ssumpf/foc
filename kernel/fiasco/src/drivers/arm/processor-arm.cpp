@@ -23,7 +23,7 @@ public:
   static Cpu_phys_id cpu_id();
 };
 
-INTERFACE[arm && !arm_em_tz]:
+INTERFACE[arm && !arm_em_tz && !arm_em_ns]:
 
 EXTENSION class Proc
 {
@@ -50,6 +50,21 @@ public:
       Status_preempt_disabled = Status_FIQ_disabled,
       Status_interrupts_mask  = Status_FIQ_disabled,
       Status_always_mask      = Status_IRQ_disabled,
+    };
+};
+
+INTERFACE[arm && arm_em_ns]:
+
+EXTENSION class Proc
+{
+public:
+  enum : unsigned
+    {
+      Cli_mask                = Status_IRQ_disabled,
+      Sti_mask                = Status_IRQ_disabled,
+      Status_preempt_disabled = Status_IRQ_disabled,
+      Status_interrupts_mask  = Status_IRQ_disabled,
+      Status_always_mask      = Status_FIQ_disabled,
     };
 };
 
