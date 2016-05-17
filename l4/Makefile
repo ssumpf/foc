@@ -290,13 +290,13 @@ Makeconf.bid.local-helper:
 
 Makeconf.bid.local-internal-names:
 ifneq ($(CONFIG_INT_CPP_NAME_SWITCH),)
-	$(VERBOSE) set -e; X="tmp.$$$$$$RANDOM.c" ; echo 'int main(void){}'>$$X ; \
+	$(VERBOSE) set -e; X="$(OBJ_DIR)/tmp.$$$$$$RANDOM.c" ; echo 'int main(void){}'>$$X ; \
 		rm -f $$X.out ; $(LD_GENDEP_PREFIX) GENDEP_SOURCE=$$X \
 		GENDEP_OUTPUT=$$X.out $(CC) $(CCXX_FLAGS) -c $$X -o $$X.o; \
 		test -e $$X.out; echo INT_CPP_NAME=`cat $$X.out` \
 			>>$(DROPSCONF_CONFIG_MK); \
 		rm -f $$X $$X.{o,out};
-	$(VERBOSE)set -e; X="tmp.$$$$$$RANDOM.cc" ; echo 'int main(void){}'>$$X; \
+	$(VERBOSE)set -e; X="$(OBJ_DIR)/tmp.$$$$$$RANDOM.cc" ; echo 'int main(void){}'>$$X; \
 		rm -f $$X.out; $(LD_GENDEP_PREFIX) GENDEP_SOURCE=$$X \
 		GENDEP_OUTPUT=$$X.out $(CXX) -c $$X -o $$X.o; \
 		test -e $$X.out; echo INT_CXX_NAME=`cat $$X.out` \
