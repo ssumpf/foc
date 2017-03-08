@@ -7,10 +7,10 @@ private:
   static Mword interval()
   {
     /*
-     * This is only valid for Panda ES2, as we run it at our offices. For ES2
-     * U-Boot will clock the board at 700 MHz leading to a 350 MHz private timer
+     * This is only valid for Panda A6, as we run it at our offices. For A6
+     * U-Boot will clock the board at 800 MHz leading to a 400 MHz private timer
      * tick.
      */
-    return 349999;
+    return 399999;
   }
 };
