@@ -1,5 +1,10 @@
 IMPLEMENTATION[ia32]:
 
+EXTENSION class Io
+{
+public:
+  typedef unsigned short Port_addr;
+};
 
 /* This is a more reliable delay than a few short jmps. */
 IMPLEMENT inline

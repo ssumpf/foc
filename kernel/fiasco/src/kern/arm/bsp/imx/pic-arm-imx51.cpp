@@ -1,5 +1,6 @@
 INTERFACE [arm && pic_gic && (imx51 || imx53 || imx6)]:
 
+#include "initcalls.h"
 #include "gic.h"
 
 INTERFACE [arm && pic_gic && (imx51 | imx53)]:
@@ -22,7 +23,7 @@ IMPLEMENTATION [arm && pic_gic && (imx51 || imx53 || imx6)]:
 #include "irq_mgr_multi_chip.h"
 #include "kmem.h"
 
-IMPLEMENT FIASCO_INIT
+PUBLIC static FIASCO_INIT
 void
 Pic::init()
 {
@@ -36,14 +37,6 @@ Pic::init()
 
   Irq_mgr::mgr = m;
 }
-
-IMPLEMENT inline
-Pic::Status Pic::disable_all_save()
-{ return 0; }
-
-IMPLEMENT inline
-void Pic::restore_all(Status)
-{}
 
 // ------------------------------------------------------------------------
 IMPLEMENTATION [arm && pic_gic && mp && imx6]:

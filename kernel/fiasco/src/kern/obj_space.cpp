@@ -40,14 +40,12 @@ public:
     Identity_map = 0,
   };
 
-  enum Status
-  {
-    Insert_ok = Obj::Insert_ok,		///< Mapping was added successfully.
-    Insert_warn_exists = Obj::Insert_warn_exists,	///< Mapping already existed
-    Insert_warn_attrib_upgrade = Obj::Insert_warn_attrib_upgrade,	///< Mapping already existed, attribs upgrade
-    Insert_err_nomem = Obj::Insert_err_nomem,	///< Couldn't alloc new page table
-    Insert_err_exists = Obj::Insert_err_exists	///< A mapping already exists at the target addr
-  };
+  typedef Obj::Insert_result Status;
+  static Status const Insert_ok = Obj::Insert_ok;
+  static Status const Insert_warn_exists = Obj::Insert_warn_exists;
+  static Status const Insert_warn_attrib_upgrade = Obj::Insert_warn_attrib_upgrade;
+  static Status const Insert_err_nomem = Obj::Insert_err_nomem;
+  static Status const Insert_err_exists = Obj::Insert_err_exists;
 
   struct Fit_size
   {

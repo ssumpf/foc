@@ -22,7 +22,7 @@ Apic::reg_lvt_bit_str(unsigned reg, Unsigned32 val, int bit)
     case APIC_lvtthmr: bits = Mask | Delivery_state | Trigger_mode;	break;
     }
 
-  if (bits & bit == 0)
+  if ((bits & bit) == 0)
     return "";
 
   switch (bit)
@@ -56,7 +56,7 @@ Apic::reg_show(unsigned reg)
          reg_lvt_bit_str(reg, tmp_val, Remote_irr),
          reg_lvt_bit_str(reg, tmp_val, Delivery_state),
          reg_lvt_bit_str(reg, tmp_val, Delivery_mode),
-         reg_lvt_vector(tmp_val));
+         (unsigned)reg_lvt_vector(tmp_val));
 }
 
 PUBLIC static
@@ -101,7 +101,7 @@ static
 void
 Apic::bitfield_show(unsigned reg, const char *name, char flag)
 {
-  int i, j;
+  unsigned i, j;
   Unsigned32 tmp_val;
 
   printf("%-11s    0123456789abcdef0123456789abcdef"

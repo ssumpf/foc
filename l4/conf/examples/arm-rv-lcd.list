@@ -7,7 +7,7 @@ kernel fiasco -serial_esc
 roottask moe rom/arm-rv-lcd.cfg
 module arm-rv-lcd.cfg
 module arm-rv-lcd.io
-module arm-rv-eb.devs
+module plat-rv/hw_devices.io
 module l4re
 module io
 module ned

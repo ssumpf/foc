@@ -125,13 +125,13 @@ Fpu::init(Cpu_number cpu, bool resume)
   init_disable();
 
   if (cpu == Cpu_number::boot_cpu() && !resume)
-    printf("FPU%d: %s%s\n", cxx::int_value<Cpu_number>(cpu),
+    printf("FPU%u: %s%s\n", cxx::int_value<Cpu_number>(cpu),
            Cpu::cpus.cpu(cpu).features() & FEAT_SSE  ? "SSE "  : "",
            Cpu::cpus.cpu(cpu).ext_features() & FEATX_AVX ? "AVX "  : "");
 
   unsigned cpu_align = 0, cpu_size  = 0;
 
-  if (Cpu::cpus.cpu(cpu).ext_features() & FEATX_XSAVE)
+  if (Cpu::cpus.cpu(cpu).has_xsave())
     {
       init_xsave(cpu);
 

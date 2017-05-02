@@ -1,6 +1,8 @@
 // Implementation for those who do not provide a breakpoint implementation
 INTERFACE:
 
+#include "types.h"
+
 class Jdb_bp
 {
 public:

@@ -381,7 +381,8 @@ Jdb_cb::action(int cmd, void *&args, char const *&fmt, int &next_char)
 	  return EXTRA_INPUT;
 	}
       output_lines = 0;
-      if (first_char != ' ' && first_char != KEY_RETURN)
+      if (first_char != ' ' && first_char != KEY_RETURN
+          && first_char != KEY_RETURN_2)
 	{
 	  next_char = first_char;
 	  args = &output_lines;

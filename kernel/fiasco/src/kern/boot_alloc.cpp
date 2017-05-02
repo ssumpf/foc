@@ -86,7 +86,7 @@ Boot_alloced::alloc(size_t size)
       rem->size = rem_sz;
       _free.replace(best, rem);
       if (Debug_boot_alloc)
-        printf("Boot_alloc: remaining free block @ %p (size=%lx)\n", rem, rem_sz);
+        printf("Boot_alloc: remaining free block @ %p (size=%lx)\n", rem, (unsigned long)rem_sz);
     }
   else
     _free.erase(best);

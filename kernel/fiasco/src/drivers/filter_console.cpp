@@ -34,25 +34,16 @@ IMPLEMENTATION:
 #include "keycodes.h"
 #include "delayloop.h"
 
-
 PUBLIC
 int Filter_console::char_avail() const
 {
   if (!(_o->state() & INENABLED))
     return -1;
 
-  switch (state)
-    {
-    case NORMAL:
-    case UNKNOWN_ESC:
-      if (pos)
-	return 1;
-      else
-	return _o->char_avail();
+  if (pos)
+    return 1;
 
-    default:
-      return -1;
-    }
+  return _o->char_avail();
 }
 
 PUBLIC inline explicit
@@ -78,33 +69,34 @@ Filter_console::write(char const *str, size_t len)
   char const *const home = "\033[H";
   char const *const cel  = "\033[K";
 
-  for (;stop < str + len; ++stop)
+  for (; stop < str + len; ++stop)
     {
       switch (*stop)
-	{
-	case 1:
-	  if (stop-start)
-	    _o->write(start, stop-start);
-	  start = stop + 1;
-	  _o->write(home,3);
-	  break;
-	case 5:
-	  if (stop-start)
-	    _o->write(start, stop-start);
-	  start = stop + 1;
-	  _o->write(cel,3);
-	  break;
-	case 6:
-	  if (stop-start)
-	    _o->write(start, stop-start);
-	  if (stop + 2 < str+len)
-	    {
-	      snprintf(seq, sizeof(seq), "\033[%d;%dH", stop[1]+1,stop[2]+1);
-	      _o->write(seq,strlen(seq));
-	    }
-	  stop += 2;
-	  start = stop + 1;
-	  break;
+        {
+        case 1:
+          if (stop - start)
+            _o->write(start, stop - start);
+          start = stop + 1;
+          _o->write(home, 3);
+          break;
+        case 5:
+          if (stop - start)
+            _o->write(start, stop - start);
+          start = stop + 1;
+          _o->write(cel, 3);
+          break;
+        case 6:
+          if (stop - start)
+            _o->write(start, stop - start);
+          if (stop + 2 < str + len)
+            {
+              snprintf(seq, sizeof(seq), "\033[%d;%dH",
+                       stop[1] + 1, stop[2] + 1);
+              _o->write(seq, strlen(seq));
+            }
+          stop += 2;
+          start = stop + 1;
+          break;
       }
     }
 
@@ -122,11 +114,10 @@ Filter_console::getchar_timeout(unsigned timeout)
     return -1;
 
   int c;
-  while ((c= _o->getchar(false)) == -1 && timeout--)
+  while ((c = _o->getchar(false)) == -1 && timeout--)
     Delay::delay(1);
   return c;
 }
-
 
 PUBLIC
 int
@@ -138,7 +129,7 @@ Filter_console::getchar(bool b = true)
   unsigned loop_count = 100;
   int ch;
 
- get_char:
+get_char:
   if (state == UNKNOWN_ESC && pos)
     {
       ch = ibuf[0];
@@ -150,14 +141,14 @@ Filter_console::getchar(bool b = true)
   if (!pos)
     state = NORMAL;
 
-  if (ch==-1)
+  if (ch == -1)
     {
       if (state == NORMAL)
-	return -1;
+        return -1;
       else if (!b && loop_count--)
-	goto get_char;
+        goto get_char;
       else
-	return -1;
+        return -1;
     }
 
   switch (state)
@@ -166,97 +157,97 @@ Filter_console::getchar(bool b = true)
       return ch;
 
     case NORMAL:
-      if (ch==27)
-	{
-	  ibuf[pos++] = 27;
-	  int nc = getchar_timeout(csi_timeout);
-	  if (nc == -1)
-	    {
-	      pos = 0;
-	      return 27;
-	    }
-	  else
-	    {
-	      if (pos < sizeof(ibuf))
-		ibuf[pos++] = nc;
-	      if (nc=='[' || nc == 'O')
-		{
-		  arg = 0;
-		  memset(args, 0, sizeof(args));
-		  state = GOT_CSI;
-		  break;
-		}
-	      else
-		{
-		  state = UNKNOWN_ESC;
-		  goto get_char;
-		}
-	    }
-	}
+      if (ch == 27)
+        {
+          ibuf[pos++] = 27;
+          int nc = getchar_timeout(csi_timeout);
+          if (nc == -1)
+            {
+              pos = 0;
+              return 27;
+            }
+          else
+            {
+              if (pos < sizeof(ibuf))
+                ibuf[pos++] = nc;
+              if (nc == '[' || nc == 'O')
+                {
+                  arg = 0;
+                  memset(args, 0, sizeof(args));
+                  state = GOT_CSI;
+                  break;
+                }
+              else
+                {
+                  state = UNKNOWN_ESC;
+                  goto get_char;
+                }
+            }
+        }
       return ch;
 
     case GOT_CSI:
       if (isdigit(ch))
-	{
-	  if (pos < sizeof(ibuf))
-	    ibuf[pos++] = ch;
+        {
+          if (pos < sizeof(ibuf))
+            ibuf[pos++] = ch;
 
-	  if (arg < (sizeof(args)/sizeof(int)))
-	    args[arg] = args[arg]*10 + (ch-'0');
-	}
-      else if (ch==';')
-	{
-	  if (pos < sizeof(ibuf))
-	    ibuf[pos++] = ch;
+          if (arg < (sizeof(args) / sizeof(int)))
+            args[arg] = args[arg] * 10 + (ch - '0');
+        }
+      else if (ch == ';')
+        {
+          if (pos < sizeof(ibuf))
+            ibuf[pos++] = ch;
 
-	  arg++;
-	}
+          arg++;
+        }
       else
-	{
-	  state = NORMAL;
-	  if (pos < sizeof(ibuf))
-	    ibuf[pos++] = ch;
+        {
+          state = NORMAL;
+          if (pos < sizeof(ibuf))
+            ibuf[pos++] = ch;
 
-	  switch(ch)
-	    {
-	    case 'A': pos = 0; return KEY_CURSOR_UP;
-	    case 'B': pos = 0; return KEY_CURSOR_DOWN;
-	    case 'C': pos = 0; return KEY_CURSOR_RIGHT;
-	    case 'D': pos = 0; return KEY_CURSOR_LEFT;
-	    case 'H': pos = 0; return KEY_CURSOR_HOME;
-	    case 'F': pos = 0; return KEY_CURSOR_END;
-	    case '~':
-	      pos = 0;
-	      switch (args[0])
-		{
-		case  7:
-		case  1: return KEY_CURSOR_HOME;
-		case  2: return KEY_INSERT;
-		case  3: return KEY_DELETE;
-		case  8:
-		case  4: return KEY_CURSOR_END;
-		case  5: return KEY_PAGE_UP;
-		case  6: return KEY_PAGE_DOWN;
-		case 11: return KEY_F1;
+          switch(ch)
+            {
+            case 'A': pos = 0; return KEY_CURSOR_UP;
+            case 'B': pos = 0; return KEY_CURSOR_DOWN;
+            case 'C': pos = 0; return KEY_CURSOR_RIGHT;
+            case 'D': pos = 0; return KEY_CURSOR_LEFT;
+            case 'H': pos = 0; return KEY_CURSOR_HOME;
+            case 'F': pos = 0; return KEY_CURSOR_END;
+            case '~':
+              pos = 0;
+              switch (args[0])
+                {
+                case  7:
+                case  1: return KEY_CURSOR_HOME;
+                case  2: return KEY_INSERT;
+                case  3: return KEY_DELETE;
+                case  8:
+                case  4: return KEY_CURSOR_END;
+                case  5: return KEY_PAGE_UP;
+                case  6: return KEY_PAGE_DOWN;
+                case 11: return KEY_F1;
 
-		default:
-		  arg = 0;
-		  if (b)
-		    goto get_char;
-		  else if (loop_count)
-		    {
-		      --loop_count;
-		      goto get_char;
-		    }
-		  else
-		    return -1;
-		}
-	    case 'P': return KEY_F1;
-	    default:
-	      state = UNKNOWN_ESC;
-	      break;
-	    }
-	}
+                default:
+                  arg = 0;
+                  if (b)
+                    goto get_char;
+                  else if (loop_count)
+                    {
+                      --loop_count;
+                      goto get_char;
+                    }
+                  else
+                    return -1;
+                }
+            case 'P': return KEY_F1;
+            default:
+              state = UNKNOWN_ESC;
+              break;
+            }
+        }
       break;
     }
 
@@ -264,7 +255,7 @@ Filter_console::getchar(bool b = true)
     goto get_char;
   else if (loop_count)
     {
-      loop_count --;
+      loop_count--;
       goto get_char;
     }
 
@@ -278,4 +269,3 @@ Filter_console::get_attributes() const
 {
   return _o->get_attributes();
 }
-

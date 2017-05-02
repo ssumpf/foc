@@ -59,7 +59,7 @@ Jdb_sender_list::show_sender_list(Prio_list *t, int overlayprint,
           printf("%s (%lx): ", tag, dbgid);
           first = false;
         }
-      printf("%02x: ", p->prio());
+      printf("%02x: ", (unsigned)p->prio());
       Prio_list::S_list::Iterator s = Prio_list::S_list::iter(*p);
       do
         {
@@ -80,12 +80,12 @@ PRIVATE
 bool
 Jdb_sender_list::show_obj(Kobject *o, int printnone)
 {
-  if (Thread *t = Kobject::dcast<Thread_object *>(o))
+  if (Thread *t = cxx::dyn_cast<Thread *>(o))
     {
       show_sender_list(t->sender_list(), 0, printnone, "Thread", t->dbg_id());
       return true;
     }
-  else if (Ipc_gate *g = Kobject::dcast<Ipc_gate_obj *>(o))
+  else if (Ipc_gate *g = cxx::dyn_cast<Ipc_gate_obj *>(o))
     {
       show_sender_list(&g->_wait_q, 0, printnone, "Ipc_gate", g->dbg_id());
       return true;
@@ -118,9 +118,9 @@ Jdb_sender_list::handle_key(Kobject_common *o, int keycode)
   if (keycode != 'S')
     return false;
 
-  if (Thread *t = Kobject::dcast<Thread_object *>(o))
+  if (Thread *t = cxx::dyn_cast<Thread *>(o))
     show_sender_list(t->sender_list(), 1, 1, "Thread", t->dbg_id());
-  else if (Ipc_gate *g = Kobject::dcast<Ipc_gate_obj *>(o))
+  else if (Ipc_gate *g = cxx::dyn_cast<Ipc_gate_obj *>(o))
     show_sender_list(&g->_wait_q, 1, 1, "Ipc_gate", g->dbg_id());
   else
     return false;
@@ -147,7 +147,7 @@ Jdb_module::Cmd const * Jdb_sender_list::cmds() const
 
 IMPLEMENT
 Jdb_sender_list::Jdb_sender_list()
-  : Jdb_module("INFO"), Jdb_kobject_handler(0)
+  : Jdb_module("INFO")
 {
   Jdb_kobject::module()->register_handler(this);
 }

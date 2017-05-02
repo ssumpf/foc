@@ -39,7 +39,8 @@ public:
 
   // DATA
   Mapping_entry _data;
-} __attribute__((packed));
+  static_assert (__alignof__(Mapping_entry) == Alignment, "WRONG ALIGNMENT");
+} __attribute__((packed, aligned(__alignof__(Mapping_entry))));
 
 
 IMPLEMENTATION:

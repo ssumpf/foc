@@ -8,7 +8,7 @@ extern "C" void sys_ipc_wrapper();
 
 IMPLEMENT void FIASCO_FLATTEN sys_ipc_wrapper()
 {
-  assert_kdb (!(current()->state() & Thread_drq_ready));
+  assert (!(current()->state() & Thread_drq_ready));
 
 #ifndef NDEBUG
   if ((current()->state() & Thread_vcpu_enabled)
@@ -17,7 +17,7 @@ IMPLEMENT void FIASCO_FLATTEN sys_ipc_wrapper()
 #endif
 
   Thread *curr = current_thread();
-  Syscall_frame *f = curr->regs();
+  Syscall_frame *f = curr->regs()->syscall_frame();
 
   Obj_cap obj = f->ref();
   Utcb *utcb = curr->utcb().access(true);
@@ -44,7 +44,7 @@ extern "C" void sys_invoke_debug_wrapper();
 IMPLEMENT void FIASCO_FLATTEN sys_invoke_debug_wrapper()
 {
   Thread *curr = current_thread();
-  Syscall_frame *f = curr->regs();
+  Syscall_frame *f = curr->regs()->syscall_frame();
   //printf("sys_invoke_debugger(f=%p, obj=%lx)\n", f, f->ref().raw());
   Kobject_iface *o = curr->space()->lookup_local(f->ref().cap());
   if (o && &::sys_invoke_debug)

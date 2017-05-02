@@ -99,7 +99,7 @@ Jdb_mapdb::show_tree(Treemap* pages, Mapping::Pcnt offset, Mdb_types::Order base
     }
 #else
   printf(" header info: "
-         "entries used: %u  free: %u  total: %u  lock=%u\033[K\n",
+         "entries used: %u  free: %u  total: %u  lock=%d\033[K\n",
          t->_count, t->_empty_count, t->number_of_entries(),
          f->lock.test());
 
@@ -127,12 +127,12 @@ Jdb_mapdb::show_tree(Treemap* pages, Mapping::Pcnt offset, Mdb_types::Order base
       if (m->depth() == Mapping::Depth_submap)
         printf("%*u: %lx  subtree@" L4_PTR_FMT,
                indent + m->parent()->depth() > 10
-                 ? 0 : indent + m->parent()->depth(),
+                 ? 0 : (int)(indent + m->parent()->depth()),
                i+1, (Address) m->data(), (Mword) m->submap());
       else
         {
           printf("%*u: %lx  va=%012llx  task=%lx  depth=",
-                 indent + m->depth() > 10 ? 0 : indent + m->depth(),
+                 indent + m->depth() > 10 ? 0 : (int)(indent + m->depth()),
                  i+1, (Address) m->data(),
                  val(pages->vaddr(m), base_size),
                  Kobject_dbg::pointer_to_id(m->space()));
@@ -392,7 +392,6 @@ static Jdb_mapdb jdb_mapdb INIT_PRIORITY(JDB_MODULE_INIT_PRIO);
 class Jdb_kobject_mapdb_hdl : public Jdb_kobject_handler
 {
 public:
-  Jdb_kobject_mapdb_hdl() : Jdb_kobject_handler(0) {}
   virtual bool show_kobject(Kobject_common *, int) { return true; }
   virtual ~Jdb_kobject_mapdb_hdl() {}
 };
@@ -494,7 +493,7 @@ Jdb_mapdb::show_simple_tree(Kobject_common *f, unsigned indent = 1)
       return true;
     }
 
-  printf(" mapping tree for object D:%lx (%p) ref_cnt=%ld\n",
+  printf(" mapping tree for object D:%lx (%p) ref_cnt=%ld\033[K\n",
          f->dbg_info()->dbg_id(), f, f->map_root()->_cnt);
 
   screenline += 2;

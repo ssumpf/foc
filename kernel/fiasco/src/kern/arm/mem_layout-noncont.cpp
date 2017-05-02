@@ -13,7 +13,7 @@ public:
   static inline unsigned long trunc_superpage(unsigned long addr)
   { return addr & ~(Config::SUPERPAGE_SIZE-1); }
 private:
-  static unsigned short __ph_to_pm[1UL<<(32-Config::SUPERPAGE_SHIFT)];
+  static unsigned short __ph_to_pm[1UL << (32 - Config::SUPERPAGE_SHIFT)];
 };
 
 
@@ -40,7 +40,7 @@ Mem_layout::pmem_to_phys(void const *addr)
   return pmem_to_phys(Address(addr));
 }
 
-unsigned short Mem_layout::__ph_to_pm[1<<(32-Config::SUPERPAGE_SHIFT)];
+unsigned short Mem_layout::__ph_to_pm[1 << (32 - Config::SUPERPAGE_SHIFT)];
 
 IMPLEMENT inline NEEDS[<config.h>]
 Address
@@ -61,7 +61,7 @@ IMPLEMENT inline ALWAYS_INLINE NEEDS[<config.h>]
 void
 Mem_layout::add_pmem(Address phys, Address virt, unsigned long size)
 {
-  for (;size >= Config::SUPERPAGE_SIZE; size -= Config::SUPERPAGE_SIZE)
+  for (; size >= Config::SUPERPAGE_SIZE; size -= Config::SUPERPAGE_SIZE)
     {
       __ph_to_pm[phys >> Config::SUPERPAGE_SHIFT] = virt >> 16;
       phys += Config::SUPERPAGE_SIZE;

@@ -44,8 +44,8 @@ Obj_cap::deref(L4_fpage::Rights *rights = 0, bool dbg = false)
     {
       if (rights) *rights = current->caller_rights();
       Thread *ca = static_cast<Thread*>(current->caller());
-      if (!dbg)
-	current->set_caller(0, L4_fpage::Rights(0));
+      if (EXPECT_TRUE(!dbg && ca))
+        current->reset_caller();
       return ca;
     }
 
@@ -92,7 +92,7 @@ Thread_object::operator delete(void *_t)
   LOG_TRACE("Kobject delete", "del", current(), Log_destroy,
       l->id = t->dbg_id();
       l->obj = t;
-      l->type = "Thread";
+      l->type = cxx::Typeid<Thread>::get();
       l->ram = q->current());
 }
 
@@ -103,15 +103,15 @@ Thread_object::destroy(Kobject ***rl)
 {
   Kobject::destroy(rl);
   if (!is_invalid(false))
-    check_kdb(kill());
-  assert_kdb(_magic == magic);
+    check(kill());
+  assert(_magic == magic);
 }
 
 PUBLIC
 void
 Thread_object::invoke(L4_obj_ref /*self*/, L4_fpage::Rights rights, Syscall_frame *f, Utcb *utcb)
 {
-  register L4_obj_ref::Operation op = f->ref().op();
+  L4_obj_ref::Operation op = f->ref().op();
   if (((op != 0) && !(op & L4_obj_ref::Ipc_send))
       || (op & L4_obj_ref::Ipc_reply)
       || f->tag().proto() != L4_msg_tag::Label_thread)
@@ -180,7 +180,7 @@ Thread_object::sys_vcpu_resume(L4_msg_tag const &tag, Utcb *utcb)
   if (user_task.valid() && user_task.op() == 0)
     {
       L4_fpage::Rights task_rights = L4_fpage::Rights(0);
-      Task *task = Kobject::dcast<Task*>(s->lookup_local(user_task.cap(),
+      Task *task = cxx::dyn_cast<Task*>(s->lookup_local(user_task.cap(),
                                                          &task_rights));
 
       if (EXPECT_FALSE(task && !(task_rights & L4_fpage::Rights::W())))
@@ -202,6 +202,7 @@ Thread_object::sys_vcpu_resume(L4_msg_tag const &tag, Utcb *utcb)
         if (EXPECT_FALSE(!snd_items.next()))
           break;
 
+        // in this case we already have a counted reference managed by vcpu_user_space()
         Lock_guard<Lock> guard;
         if (!guard.check_and_lock(&static_cast<Task *>(vcpu_user_space())->existence_lock))
           return commit_result(-L4_err::ENoent);
@@ -226,7 +227,7 @@ Thread_object::sys_vcpu_resume(L4_msg_tag const &tag, Utcb *utcb)
   if ((vcpu->_saved_state & Vcpu_state::F_irqs)
       && (vcpu->sticky_flags & Vcpu_state::Sf_irq_pending))
     {
-      assert_kdb(cpu_lock.test());
+      assert(cpu_lock.test());
       do_ipc(L4_msg_tag(), 0, 0, true, 0,
 	     L4_timeout_pair(L4_timeout::Zero, L4_timeout::Zero),
 	     &vcpu->_ipc_regs, L4_fpage::Rights::FULL());
@@ -236,7 +237,7 @@ Thread_object::sys_vcpu_resume(L4_msg_tag const &tag, Utcb *utcb)
       if (EXPECT_TRUE(!vcpu->_ipc_regs.tag().has_error()
 	              || this->utcb().access(true)->error.error() == L4_error::R_timeout))
 	{
-	  vcpu->_ts.set_ipc_upcall();
+	  vcpu->_regs.set_ipc_upcall();
 
 	  Address sp;
 
@@ -244,7 +245,7 @@ Thread_object::sys_vcpu_resume(L4_msg_tag const &tag, Utcb *utcb)
 	  if (vcpu->_saved_state & Vcpu_state::F_user_mode)
             sp = vcpu->_entry_sp;
 	  else
-            sp = vcpu->_ts.sp();
+            sp = vcpu->_regs.s.sp();
 
 	  LOG_TRACE("VCPU events", "vcpu", this, Vcpu_log,
 	      l->type = 4;
@@ -285,8 +286,8 @@ Thread_object::sys_vcpu_resume(L4_msg_tag const &tag, Utcb *utcb)
   LOG_TRACE("VCPU events", "vcpu", this, Vcpu_log,
       l->type = 0;
       l->state = vcpu->state;
-      l->ip = vcpu->_ts.ip();
-      l->sp = vcpu->_ts.sp();
+      l->ip = vcpu->_regs.s.ip();
+      l->sp = vcpu->_regs.s.sp();
       l->space = target_space->dbg_id();
       );
 
@@ -349,8 +350,8 @@ Thread_object::sys_register_delete_irq(L4_msg_tag tag, Utcb const *in, Utcb * /*
   if (EXPECT_FALSE(!bind_irq.is_objpage()))
     return Kobject_iface::commit_error(in, L4_error::Overflow);
 
-  register Context *const c_thread = ::current();
-  register Space *const c_space = c_thread->space();
+  Context *const c_thread = ::current();
+  Space *const c_space = c_thread->space();
   L4_fpage::Rights irq_rights = L4_fpage::Rights(0);
   Irq_base *irq
     = Irq_base::dcast(c_space->lookup_local(bind_irq.obj_index(), &irq_rights));
@@ -368,7 +369,7 @@ Thread_object::sys_register_delete_irq(L4_msg_tag tag, Utcb const *in, Utcb * /*
 
 PRIVATE inline NOEXPORT
 L4_msg_tag
-Thread_object::sys_control(L4_fpage::Rights rights, L4_msg_tag const &tag, Utcb *utcb)
+Thread_object::sys_control(L4_fpage::Rights rights, L4_msg_tag tag, Utcb *utcb)
 {
   if (EXPECT_FALSE(!(rights & L4_fpage::Rights::CS())))
     return commit_result(-L4_err::EPerm);
@@ -376,9 +377,6 @@ Thread_object::sys_control(L4_fpage::Rights rights, L4_msg_tag const &tag, Utcb 
   if (EXPECT_FALSE(tag.words() < 6))
     return commit_result(-L4_err::EInval);
 
-  Context *curr = current();
-  Space *s = curr->space();
-  L4_snd_item_iter snd_items(utcb, tag.words());
   Task *task = 0;
   User<Utcb>::Ptr utcb_addr(0);
 
@@ -398,22 +396,16 @@ Thread_object::sys_control(L4_fpage::Rights rights, L4_msg_tag const &tag, Utcb 
 
   if (flags & Ctl_bind_task)
     {
-      if (EXPECT_FALSE(!tag.items() || !snd_items.next()))
-	return commit_result(-L4_err::EInval);
-
-      L4_fpage bind_task(snd_items.get()->d);
-
-      if (EXPECT_FALSE(!bind_task.is_objpage()))
-	return commit_result(-L4_err::EInval);
-
       L4_fpage::Rights task_rights = L4_fpage::Rights(0);
-      task = Kobject::dcast<Task*>(s->lookup_local(bind_task.obj_index(), &task_rights));
-
-      if (EXPECT_FALSE(!(task_rights & L4_fpage::Rights::W())))
-	return commit_result(-L4_err::EPerm);
-
+      task = Ko::deref<Task>(&tag, utcb, &task_rights);
       if (!task)
-	return commit_result(-L4_err::EInval);
+        return tag;
+
+      if (EXPECT_FALSE(!(task_rights & L4_fpage::Rights::CS())))
+        return commit_result(-L4_err::EPerm);
+
+      if (EXPECT_FALSE(!(task->caps() & Task::Caps::threads())))
+        return commit_result(-L4_err::EInval);
 
       utcb_addr = User<Utcb>::Ptr((Utcb*)utcb->values[5]);
 
@@ -432,7 +424,6 @@ Thread_object::sys_control(L4_fpage::Rights rights, L4_msg_tag const &tag, Utcb 
   if ((res = sys_control_arch(utcb)) < 0)
     return commit_result(res);
 
-  // FIXME: must be done xcpu safe, may be some parts above too
   if (flags & Ctl_alien_thread)
     {
       if (utcb->values[4] & Ctl_alien_thread)
@@ -474,7 +465,7 @@ Thread_object::sys_vcpu_control(L4_fpage::Rights, L4_msg_tag const &tag,
   if (vcpu)
     {
       Mword size = sizeof(Vcpu_state);
-      if (utcb->values[0] & 0x10000)
+      if (utcb->values[0] & Vcpu_ctl_extended_vcpu)
         {
           if (!arch_ext_vcpu_enabled())
             return commit_result(-L4_err::ENosys);
@@ -695,4 +686,19 @@ Thread_object::sys_thread_stats(L4_msg_tag const &/*tag*/, Utcb *utcb)
   return commit_result(0, Utcb::Time_val::Words);
 }
 
+namespace {
+static Kobject_iface * FIASCO_FLATTEN
+thread_factory(Ram_quota *q, Space *,
+               L4_msg_tag, Utcb const *,
+               int *err)
+{
+  *err = L4_err::ENomem;
+  return new (q) Thread_object();
+}
 
+static inline void __attribute__((constructor)) FIASCO_INIT
+register_factory()
+{
+  Kobject_iface::set_factory(L4_msg_tag::Label_thread, thread_factory);
+}
+}

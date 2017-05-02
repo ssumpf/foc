@@ -19,7 +19,7 @@ private:
   };
 };
 
-class Ipc_gate : public Kobject
+class Ipc_gate : public cxx::Dyn_castable<Ipc_gate, Kobject>
 {
   friend class Ipc_gate_ctl;
   friend class Jdb_sender_list;
@@ -31,11 +31,9 @@ protected:
   Locked_prio_list _wait_q;
 };
 
-class Ipc_gate_obj : public Ipc_gate, public Ipc_gate_ctl
+class Ipc_gate_obj :
+  public cxx::Dyn_castable<Ipc_gate_obj, Ipc_gate, Ipc_gate_ctl>
 {
-  FIASCO_DECLARE_KOBJ();
-
-private:
   friend class Ipc_gate;
   typedef Slab_cache Self_alloc;
 
@@ -75,6 +73,7 @@ IMPLEMENTATION:
 #include "entry_frame.h"
 #include "ipc_timeout.h"
 #include "kmem_slab.h"
+#include "kobject_rpc.h"
 #include "logdefs.h"
 #include "ram_quota.h"
 #include "static_init.h"
@@ -82,7 +81,7 @@ IMPLEMENTATION:
 #include "thread_state.h"
 #include "timer.h"
 
-FIASCO_DEFINE_KOBJ(Ipc_gate_obj);
+JDB_DEFINE_TYPENAME(Ipc_gate_obj, "\033[35mGate\033[m");
 
 PUBLIC
 ::Kobject_mappable *
@@ -112,7 +111,7 @@ Ipc_gate::Ipc_gate(Ram_quota *q, Thread *t, Mword id)
 
 PUBLIC inline
 Ipc_gate_obj::Ipc_gate_obj(Ram_quota *q, Thread *t, Mword id)
-  : Ipc_gate(q, t, id)
+  : Dyn_castable_class(q, t, id)
 {}
 
 PUBLIC
@@ -175,7 +174,7 @@ static Kmem_slab_t<Ipc_gate_obj> _ipc_gate_allocator("Ipc_gate");
 PRIVATE static
 Ipc_gate_obj::Self_alloc *
 Ipc_gate_obj::allocator()
-{ return &_ipc_gate_allocator; }
+{ return _ipc_gate_allocator.slab(); }
 
 PUBLIC static
 Ipc_gate_obj *
@@ -197,7 +196,7 @@ Ipc_gate::create(Ram_quota *q, Thread *t, Mword id)
 PUBLIC
 void Ipc_gate_obj::operator delete (void *_f)
 {
-  register Ipc_gate_obj *f = (Ipc_gate_obj*)_f;
+  Ipc_gate_obj *f = (Ipc_gate_obj*)_f;
   Ram_quota *p = f->_quota;
 
   allocator()->free(f);
@@ -211,25 +210,17 @@ Ipc_gate_ctl::bind_thread(L4_obj_ref, L4_fpage::Rights,
                           Syscall_frame *f, Utcb const *in, Utcb *)
 {
   L4_msg_tag tag = f->tag();
-  L4_snd_item_iter snd_items(in, tag.words());
 
-  if (tag.words() < 2 || !tag.items() || !snd_items.next())
-    return commit_result(-L4_err::EInval);
+  if (tag.words() < 2)
+    return commit_result(-L4_err::EMsgtooshort);
 
-  L4_fpage bind_thread(snd_items.get()->d);
-  if (EXPECT_FALSE(!bind_thread.is_objpage()))
-    return commit_error(in, L4_error::Overflow);
-
-  register Context *const c_thread = ::current();
-  assert_opt(c_thread);
-  register Space *const c_space = c_thread->space();
-  assert_opt (c_space);
   L4_fpage::Rights t_rights(0);
-  Thread *t = Kobject::dcast<Thread_object*>(c_space->lookup_local(bind_thread.obj_index(), &t_rights));
+  Thread *t = Ko::deref<Thread>(&tag, in, &t_rights);
+  if (!t)
+    return tag;
 
   if (!(t_rights & L4_fpage::Rights::CS()))
     return commit_result(-L4_err::EPerm);
-
 
   Ipc_gate_obj *g = static_cast<Ipc_gate_obj*>(this);
   g->_id = in->values[1];
@@ -238,7 +229,7 @@ Ipc_gate_ctl::bind_thread(L4_obj_ref, L4_fpage::Rights,
   g->_thread = t;
   Mem::mp_wmb();
   g->unblock_all();
-  c_thread->rcu_wait();
+  current()->rcu_wait();
   g->unblock_all();
 
   return commit_result(0);
@@ -377,6 +368,47 @@ Ipc_gate::invoke(L4_obj_ref /*self*/, L4_fpage::Rights rights, Syscall_frame *f,
       ct->do_ipc(f->tag(), partner, partner, have_rcv, sender,
                  f->timeout(), f, rights);
     }
+}
+
+namespace {
+static Kobject_iface * FIASCO_FLATTEN
+ipc_gate_factory(Ram_quota *q, Space *space,
+                 L4_msg_tag tag, Utcb const *utcb,
+                 int *err)
+{
+  L4_snd_item_iter snd_items(utcb, tag.words());
+  Thread *thread = 0;
+
+  if (tag.items() && snd_items.next())
+    {
+      L4_fpage bind_thread(snd_items.get()->d);
+      *err = L4_err::EInval;
+      if (EXPECT_FALSE(!bind_thread.is_objpage()))
+        return 0;
+
+      L4_fpage::Rights thread_rights = L4_fpage::Rights(0);
+      thread = cxx::dyn_cast<Thread*>(space->lookup_local(bind_thread.obj_index(), &thread_rights));
+
+      if (EXPECT_FALSE(!thread))
+        {
+          *err = L4_err::ENoent;
+          return 0;
+        }
+
+      *err = L4_err::EPerm;
+      if (EXPECT_FALSE(!(thread_rights & L4_fpage::Rights::W())))
+        return 0;
+    }
+
+  *err = L4_err::ENomem;
+  return static_cast<Ipc_gate_ctl*>(Ipc_gate::create(q, thread, utcb->values[2]));
+}
+
+static inline void __attribute__((constructor)) FIASCO_INIT
+register_factory()
+{
+  Kobject_iface::set_factory(0, ipc_gate_factory);
+}
 }
 
 //---------------------------------------------------------------------------

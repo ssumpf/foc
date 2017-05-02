@@ -163,7 +163,7 @@ public:
 
 Platform_x86_loader_mbi _x86_pc_platform;
 
-#else // REALMODE_LOADING
+#else // IMAGE_MODE
 
 class Platform_x86_multiboot : public Platform_x86_1, public Boot_modules
 {
@@ -347,7 +347,7 @@ public:
 
 Platform_x86_multiboot _x86_pc_platform;
 
-#endif // !REALMODE_LOADING
+#endif // !IMAGE_MODE
 }
 
 extern "C"

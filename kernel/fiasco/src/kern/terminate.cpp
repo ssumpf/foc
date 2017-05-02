@@ -17,7 +17,7 @@ static
 void
 raw_exit()
 {
-  // make sure that we don't acknowledg the exit question automatically
+  // make sure that we don't acknowledge the exit question automatically
   Kconsole::console()->change_state(Console::PUSH, 0,
                                     ~Console::INENABLED, 0);
   puts("\nPress any key to reboot.");

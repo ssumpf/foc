@@ -72,6 +72,7 @@ Ipi::stat_received(Cpu_number on_cpu)
 // ------------------------------------------------------------------------
 IMPLEMENTATION[mp && debug]:
 
+#include "atomic.h"
 #include "globals.h"
 
 EXTENSION class Ipi
@@ -82,7 +83,7 @@ private:
   Mword _stat_received;
 };
 
-PUBLIC static inline
+PUBLIC static inline NEEDS["atomic.h"]
 void
 Ipi::stat_sent(Cpu_number from_cpu)
 { atomic_mp_add(&_ipi.cpu(from_cpu)._stat_sent, 1); }

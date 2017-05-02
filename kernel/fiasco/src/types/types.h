@@ -38,8 +38,8 @@ T access_once(T const *a)
 #endif
 }
 
-template< typename T >
-void write_now(T *a, T const &val)
+template< typename T, typename VAL >
+void write_now(T *a, VAL &&val)
 {
   __asm__ __volatile__ ( "" : "=m"(*a));
   *a = val;
@@ -299,6 +299,68 @@ struct Cpu_number : cxx::int_type_order_base<unsigned, Cpu_number, Order>
   static Cpu_number second()   { return Cpu_number(1); }
   static Cpu_number nil()      { return Cpu_number(~0); }
 };
+
+
+/**
+ * Write a hardware cached value, such as a page-table entry, into memory.
+ *
+ * The function provides safe update of hardware cached values in memory that
+ * have a valid / present encoding that must be kept consistent and a not
+ * present encoding that is ignored by hardware.
+ *
+ * In the case of multi-word values the implementation assumes the present /
+ * valid bits to be in the first word of the value and if the value to be
+ * written returns true for v.present() the first word in the target will be
+ * first written to '0' (assuming this means invalid / ignored by hardware).
+ * Then the uppermost words will be updated and after that the first word will
+ * be set to the value given in v.
+ *
+ * NOTE: in cases where the size of T is smaller or equal to the size of an Mword
+ * The update is a single write_now(...).
+ */
+template<typename T>
+inline void
+write_consistent(typename cxx::enable_if<! (sizeof(T) > sizeof(Mword)), T>::type *t,
+                 T const &v)
+{ write_now(t, v); }
+
+template<typename T>
+inline void
+write_consistent(typename cxx::enable_if<(sizeof(T) > sizeof(Mword)), T>::type *t,
+                 T const &v)
+{
+  static_assert ((sizeof(T) % sizeof(Mword)) == 0, "type must be a multiple of Mwords");
+  // number of words for type T
+  enum { Words = sizeof(T) / sizeof(Mword) };
+  // array for the words of T
+  typedef Mword Words_array[Words];
+  // union for aliasing
+  union X { Words_array w;  T t; };
+
+  // destination
+  Mword *d = reinterpret_cast<X *>(t)->w;
+  // source
+  Mword const *s = reinterpret_cast<X const &>(v).w;
+
+  __asm__ __volatile__ ( "" : "=m"(d[0]));
+  if (v.present())
+    d[0] = 0;
+  else
+    d[0] = s[0];
+  __asm__ __volatile__ ( "" : : "m"(d[0]));
+
+  __asm__ __volatile__ ( "" : "=m"((Words_array&)(*d)));
+  for (unsigned i = 1; i < Words; ++i)
+    d[i] = s[i];
+  __asm__ __volatile__ ( "" : : "m"((Words_array&)(*d)));
+
+  if (v.present())
+    {
+      __asm__ __volatile__ ( "" : "=m"(d[0]));
+      d[0] = s[0];
+      __asm__ __volatile__ ( "" : : "m"(d[0]));
+    }
+}
 
 #endif
 

@@ -1,14 +1,16 @@
-# vim:set ft=ioconfig:
-# configuration file for io
+-- vi:ft=lua
+-- configuration file for io
 
-gui => new System_bus()
-{
-  KBD => wrap(hw-root.KBD);
-  MOUSE => wrap(hw-root.MOUSE);
-}
+local hw = Io.system_bus()
 
-fbdrv => new System_bus()
+Io.add_vbus("gui", Io.Vi.System_bus
 {
-  CTRL => wrap(hw-root.CTRL);
-  LCD => wrap(hw-root.LCD);
-}
+  KBD = wrap(hw:match("arm,pl050","AMBA KMI Kbd"));
+  MOUSE = wrap(hw:match("arm,pl050","AMBA KMI mou"));
+})
+
+Io.add_vbus("fbdrv", Io.Vi.System_bus
+{
+  CTRL = wrap(hw:match("arm,sysctl"));
+  LCD = wrap(hw:match("arm,pl111"));
+})

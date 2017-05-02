@@ -39,7 +39,7 @@ public:
   void irq_clear_active(int irqnum)
   {
     _int_status = 1 << irqnum; l4_wmb();
-    typeof(_int_status) dummy = *(volatile typeof(_int_status) *)&_int_status;
+    __typeof(_int_status) dummy = *(volatile __typeof(_int_status) *)&_int_status;
     (void)dummy;
   }
 

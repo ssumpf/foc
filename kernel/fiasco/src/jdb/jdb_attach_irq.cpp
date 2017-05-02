@@ -4,6 +4,7 @@ IMPLEMENTATION:
 
 #include "irq_chip.h"
 #include "irq.h"
+#include "semaphore.h"
 #include "irq_mgr.h"
 #include "jdb_module.h"
 #include "kernel_console.h"
@@ -59,7 +60,7 @@ Jdb_attach_irq::action( int cmd, void *&args, char const *&, int & )
                   r = static_cast<Irq*>(Irq_mgr::mgr->irq(i));
                   if (!r)
                     continue;
-                  printf("IRQ %02x/%02d\n", i, i);
+                  printf("IRQ %02x/%02u\n", i, i);
                 }
               return NOTHING;
             }
@@ -98,61 +99,11 @@ class Jdb_kobject_irq : public Jdb_kobject_handler
 };
 
 
-/* This macro does kind of hacky magic, It uses heuristics to compare
- * If a C++ object object has a desired type. Therefore the vtable pointer
- * (*z) of an object is compared to a desired vtable pointer (with some fuzz).
- * The fuzz is necessary because there is usually a prefix data structure
- * in each vtable and the size depends on the compiler.
- * We use a range from x to x + 6 * wordsize.
- *
- * It is generally uncritical if this macro delivers a false negative. In
- * such a case the JDB may deliver less information to the user. However, it
- * critical to have a false positive, because JDB would probably crash.
- */
-#define FIASCO_JDB_CMP_VTABLE(n, o) \
-  extern char n[]; \
-  char const *const *z = reinterpret_cast<char const* const*>(o); \
-  return (*z >= n && *z <= n + 6 * sizeof(Mword)) ? (o) : 0
-
-
-PUBLIC static
-Irq_sender *
-Jdb_kobject_irq::dcast_h(Irq_sender *i)
-{
-  FIASCO_JDB_CMP_VTABLE(_ZTV10Irq_sender, i);
-}
-
-PUBLIC static
-Irq_muxer *
-Jdb_kobject_irq::dcast_h(Irq_muxer *i)
-{
-  FIASCO_JDB_CMP_VTABLE(_ZTV9Irq_muxer, i);
-}
-
-PUBLIC template<typename T>
-static
-T
-Jdb_kobject_irq::dcast(Kobject_common *o)
-{
-  Irq *i = Kobject::dcast<Irq*>(o);
-  if (!i)
-    return 0;
-
-  return dcast_h(static_cast<T>(i));
-}
-
 PUBLIC inline
 Jdb_kobject_irq::Jdb_kobject_irq()
-  : Jdb_kobject_handler(Irq::static_kobj_type)
+  : Jdb_kobject_handler((Irq*)0)
 {
   Jdb_kobject::module()->register_handler(this);
-}
-
-PUBLIC
-char const *
-Jdb_kobject_irq::kobject_type() const
-{
-  return JDB_ANSI_COLOR(white) "IRQ" JDB_ANSI_COLOR(default);
 }
 
 
@@ -170,7 +121,7 @@ PUBLIC
 Kobject_common *
 Jdb_kobject_irq::follow_link(Kobject_common *o)
 {
-  Irq_sender *t = Jdb_kobject_irq::dcast<Irq_sender*>(o);
+  Irq_sender *t = cxx::dyn_cast<Irq_sender*>(o);
   Kobject_common *k = t ? Kobject::from_dbg(Kobject_dbg::pointer_to_obj(t->owner())) : 0;
   return k ? k : o;
 }
@@ -184,21 +135,28 @@ PUBLIC
 void
 Jdb_kobject_irq::show_kobject_short(String_buffer *buf, Kobject_common *o)
 {
-  Irq *i = Kobject::dcast<Irq*>(o);
+  Irq *i = cxx::dyn_cast<Irq*>(o);
   Kobject_common *w = follow_link(o);
-  Irq_sender *t = Jdb_kobject_irq::dcast<Irq_sender*>(o);
 
-  buf->printf(" I=%3lx %s L=%lx T=%lx F=%x Q=%d",
-              i->pin(), i->chip()->chip_type(), i->obj_id(),
-              w != o ?  w->dbg_info()->dbg_id() : 0,
-              (unsigned)i->flags(),
-              t ? t->queued() : -1);
+  buf->printf(" I=%3lx %s F=%x",
+              i->pin(), i->chip()->chip_type(),
+              (unsigned)i->flags());
+
+  if (Irq_sender *t = cxx::dyn_cast<Irq_sender*>(i))
+    buf->printf(" L=%lx T=%lx Q=%d",
+                i->obj_id(),
+                w != o ?  w->dbg_info()->dbg_id() : 0,
+                t ? t->queued() : -1);
+
+  if (Semaphore *t = cxx::dyn_cast<Semaphore*>(i))
+    buf->printf(" Q=%ld",
+                t->_queued);
 }
 
 static
 bool
 filter_irqs(Kobject_common const *o)
-{ return Kobject::dcast<Irq const *>(o); }
+{ return cxx::dyn_cast<Irq const *>(o); }
 
 static Jdb_kobject_list::Mode INIT_PRIORITY(JDB_MODULE_INIT_PRIO) tnt("[IRQs]", filter_irqs);
 

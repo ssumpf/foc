@@ -1,6 +1,5 @@
 IMPLEMENTATION [arm]:
 
-#include "boot_info.h"
 #include "config.h"
 #include "cpu.h"
 #include "fpu.h"
@@ -31,7 +30,6 @@ Startup::stage1()
 {
   Kernel_uart::init(Kernel_uart::Init_after_mmu);
   Proc::cli();
-  Boot_info::init();
   Cpu::early_init();
   Config::init();
 }

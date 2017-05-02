@@ -179,7 +179,7 @@ Boot_info::kmem_start(Address mem_max)
 	size = Config::kernel_mem_max;
     }
 
-  base = end_addr - size & Config::PAGE_MASK;
+  base = (end_addr - size) & Config::PAGE_MASK;
   if (Mem_layout::phys_to_pmem(base) < Mem_layout::Physmem)
     base = Mem_layout::pmem_to_phys(Mem_layout::Physmem);
 
@@ -298,7 +298,7 @@ Boot_info::init()
         if (sscanf (optarg, "%ux%u@%u", &_fb_width, &_fb_height, &_fb_depth)
             == 3)
           {
-            _fb_size = _fb_width * _fb_height * (_fb_depth + 7 >> 3);
+            _fb_size = _fb_width * _fb_height * ((_fb_depth + 7) >> 3);
             _fb_size += ~Config::SUPERPAGE_MASK;
             _fb_size &=  Config::SUPERPAGE_MASK;        // Round up to 4 MB
 

@@ -37,7 +37,7 @@ void
 Cpu::init_sysenter()
 {
   setup_sysenter();
-  wrmsr(rdmsr(MSR_EFER) | 1, MSR_EFER); printf("SYSCALL ENTRY: %p\n", &_syscall_entry);
+  wrmsr(rdmsr(MSR_EFER) | 1, MSR_EFER);
   _syscall_entry.set_rsp((Address)&kernel_sp());
   set_fast_entry(entry_sys_fast_ipc_c);
 }

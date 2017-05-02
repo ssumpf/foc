@@ -44,12 +44,12 @@ class Platform_arm_omap : public Platform_single_region_ram
   void arm_switch_to_hyp()
   {
     register l4_umword_t f asm("r12") = 0x102;
-    asm volatile("mcr p15, 0, sp, c13, c0, 2\n"
-                 "push {fp}                 \n"
+    asm volatile("push {fp}                 \n"
+                 "mcr p15, 0, sp, c13, c0, 2\n"
                  "mov r0, pc                \n"
-                 ".inst 0xe1600070          \n"
-                 "pop {fp}                  \n"
+                 ".inst 0xe1600071          \n"
                  "mrc p15, 0, sp, c13, c0, 2\n"
+                 "pop {fp}                  \n"
                  :
                  : "r" (f)
                  : "r0", "r1", "r2", "r3", "r4",

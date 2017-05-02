@@ -2,13 +2,14 @@ IMPLEMENTATION:
 
 #include "banner.h"
 #include "boot_info.h"
+#include "boot_alloc.h"
 #include "config.h"
 #include "cpu.h"
 #include "fb.h"
 #include "fpu.h"
 #include "idt.h"
 #include "initcalls.h"
-#include "irq_chip_pic.h"
+#include "irq_chip_ux.h"
 #include "jdb.h"
 #include "kernel_console.h"
 #include "kernel_task.h"
@@ -61,8 +62,9 @@ startup_system2()
   Kip::init_global_kip(kip);
 
   Utcb_init::init();
-  Pic::init();
-  Irq_chip_ia32_pic::init();
+  auto irqs = new Boot_object<Irq_chip_ux>(true);
+  (void)irqs; // no power management: irqs->pm_register(Cpu_number::boot_cpu());
+
   Ipi::init(Cpu_number::boot_cpu());
   Idt::init();
   Fpu::init(Cpu_number::boot_cpu(), false);

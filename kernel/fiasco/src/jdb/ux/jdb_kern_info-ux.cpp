@@ -109,7 +109,7 @@ Jdb_kern_info_host::show()
 {
   for (Kobject_dbg::Iterator i = Kobject_dbg::begin(); i != Kobject_dbg::end(); ++i)
     {
-      Task const *task = Kobject::dcast<Task const *>(Kobject::from_dbg(*i));
+      Task const *task = cxx::dyn_cast<Task const *>(Kobject::from_dbg(*i));
       if (!task)
 	continue;
 

@@ -127,7 +127,7 @@ entry_sys_fast_ipc_log:
 	sub     $16, %rsp
 	SAVE_STATE_SYSEXIT
 	ESP_TO_TCB_AT %rbx
-	testl	$Thread_alien_or_vcpu_user, OFS__THREAD__STATE (%rbx)
+	testl	$VAL__Thread_alien_or_vcpu_user, OFS__THREAD__STATE (%rbx)
 	jnz	alien_sys_fast_ipc_log
 	RESET_THREAD_CANCEL_AT %rbx
 
@@ -161,7 +161,7 @@ entry_sys_fast_ipc_c:
 	sub     $16, %rsp
 	SAVE_STATE_SYSEXIT
 	ESP_TO_TCB_AT %rbx
-	testl	$Thread_alien_or_vcpu_user, OFS__THREAD__STATE (%rbx)
+	testl	$VAL__Thread_alien_or_vcpu_user, OFS__THREAD__STATE (%rbx)
 	jnz	alien_sys_fast_ipc_c
 	RESET_THREAD_CANCEL_AT %rbx
 	

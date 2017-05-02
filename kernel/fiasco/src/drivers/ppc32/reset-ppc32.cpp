@@ -10,7 +10,7 @@ enum Reg_offsets
 };
 
 /**
- * Porgram Gerneral purpose timer as watchdog, thus causing a system reset
+ * Program General purpose timer as watchdog, thus causing a system reset
  */
 void __attribute__ ((noreturn))
 platform_reset(void)

@@ -156,6 +156,13 @@ Jdb_stack_view  Jdb_tcb::_stack_view (Jdb_tcb::Stack_y);
 extern int jdb_dump_addr_task (Address addr, Space *task, int level)
   __attribute__((weak));
 
+
+// default implementations: --------------------------------------------
+
+// nothing special to do for edit registers
+IMPLEMENT_DEFAULT bool Jdb_stack_view::edit_registers() { return true; }
+
+
 PUBLIC
 Jdb_stack_view::Jdb_stack_view(unsigned y)
 : start_y(y), absy(0), memdump_is_colored(true)
@@ -192,7 +199,7 @@ Jdb_stack_view::print_value(Jdb_tcb_ptr const &p, bool highl = false)
 {
   if (!p.valid() || !Jdb_util::is_mapped((void const*)p.addr()))
     {
-      printf(" %.*s", Jdb_screen::Mword_size_bmode, Jdb_screen::Mword_not_mapped);
+      printf(" %.*s", (int)Jdb_screen::Mword_size_bmode, Jdb_screen::Mword_not_mapped);
       return;
     }
 
@@ -343,7 +350,7 @@ Jdb_stack_view::edit_stack(bool *redraw)
       int c;
 
       Jdb::cursor(posy(), posx());
-      printf(" %.*s", Jdb_screen::Mword_size_bmode, Jdb_screen::Mword_blank);
+      printf(" %.*s", (int)Jdb_screen::Mword_size_bmode, Jdb_screen::Mword_blank);
       Jdb::printf_statline("tcb",
           is_current ? "<Space>=edit registers" : 0,
           "edit <" ADDR_FMT "> = " ADDR_FMT,
@@ -417,7 +424,7 @@ Jdb_disasm_view::show(Jdb_tcb_ptr const &p, Space *s, bool dump_only)
 
 PUBLIC
 Jdb_tcb::Jdb_tcb()
-  : Jdb_module("INFO"), Jdb_kobject_handler(Thread_object::static_kobj_type)
+  : Jdb_module("INFO"), Jdb_kobject_handler((Thread*)0)
 {
   static Jdb_handler enter(at_jdb_enter);
 
@@ -440,9 +447,9 @@ Jdb_tcb::at_jdb_enter()
 
 PUBLIC virtual
 Kobject *
-Jdb_tcb::parent(Kobject *o)
+Jdb_tcb::parent(Kobject_common *o)
 {
-  Thread *t = Kobject::dcast<Thread_object*>(o);
+  Thread *t = cxx::dyn_cast<Thread*>(o);
   if (!t)
     return 0;
 
@@ -507,7 +514,7 @@ whole_screen:
                           cxx::int_value<Cpu_number>(t->get_current_cpu()));
 
   printf("\tprio: %02x\n",
-         t->sched()->prio());
+         (unsigned)t->sched()->prio());
 
   printf("state   : %03lx ", t->state(false));
   Jdb_thread::print_state_long(t);
@@ -523,7 +530,8 @@ whole_screen:
 
   putstr("\trcv descr: ");
 
-  if ((t->state(false) & Thread_ipc_mask) == Thread_receive_wait)
+  if ((t->state(false) & Thread_ipc_mask) == Thread_receive_wait
+      && t->rcv_regs())
     printf("%08lx", t->rcv_regs()->from_spec());
   else
     putstr("        ");
@@ -552,7 +560,7 @@ whole_screen:
   time_str.terminate();
   printf("%-13s", time_str.begin());
 
-  printf("\t\ttimeslice: %llu/%lld %cs\n"
+  printf("\t\ttimeslice: %llu/%llu %cs\n"
          "pager\t: ",
          t->sched()->left(), ~0ULL/*t->sched()->quantum()*/, Config::char_micro);
   print_kobject(t, t->_pager.raw());
@@ -663,6 +671,7 @@ dump_stack:
           switch (c)
             {
             case KEY_RETURN:
+            case KEY_RETURN_2:
               if (jdb_dump_addr_task && _stack_view.current.valid())
                 {
                   if (!jdb_dump_addr_task(_stack_view.current.value(),
@@ -693,7 +702,7 @@ dump_stack:
                                         _stack_view.current.value(),
                                         Kobject_dbg::pointer_to_id(t->space()));
                   int c1 = Jdb_core::getchar();
-                  if ((c1 != KEY_RETURN) && (c1 != ' '))
+                  if ((c1 != KEY_RETURN) && c1 != KEY_RETURN_2 && (c1 != ' '))
                     {
                       Jdb::printf_statline("tcb", 0, "u");
                       Jdb::execute_command("u", c1);
@@ -803,6 +812,7 @@ Jdb_tcb::action(int cmd, void *&args, char const *&fmt, int &next_char)
                 putchar(first_char);
                 return Jdb_module::EXTRA_INPUT;
               case KEY_RETURN:
+              case KEY_RETURN_2:
                 show(0, 0, false);
                 return NOTHING;
               default:
@@ -822,7 +832,7 @@ Jdb_tcb::action(int cmd, void *&args, char const *&fmt, int &next_char)
         show((Thread*)tcb_addr, 0, false);
       else
         {
-          Thread *t = Kobject::dcast<Thread_object *>(threadid);
+          Thread *t = cxx::dyn_cast<Thread *>(threadid);
           if (t)
             show(t, 0, false);
           else
@@ -840,7 +850,7 @@ Jdb_tcb::action(int cmd, void *&args, char const *&fmt, int &next_char)
         }
       else if (args == &threadid)
         {
-          Thread *t = Kobject::dcast<Thread_object *>(threadid);
+          Thread *t = cxx::dyn_cast<Thread *>(threadid);
           if (t)
             show(t, 1, true);
         }
@@ -853,7 +863,7 @@ PUBLIC
 Kobject_common *
 Jdb_tcb::follow_link(Kobject_common *o)
 {
-  Thread *t = Kobject::dcast<Thread_object *>(Kobject::from_dbg(o->dbg_info()));
+  Thread *t = cxx::dyn_cast<Thread *>(Kobject::from_dbg(o->dbg_info()));
   if (t->space() == Kernel_task::kernel_task())
     return o;
   return static_cast<Kobject*>(static_cast<Task*>(t->space()));
@@ -863,7 +873,7 @@ PUBLIC
 bool
 Jdb_tcb::show_kobject(Kobject_common *o, int level)
 {
-  Thread *t = Kobject::dcast<Thread_object *>(Kobject::from_dbg(o->dbg_info()));
+  Thread *t = cxx::dyn_cast<Thread *>(Kobject::from_dbg(o->dbg_info()));
   return show(t, level, false);
 }
 
@@ -887,7 +897,7 @@ PUBLIC
 void
 Jdb_tcb::show_kobject_short(String_buffer *buf, Kobject_common *o)
 {
-  Thread *t = Kobject::dcast<Thread_object *>(Kobject::from_dbg(o->dbg_info()));
+  Thread *t = cxx::dyn_cast<Thread *>(Kobject::from_dbg(o->dbg_info()));
   bool is_current = Jdb_tcb::is_current(t);
   if (t == Context::kernel_context(t->home_cpu()))
     {
@@ -908,13 +918,6 @@ Jdb_tcb::show_kobject_short(String_buffer *buf, Kobject_common *o)
                   t->in_ready_list() ? " rdy" : "",
                   is_current ? " " JDB_ANSI_COLOR(green) "cur" JDB_ANSI_END : "");
     }
-}
-
-PUBLIC
-char const *
-Jdb_tcb::kobject_type() const
-{
-  return JDB_ANSI_COLOR(green) "Thread" JDB_ANSI_COLOR(default);
 }
 
 PUBLIC

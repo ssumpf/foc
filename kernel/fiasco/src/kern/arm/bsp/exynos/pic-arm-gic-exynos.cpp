@@ -1,5 +1,7 @@
 INTERFACE:
+
 #include "gic.h"
+#include "initcalls.h"
 
 //-------------------------------------------------------------------------
 IMPLEMENTATION [arm && pic_gic && exynos]:
@@ -423,17 +425,6 @@ Combiner_cascade_irq::handle(Upstream_irq const *u)
 }
 
 // ------------------------------------------------------------------------
-IMPLEMENTATION [arm && pic_gic && exynos]:
-
-IMPLEMENT inline
-Pic::Status Pic::disable_all_save()
-{ return 0; }
-
-IMPLEMENT inline
-void Pic::restore_all(Status)
-{}
-
-// ------------------------------------------------------------------------
 IMPLEMENTATION [exynos4 && !exynos_extgic]:
 
 class Mgr_int : public Mgr_exynos
@@ -545,7 +536,7 @@ Mgr_int::set_cpu(Mword irqnum, Cpu_number cpu) const
           irqnum, cxx::int_value<Cpu_number>(cpu));
 }
 
-IMPLEMENT static FIASCO_INIT
+PUBLIC static FIASCO_INIT
 void Pic::init()
 {
   Irq_mgr::mgr = new Boot_object<Mgr_int>();
@@ -724,7 +715,7 @@ Mgr_ext::set_cpu(Mword irqnum, Cpu_number cpu) const
           cxx::int_value<Cpu_number>(cpu));
 }
 
-IMPLEMENT static FIASCO_INIT
+PUBLIC static FIASCO_INIT
 void Pic::init()
 {
   Mgr_ext *m = new Boot_object<Mgr_ext>();
@@ -930,7 +921,7 @@ Mgr::set_cpu(Mword irqnum, Cpu_number cpu) const
 	  irqnum, cxx::int_value<Cpu_number>(cpu));
 }
 
-IMPLEMENT static FIASCO_INIT
+PUBLIC static FIASCO_INIT
 void Pic::init()
 {
   Irq_mgr::mgr = new Boot_object<Mgr>();

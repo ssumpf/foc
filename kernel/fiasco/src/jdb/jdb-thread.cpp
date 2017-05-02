@@ -18,6 +18,7 @@ IMPLEMENTATION:
 #include "jdb_prompt_ext.h"
 #include "jdb.h"
 #include "thread.h"
+#include "mem_layout.h"
 
 class Jdb_tid_ext : public Jdb_prompt_ext
 {
@@ -43,12 +44,7 @@ Jdb_tid_ext::update()
 
 //static Jdb_tid_ext jdb_tid_ext INIT_PRIORITY(JDB_MODULE_INIT_PRIO);
 
-//---------------------------------------------------------------------------
-IMPLEMENTATION [arm || ux || ppc32 || sparc]:
-
-#include "mem_layout.h"
-
-IMPLEMENT
+IMPLEMENT_DEFAULT
 Thread *
 Jdb::get_thread(Cpu_number cpu)
 {
@@ -56,12 +52,6 @@ Jdb::get_thread(Cpu_number cpu)
 
   return static_cast<Thread*>(context_of(c));
 }
-
-//---------------------------------------------------------------------------
-IMPLEMENTATION:
-
-#include "jdb.h"
-#include "thread.h"
 
 PUBLIC
 static void

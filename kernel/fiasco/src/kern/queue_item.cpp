@@ -18,27 +18,26 @@ private:
 //--------------------------------------------------------------------------
 IMPLEMENTATION:
 
-#include "kdb_ke.h"
-#include "std_macros.h"
+#include "assert.h"
 
 PUBLIC inline
 bool
 Queue_item::queued() const
 { return cxx::D_list_cyclic<Queue_item>::in_list(this); }
 
-PUBLIC inline NEEDS["kdb_ke.h"]
+PUBLIC inline NEEDS["assert.h"]
 Queue *
 Queue_item::queue() const
 {
-  assert_kdb (queued());
+  assert (queued());
   return _q;
 }
 
-PUBLIC inline NEEDS["kdb_ke.h"]
+PUBLIC inline NEEDS["assert.h"]
 Queue_item::Status
 Queue_item::status() const
 {
-  assert_kdb (!queued());
+  assert (!queued());
   return Status((unsigned long)_q);
 }
 

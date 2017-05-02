@@ -248,6 +248,7 @@ Jdb_tbuf_show::select_perf_event_unit_mask(Mword nr, Mword unit_mask)
 		unit_mask ^= value;
 	      break;
 	    case KEY_RETURN:
+	    case KEY_RETURN_2:
 	      return unit_mask;
 	    case KEY_ESC:
 	      return Nil;
@@ -333,6 +334,7 @@ Jdb_tbuf_show::select_perf_event(Mword event)
 	  switch (c)
     	    {
 	    case KEY_RETURN:
+	    case KEY_RETURN_2:
 	      absy += addy;
 	      if (absy < add_kcnt)
 		return absy | 0x80000000;
@@ -415,7 +417,7 @@ Jdb_tbuf_show::show_events(Mword n, Mword ref, Mword count, Unsigned8 mode,
 	  Jdb::write_ll_dec(&s_tsc_sc, utsc, false); s_tsc_sc.terminate();
 	  Jdb::write_tsc_s (&s_tsc_ss, utsc, false); s_tsc_ss.terminate();
 
-	  printf("%-3s%10lu.  %120.120s %13.13s (%14.14s)  %13.13s (%14.14s) kclk=%d\n",
+	  printf("%-3s%10lu.  %120.120s %13.13s (%14.14s)  %13.13s (%14.14s) kclk=%u\n",
 	         s, number, _buffer_str.begin()+y_offset, s_tsc_dc.begin(), s_tsc_ds.begin(),
                  s_tsc_sc.begin(), s_tsc_ss.begin(), kclock);
 	}
@@ -458,13 +460,13 @@ Jdb_tbuf_show::show_events(Mword n, Mword ref, Mword count, Unsigned8 mode,
 	      break;
 	    case Kclock_ref_mode:
 	      if (kclock == ref_kclock)
-		s.printf("%12u", 0);
+		s.printf("%12d", 0);
 	      else
 		{
 		  if (time_mode != 1)
 		    Jdb::write_ll_hex(&s, (Unsigned64)kclock-ref_kclock, true);
 		  else
-  		    s.printf("%+12d", kclock-ref_kclock);
+  		    s.printf("%+12d", (int)kclock-(int)ref_kclock);
 		}
 	      break;
 	    case Kclock_start_mode:
@@ -499,7 +501,7 @@ Jdb_tbuf_show::show_events(Mword n, Mword ref, Mword count, Unsigned8 mode,
 		  }
 	    }
 	  printf("%s%-*.*s %12s\033[m%s",
-	         c, Jdb_screen::width()-13, (int)Jdb_screen::width()-13,
+	         c, (int)Jdb_screen::width()-13, (int)Jdb_screen::width()-13,
 		 _buffer_str.begin() + y_offset, s.begin(), count != 1 ? "\n" : "");
 	}
        n++;
@@ -659,10 +661,12 @@ restart:
 
   // Search reference element. If not found, use last entry.
   if ((refy = Jdb_tbuf::search_to_idx(_nr_ref)) >= (Mword)-2)
-    if (entries)
-      refy = entries-1;
-    else
-      refy = Nil;
+    {
+      if (entries)
+        refy = entries - 1;
+      else
+        refy = Nil;
+    }
 
   // Search mark {0..9}. If not found, set Nil.
   for (n=0; n<10; n++)
@@ -916,6 +920,7 @@ restart:
 		}
 	      break;
 	    case KEY_RETURN: // disassemble eip of current entry
+	    case KEY_RETURN_2:
                 {
 		  Thread const *t = 0;
 		  Mword eip;

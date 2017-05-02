@@ -10,8 +10,6 @@ public:
   static unsigned irq() { return 29; }
 
 private:
-  typedef Mmio_register_block Mp_timer;
-
   enum
   {
     Timer_load_reg     = 0x600 + 0x0,

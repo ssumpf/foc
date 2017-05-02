@@ -28,6 +28,8 @@ tramp-mp.o:          $(TCBOFFSET)
 # to the linker script. We don't do this because we don't know which symbols
 # are required by future versions of the libc.
 
+-include .kernel.ux.lds.d
+
 $(KERNEL):	kernel.ux.lds $(OBJ_KERNEL) $(MINILIBC) $(LIBK) $(KERNEL_EXTRA_LIBS) $(ABI) $(JABI) $(DRIVERS) $(CXXLIB)
 		$(LINK_MESSAGE)
 		$(VERBOSE)$(CXX) -m32 -Wl,-T$< -static -o $@ -Wl,--whole-archive $(MINILIBC) -Wl,--no-whole-archive $(KERNEL_UNRES_SYMS) $(filter-out $<,$+) -lutil $(WRAP_SYMBOLS)
@@ -53,11 +55,21 @@ irq0:		irq0.o
 
 ifeq ($(CONFIG_UX_CON),y)
 
-SDL_CFLAGS  := $(shell $(SYSTEM_TARGET)sdl-config --cflags)
-SDL_LDFLAGS := $(shell $(SYSTEM_TARGET)sdl-config --libs)
+define get_sdl_config
+  if sdl2-config --cflags > /dev/null 2>&1; then \
+    echo sdl2-config; \
+  else \
+    echo sdl-config; \
+  fi
+endef
+
+SDL_CONFIG := $(shell $(call get_sdl_config))
+
+SDL_CFLAGS  := $(shell $(CROSS_COMPILE)$(SDL_CONFIG) --cflags)
+SDL_LDFLAGS := $(shell $(CROSS_COMPILE)$(SDL_CONFIG) --libs)
 
 ifeq ($(SDL_CFLAGS),)
-  $(error sdl-config not found. libsdl including header files installed?)
+  $(error $(SDL_CONFIG) not found. libsdl including header files installed?)
 endif
 
 ux_con.o:	ux_con.c

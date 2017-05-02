@@ -600,12 +600,6 @@ namespace Ptab
     static unsigned page_order_for_level(unsigned level)
     { return Levels::shift(level) + Base_shift; }
 
-    static unsigned entries_at_level(unsigned level)
-    { return Levels::length(level); }
-
-    static unsigned bits_for_level(unsigned level)
-    { return Levels::size(level); }
-
     template< typename _Alloc >
     PTE_PTR walk(Va virt, unsigned level, bool force_write_back, _Alloc const &alloc)
     { return _base.walk(_Addr::val(virt), level, force_write_back, alloc); }

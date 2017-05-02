@@ -6,41 +6,21 @@
 IGNORE_OBJDIR_TARGETS := up update diff
 
 L4DIR ?= ..
-include $(L4DIR)/mk/Makeconf
-
-BID_STATE_FILE = $(OBJ_BASE)/pkg/BUILD.state
-
-# all our packages
-ALL_SUBDIRS	= $(shell find -L . -maxdepth 1 -type d ! -name .svn -printf %P' ')
-
 ifneq ($(S),)
   ALL_SUBDIRS := $(shell echo $(S) | tr ':,' ' ')
 endif
 
-# the broken packages
-BROKEN_SUBDIRS	= $(patsubst %/broken, %, \
-			$(wildcard $(addsuffix /broken,$(ALL_SUBDIRS))))
-# the obsolete packages
-OBSOLETE_SUBDIRS = $(patsubst %/obsolete, %, \
-			$(wildcard $(addsuffix /obsolete,$(ALL_SUBDIRS))))
-# and the packages we are supposed to build
-BUILD_SUBDIRS  = $(filter-out $(BROKEN_SUBDIRS) $(OBSOLETE_SUBDIRS), \
-                   $(ALL_SUBDIRS))
+all::
 
-# force that every package to be built has a Control and Makefile
-ifneq ($(addsuffix /Makefile,$(BUILD_SUBDIRS)),$(wildcard $(addsuffix /Makefile,$(BUILD_SUBDIRS))))
-$(error Missing Makefile files: $(filter-out $(wildcard $(addsuffix /Makefile,$(BUILD_SUBDIRS))), $(addsuffix /Makefile,$(BUILD_SUBDIRS))))
-endif
-ifeq ($(S),)
-ifneq ($(addsuffix /Control,$(BUILD_SUBDIRS)),$(wildcard $(addsuffix /Control,$(BUILD_SUBDIRS))))
-$(error Missing Control files: $(filter-out $(wildcard $(addsuffix /Control,$(BUILD_SUBDIRS))), $(addsuffix /Control,$(BUILD_SUBDIRS))))
-endif
+include $(L4DIR)/mk/Makeconf
+
+ifneq ($(OBJ_BASE),)
+include $(L4DIR)/mk/project.mk
+PKGDEPS_IGNORE_MISSING :=
 endif
 
 #####################
 # Rules begin.
-# We start with cont-checking, as this requires special treatment
-ifeq ($(filter cont,$(MAKECMDGOALS)),)
 
 #####################
 # default make action is "all" - build all packages
@@ -51,76 +31,16 @@ ifeq ($(filter cont,$(MAKECMDGOALS)),)
 # dependencies for this, witch might allow parallel build processes.
 #
 
-all:: $(BUILD_SUBDIRS)
-
 examples: $(filter-out examples,$(BUILD_SUBDIRS))
 
-#####################
-# cont handling
--include $(BID_STATE_FILE)
-BID_cont_reset:
-	$(VERBOSE)$(RM) $(BID_STATE_FILE)
-BID_SAFE_STATE= @echo 'BID_STATE_DONE+=$@'>>$(BID_STATE_FILE)
-
-.PHONY: all BID_cont_reset cont bin lib headers idl include doc ptest
+.PHONY: all ptest
 .PHONY: rm-old-links
 
-DOC_MESSAGE       =echo "=== Creating documentation for package \"$(1)\" ==="
-PKG_MESSAGE       =echo "=== Building package \"$(basename $@)\" ==="
-INST_MESSAGE      =echo "=== Installing Package \"$(1)\" ==="
 PURGE_INC_MESSAGE =echo "=== Purging pending links in $(L4DIR)/include ==="
 PURGE_LIB_MESSAGE =echo "=== Purging pending links in $(L4DIR)/lib ==="
 UPDATE_MESSAGE    =echo -e $(EMPHSTART)"=== Updating \"$(1)\" ==="$(EMPHSTOP)
 DIFF_MESSAGE      =echo -e $(EMPHSTART)"=== Diffing \"$(1)\" ==="$(EMPHSTOP)
 PTEST_MESSAGE     =echo "=== Testing Package \"$(1)\" ==="
-
-# given order matters
-ALIASES_DIRS = $(L4DIR)/mk/aliases.d \
-               $(wildcard $(OBJ_BASE)/aliases.d)
-
-PKGDEPS_CMD  = $(L4DIR)/mk/pkgdeps \
-                     -P $(OBJ_BASE)/pc $(addprefix -A ,$(ALIASES_DIRS))
-
-ifneq ($(OBJ_BASE),)
-$(OBJ_BASE)/pc:
-	$(VERBOSE)mkdir -p $(OBJ_BASE)/pc
-
-$(OBJ_BASE)/pkg/.Package.deps.pkgs: FORCE
-	$(VERBOSE)mkdir -p $(dir $@)
-	$(VERBOSE)echo $(BUILD_SUBDIRS) > $@.tmp
-	$(call move_if_changed,$@,$@.tmp)
-
-# deps on disappearing aliases.d-files are not handled...
-$(OBJ_BASE)/pkg/.Package.deps: $(L4DIR)/mk/pkgdeps $(OBJ_BASE)/pkg/.Package.deps.pkgs \
-                               $(if $(filter update up,$(MAKECMDGOALS)),,Makefile) \
-                               $(wildcard $(foreach d,$(ALIASES_DIRS),$(d)/*)) \
-			       $(OBJ_BASE)/pc \
-                               $(wildcard $(foreach d,$(BUILD_SUBDIRS),$(d)/Control))
-	$(VERBOSE)if $(PKGDEPS_CMD) \
-	  generate $(L4DIR)/pkg > $@.tmp; then \
-	    mv $@.tmp $@; else $(RM) $@.tmp; exit 1; fi
-
-include $(OBJ_BASE)/pkg/.Package.deps
-endif
-
-$(BUILD_SUBDIRS):%:%/Makefile BID_cont_reset
-	@$(PKG_MESSAGE)
-	$(VERBOSE)PWD=$(PWD)/$(basename $@) $(MAKE) -C $(basename $@) all
-	$(VERBOSE)$(BID_SAFE_STATE)
-
-install::
-	$(VERBOSE)set -e; for i in $(BUILD_SUBDIRS); do \
-	  $(call INST_MESSAGE,$(BID_DOLLARQUOTE)$$i); \
-	  PWD=$(PWD)/$$i $(MAKE) -C $$i $@; \
-	done
-
-doc:
-	$(VERBOSE)set -e; for i in $(BUILD_SUBDIRS); do \
-	  if [ -e $(PWD)/$$i/doc ]; then                \
-	  $(call DOC_MESSAGE,$(BID_DOLLARQUOTE)$$i);    \
-	  PWD=$(PWD)/$$i $(MAKE) -C $$i $@;             \
-	  fi;                                           \
-	done
 
 # Check package dependencies.
 #   CHECK_PKGS: if undefined, check all packages,
@@ -141,6 +61,8 @@ depcheck:
 	  echo "Done";                                                         \
 	  echo ----------------------------------------------------------;     \
 	  echo "Trying standalone build of '$$checkpkg'";                      \
+	  $(MAKE) -C $(L4DIR) O=$(OBJ_BASE)                                    \
+	    --no-print-directory silentoldconfig;                              \
 	  echo $(MAKE) O=$(OBJ_BASE) --no-print-directory $$checkpkg;          \
 	  $(MAKE) O=$(OBJ_BASE) --no-print-directory $$checkpkg                \
 	    || (echo "Failed package: $$checkpkg";                             \
@@ -192,13 +114,7 @@ tags:
 .PHONY: TAGS tags depsrcgraph depobjgraph depgraph depcheck
 .PHONY: $(foreach ext, .bin .lib .include .idl .headers,addsuffix $(ext), $(BUILD_SUBDIRS))
 
-clean cleanall:: BID_cont_reset
 clean cleanall::
-	$(VERBOSE)$(RM) $(UPDATE_LOG)
-	$(VERBOSE)for i in $(BUILD_SUBDIRS) $(OBSOLETE_SUBDIRS); do \
-	  echo "=== Cleaning in package  \"$$i\" ==="; \
-	  if [ -r $$i/Makefile ] ; then PWD=$(PWD)/$$i $(MAKE) -C $$i $@; fi ; \
-	done
 	$(VERBOSE)$(MAKE) rm-old-links
 
 del-backup:
@@ -234,42 +150,12 @@ update up: update.log
 
 # global defines
 
-.PHONY:	install clean cleanall kernels
+.PHONY: kernels
 
-
-print-subdirs:
-	@echo $(BUILD_SUBDIRS)
-	@echo obsolete: $(OBSOLETE_SUBDIRS)
-	@echo broken: $(BROKEN_SUBDIRS)
-
-help:
+help::
 	@echo "Specify one of the following targets:"
-	@echo "all             - build the packages neither broken nor obsolete"
-	@echo " Use make S=dir1:dir2:..: to build those directories"
-	@echo "cont            - after correcting errors, continue where \"make all\" failed"
-	@echo "<pkgname>       - Build package and all its dependencies"
-#	@echo "doc             - build documentation (not build per default)"
-	@echo "install         - install the packages, use only after making all!"
-	@echo
-	@echo "clean           - clean the packages"
-	@echo "cleanall        - clean the packages pedanticly"
 	@echo "del-backup      - remove temporary file in this tree"
-	@echo "print-subdirs   - print the SUBDIRS which are subject to build"
-	@echo "BID_cont_reset  - reset the state used by the \"cont\" target"
 	@echo 'rm-old-links    - remove invalid symlinks in $$(L4DIR)/lib, $$(L4DIR)/include'
 	@echo "update          - update the packages currently checked out"
 	@echo "help            - this help"
-
-#####################
-# cont handling: "cont" is in the target list
-else
--include $(BID_STATE_FILE)
-cont:
-	$(VERBOSE)$(MAKE) $(addprefix -o ,BID_cont_reset $(BID_STATE_DONE)) \
-		$(filter-out cont,$(MAKECMDGOALS))
-
-# eat up the other targets
-.DEFAULT:
-	@true
-endif 
 

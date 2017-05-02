@@ -5,6 +5,18 @@ INTERFACE[debug]:
 #include "lock_guard.h"
 #include <cxx/dlist>
 #include <cxx/hlist>
+#include <cxx/dyn_cast>
+
+struct Kobject_typeinfo_name
+{
+  cxx::Type_info const *type;
+  char const *name;
+};
+
+#define JDB_DEFINE_TYPENAME(type, name) \
+  static __attribute__((used, section(".debug.jdb.typeinfo_table"))) \
+  Kobject_typeinfo_name const typeinfo_name__ ## type ## __entry =   \
+    { cxx::Typeid<type>::get(), name }
 
 class Kobject_dbg : public cxx::D_list_item
 {
@@ -28,8 +40,8 @@ private:
 
 public:
   Mword dbg_id() const { return _dbg_id; }
-  virtual Address kobject_start_addr() const = 0;
-  virtual Mword kobject_size() const = 0;
+
+  virtual cxx::_dyn::Type _cxx_dyn_type() const = 0;
   virtual ~Kobject_dbg() = 0;
 
 
@@ -49,6 +61,8 @@ private:
 
 //----------------------------------------------------------------------------
 INTERFACE[!debug]:
+
+#define JDB_DEFINE_TYPENAME(type, name)
 
 class Kobject_dbg
 {
@@ -71,8 +85,9 @@ Kobject_dbg::pointer_to_obj(void const *p)
 {
   for (Iterator l = _kobjects.begin(); l != _kobjects.end(); ++l)
     {
-      Mword a = l->kobject_start_addr();
-      if (a <= Mword(p) && Mword(p) < (a + l->kobject_size()))
+      auto ti = l->_cxx_dyn_type();
+      Mword a = (Mword)ti.base;
+      if (a <= Mword(p) && Mword(p) < (a + ti.type->size))
         return l;
     }
   return _kobjects.end();

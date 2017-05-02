@@ -3,41 +3,49 @@
 #ifndef IDT_INIT
 #define IDT_INIT
 
-#define APIC_IRQ_BASE 0x90
+#define FIASCO_IDT_MAX  0x100
+#define APIC_IRQ_BASE   (FIASCO_IDT_MAX - 0x08)
 
 #ifdef ASSEMBLER
 
-#define GATE_INITTAB_BEGIN(name)	\
-	.section ".initcall.data", "aw", @progbits	;\
-	.globl	name			;\
-	.align 8                        ;\
-name:					;\
-	.text
+.macro	GATE_INITTAB_BEGIN name
+	.pushsection ".initcall.data", "aw", @progbits
+	.globl	\name
+	.align 8
+\name:
+        .popsection
+.endm
 
 #ifdef CONFIG_BIT32
-#define	GATE_ENTRY(n,name,type)	\
-	.section ".initcall.data", "aw", @progbits	;\
-	.long	name			;\
-	.word	n			;\
-	.word	type			;\
-	.text
 
-#define GATE_INITTAB_END		\
-	.section ".initcall.data"	;\
-	.long	0			;\
-	.text
+.macro	GATE_ENTRY n,name,type
+	.pushsection ".initcall.data", "aw", @progbits
+	.long	\name
+	.word	\n
+	.word	\type
+	.popsection
+.endm
+
+.macro	GATE_INITTAB_END
+	.pushsection ".initcall.data"
+	.long	0
+	.popsection
+.endm
+
 #else
-#define	GATE_ENTRY(n,name,type)	\
-	.section ".initcall.data"	;\
-	.quad	name			;\
-	.word	n			;\
-	.word	type			;\
-	.text
+.macro	GATE_ENTRY n, name, type
+	.pushsection ".initcall.data"
+	.quad	\name
+	.word	\n
+	.word	\type
+	.popsection
+.endm
 
-#define GATE_INITTAB_END		\
-	.section ".initcall.data"	;\
-	.quad	0			;\
-	.text
+.macro	GATE_INITTAB_END
+	.pushsection ".initcall.data"
+	.quad	0
+	.popsection
+.endm
 #endif
 
 #define SEL_PL_U	0x03

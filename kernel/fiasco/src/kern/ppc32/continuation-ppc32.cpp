@@ -24,7 +24,7 @@ public:
     Mword pc;
   };
 
-  bool valid() const
+  bool valid(void const *) const
   { return _ip != ~0UL; }
 
   Address ip() const { return _ip; }

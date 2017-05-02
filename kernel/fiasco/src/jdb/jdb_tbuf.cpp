@@ -1,5 +1,6 @@
 INTERFACE:
 
+#include "globalconfig.h"
 #include "jdb_ktrace.h"
 #include "l4_types.h"
 #include "std_macros.h"
@@ -31,106 +32,13 @@ protected:
   static Mword		_count_mask1;
   static Mword		_count_mask2;
   static Address        _size;		// size of memory area for tbuffer
+  static Tracebuffer_status *_status;
+  static Tb_entry_union *_buffer;
   static Spin_lock<>    _lock;
 };
 
 #ifdef CONFIG_JDB_LOGGING
 
-#ifdef CONFIG_PF_UX
-
-// We don't want to patch the text segment of Fiasco-UX.
-
-#define BEGIN_LOG_EVENT(name, sc, fmt)				\
-  do								\
-    {								\
-      register Unsigned8 __do_log__;				\
-      asm volatile (".pushsection \".data\"	\n\t"		\
-		    "1:  .byte   0		\n\t"		\
-		    ".section \".debug.jdb.log_table\" \n\t"	\
-		    ".long 2f			\n\t"		\
-		    ".long 1b			\n\t"		\
-		    ".long %c[xfmt]		\n\t"		\
-		    ".section \".rodata.log.str\" \n\t"		\
-		    "2: .asciz "#name"		\n\t"		\
-		    "   .asciz "#sc"		\n\t"		\
-		    ".popsection		\n\t"		\
-		    "movb    1b,%0		\n\t"		\
-		    : "=q"(__do_log__) 			\
-                    : [xfmt] "i" (&Tb_entry_formatter_t<fmt>::singleton));  \
-      if (EXPECT_FALSE( __do_log__ ))				\
-	{
-
-#elif defined(CONFIG_ARM)
-
-#define BEGIN_LOG_EVENT(name, sc, fmt)				\
-  do								\
-    {								\
-      register Mword __do_log__;				\
-      asm volatile ("1:  mov    %0, #0		\n\t"		\
-		    ".pushsection \".debug.jdb.log_table\" \n\t"	\
-		    "3: .long 2f		\n\t"		\
-		    "   .long 1b		\n\t"		\
-		    "   .long %c[xfmt]		\n\t"		\
-		    ".section \".rodata.log.str\" \n\t"		\
-		    "2: .asciz "#name"		\n\t"           \
-		    "   .asciz "#sc"		\n\t"		\
-		    ".popsection		\n\t"		\
-		    : "=r"(__do_log__)                          \
-                    : [xfmt] "i" (&Tb_entry_formatter_t<fmt>::singleton));  \
-      if (EXPECT_FALSE( __do_log__ ))				\
-	{
-
-#elif defined(CONFIG_IA32) // IA32
-
-#define BEGIN_LOG_EVENT(name, sc, fmt)				\
-  do								\
-    {								\
-      register Unsigned8 __do_log__;				\
-      asm volatile ("1:   movb $0,%0			\n\t"	\
-		    ".pushsection \".debug.jdb.log_table\"	\n\t"	\
-		    "3:  .long 2f			\n\t"	\
-		    "    .long 1b + 1			\n\t"	\
-		    "    .long %a[xfmt]			\n\t"	\
-		    ".section \".rodata.log.str\"	\n\t"	\
-		    "2:  .asciz "#name"			\n\t"	\
-		    "    .asciz "#sc"			\n\t"	\
-		    ".popsection			\n\t"	\
-		    : "=b"(__do_log__)                          \
-                    : [xfmt] "i" (&Tb_entry_formatter_t<fmt>::singleton));  \
-      if (EXPECT_FALSE( __do_log__ ))				\
-	{
-
-#elif defined(CONFIG_AMD64)
-#define BEGIN_LOG_EVENT(name, sc, fmt)				\
-  do								\
-    {								\
-      register Unsigned8 __do_log__;				\
-      asm volatile ("1:   movb $0,%0			\n\t"	\
-		    ".pushsection \".debug.jdb.log_table\"	\n\t"	\
-		    "3:  .quad 2f			\n\t"	\
-		    "    .quad 1b + 1			\n\t"	\
-		    "    .quad %c[xfmt]			\n\t"	\
-		    ".section \".rodata.log.str\"	\n\t"	\
-		    "2:  .asciz "#name"			\n\t"	\
-		    "    .asciz "#sc"			\n\t"	\
-		    ".popsection			\n\t"	\
-		    : "=b"(__do_log__)                          \
-                    : [xfmt] "i"(&Tb_entry_formatter_t<fmt>::singleton) );   \
-      if (EXPECT_FALSE( __do_log__ ))				\
-	{
-
-#elif defined(CONFIG_PPC32)
-//#warning TODO: Dummy implementation for PPC32
-#define BEGIN_LOG_EVENT(name, sc, fmt)				\
-  do								\
-    {								\
-      register Unsigned8 __do_log__ = 0;			\
-      if (EXPECT_FALSE( __do_log__ ))				\
-	{
-
-#else
-#error Unknown Arch for LOG macros
-#endif
 
 #define END_LOG_EVENT						\
 	}							\
@@ -154,45 +62,35 @@ IMPLEMENTATION:
 #include "cpu_lock.h"
 #include "initcalls.h"
 #include "lock_guard.h"
-#include "mem_layout.h"
 #include "std_macros.h"
 
-Tb_entry_union *Jdb_tbuf::_tbuf_act;
-Tb_entry_union *Jdb_tbuf::_tbuf_max;
-Mword Jdb_tbuf::_entries;
+// read only: initialized at boot
+Tracebuffer_status *Jdb_tbuf::_status;
+Tb_entry_union *Jdb_tbuf::_buffer;
+Address Jdb_tbuf::_size;
 Mword Jdb_tbuf::_max_entries;
-Mword Jdb_tbuf::_filter_enabled;
-Mword Jdb_tbuf::_number;
+Tb_entry_union *Jdb_tbuf::_tbuf_max;
 Mword Jdb_tbuf::_count_mask1;
 Mword Jdb_tbuf::_count_mask2;
-Address Jdb_tbuf::_size;
+
+// read mostly (only modified in JDB)
+Mword Jdb_tbuf::_filter_enabled;
+
+// modified often (for each new entry)
+Tb_entry_union *Jdb_tbuf::_tbuf_act;
+Mword Jdb_tbuf::_entries;
+Mword Jdb_tbuf::_number;
 Spin_lock<> Jdb_tbuf::_lock;
+
 
 static void direct_log_dummy(Tb_entry*, const char*)
 {}
 
 void (*Jdb_tbuf::direct_log_entry)(Tb_entry*, const char*) = &direct_log_dummy;
 
-PUBLIC static inline NEEDS["mem_layout.h"]
-Tracebuffer_status *
-Jdb_tbuf::status()
-{
-  return (Tracebuffer_status *)Mem_layout::Tbuf_status_page;
-}
-
-PROTECTED static inline NEEDS["mem_layout.h"]
-Tb_entry_union *
-Jdb_tbuf::buffer()
-{
-  return (Tb_entry_union *)Mem_layout::Tbuf_buffer_area;
-}
-
-PUBLIC static inline
-Address
-Jdb_tbuf::size()
-{
-  return _size;
-}
+PUBLIC static inline Tracebuffer_status *Jdb_tbuf::status() { return _status; }
+PROTECTED static inline Tb_entry_union *Jdb_tbuf::buffer() { return _buffer; }
+PUBLIC static inline Address Jdb_tbuf::size() { return _size; }
 
 /** Clear tracebuffer. */
 PUBLIC static

@@ -30,20 +30,20 @@ somefunc(unsigned (*func1)(),
 #line 43 "parser.cpp"
 
 // And add a Foo function
-void Foo::func()
+void Foo::func ()
 {}
 
 #line 47 "parser.cpp"
 
 // Try default arguments
-void Foo::bar(int i, int j)
+void Foo::bar (int i, int j)
 {}
 
 #line 51 "parser.cpp"
 
 // Try a constructor with weird syntax
 
-Foo::Foo()
+Foo::Foo ()
   : something (reinterpret_cast<Bar*>(Baz::bla()))
 {}
 

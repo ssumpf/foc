@@ -46,6 +46,7 @@ Jdb_set_trace::action(int cmd, void *&args, char const *&fmt, int &)
 	    {
 	    case ' ':
 	    case KEY_RETURN:
+	    case KEY_RETURN_2:
 	      first_char = ' '; // print status
 	      break;
 	    case '+': // on
@@ -156,6 +157,7 @@ Jdb_set_trace::action(int cmd, void *&args, char const *&fmt, int &)
 	    {
 	    case ' ':
 	    case KEY_RETURN:
+	    case KEY_RETURN_2:
 	      first_char = ' '; // print status
 	      break;
 	    case '+': // on

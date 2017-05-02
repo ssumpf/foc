@@ -14,7 +14,7 @@
 #line 10 "c-preproc.cpp"
 
 void 
-function(void)
+function (void)
 {
 #if 1
   bar ();

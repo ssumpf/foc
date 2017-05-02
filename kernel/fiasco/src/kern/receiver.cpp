@@ -44,7 +44,7 @@ public:
 
 private:
   // DATA
-  Sender *_partner;         // IPC partner I'm waiting for/involved with
+  Sender const *_partner;         // IPC partner I'm waiting for/involved with
   Syscall_frame *_rcv_regs; // registers used for receive
   Mword _caller;
   Iteratable_prio_list _sender_list;
@@ -94,14 +94,14 @@ PUBLIC inline
 void
 Receiver::set_caller(Receiver *caller, L4_fpage::Rights rights)
 {
-  register Mword nv = Mword(caller) | (cxx::int_value<L4_fpage::Rights>(rights) & 0x3);
+  Mword nv = Mword(caller) | (cxx::int_value<L4_fpage::Rights>(rights) & 0x3);
   reinterpret_cast<Mword volatile &>(_caller) = nv;
 }
 /** IPC partner (sender).
     @return sender of ongoing or previous IPC operation
  */
 PROTECTED inline
-Sender*
+Sender const *
 Receiver::partner() const
 {
   return _partner;
@@ -148,6 +148,14 @@ void
 Receiver::set_timeout(Timeout *t)
 {
   _timeout = t;
+}
+
+PUBLIC inline
+void
+Receiver::set_timeout(Timeout *t, Unsigned64 tval)
+{
+  _timeout = t;
+  t->set(tval, home_cpu());
 }
 
 PUBLIC inline
@@ -268,13 +276,20 @@ Receiver::vcpu_async_ipc(Sender const *sender) const
       );
 
   self->_rcv_regs = &vcpu->_ipc_regs;
-  vcpu->_ts.set_ipc_upcall();
+  vcpu->_regs.set_ipc_upcall();
   self->set_partner(const_cast<Sender*>(sender));
   self->state_add_dirty(Thread_receive_wait);
   self->vcpu_save_state_and_upcall();
   return Rs_irq_receive;
 }
 
+PUBLIC inline
+void
+Receiver::reset_caller()
+{
+  if (_caller)
+    _caller = 0;
+}
 
 PUBLIC inline
 void

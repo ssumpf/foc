@@ -22,17 +22,9 @@ typedef int exec_sectype_t;
 #define EXEC_SECTYPE_EXECUTE		((exec_sectype_t)0x000004)
 #define EXEC_SECTYPE_ALLOC		((exec_sectype_t)0x000100)
 #define EXEC_SECTYPE_LOAD		((exec_sectype_t)0x000200)
-
-
-typedef struct
-{
-  void *mod_start;
-  l4util_mb_mod_t *mod;
-  unsigned type;
-  l4_addr_t begin;	/* program begin */
-  l4_addr_t end;	/* program end */
-} exec_task_t;
-
+#define EXEC_SECTYPE_KIP		((exec_sectype_t)0x100000)
+#define EXEC_SECTYPE_KOPT		((exec_sectype_t)0x110000)
+#define EXEC_SECTYPE_TYPE_MASK		((exec_sectype_t)0xff0000)
 
 typedef int exec_handler_func_t(void *handle,
 				  l4_addr_t file_ofs, l4_size_t file_size,

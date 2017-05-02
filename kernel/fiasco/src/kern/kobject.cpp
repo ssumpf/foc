@@ -46,7 +46,7 @@ INTERFACE:
 #include "space.h"
 
 class Kobject :
-  public Kobject_iface,
+  public cxx::Dyn_castable<Kobject, Kobject_iface>,
   private Kobject_mappable,
   private Kobject_dbg
 {
@@ -61,6 +61,7 @@ private:
   class Tconv<T*> { public: typedef T Base; };
 
 public:
+  using Dyn_castable<Kobject, Kobject_iface>::_cxx_dyn_type;
 
   class Reap_list
   {
@@ -74,28 +75,6 @@ public:
     Kobject ***list() { return &_t; }
     void del();
   };
-
-  template<typename T>
-  static T dcast(Kobject_common *_o)
-  {
-    if (EXPECT_FALSE(!_o))
-      return 0;
-
-    if (EXPECT_TRUE(_o->kobj_type() == Tconv<T>::Base::static_kobj_type))
-      return reinterpret_cast<T>(_o->kobject_start_addr());
-    return 0;
-  }
-
-  template<typename T>
-  static T dcast(Kobject_common const *_o)
-  {
-    if (EXPECT_FALSE(!_o))
-      return 0;
-
-    if (EXPECT_TRUE(_o->kobj_type() == Tconv<T>::Base::static_kobj_type))
-      return reinterpret_cast<T>(_o->kobject_start_addr());
-    return 0;
-  }
 
   using Kobject_dbg::dbg_id;
 
@@ -111,21 +90,6 @@ public:
 
 };
 
-#define FIASCO_DECLARE_KOBJ() \
-  public: static char const *const static_kobj_type; \
-          char const *kobj_type() const; \
-          Address kobject_start_addr() const; \
-          Mword kobject_size() const;
-
-#define FIASCO_DEFINE_KOBJ(t) \
-  char const *const t::static_kobj_type = #t; \
-  char const *t::kobj_type() const { return static_kobj_type; } \
-  Address t::kobject_start_addr() const { return (Address)this; } \
-  Mword t::kobject_size() const { return sizeof(*this); }
-
-
-
-
 //---------------------------------------------------------------------------
 IMPLEMENTATION:
 
@@ -137,7 +101,7 @@ IMPLEMENTATION:
 PUBLIC bool  Kobject::is_local(Space *) const { return false; }
 PUBLIC Mword Kobject::obj_id() const { return ~0UL; }
 PUBLIC virtual bool  Kobject::put() { return true; }
-PUBLIC Kobject_mappable *Kobject::map_root() { return this; }
+PUBLIC inline Kobject_mappable *Kobject::map_root() { return this; }
 
 PUBLIC inline NEEDS["lock_guard.h"]
 Smword
@@ -166,7 +130,7 @@ Kobject::destroy(Kobject ***)
   LOG_TRACE("Kobject destroy", "des", current(), Log_destroy,
       l->id = dbg_id();
       l->obj = this;
-      l->type = kobj_type());
+      l->type = cxx::dyn_typeid(this));
   existence_lock.wait_free();
 }
 
@@ -176,7 +140,7 @@ Kobject::~Kobject()
   LOG_TRACE("Kobject delete (generic)", "del", current(), Log_destroy,
       l->id = dbg_id();
       l->obj = this;
-      l->type = "unk");
+      l->type = 0);
 }
 
 
@@ -189,7 +153,7 @@ Kobject::sys_dec_refcnt(L4_msg_tag tag, Utcb const *in, Utcb *out)
 
   Smword diff = in->values[1];
   out->values[0] = dec_cap_refcnt(diff);
-  return Kobject_iface::commit_result(0);
+  return Kobject_iface::commit_result(0, 1);
 }
 
 PUBLIC
@@ -251,7 +215,7 @@ protected:
   {
     Kobject    *obj;
     Mword       id;
-    char const *type;
+    cxx::Type_info const *type;
     Mword       ram;
     void print(String_buffer *buf) const;
   };
@@ -285,5 +249,5 @@ IMPLEMENT
 void
 Kobject::Log_destroy::print(String_buffer *buf) const
 {
-  buf->printf("obj=%lx [%s] (%p) ram=%lx", id, type, obj, ram);
+  buf->printf("obj=%lx [%p] (%p) ram=%lx", id, type, obj, ram);
 }

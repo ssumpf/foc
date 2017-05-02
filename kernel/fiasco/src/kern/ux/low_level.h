@@ -50,11 +50,11 @@
 	.endm
 
 	.macro	RESET_THREAD_CANCEL_AT reg
-	andl	$~Thread_cancel, OFS__THREAD__STATE (\reg)
+	andl	$~VAL__Thread_cancel, OFS__THREAD__STATE (\reg)
 	.endm
 
 	.macro	RESET_THREAD_IPC_MASK_AT reg
-	andl	$~Thread_ipc_mask, OFS__THREAD__STATE (\reg)
+	andl	$~VAL__Thread_ipc_mask, OFS__THREAD__STATE (\reg)
 	.endm
 
 	.macro	ESP_TO_TCB_AT reg

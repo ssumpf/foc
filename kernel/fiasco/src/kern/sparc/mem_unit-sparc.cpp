@@ -35,6 +35,14 @@ namespace Mmu
 class Mem_unit { };
 
 //------------------------------------------------------------------------------
+IMPLEMENTATION[sparc]:
+
+PUBLIC static inline ALWAYS_INLINE
+void
+Mem_unit::make_coherent_to_pou(void const *)
+{}
+
+//------------------------------------------------------------------------------
 IMPLEMENTATION[sparc && !mp]:
 
 /** Flush whole TLB

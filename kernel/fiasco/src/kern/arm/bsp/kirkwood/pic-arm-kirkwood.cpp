@@ -1,9 +1,12 @@
+INTERFACE [arm && kirkwood]:
+
+#include "initcalls.h"
+
 //-------------------------------------------------------------------
 IMPLEMENTATION [arm && kirkwood]:
 
 #include "assert.h"
 #include "config.h"
-#include "initcalls.h"
 #include "io.h"
 #include "irq_chip_generic.h"
 #include "irq_mgr.h"
@@ -76,20 +79,11 @@ Irq_chip_kirkwood::unmask(Mword irq)
 
 static Static_object<Irq_mgr_single_chip<Irq_chip_kirkwood> > mgr;
 
-IMPLEMENT FIASCO_INIT
+PUBLIC static FIASCO_INIT
 void Pic::init()
 {
   Irq_mgr::mgr = mgr.construct();
-
 }
-
-IMPLEMENT inline
-Pic::Status Pic::disable_all_save()
-{ return 0; }
-
-IMPLEMENT inline
-void Pic::restore_all(Status)
-{}
 
 PUBLIC inline
 Unsigned32

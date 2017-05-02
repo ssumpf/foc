@@ -1,43 +1,26 @@
-IMPLEMENTATION [16550 && sunxi]:
+IMPLEMENTATION [sunxi]:
 
-struct Sunxi_uart_16550 : L4::Uart_16550
-{
-  L4::Io_register_block const *regs() { return _regs; }
-};
+#include "koptions.h"
+#include "uart_16550_dw.h"
 
-PRIVATE inline NOEXPORT
-Unsigned8 Uart::usr() const
+IMPLEMENT Address Uart::base() const
+{ return Koptions::o()->uart.base_address; }
+
+IMPLEMENT int Uart::irq() const
+{ return Koptions::o()->uart.irqno; }
+
+IMPLEMENT L4::Uart *Uart::uart()
 {
-  return static_cast<Sunxi_uart_16550*>(uart())->regs()->read<Unsigned8>(0x1f);
+  static L4::Uart_16550_dw uart(Koptions::o()->uart.base_baud);
+  return &uart;
 }
 
-PRIVATE inline NOEXPORT
-Unsigned8 Uart::iir() const
+PUBLIC bool
+Uart::startup(const L4::Io_register_block *r, int, Unsigned32)
 {
-  return static_cast<Sunxi_uart_16550*>(uart())->regs()->read<Unsigned8>(0x02);
-}
+  if (!uart()->startup(r))
+    return false;
 
-PRIVATE inline NOEXPORT
-void Uart::lcr(Unsigned8 val) const
-{
-  static_cast<Sunxi_uart_16550*>(uart())->regs()->write<Unsigned8>(val, 0x03);
-}
-
-PRIVATE inline NOEXPORT
-Unsigned8 Uart::lcr() const
-{
-  return static_cast<Sunxi_uart_16550*>(uart())->regs()->read<Unsigned8>(0x03);
-}
-
-IMPLEMENT
-void
-Uart::irq_ack()
-{
-  if ((iir() & 7) == 7)
-    {
-      Unsigned8 l = lcr();
-      Unsigned8 v = usr();
-      asm volatile("" : : "r" (v) : "memory");
-      lcr(l);
-    }
+  add_state(ENABLED);
+  return true;
 }

@@ -1,4 +1,4 @@
-#! /usr/bin/perl -W
+#! /usr/bin/perl -w
 #
 # (c) 2009-2011 Technische Universität Dresden
 # This file is part of TUD:OS and distributed under the terms of the
@@ -7,6 +7,9 @@
 #
 # Adam Lackorzynski <adam@os.inf.tu-dresden.de>
 #
+# Do not use 'perl -W' here, as with perl-5.20 we'll get
+# Use of uninitialized value in string ne at /usr/lib/..../perl/5.20/File/Spec/Unix.pm line 92.
+# Maybe sometime later we could use -W again?
 
 use strict;
 use File::Temp qw/tempfile/;

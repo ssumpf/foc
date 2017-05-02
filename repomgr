@@ -21,39 +21,52 @@ my %modules =
                           l4/tool/vim
                           l4/tool/lib
                           l4/tool/elf-patcher
+                          l4/tool/gen_dopecode
                          ) ]
           },
 
    toolbin => { paths => [ map { "l4/tool/bin/$_" }
                            qw(isocreator qemu-x86-launch ux-launch
                               gengrub1iso gengrub2iso entry-selector
-                              mkspafs genexportpack
+                              mkspafs genexportpack gen_kconfig
                              ) ]
               },
 
    l4re => { paths => [ map { "l4/pkg/$_" } qw(
-                         boehm_gc bootstrap libgcc libgcc-pure
-			 crtn cxx cxx_libc_io cxx_thread drivers-frst hello
-                         ldscripts
-                         l4re l4re_c l4re_kernel l4re_vfs l4sys l4util
-                         ldscripts ldso
-                         libc_backends libkproxy libloader
-                         libsigma0
-                         libstdc++-headers libstdc++-v3 libstdc++-v3-minimal
-                         libsupc++ libsupc++-minimal
-                         libvbus libvcpu loader log lua moe ned sigma0
-                         uclibc uclibc-minimal uclibc-headers
+                         bootstrap l4re-core/libgcc
+                         l4re-core/libgcc-pure
+                         l4re-core/crtn l4re-core/cxx l4re-core/cxx_libc_io
+                         l4re-core/ldscripts
+                         l4re-core/l4re/ l4re-core/l4re_c/
+                         l4re-core/l4re_kernel/ l4re-core/l4re_vfs/
+                         l4re-core/l4sys/ l4re-core/l4util/
+                         l4re-core/ldso/
+                         l4re-core/libc_backends l4re-core/libkproxy/
+                         l4re-core/libloader/
+                         l4re-core/libsigma0/
+                         l4re-core/libstdc++-headers/ l4re-core/libstdc++-v3/
+                         l4re-core/libstdc++-v3-minimal
+                         l4re-core/libsupc++ l4re-core/libsupc++-minimal
+                         l4re-core/prj-config
+                         l4re-core/moe l4re-core/ned/ l4re-core/sigma0/
+                         l4re-core/uclibc l4re-core/uclibc-minimal/
+                         l4re-core/uclibc-headers/
+                         l4re-core/lua/
+                         io
+                         cxx_thread drivers-frst hello
+                         acpica libvcpu loader log
                         ) ],
              pub_module => 1,
              modules => [ qw(bid toolbin) ],
            },
 
+
    # ./mk/pkgdeps -A mk/aliases.d pkgdeps pkg ...
    l4linux_requirements
         => { paths => [ map { "l4/pkg/$_" } qw(
-			libedid libio libio-io lxfuxlibc rtc shmc
-			acpica io drivers fb-drv x86emu input libirq
-		    ) ],
+                        libedid lxfuxlibc rtc shmc
+                        drivers fb-drv x86emu input libirq
+                        ) ],
                     pub_module => 1,
                     modules => [ qw(l4re) ],
                   },
@@ -90,6 +103,7 @@ my %modules =
                    libs/libio
                    libs/libirq
                    libs/libpng
+                   libs/rtc
                    libs/shmc
                  ) ],
    },
@@ -98,8 +112,7 @@ my %modules =
 
    l4re_snapshot =>  {
      paths => [ map { "l4/pkg/$_" }
-                qw(acpica
-                   ankh
+                qw(ankh
                    boost-lite
                    cons
                    cunit
@@ -117,11 +130,10 @@ my %modules =
                    gnu-efi
                    hello
                    input
-                   io
                    l4con
+                   l4virtio
                    lib_vt100
                    libbsd
-                   libbsd-full
                    libedid
                    libevent
                    libc_be_stdin
@@ -132,20 +144,18 @@ my %modules =
                    libgomp
                    libfdt
                    libiniparser
-                   libio
-                   libio-io
                    libirq
                    libjpeg
                    libpng
                    libsdl
                    libsdl-image
+                   libquadmath
                    linux-26-headers
                    lwip
                    lxfuxlibc
                    mag
                    mag-gfx
                    ocaml
-                   ocaml_toys
                    plr
                    python
                    readline
@@ -194,16 +204,33 @@ my %modules =
       modules => [ qw(l4re_snapshot) ],
    },
 
-   remote_repo => { modules => [ qw(fiasco remote_repo_l4re) ],
-                    # those are going away, we need to keep them to get the
-                    # dirs updated and thus removed
-                    paths => [ qw(l4/pkg/libstdc++-v3_r
-                                  l4/pkg/libsupc++_r
-                                  l4/pkg/uclibc_r) ],
-                    },
+   remote_repo => { modules => [ qw(fiasco remote_repo_l4re) ] },
 
    all => {
       modules => [ qw(remote_repo) ],
+   },
+
+
+   # those are going away, we need to keep them to get the
+   # dirs updated and thus removed
+   __prev => {
+     paths => [ map { "l4/pkg/$_" }
+                qw(ferret io libio libio-io libio-direct ocaml_toys
+		   libstdc++-v3_r libsupc++_r uclibc_r
+		   
+                   boehm_gc libgcc libgcc-pure libbsd-full
+                   crtn cxx cxx_libc_io cxx_thread
+                   ldscripts
+                   l4re/ l4re_c l4re_kernel l4re_vfs l4sys l4util
+                   ldscripts ldso
+                   libc_backends libkproxy libloader
+                   libsigma0
+                   libstdc++-headers libstdc++-v3 libstdc++-v3-minimal
+                   libsupc++ libsupc++-minimal
+                   libvbus lua moe ned sigma0
+                   uclibc uclibc-minimal uclibc-headers
+		 
+                 ) ],
    },
  );
 
@@ -296,7 +323,7 @@ sub check_module_structure()
   # make sure the paths look ok
   foreach (merge_modules())
     {
-      die "Trailing /'s in modules structure" if /\/$/;
+      #die "Trailing /'s in modules structure" if /\/$/;
       die "Double // detected in modules structure" if /\/\//;
     }
 }

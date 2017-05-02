@@ -117,4 +117,9 @@ namespace L4
 
     return count;
   }
+
+  void Uart_cadence::irq_ack()
+  {
+    _regs->write<unsigned>(ISR, IXR_RXOVR);
+  }
 };

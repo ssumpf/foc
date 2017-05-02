@@ -34,9 +34,11 @@ template<typename T, unsigned LSB, unsigned MSB>
 class Bitfield
 {
 private:
+  typedef typename remove_reference<T>::type Base_type;
+
   static_assert(MSB >= LSB, "boundary mismatch in bit-field definition");
-  static_assert(MSB < sizeof(T) * 8, "MSB outside of bit-field type");
-  static_assert(LSB < sizeof(T) * 8, "LSB outside of bit-field type");
+  static_assert(MSB < sizeof(Base_type) * 8, "MSB outside of bit-field type");
+  static_assert(LSB < sizeof(Base_type) * 8, "LSB outside of bit-field type");
 
   /** \brief Get the best unsigned type for \a bits.
    * \param BITS number of bits to cover
@@ -62,10 +64,10 @@ public:
     Msb = MSB,             ///< index of the MSB
   };
 
-  enum Masks : T
+  enum Masks : Base_type
   {
     /** Mask value to get #Bits bits. */
-    Low_mask = ((T)~0ULL) >> (sizeof(T)*8 - Bits),
+    Low_mask = ((Base_type)~0ULL) >> (sizeof(Base_type)*8 - Bits),
     /** Mask value to the bits out of a \a T. */
     Mask     = Low_mask << Lsb,
   };
@@ -88,8 +90,8 @@ public:
 private:
   static_assert(sizeof(Bits_type)*8 >= Bits, "error finding the type to store the bits");
   static_assert(sizeof(Shift_type)*8 >= Bits + Lsb, "error finding the type to keep the shifted bits");
-  static_assert(sizeof(Bits_type) <= sizeof(T), "size mismatch for Bits_type");
-  static_assert(sizeof(Shift_type) <= sizeof(T), "size mismatch for Shift_type");
+  static_assert(sizeof(Bits_type) <= sizeof(Base_type), "size mismatch for Bits_type");
+  static_assert(sizeof(Shift_type) <= sizeof(Base_type), "size mismatch for Shift_type");
   static_assert(sizeof(Bits_type) <= sizeof(Shift_type), "size mismacht for Shift_type and Bits_type");
 
 public:
@@ -107,7 +109,7 @@ public:
    * This means other bits are masked out, however the result is not shifted to
    * the right,
    */
-  static T get_unshifted(Shift_type val)
+  static Base_type get_unshifted(Shift_type val)
   { return val & Mask; }
 
   /** \brief Set the bits corresponding to \a val.
@@ -117,7 +119,7 @@ public:
    *  \pre \a val must contain not more than bits than #Bits.
    *  \note This function does not mask \a val to the right number of bits.
    */
-  static T set_dirty(T dest, Shift_type val)
+  static Base_type set_dirty(Base_type dest, Shift_type val)
   {
     //assert (!(val & ~Low_mask));
     return (dest & ~Mask) | (val << Lsb);
@@ -132,7 +134,7 @@ public:
    *       to the left.
    *  \note This function does not mask \a val to the right number of bits.
    */
-  static T set_unshifted_dirty(T dest, Shift_type val)
+  static Base_type set_unshifted_dirty(Base_type dest, Shift_type val)
   {
     //assert (!(val & ~Mask));
     return (dest & ~Mask) | val;
@@ -143,7 +145,7 @@ public:
    *  \param val the value to set into the bits.
    *  \return the new value of the whole bit field.
    */
-  static T set(T dest, Bits_type val)
+  static Base_type set(Base_type dest, Bits_type val)
   { return set_dirty(dest, val & Low_mask); }
 
   /** \brief Set the bits corresponding to \a val.
@@ -152,7 +154,7 @@ public:
    *             the bits.
    *  \return the new value of the whole bit field.
    */
-  static T set_unshifted(T dest, Shift_type val)
+  static Base_type set_unshifted(Base_type dest, Shift_type val)
   { return set_unshifted_dirty(dest, val & Mask); }
 
   /** \brief Get the shifted bits for \a val.
@@ -161,20 +163,20 @@ public:
    *  \pre \a val must contain not more than bits than #Bits.
    *  \note This function does not mask \a val to the right number of bits.
    */
-  static T val_dirty(Shift_type val) { return val << Lsb; }
+  static Base_type val_dirty(Shift_type val) { return val << Lsb; }
 
   /** \brief Get the shifted bits for \a val.
    *  \param val the value to set into the bits.
    *  \return the raw bit field value containing.
    */
-  static T val(Bits_type val) { return val_dirty(val & Low_mask); }
+  static Base_type val(Bits_type val) { return val_dirty(val & Low_mask); }
 
   /** \brief Get the shifted bits for \a val.
    *  \param val the value shifted #Lsb bits to the left that shall be set into
    *             the bits.
    *  \return the raw bit field value containing.
    */
-  static T val_unshifted(Shift_type val) { return val & Mask; }
+  static Base_type val_unshifted(Shift_type val) { return val & Mask; }
 
   /** Internal helper type */
   template< typename TT >
@@ -186,12 +188,12 @@ public:
   public:
     Value_base(TT t) : v(t) {}
     Bits_type get() const { return Bitfield::get(v); }
-    T get_unshifted() const { return Bitfield::get_unshifted(v); }
+    Base_type get_unshifted() const { return Bitfield::get_unshifted(v); }
 
-    void set(Bits_type val) __restrict__ { v = Bitfield::set(v, val); }
-    void set_dirty(Bits_type val) __restrict__ { v = Bitfield::set_dirty(v, val); }
-    void set_unshifted(Shift_type val) __restrict__ { v = Bitfield::set_unshifted(v, val); }
-    void set_unshifted_dirty(Shift_type val) __restrict__ { v = Bitfield::set_unshifted_dirty(v, val); }
+    void set(Bits_type val) { v = Bitfield::set(v, val); }
+    void set_dirty(Bits_type val) { v = Bitfield::set_dirty(v, val); }
+    void set_unshifted(Shift_type val) { v = Bitfield::set_unshifted(v, val); }
+    void set_unshifted_dirty(Shift_type val) { v = Bitfield::set_unshifted_dirty(v, val); }
   };
 
   /** Internal helper type */
@@ -201,7 +203,9 @@ public:
   public:
     Value(TT t) : Value_base<TT>(t) {}
     operator Bits_type () const { return this->get(); }
-    Value &operator = (Bits_type val) __restrict__ { this->set(val); return *this; }
+    Value &operator = (Bits_type val) { this->set(val); return *this; }
+    Value &operator = (Value const &val)
+    { this->set(val.get()); return *this; }
   };
 
   /** Internal helper type */
@@ -211,18 +215,20 @@ public:
   public:
     Value_unshifted(TT t) : Value_base<TT>(t) {}
     operator Shift_type () const { return this->get_unshifted(); }
-    Value_unshifted &operator = (Shift_type val) __restrict__ { this->set_unshifted(val); return *this; }
+    Value_unshifted &operator = (Shift_type val) { this->set_unshifted(val); return *this; }
+    Value_unshifted &operator = (Value_unshifted const &val)
+    { this->set_unshifted(val.get_unshifted()); return *this; }
   };
 
   /** Reference type to access the bits inside a raw bit field. */
-  typedef Value<T&> Ref;
+  typedef Value<Base_type &> Ref;
   /** Value type to access the bits inside a raw bit field. */
-  typedef Value<T const> Val;
+  typedef Value<Base_type const> Val;
 
   /** Reference type to access the bits inside a raw bit field (in place). */
-  typedef Value_unshifted<T&> Ref_unshifted;
+  typedef Value_unshifted<Base_type &> Ref_unshifted;
   /** Value type to access the bits inside a raw bit field (in place). */
-  typedef Value_unshifted<T const> Val_unshifted;
+  typedef Value_unshifted<Base_type const> Val_unshifted;
 };
 
 #define CXX_BITFIELD_MEMBER(LSB, MSB, name, data_member) \
@@ -231,6 +237,7 @@ public:
   typedef cxx::Bitfield<decltype(data_member), LSB, MSB> name ## _bfm_t; \
   /** \brief Get the \a name bits (LSB to MSB) of \a data_member. */ \
   name ## _bfm_t::Val name() const { return data_member; } \
+  name ## _bfm_t::Val name() const volatile { return data_member; } \
   /** \brief Get a reference to the \a name bits (LSB to MSB) of \a data_member. */ \
   name ## _bfm_t::Ref name() { return data_member; } \
   /** @} */
@@ -241,6 +248,7 @@ public:
   typedef cxx::Bitfield<decltype(data_member), LSB, MSB> name ## _bfm_t; \
   /** \brief Get the \a name bits (LSB to MSB) of \a data_member. */ \
   name ## _bfm_t::Val name() const { return data_member; } \
+  name ## _bfm_t::Val name() const volatile { return data_member; } \
   /** @} */
 
 #define CXX_BITFIELD_MEMBER_UNSHIFTED(LSB, MSB, name, data_member) \
@@ -249,6 +257,7 @@ public:
   typedef cxx::Bitfield<decltype(data_member), LSB, MSB> name ## _bfm_t; \
   /** \brief Get the \a name bits (LSB to MSB) of \a data_member. */ \
   name ## _bfm_t::Val_unshifted name() const { return data_member; } \
+  name ## _bfm_t::Val_unshifted name() const volatile { return data_member; } \
   /** \brief Get a reference to the \a name bits (LSB to MSB) of \a data_member. */ \
   name ## _bfm_t::Ref_unshifted name() { return data_member; } \
   /** @} */
@@ -259,5 +268,6 @@ public:
   typedef cxx::Bitfield<decltype(data_member), LSB, MSB> name ## _bfm_t; \
   /** \brief Get the \a name bits (LSB to MSB) of \a data_member. */ \
   name ## _bfm_t::Val_unshifted name() const { return data_member; } \
+  name ## _bfm_t::Val_unshifted name() const volatile { return data_member; } \
   /** @} */
 }

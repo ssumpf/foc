@@ -50,6 +50,10 @@ ifneq ($(SYSTEM),) # if we have a system, really build
 
 TARGET_STANDARD := $(TARGET) $(TARGET_$(OSYSTEM))
 TARGET_PROFILE := $(addsuffix .pr,$(filter $(BUILD_PROFILE),$(TARGET)))
+
+$(call GENERATE_PER_TARGET_RULES,$(TARGET_STANDARD))
+$(call GENERATE_PER_TARGET_RULES,$(TARGET_PROFILE),.pr)
+
 TARGET	+= $(TARGET_$(OSYSTEM)) $(TARGET_PROFILE)
 
 LDFLAGS_DYNAMIC_LINKER     := --dynamic-linker=rom/libld-l4.so
@@ -96,8 +100,9 @@ else
     LDFLAGS += $(addprefix -L, $(L4LIBDIR))
     LDFLAGS += $(LIBS) -Wl,-Bstatic $(L4_LIBS)
     # -Wl,-Bdynamic is only applicable for dynamically linked programs,
-    # we need a static/dynamic flag for the l4linux mode...
-    LDFLAGS += -Wl,-Bdynamic
+    ifeq ($(filter -static, $(LDFLAGS)),)
+      LDFLAGS += -Wl,-Bdynamic
+    endif
   endif
 endif
 
@@ -160,13 +165,17 @@ BID_LDFLAGS_FOR_LINKING_GCC = $(addprefix -Wl$(BID_COMMA),$(BID_LDFLAGS_FOR_LD))
 ifeq ($(LINK_PROGRAM),)
 LINK_PROGRAM  := $(LD)
 BID_LDFLAGS_FOR_LINKING = $(BID_LDFLAGS_FOR_LINKING_LD)
+BID_LD_WHOLE_ARCHIVE = --whole-archive $1 --no-whole-archive
 else
 BID_LDFLAGS_FOR_LINKING = $(if $(HOST_LINK_TARGET),$(CCXX_FLAGS)) $(BID_LDFLAGS_FOR_LINKING_GCC)
+BID_LD_WHOLE_ARCHIVE = -Wl,--whole-archive $1 -Wl,--no-whole-archive
 endif
 
 $(TARGET): $(OBJS) $(LIBDEPS) $(CRT0) $(CRTN)
 	@$(LINK_MESSAGE)
-	$(VERBOSE)$(call MAKEDEP,$(INT_LD_NAME),,,ld) $(LINK_PROGRAM) -o $@ $(CRT0) $(OBJS) $(BID_LDFLAGS_FOR_LINKING) $(CRTN)
+	$(VERBOSE)$(call MAKEDEP,$(INT_LD_NAME),,,ld) $(LINK_PROGRAM) -o $@ $(CRT0) \
+	            $(call BID_LD_WHOLE_ARCHIVE, $(OBJS)) \
+	            $(BID_LDFLAGS_FOR_LINKING) $(CRTN)
 	$(if $(BID_GEN_CONTROL),$(VERBOSE)echo "Requires: $(REQUIRES_LIBS)" >> $(PKGDIR)/Control)
 	$(if $(BID_POST_PROG_LINK_MSG_$@),@$(BID_POST_PROG_LINK_MSG_$@))
 	$(if $(BID_POST_PROG_LINK_$@),$(BID_POST_PROG_LINK_$@))

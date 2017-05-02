@@ -24,16 +24,16 @@ public:
 #line 52 "parser.cpp"
   // Try a constructor with weird syntax
   
-  Foo();
+  Foo ();
 
 private:  
 #line 44 "parser.cpp"
   // And add a Foo function
-  void func();
+  void func ();
   
 #line 48 "parser.cpp"
   // Try default arguments
-  void bar(int i = 15, int j = somefunc(0, somefunc(0, 0)));
+  void bar (int i = 15, int j = somefunc(0, somefunc(0, 0)));
 };
 
 #line 20 "parser.cpp"

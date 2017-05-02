@@ -15,10 +15,13 @@ SUPPORT_CC_arm-omap5           := platform/omap.cc
 SUPPORT_CC_arm-tegra2          := platform/tegra2.cc
 SUPPORT_CC_arm-tegra3          := platform/tegra3.cc
 SUPPORT_CC_arm-imx21           := platform/imx.cc
+SUPPORT_CC_arm-imx28           := platform/imx.cc
+SUPPORT_CC_arm-ls1021atwr      := platform/ls1021atwr.cc
 DEFAULT_RELOC_arm-imx21        := 0x00200000  # because of blob
 SUPPORT_CC_arm-imx35           := platform/imx.cc
 SUPPORT_CC_arm-imx51           := platform/imx.cc
 SUPPORT_CC_arm-imx6            := platform/imx.cc
+SUPPORT_CC_arm-imx6ul          := platform/imx.cc
 SUPPORT_CC_arm-om              := platform/om.cc
 SUPPORT_CC_arm-kirkwood        := platform/kirkwood.cc
 SUPPORT_CC_arm-rpi_a           := platform/rpi.cc
@@ -28,6 +31,7 @@ SUPPORT_CC_arm-exynos5         := platform/exynos.cc
 SUPPORT_CC_arm-zedboard        := platform/zynq.cc
 SUPPORT_CC_arm-parallella      := platform/zynq.cc
 SUPPORT_CC_arm-cubieboard2     := platform/sunxi.cc
+SUPPORT_CC_arm-armada38x       := platform/armada38x.cc
 
 # PPC
 SUPPORT_CC_ppc32-mpc5200       := platform/mpc5200.cc
@@ -43,3 +47,9 @@ else
 SUPPORT_CC_x86-pc              := platform/x86_efi_pc.cc
 SUPPORT_CC_amd64-pc            := platform/x86_efi_pc.cc
 endif
+
+# MIPS
+SUPPORT_CC_mips-malta          := platform/malta.cc
+SUPPORT_CC_mips-ci20           := platform/ci20.cc
+SUPPORT_CC_mips-sead3          := platform/sead3.cc
+SUPPORT_CC_mips-baikal_t       := platform/baikal.cc

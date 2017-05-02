@@ -23,25 +23,25 @@ private:
 public:  
 #line 10 "multifile1.cpp"
   void 
-  bar();
+  bar ();
   
 #line 15 "multifile2.cpp"
   void 
-  bingo(Bar* bar);
+  bingo (Bar* bar);
 
 protected:  
 #line 15 "multifile1.cpp"
   inline void
-  baz();
+  baz ();
   
 #line 20 "multifile2.cpp"
   inline void 
-  rambo();
+  rambo ();
 
 private:  
 #line 22 "multifile1.cpp"
   void
-  gizmatic();
+  gizmatic ();
 };
 
 //
@@ -53,14 +53,14 @@ private:
 
 
 inline void 
-Foo::rambo()
+Foo::rambo ()
 {}
 
 #line 13 "multifile1.cpp"
 
 
 inline void
-Foo::baz()
+Foo::baz ()
 {}
 
 #endif // multifile_h

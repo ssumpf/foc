@@ -21,7 +21,7 @@ Jdb_kern_info_cpu::show_f_bits(unsigned features, const char *const *table,
 	  {
 	    colon = 0;
 	    last_pos = first_pos;
-	    printf("\n%*s", first_pos, "");
+	    printf("\n%*s", (int)first_pos, "");
 	  }
 	printf ("%s%s", colon ? ", " : "", *table);
 	last_pos += slen + colon;

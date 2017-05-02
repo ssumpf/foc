@@ -96,6 +96,7 @@ bool
 L4_snd_item_iter::next()
 {
   c.b = L4_msg_item(_buf[0]);
+  c.d = 0;
 
   ++_buf;
 

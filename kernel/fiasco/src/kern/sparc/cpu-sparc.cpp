@@ -35,7 +35,6 @@ namespace Segment
 IMPLEMENTATION [sparc]:
 
 #include "panic.h"
-#include "boot_info.h"
 #include "psr.h"
 
 #include <cstdio>

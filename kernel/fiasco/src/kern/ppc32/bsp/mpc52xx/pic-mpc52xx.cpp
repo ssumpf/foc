@@ -1,31 +1,35 @@
 INTERFACE [ppc32 && mpc52xx]:
 
 #include "types.h"
+#include "initcalls.h"
 #include "irq_chip.h"
+#include "irq_chip_generic.h"
 
-EXTENSION class Pic
+EXTENSION class Pic : public Irq_chip_gen
 {
+public:
+  static Pic *main;
+
 private:
   /** Pic interrupt control registers (incomplete) */
   ///+0x00: Peripheral Interrupt Mask Register
-  static Address per_mask() { return _pic_base; }
+  Address per_mask() { return _pic_base; }
   ///+0x04: Peripheral Priority & HI/LO Select Register1
-  static Address per_prio1() { return _pic_base + 0x04; }
+  Address per_prio1() { return _pic_base + 0x04; }
   ///+0x08: Peripheral Priority & HI/LO Select Register2
-  static Address per_prio2() { return _pic_base + 0x08; }
+  Address per_prio2() { return _pic_base + 0x08; }
   ///+0x0c: Peripheral Priority & HI/LO Select Register3
-  static Address per_prio3() { return _pic_base + 0x0c; }
+  Address per_prio3() { return _pic_base + 0x0c; }
   ///+0x10: External Enable & External Types Register
-  static Address ext() { return _pic_base + 0x10; }
+  Address ext() { return _pic_base + 0x10; }
   ///+0x14: Critical Priority & Main Inter. Mask Register
-  static Address main_mask() { return _pic_base + 0x14; }
+  Address main_mask() { return _pic_base + 0x14; }
   ///+0x18: Main Inter. Priority1
-  static Address main_prio1() { return _pic_base + 0x18; }
+  Address main_prio1() { return _pic_base + 0x18; }
   ///+0x1c: Main Inter. Priority2
-  static Address main_prio2() { return _pic_base + 0x1c; }
+  Address main_prio2() { return _pic_base + 0x1c; }
   ///+0x24: PerStat, MainStat, CritStat Encoded Registers
-  static Address stat() { return _pic_base + 0x24; }
-
+  Address stat() { return _pic_base + 0x24; }
 
   /** Interrupt lines (sdma is missing) */
   enum Pic_lines
@@ -52,13 +56,23 @@ private:
     SENSE_LEVEL_LOW    = 3
   };
 
-  static Address _pic_base;
+  Address _pic_base;
+
+  enum { IRQ_MAX  = (IRQ_PER << IRQ_SHIFT) + NUM_PER};
+
+  static unsigned pic_line(unsigned irq_num)
+  { return irq_num >> IRQ_SHIFT; }
+
+  static unsigned irq_num(unsigned line, unsigned pic_num)
+  { return (line << IRQ_SHIFT) | pic_num; }
+
+  static inline unsigned pic_num(unsigned irq_num)
+  { return irq_num & ~(~0U << IRQ_SHIFT); }
 
 public:
-  enum { IRQ_MAX  = (IRQ_PER << IRQ_SHIFT) + NUM_PER};
-  enum { No_irq_pending = ~0U };
-
-  static Irq_chip_icu *main;
+  int set_mode(Mword, Mode) { return 0; }
+  bool is_edge_triggered(Mword) const { return false; }
+  void set_cpu(Mword, Cpu_number) {}
 };
 
 //------------------------------------------------------------------------------
@@ -76,177 +90,10 @@ IMPLEMENTATION [ppc32 && mpc52xx]:
 #include <cassert>
 #include <cstdio>
 
-Irq_chip_icu *Pic::main;
-
-class Chip : public Irq_chip_gen
-{
-public:
-  Chip() : Irq_chip_gen(Pic::IRQ_MAX) {}
-  int set_mode(Mword, Mode) { return 0; }
-  bool is_edge_triggered(Mword) const { return false; }
-  void set_cpu(Mword, Cpu_number) {}
-};
-
-PUBLIC
-void
-Chip::mask(Mword)
-{
-  assert(cpu_lock.test());
-  //Pic::disable_locked(irq);
-}
-
-PUBLIC
-void
-Chip::ack(Mword)
-{
-  assert(cpu_lock.test());
-  //Pic::acknowledge_locked(irq);
-}
-
-PUBLIC
-void
-Chip::mask_and_ack(Mword)
-{
-  assert(cpu_lock.test());
-  //Pic::disable_locked(irq());
-  //Pic::acknowledge_locked(irq());
-}
-
-PUBLIC
-void
-Chip::unmask(Mword)
-{
-  assert(cpu_lock.test());
-  //Pic::enable_locked(irq());
-}
-
-class Mgr : public Irq_mgr
-{
-public:
-  unsigned nr_irqs() const { return Pic::IRQ_MAX; }
-  unsigned nr_msis() const { return 0; }
-  Irq chip(Mword irqnum) const
-  { return Irq(_chip, irqnum); }
-
-  Chip *_chip;
-};
-
-static Static_object<Mgr> mgr;
-static Static_object<Chip> chip;
+Pic *Pic::main;
 
 
-Address Pic::_pic_base = 0;
-
-IMPLEMENT FIASCO_INIT
-void
-Pic::init()
-{
-  _pic_base = Boot_info::pic_base();
-  assert(_pic_base != 0);
-
-  Mmu_guard dcache;
-  Io::write_dirty<Unsigned32>(0xffffe000, per_mask());  //disable 0-19
-  Io::write_dirty<Unsigned32>(0x00010fff, main_mask()); //disable 15, 20-31
-
-  Unsigned32 ext_val = Io::read_dirty<Unsigned32>(ext());
-  ext_val &= 0x00ff0000; //keep sense configuration
-  ext_val |= 0x0f000000; //clear IRQ 0-3
-  ext_val |= 0x00001000; //enable Master External Enable
-  ext_val |= 0x00000f00; //enable all interrupt lines (IRQ 0-3)
-  ext_val |= 0x00000001; //CEb route critical interrupt normally
-  Io::write_dirty<Unsigned32>(ext_val, ext());
-
-  //zero priority registers
-  Io::write_dirty<Unsigned32>(0, per_prio1());
-  Io::write_dirty<Unsigned32>(0, per_prio2());
-  Io::write_dirty<Unsigned32>(0, per_prio3());
-  Io::write_dirty<Unsigned32>(0, main_prio1());
-  Io::write_dirty<Unsigned32>(0, main_prio2());
-
-  Irq_mgr::mgr = mgr.construct();
-  mgr->_chip = chip.construct();
-}
-
-//------------------------------------------------------------------------------
-/**
- * Irq number translations
- */
-PUBLIC static inline
-unsigned
-Pic::irq_num(unsigned line, unsigned pic_num)
-{ return (line << IRQ_SHIFT) | pic_num; }
-
-
-PUBLIC static
-int
-Pic::get_irq_num(const char *name, const char *type)
-{
-  Of_device *dev = Boot_info::get_device(name, type);
-
-  if(!dev)
-    return -1;
-
-  return (int)irq_num(dev->interrupt[0], dev->interrupt[1]);
-}
-
-PRIVATE static inline NEEDS[<cassert>]
-unsigned
-Pic::pic_line(unsigned irq_num)
-{
-  unsigned line = irq_num >> IRQ_SHIFT;
-  assert(line < 3);
-  return line;
-}
-
-PRIVATE static inline NEEDS[Pic::pic_line]
-unsigned
-Pic::pic_num(unsigned irq_num)
-{
-  unsigned line = pic_line(irq_num);
-  unsigned num = irq_num & ~(~0U << IRQ_SHIFT);
-
-  switch(line)
-    {
-    case IRQ_CRIT:
-      assert(num < NUM_CRIT);
-      break;
-    case IRQ_MAIN:
-      assert(num < NUM_MAIN);
-      break;
-    default:
-      assert(num < NUM_PER);
-    }
-
-  return num;
-}
-
-
-//-------------------------------------------------------------------------------
-/**
- * Interface implementation
- */
-IMPLEMENT inline
-void
-Pic::block_locked (unsigned irq_num)
-{
-  disable_locked(irq_num);
-}
-
-IMPLEMENT inline NEEDS["io.h", Pic::pic_line, Pic::pic_num, Pic::set_stat_msb]
-void
-Pic::acknowledge_locked(unsigned irq_num)
-{
-  unsigned line = pic_line(irq_num);
-  unsigned num  = pic_num(irq_num);
-
-  if((line == IRQ_MAIN && (num >= 1 || num <= 3)) ||
-     (line == IRQ_CRIT && num == 0))
-    Io::set<Unsigned32>(1U << (27 - num), ext());
-
-  set_stat_msb(irq_num);
-}
-
-PRIVATE static inline
+PRIVATE inline NOEXPORT
 void
 Pic::dispatch_mask(unsigned irq_num, Address *addr, unsigned *bit_offs)
 {
@@ -265,7 +112,7 @@ Pic::dispatch_mask(unsigned irq_num, Address *addr, unsigned *bit_offs)
     }
 }
 
-PRIVATE static inline
+PRIVATE inline NOEXPORT
 void
 Pic::set_stat_msb(unsigned irq_num)
 {
@@ -282,9 +129,9 @@ Pic::set_stat_msb(unsigned irq_num)
     }
 }
 
-IMPLEMENT inline NEEDS[Pic::pic_num, Pic::dispatch_mask]
+PUBLIC
 void
-Pic::disable_locked (unsigned irq_num)
+Pic::mask(Mword irq_num)
 {
   Address addr;
   unsigned bit_offs;
@@ -292,23 +139,90 @@ Pic::disable_locked (unsigned irq_num)
   Io::set<Unsigned32>(1U << (bit_offs - pic_num(irq_num)), addr);
 }
 
-IMPLEMENT inline NEEDS[Pic::dispatch_mask]
+PUBLIC
 void
-Pic::enable_locked (unsigned irq_num, unsigned /*prio*/)
+Pic::ack(Mword irq_num)
+{
+  unsigned line = pic_line(irq_num);
+  unsigned num  = pic_num(irq_num);
+
+  if((line == IRQ_MAIN && (num >= 1 || num <= 3)) ||
+     (line == IRQ_CRIT && num == 0))
+    Io::set<Unsigned32>(1U << (27 - num), ext());
+
+  set_stat_msb(irq_num);
+}
+
+PUBLIC
+void
+Pic::mask_and_ack(Mword irq_num)
+{
+  Pic::mask(irq_num);
+  Pic::ack(irq_num);
+}
+
+PUBLIC
+void
+Pic::unmask(Mword irq_num)
 {
   Address addr;
   unsigned bit_offs;
   dispatch_mask(irq_num, &addr, &bit_offs);
-
   Io::clear<Unsigned32>(1U << (bit_offs - pic_num(irq_num)), addr);
 }
 
-PUBLIC static inline NEEDS["panic.h"]
-unsigned
-Pic::nr_irqs()
-{ return IRQ_MAX; }
+PUBLIC explicit
+Pic::Pic(Address base)
+: Irq_chip_gen(IRQ_MAX), _pic_base(base)
+{
+  Mmu_guard dcache;
+  Io::write_dirty<Unsigned32>(0xffffe000, per_mask());  //disable 0-19
+  Io::write_dirty<Unsigned32>(0x00010fff, main_mask()); //disable 15, 20-31
 
-PRIVATE static inline
+  Unsigned32 ext_val = Io::read_dirty<Unsigned32>(ext());
+  ext_val &= 0x00ff0000; //keep sense configuration
+  ext_val |= 0x0f000000; //clear IRQ 0-3
+  ext_val |= 0x00001000; //enable Master External Enable
+  ext_val |= 0x00000f00; //enable all interrupt lines (IRQ 0-3)
+  ext_val |= 0x00000001; //CEb route critical interrupt normally
+  Io::write_dirty<Unsigned32>(ext_val, ext());
+
+  //zero priority registers
+  Io::write_dirty<Unsigned32>(0, per_prio1());
+  Io::write_dirty<Unsigned32>(0, per_prio2());
+  Io::write_dirty<Unsigned32>(0, per_prio3());
+  Io::write_dirty<Unsigned32>(0, main_prio1());
+  Io::write_dirty<Unsigned32>(0, main_prio2());
+}
+
+static Static_object<Irq_mgr_single_chip<Pic> > mgr;
+
+PUBLIC static FIASCO_INIT
+void
+Pic::init()
+{
+  assert(Boot_info::pic_base());
+  Irq_mgr::mgr = mgr.construct(Boot_info::pic_base());
+}
+
+//------------------------------------------------------------------------------
+/**
+ * Irq number translations
+ */
+
+PUBLIC static
+int
+Pic::get_irq_num(const char *name, const char *type)
+{
+  Of_device *dev = Boot_info::get_device(name, type);
+
+  if(!dev)
+    return -1;
+
+  return (int)Pic::irq_num(dev->interrupt[0], dev->interrupt[1]);
+}
+
+PRIVATE inline NOEXPORT
 Unsigned32
 Pic::pending_per(Unsigned32 state)
 {
@@ -320,7 +234,7 @@ Pic::pending_per(Unsigned32 state)
   return irq_num(IRQ_PER, irq);
 }
 
-PRIVATE static inline
+PRIVATE inline NOEXPORT
 Unsigned32
 Pic::pending_main(Unsigned32 state)
 {
@@ -333,11 +247,11 @@ Pic::pending_main(Unsigned32 state)
   return irq_num(IRQ_MAIN, irq);
 }
 
-PUBLIC static inline NEEDS[Pic::pending_main, Pic::pending_per]
-Unsigned32
-Pic::pending()
+PUBLIC
+void
+Pic::post_pending_irqs()
 {
-  Unsigned32 irq = No_irq_pending;
+  Unsigned32 irq;
   Unsigned32 state = Io::read<Unsigned32>(stat());
 
   //critical interupt
@@ -349,31 +263,11 @@ Pic::pending()
   //periphal interrupt
   else if(state & 0x20000000)
     irq = pending_per(state);
+  else
+    return;
 
-  return irq;
-}
-
-/**
- * disable interrupt lines [0-3]
- */
-IMPLEMENT inline
-Pic::Status
-Pic::disable_all_save()
-{
-  Status s;
-  Mmu_guard dcache;
-
-  s = Io::read_dirty<Unsigned32>(ext());
-  Io::write_dirty<Unsigned32>(s & ~0x1f00, ext());
-
-  return s;
-}
-
-IMPLEMENT inline
-void
-Pic::restore_all(Status s)
-{
-  Io::write<Unsigned32>(s, ext());
+  Irq_base *i = nonull_static_cast<Irq_base*>(this->irq(irq));
+  i->hit(0);
 }
 
 // ------------------------------------------------------------------------
@@ -381,5 +275,5 @@ IMPLEMENTATION [debug && ppc32]:
 
 PUBLIC
 char const *
-Chip::chip_type() const
-{ return "HW Mpc52xx IRQ"; }
+Pic::chip_type() const
+{ return "Mpc52xx"; }

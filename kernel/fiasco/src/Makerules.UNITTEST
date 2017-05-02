@@ -90,7 +90,7 @@ $(ALL_TESTS): %: %.o
 	  $(filter-out kernel.ux.lds,$^) -o $@ $(TEST_LIB) -lutil
 
 %.ok: %
-ifeq ($(SYSTEM_TARGET)$(CONFIG_XARCH),ux)	# Test execution for non-cross UX builds
+ifeq ($(CROSS_COMPILE)$(CONFIG_XARCH),ux)	# Test execution for non-cross UX builds
 	@echo -n "Running test $* ... "
 	@./$< --test --quiet > $*.out.full
 	@grep "^\[UTEST\]" $*.out.full > $*.out

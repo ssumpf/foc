@@ -127,14 +127,13 @@ IMPLEMENTATION:
 #include "map_util.h"
 #include "processor.h"
 #include "timer.h"
-#include "kdb_ke.h"
 #include "warn.h"
 
 PUBLIC
 virtual void
 Thread::ipc_receiver_aborted()
 {
-  assert_kdb (wait_queue());
+  assert (wait_queue());
   set_wait_queue(0);
 
   activate();
@@ -166,21 +165,21 @@ PUBLIC virtual
 void
 Thread::modify_label(Mword const *todo, int cnt)
 {
-  assert_kdb (_snd_regs);
+  assert (_snd_regs);
   Mword l = _snd_regs->from_spec();
   for (int i = 0; i < cnt*4; i += 4)
     {
       Mword const test_mask = todo[i];
       Mword const test      = todo[i+1];
       if ((l & test_mask) == test)
-	{
-	  Mword const del_mask = todo[i+2];
-	  Mword const add_mask = todo[i+3];
+        {
+          Mword const del_mask = todo[i+2];
+          Mword const add_mask = todo[i+3];
 
-	  l = (l & ~del_mask) | add_mask;
-	  _snd_regs->from(l);
-	  return;
-	}
+          l = (l & ~del_mask) | add_mask;
+          _snd_regs->from(l);
+          return;
+        }
     }
 }
 
@@ -212,13 +211,13 @@ Thread::handle_page_fault_pager(Thread_ptr const &_pager,
 
   if (!pager)
     {
-      WARN("CPU%d: Pager of %lx is invalid (pfa=" L4_PTR_FMT
-	   ", errorcode=" L4_PTR_FMT ") to %lx (pc=%lx)\n",
-	   cxx::int_value<Cpu_number>(current_cpu()), dbg_id(), pfa,
+      WARN("CPU%u: Pager of %lx is invalid (pfa=" L4_PTR_FMT
+           ", errorcode=" L4_PTR_FMT ") to %lx (pc=%lx)\n",
+           cxx::int_value<Cpu_number>(current_cpu()), dbg_id(), pfa,
            error_code, cxx::int_value<Cap_index>(_pager.raw()), regs()->ip());
 
 
-      LOG_TRACE("Page fault invalid pager", "pf", this, Log_pf_invalid,
+      LOG_TRACE("Page fault invalid pager", "ipfh", this, Log_pf_invalid,
                 l->cap_idx = _pager.raw();
                 l->err     = error_code;
                 l->pfa     = pfa);
@@ -262,9 +261,9 @@ Thread::handle_page_fault_pager(Thread_ptr const &_pager,
       if (utcb->error.snd_phase()
           && (utcb->error.error() == L4_error::Not_existent)
           && PF::is_usermode_error(error_code)
-	  && !(state() & Thread_cancel))
-	{
-	  success = false;
+          && !(state() & Thread_cancel))
+        {
+          success = false;
         }
     }
   else // no error
@@ -295,10 +294,10 @@ Thread::check_sender(Thread *sender, bool timeout)
   if (EXPECT_FALSE(!sender_ok(sender)))
     {
       if (!timeout)
-	{
-	  sender->utcb().access()->error = L4_error::Timeout;
-	  return Check_sender::Failed;
-	}
+        {
+          sender->utcb().access()->error = L4_error::Timeout;
+          return Check_sender::Failed;
+        }
 
       sender->set_wait_queue(sender_list());
       sender->sender_enqueue(sender_list(), sender->sched_context()->prio());
@@ -309,47 +308,59 @@ Thread::check_sender(Thread *sender, bool timeout)
   return Check_sender::Ok;
 }
 
+/**
+ * Setup a IPC-like timer for the given timeout.
+ * \param timeout  The L4 ABI timeout value that shall be used
+ * \param utcb     The UTCB that might contain an absolute timeout
+ * \param timer    The timeout/timer object that shall be queued.
+ *
+ * This function does nothing if the timeout is *never*.
+ * Sets Thread_ready and Thread_timeout in the thread state
+ * if the timeout is zero or has already hit (is in the past).
+ * Or enqueues the given timer object with the finite timeout calculated
+ * from `timeout`.
+ */
+PUBLIC inline NEEDS["timer.h"]
+void
+Thread::setup_timer(L4_timeout timeout, Utcb const *utcb, Timeout *timer)
+{
+  if (EXPECT_TRUE(timeout.is_never()))
+    return;
+
+  if (EXPECT_FALSE(timeout.is_zero()))
+    {
+      state_add_dirty(Thread_ready | Thread_timeout);
+      return;
+    }
+
+  assert (!_timeout);
+
+  Unsigned64 sysclock = Timer::system_clock();
+  Unsigned64 tval = timeout.microsecs(sysclock, utcb);
+
+  if (EXPECT_TRUE((tval > sysclock)))
+    set_timeout(timer, tval);
+  else // timeout already hit
+    state_add_dirty(Thread_ready | Thread_timeout);
+}
+
 
 PRIVATE inline NEEDS["timer.h"]
 void Thread::goto_sleep(L4_timeout const &t, Sender *sender, Utcb *utcb)
 {
   IPC_timeout timeout;
 
-  if (EXPECT_FALSE(t.is_finite() && !_timeout))
-    {
-      state_del_dirty(Thread_ready);
-
-      Unsigned64 sysclock = Timer::system_clock();
-      Unsigned64 tval = t.microsecs(sysclock, utcb);
-
-      if (EXPECT_TRUE((tval > sysclock)))
-	{
-	  set_timeout(&timeout);
-	  timeout.set(tval, current_cpu());
-	}
-      else // timeout already hit
-	state_add_dirty(Thread_ready | Thread_timeout);
-    }
-  else
-    {
-      if (EXPECT_TRUE(t.is_never()))
-	state_del_dirty(Thread_ready);
-      else
-	state_add_dirty(Thread_ready | Thread_timeout);
-    }
+  state_del_dirty(Thread_ready);
+  setup_timer(t, utcb, &timeout);
 
   if (sender == this)
     switch_sched(sched(), &Sched_context::rq.current());
 
   schedule();
 
-  if (EXPECT_FALSE((long)_timeout))
-    {
-      timeout.reset();
-      set_timeout(0);
-    }
+  reset_timeout();
 
-  assert_kdb (state() & Thread_ready);
+  assert (state() & Thread_ready);
 }
 
 
@@ -361,7 +372,7 @@ PRIVATE inline NEEDS["logdefs.h"]
 Thread::Check_sender
 Thread::handshake_receiver(Thread *partner, L4_timeout snd_t)
 {
-  assert_kdb(cpu_lock.test());
+  assert(cpu_lock.test());
 
   switch (expect(partner->check_sender(this, !snd_t.is_zero()), Check_sender::Ok))
     {
@@ -392,21 +403,46 @@ Thread::get_next_sender(Sender *sender)
   if (!sender_list()->empty())
     {
       if (sender) // closed wait
-	{
-	  if (sender->in_sender_list() && sender_list() == sender->wait_queue())
-	    return sender;
-	}
+        {
+          if (EXPECT_TRUE(sender->in_sender_list())
+              && EXPECT_TRUE(sender_list() == sender->wait_queue()))
+            return sender;
+          return 0;
+        }
       else // open wait
-	{
-	  Sender *next = Sender::cast(sender_list()->first());
-	  assert_kdb (next->in_sender_list());
-	  set_partner(next);
-	  return next;
-	}
+        {
+          Sender *next = Sender::cast(sender_list()->first());
+          assert (next->in_sender_list());
+          set_partner(next);
+          return next;
+        }
     }
   return 0;
 }
 
+PRIVATE inline
+bool
+Thread::activate_ipc_partner(Thread *partner, Cpu_number current_cpu,
+                             bool do_switch, bool closed_wait)
+{
+  if (partner->home_cpu() == current_cpu)
+    {
+      auto &rq = Sched_context::rq.current();
+      Sched_context *cs = rq.current_sched();
+      do_switch = do_switch && (closed_wait || cs != sched());
+      partner->state_change_dirty(~Thread_ipc_transfer, Thread_ready);
+      if (do_switch)
+        {
+          schedule_if(switch_exec_locked(partner, Not_Helping) != Switch::Ok);
+          return true;
+        }
+      else
+        return deblock_and_schedule(partner);
+    }
+
+  partner->xcpu_state_change(~Thread_ipc_transfer, Thread_ready);
+  return false;
+}
 
 /**
  * Send an IPC message.
@@ -416,6 +452,9 @@ Thread::get_next_sender(Sender *sender)
  * @param regs sender's IPC registers
  * @pre cpu_lock must be held
  * @return sender's IPC error code
+ *
+ * @todo review closed wait handling of sender during possible
+ *       quiescent states and blocking.
  */
 PUBLIC
 void
@@ -424,12 +463,12 @@ Thread::do_ipc(L4_msg_tag const &tag, bool have_send, Thread *partner,
                L4_timeout_pair t, Syscall_frame *regs,
                L4_fpage::Rights rights)
 {
-  assert_kdb (cpu_lock.test());
-  assert_kdb (this == current());
+  assert (cpu_lock.test());
+  assert (this == current());
 
   bool do_switch = false;
 
-  assert_kdb (!(state() & Thread_ipc_mask));
+  assert (!(state() & Thread_ipc_mask));
 
   prepare_receive(sender, have_receive ? regs : 0);
   bool activate_partner = false;
@@ -437,7 +476,7 @@ Thread::do_ipc(L4_msg_tag const &tag, bool have_send, Thread *partner,
 
   if (have_send)
     {
-      assert_kdb(!in_sender_list());
+      assert(!in_sender_list());
       do_switch = tag.do_switch();
 
       bool ok;
@@ -448,68 +487,67 @@ Thread::do_ipc(L4_msg_tag const &tag, bool have_send, Thread *partner,
       if (EXPECT_TRUE(current_cpu == partner->home_cpu()))
         result = handshake_receiver(partner, t.snd);
       else
-	{
-	  // we have either per se X-CPU IPC or we ran into a
-	  // IPC during migration (indicated by the pending DRQ)
-	  do_switch = false;
-	  result = remote_handshake_receiver(tag, partner, have_receive, t.snd,
-	                                     regs, rights);
+        {
+          // we have either per se X-CPU IPC or we ran into a
+          // IPC during migration (indicated by the pending DRQ)
+          do_switch = false;
+          result = remote_handshake_receiver(tag, partner, have_receive, t.snd,
+                                             regs, rights);
 
           // this may block, so we could have been migrated here
           current_cpu = ::current_cpu();
-	}
+        }
 
       switch (expect(result, Check_sender::Ok))
-	{
+        {
         case Check_sender::Done:
-	  ok = true;
-	  break;
+          ok = true;
+          break;
 
         case Check_sender::Queued:
-	  // set _snd_regs, to enable active receiving
-	  snd_regs(regs);
-	  ok = do_send_wait(partner, t.snd); // --- blocking point ---
+          // set _snd_regs, to enable active receiving
+          snd_regs(regs);
+          ok = do_send_wait(partner, t.snd); // --- blocking point ---
           current_cpu = ::current_cpu();
-	  break;
+          break;
 
         case Check_sender::Failed:
-	  state_del_dirty(Thread_ipc_mask);
-	  ok = false;
-	  break;
+          state_del_dirty(Thread_ipc_mask);
+          ok = false;
+          break;
 
-	default:
-	  // mmh, we can reset the receivers timeout
-	  // ping pong with timeouts will profit from it, because
-	  // it will require much less sorting overhead
-	  // if we dont reset the timeout, the possibility is very high
-	  // that the receiver timeout is in the timeout queue
+        default:
+          // mmh, we can reset the receivers timeout
+          // ping pong with timeouts will profit from it, because
+          // it will require much less sorting overhead
+          // if we dont reset the timeout, the possibility is very high
+          // that the receiver timeout is in the timeout queue
           if (EXPECT_TRUE(current_cpu == partner->home_cpu()))
             partner->reset_timeout();
 
-	  ok = transfer_msg(tag, partner, regs, rights);
+          ok = transfer_msg(tag, partner, regs, rights);
 
           // transfer is also a possible migration point
           current_cpu = ::current_cpu();
 
-	  // switch to receiving state
-	  state_del_dirty(Thread_ipc_mask);
-	  if (ok && have_receive)
-	    state_add_dirty(Thread_receive_wait);
+          // switch to receiving state
+          state_del_dirty(Thread_ipc_mask);
+          if (ok && have_receive)
+            state_add_dirty(Thread_receive_wait);
 
-	  activate_partner = partner != this;
-	  break;
-	}
+          activate_partner = partner != this;
+          break;
+        }
 
       if (EXPECT_FALSE(!ok))
         {
-	  // send failed, so do not switch to receiver directly and skip receive phase
-          have_receive = false;
+          // send failed, so do not switch to receiver directly and skip receive phase
           regs->tag(L4_msg_tag(0, 0, L4_msg_tag::Error, 0));
         }
     }
   else
     {
-      assert_kdb (have_receive);
+      assert (have_receive);
       state_add_dirty(Thread_receive_wait);
     }
 
@@ -521,26 +559,19 @@ Thread::do_ipc(L4_msg_tag const &tag, bool have_send, Thread *partner,
 
   if (have_receive)
     {
-      assert_kdb (!in_sender_list());
-      assert_kdb (!(state() & Thread_send_wait));
+      assert (!in_sender_list());
+      assert (!(state() & Thread_send_wait));
       next = get_next_sender(sender);
     }
 
-  if (activate_partner)
+  if (activate_partner
+      && activate_ipc_partner(partner, current_cpu, do_switch && !next,
+                              have_receive && sender))
     {
-      if (partner->home_cpu() == current_cpu)
-	{
-          auto &rq = Sched_context::rq.current();
-	  Sched_context *cs = rq.current_sched();
-	  do_switch = do_switch && ((have_receive && sender) || cs != sched()) && !next;
-	  partner->state_change_dirty(~Thread_ipc_transfer, Thread_ready);
-	  if (do_switch)
-            schedule_if(switch_exec_locked(partner, Not_Helping) != Switch::Ok);
-	  else
-            deblock_and_schedule(partner);
-	}
-      else
-	partner->xcpu_state_change(~Thread_ipc_transfer, Thread_ready);
+      // blocked so might have a new sender queued
+      have_receive = state() & Thread_receive_wait;
+      if (have_receive && !next)
+        next = get_next_sender(sender);
     }
 
   if (next)
@@ -552,7 +583,10 @@ Thread::do_ipc(L4_msg_tag const &tag, bool have_send, Thread *partner,
   else if (have_receive)
     {
       if ((state() & Thread_full_ipc_mask) == Thread_receive_wait)
-	goto_sleep(t.rcv, sender, utcb().access(true));
+        goto_sleep(t.rcv, sender, utcb().access(true));
+
+      if (sender && sender == partner && partner->caller() == this)
+        partner->reset_caller();
     }
 
   Mword state = this->state();
@@ -684,9 +718,9 @@ Thread::exception(Kobject_iface *handler, Trap_state *ts, L4_fpage::Rights right
 
   saved_state.restore(utcb);
 
-  if (EXPECT_FALSE(r.tag().has_error()))
-    state_del(Thread_in_exception);
-  else if (r.tag().proto() == L4_msg_tag::Label_allow_syscall)
+  state_del(Thread_in_exception);
+  if (!r.tag().has_error()
+      && r.tag().proto() == L4_msg_tag::Label_allow_syscall)
     state_add(Thread_dis_alien);
 
   // restore original utcb_handler
@@ -720,8 +754,8 @@ Thread::send_exception(Trap_state *ts)
                        && !(vcpu->state & Vcpu_state::F_debug_exc)))
         return 0;
 
-      if (_exc_cont.valid())
-	return 1;
+      if (_exc_cont.valid(ts))
+        return 1;
 
       // before entering kernel mode to have original fpu state before
       // enabling fpu
@@ -730,22 +764,22 @@ Thread::send_exception(Trap_state *ts)
       spill_user_state();
 
       if (vcpu_enter_kernel_mode(vcpu))
-	{
-	  // enter_kernel_mode has switched the address space from user to
-	  // kernel space, so reevaluate the address of the VCPU state area
-	  vcpu = vcpu_state().access();
-	}
+        {
+          // enter_kernel_mode has switched the address space from user to
+          // kernel space, so reevaluate the address of the VCPU state area
+          vcpu = vcpu_state().access();
+        }
 
       LOG_TRACE("VCPU events", "vcpu", this, Vcpu_log,
-	  l->type = 2;
-	  l->state = vcpu->_saved_state;
-	  l->ip = ts->ip();
-	  l->sp = ts->sp();
-	  l->trap = ts->trapno();
-	  l->err = ts->error();
-	  l->space = vcpu_user_space() ? static_cast<Task*>(vcpu_user_space())->dbg_id() : ~0;
-	  );
-      memcpy(&vcpu->_ts, ts, sizeof(Trap_state));
+          l->type = 2;
+          l->state = vcpu->_saved_state;
+          l->ip = ts->ip();
+          l->sp = ts->sp();
+          l->trap = ts->trapno();
+          l->err = ts->error();
+          l->space = vcpu_user_space() ? static_cast<Task*>(vcpu_user_space())->dbg_id() : ~0;
+          );
+      vcpu->_regs.s = *ts;
       fast_return_to_user(vcpu->_entry_ip, vcpu->_sp, vcpu_state().usr().get());
     }
 
@@ -762,14 +796,14 @@ Thread::send_exception(Trap_state *ts)
   if (EXPECT_FALSE(!pager))
     {
       /* no pager (anymore), just ignore the exception, return success */
-      LOG_TRACE("Exception invalid handler", "exc", this, Log_exc_invalid,
+      LOG_TRACE("Exception invalid handler", "ieh", this, Log_exc_invalid,
                 l->cap_idx = _exc_handler.raw());
       if (EXPECT_FALSE(space()->is_sigma0()))
-	{
-	  ts->dump();
-	  WARNX(Error, "Sigma0 raised an exception --> HALT\n");
-	  panic("...");
-	}
+        {
+          ts->dump();
+          WARNX(Error, "Sigma0 raised an exception --> HALT\n");
+          panic("...");
+        }
 
       pager = this; // block on ourselves
     }
@@ -788,24 +822,24 @@ Thread::try_transfer_local_id(L4_buf_iter::Item const *const buf,
   if (buf->b.is_rcv_id())
     {
       if (snd->space() == rcv->space())
-	{
-	  rcv_word[-2] |= 6;
-	  rcv_word[-1] = sfp.raw();
-	  return true;
-	}
+        {
+          rcv_word[-2] |= 6;
+          rcv_word[-1] = sfp.raw();
+          return true;
+        }
       else
-	{
-	  unsigned char rights = 0;
-	  Obj_space::Capability cap = snd->space()->lookup(sfp.obj_index());
-	  Kobject_iface *o = cap.obj();
-	  rights = cap.rights();
-	  if (EXPECT_TRUE(o && o->is_local(rcv->space())))
-	    {
-	      rcv_word[-2] |= 4;
-	      rcv_word[-1] = o->obj_id() | Mword(rights);
-	      return true;
-	    }
-	}
+        {
+          Obj_space::Capability cap = snd->space()->lookup(sfp.obj_index());
+          Kobject_iface *o = cap.obj();
+          if (EXPECT_TRUE(o && o->is_local(rcv->space())))
+            {
+              Mword rights = cap.rights()
+                             & cxx::int_value<L4_fpage::Rights>(sfp.rights());
+              rcv_word[-2] |= 4;
+              rcv_word[-1] = o->obj_id() | rights;
+              return true;
+            }
+        }
     }
   return false;
 }
@@ -828,7 +862,10 @@ Thread::copy_utcb_to_utcb(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
   if (tag.items())
     success = transfer_msg_items(tag, snd, snd_utcb, rcv, rcv_utcb, rights);
 
-  if (tag.transfer_fpu() && rcv_utcb->inherit_fpu() && (rights & L4_fpage::Rights::W()))
+  if (success
+      && tag.transfer_fpu()
+      && rcv_utcb->inherit_fpu()
+      && (rights & L4_fpage::Rights::W()))
     snd->transfer_fpu(rcv);
 
   return success;
@@ -838,11 +875,11 @@ Thread::copy_utcb_to_utcb(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
 PUBLIC inline NEEDS[Thread::copy_utcb_to_ts, Thread::copy_utcb_to_utcb,
                     Thread::copy_ts_to_utcb]
 bool FIASCO_WARN_RESULT
-Thread::copy_utcb_to(L4_msg_tag const &tag, Thread* receiver,
+Thread::copy_utcb_to(L4_msg_tag tag, Thread* receiver,
                      L4_fpage::Rights rights)
 {
   // we cannot copy trap state to trap state!
-  assert_kdb (!this->_utcb_handler || !receiver->_utcb_handler);
+  assert (!this->_utcb_handler || !receiver->_utcb_handler);
   if (EXPECT_FALSE(this->_utcb_handler != 0))
     return copy_ts_to_utcb(tag, this, receiver, rights);
   else if (EXPECT_FALSE(receiver->_utcb_handler != 0))
@@ -858,12 +895,12 @@ Thread::transfer_msg_items(L4_msg_tag const &tag, Thread* snd, Utcb *snd_utcb,
                            L4_fpage::Rights rights)
 {
   // LOG_MSG_3VAL(current(), "map bd=", rcv_utcb->buf_desc.raw(), 0, 0);
-  Task *const rcv_t = nonull_static_cast<Task*>(rcv->space());
+  Ref_ptr<Task> rcv_t(nonull_static_cast<Task*>(rcv->space()));
   L4_buf_iter mem_buffer(rcv_utcb, rcv_utcb->buf_desc.mem());
   L4_buf_iter io_buffer(rcv_utcb, rcv_utcb->buf_desc.io());
   L4_buf_iter obj_buffer(rcv_utcb, rcv_utcb->buf_desc.obj());
   L4_snd_item_iter snd_item(snd_utcb, tag.words());
-  register int items = tag.items();
+  int items = tag.items();
   Mword *rcv_word = rcv_utcb->values + tag.words();
 
   // XXX: damn X-CPU state modification
@@ -873,97 +910,96 @@ Thread::transfer_msg_items(L4_msg_tag const &tag, Thread* snd, Utcb *snd_utcb,
   for (;items > 0 && snd_item.more();)
     {
       if (EXPECT_FALSE(!snd_item.next()))
-	{
-	  snd->set_ipc_error(L4_error::Overflow, rcv);
-	  return false;
-	}
+        {
+          snd->set_ipc_error(L4_error::Overflow, rcv);
+          return false;
+        }
 
       L4_snd_item_iter::Item const *const item = snd_item.get();
 
       if (item->b.is_void())
-	{ // XXX: not sure if void fpages are needed
-	  // skip send item and current rcv_buffer
-	  --items;
-	  continue;
-	}
+        { // XXX: not sure if void fpages are needed
+          // skip send item and current rcv_buffer
+          --items;
+          continue;
+        }
 
       L4_buf_iter *buf_iter = 0;
 
       switch (item->b.type())
-	{
-	case L4_msg_item::Map:
-	  switch (L4_fpage(item->d).type())
-	    {
-	    case L4_fpage::Memory: buf_iter = &mem_buffer; break;
-	    case L4_fpage::Io:     buf_iter = &io_buffer; break;
-	    case L4_fpage::Obj:    buf_iter = &obj_buffer; break;
-	    default: break;
-	    }
-	  break;
-	default:
-	  break;
-	}
+        {
+        case L4_msg_item::Map:
+          switch (L4_fpage(item->d).type())
+            {
+            case L4_fpage::Memory: buf_iter = &mem_buffer; break;
+            case L4_fpage::Io:     buf_iter = &io_buffer; break;
+            case L4_fpage::Obj:    buf_iter = &obj_buffer; break;
+            default: break;
+            }
+          break;
+        default:
+          break;
+        }
 
       if (EXPECT_FALSE(!buf_iter))
-	{
-	  // LOG_MSG_3VAL(snd, "lIPCm0", 0, 0, 0);
-	  snd->set_ipc_error(L4_error::Overflow, rcv);
-	  return false;
-	}
+        {
+          // LOG_MSG_3VAL(snd, "lIPCm0", 0, 0, 0);
+          snd->set_ipc_error(L4_error::Overflow, rcv);
+          return false;
+        }
 
       L4_buf_iter::Item const *const buf = buf_iter->get();
 
       if (EXPECT_FALSE(buf->b.is_void() || buf->b.type() != item->b.type()))
-	{
-	  // LOG_MSG_3VAL(snd, "lIPCm1", buf->b.raw(), item->b.raw(), 0);
-	  snd->set_ipc_error(L4_error::Overflow, rcv);
-	  return false;
-	}
+        {
+          // LOG_MSG_3VAL(snd, "lIPCm1", buf->b.raw(), item->b.raw(), 0);
+          snd->set_ipc_error(L4_error::Overflow, rcv);
+          return false;
+        }
 
-	{
-	  assert_kdb (item->b.type() == L4_msg_item::Map);
-	  L4_fpage sfp(item->d);
-	  *rcv_word = (item->b.raw() & ~0x0ff7) | (sfp.raw() & 0x0ff0);
+        {
+          assert (item->b.type() == L4_msg_item::Map);
+          L4_fpage sfp(item->d);
+          *rcv_word = (item->b.raw() & ~0x0ff6) | (sfp.raw() & 0x0ff0);
 
-	  rcv_word += 2;
+          rcv_word += 2;
 
-	  if (!try_transfer_local_id(buf, sfp, rcv_word, snd, rcv))
-	    {
-	      // we need to do a real mapping¿
+          // diminish when sending via restricted ipc gates
+          if (sfp.type() == L4_fpage::Obj)
+            sfp.mask_rights(rights | L4_fpage::Rights::CRW() | L4_fpage::Rights::CD());
 
-	      // diminish when sending via restricted ipc gates
-	      if (sfp.type() == L4_fpage::Obj)
-		sfp.mask_rights(rights | L4_fpage::Rights::CRW() | L4_fpage::Rights::CD());
+          if (!try_transfer_local_id(buf, sfp, rcv_word, snd, rcv))
+            {
+              // we need to do a real mapping
+              L4_error err;
 
-	      L4_error err;
+                {
+                  // We take the existence_lock for syncronizing maps...
+                  // This is kind of coarse grained
+                  auto sp_lock = lock_guard_dont_lock(rcv_t->existence_lock);
+                  if (!sp_lock.check_and_lock(&rcv_t->existence_lock))
+                    {
+                      snd->set_ipc_error(L4_error::Overflow, rcv);
+                      return false;
+                    }
 
-		{
-		  // We take the existence_lock for syncronizing maps...
-		  // This is kind of coarse grained
-		  auto sp_lock = lock_guard_dont_lock(rcv_t->existence_lock);
-		  if (!sp_lock.check_and_lock(&rcv_t->existence_lock))
-		    {
-		      snd->set_ipc_error(L4_error::Overflow, rcv);
-		      return false;
-		    }
+                  auto c_lock = lock_guard<Lock_guard_inverse_policy>(cpu_lock);
+                  err = fpage_map(snd->space(), sfp,
+                                  rcv_t.get(), L4_fpage(buf->d), item->b, &rl);
+                }
 
-		  auto c_lock = lock_guard<Lock_guard_inverse_policy>(cpu_lock);
-		  err = fpage_map(snd->space(), sfp,
-		      rcv->space(), L4_fpage(buf->d), item->b, &rl);
-		}
-
-	      if (EXPECT_FALSE(!err.ok()))
-		{
-		  snd->set_ipc_error(err, rcv);
-		  return false;
-		}
-	    }
-	}
+              if (EXPECT_FALSE(!err.ok()))
+                {
+                  snd->set_ipc_error(err, rcv);
+                  return false;
+                }
+            }
+        }
 
       --items;
 
       if (!item->b.compound())
-	buf_iter->next();
+        buf_iter->next();
     }
 
   if (EXPECT_FALSE(items))
@@ -994,14 +1030,13 @@ Thread::abort_send(L4_error const &e, Thread *partner)
   if (partner->home_cpu() == current_cpu())
     {
       if (in_sender_list())
-	{
-	  sender_dequeue(partner->sender_list());
-	  partner->vcpu_update_state();
-	  abt = Abt_ipc_cancel;
-
-	}
+        {
+          sender_dequeue(partner->sender_list());
+          partner->vcpu_update_state();
+          abt = Abt_ipc_cancel;
+        }
       else if (partner->in_ipc(this))
-	abt = Abt_ipc_in_progress;
+        abt = Abt_ipc_in_progress;
     }
   else
     abt = partner->Receiver::abort_send(this);
@@ -1017,10 +1052,10 @@ Thread::abort_send(L4_error const &e, Thread *partner)
     case Abt_ipc_in_progress:
       state_add_dirty(Thread_ipc_transfer);
       while (state() & Thread_ipc_transfer)
-	{
-	  state_del_dirty(Thread_ready);
-	  schedule();
-	}
+        {
+          state_del_dirty(Thread_ready);
+          schedule();
+        }
       return true;
     }
 }
@@ -1041,13 +1076,12 @@ Thread::do_send_wait(Thread *partner, L4_timeout snd_t)
       Unsigned64 tval = snd_t.microsecs(Timer::system_clock(), utcb().access(true));
       // Zero timeout or timeout expired already -- give up
       if (tval == 0)
-	return abort_send(L4_error::Timeout, partner);
+        return abort_send(L4_error::Timeout, partner);
 
-      set_timeout(&timeout);
-      timeout.set(tval, current_cpu());
+      set_timeout(&timeout, tval);
     }
 
-  register Mword ipc_state;
+  Mword ipc_state;
 
   while (((ipc_state = state() & (Thread_send_wait | Thread_ipc_abort_mask))) == Thread_send_wait)
     {
@@ -1061,8 +1095,7 @@ Thread::do_send_wait(Thread *partner, L4_timeout snd_t)
   if (EXPECT_FALSE(ipc_state == (Thread_timeout | Thread_send_wait)))
     return abort_send(L4_error::Timeout, partner);
 
-  timeout.reset();
-  set_timeout(0);
+  reset_timeout();
 
   return true;
 }
@@ -1083,13 +1116,13 @@ Thread::remote_ipc_send(Ipc_remote_request *rq)
   LOG_MSG_3VAL(this, "rsend", (Mword)src, 0, 0);
   printf("CPU[%u]: remote IPC send ...\n"
          "  partner=%p [%u]\n"
-	 "  sender =%p [%u] regs=%p\n"
-	 "  timeout=%u\n",
-	 current_cpu(),
-	 rq->partner, rq->partner->cpu(),
-	 src, src->cpu(),
-	 rq->regs,
-	 rq->timeout);
+         "  sender =%p [%u] regs=%p\n"
+         "  timeout=%u\n",
+         current_cpu(),
+         rq->partner, rq->partner->cpu(),
+         src, src->cpu(),
+         rq->regs,
+         rq->timeout);
 #endif
 
   switch (expect(rq->partner->check_sender(this, rq->timeout), Check_sender::Ok))
@@ -1105,7 +1138,8 @@ Thread::remote_ipc_send(Ipc_remote_request *rq)
       break;
     }
 
-  if (rq->tag.transfer_fpu() && rq->partner->_utcb_handler || rq->partner->utcb().access()->inherit_fpu())
+  if ((rq->tag.transfer_fpu() && rq->partner->_utcb_handler)
+      || rq->partner->utcb().access()->inherit_fpu())
     rq->partner->spill_fpu_if_owner();
 
   // trigger remote_ipc_receiver_ready path, because we may need to grab locks

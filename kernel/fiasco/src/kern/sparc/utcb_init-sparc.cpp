@@ -5,7 +5,7 @@ IMPLEMENTATION [sparc]:
 #include <cstring>
 
 
-IMPLEMENT 
+IMPLEMENT
 void
 Utcb_init::init()
 {

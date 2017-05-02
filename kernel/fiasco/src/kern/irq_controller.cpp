@@ -8,8 +8,6 @@ class Irq_chip;
 
 class Icu : public Icu_h<Icu>
 {
-  FIASCO_DECLARE_KOBJ();
-
   friend class Icu_h<Icu>;
 };
 
@@ -23,8 +21,6 @@ IMPLEMENTATION:
 #include "irq_mgr.h"
 #include "l4_types.h"
 #include "l4_buf_iter.h"
-
-FIASCO_DEFINE_KOBJ(Icu);
 
 PUBLIC void
 Icu::operator delete (void *)
@@ -43,11 +39,15 @@ Icu::icu_get_irq(unsigned irqnum)
 
 PUBLIC inline NEEDS["irq_mgr.h"]
 L4_msg_tag
-Icu::icu_bind_irq(Irq *irq, unsigned irqnum)
+Icu::op_icu_bind(unsigned irqnum, Ko::Cap<Irq> const &irq)
 {
-  irq->unbind();
+  if (!Ko::check_rights(irq.rights, Ko::Rights::CW()))
+    return commit_result(-L4_err::EPerm);
 
-  if (!Irq_mgr::mgr->alloc(irq, irqnum))
+  auto g = lock_guard(irq.obj->irq_lock());
+  irq.obj->unbind();
+
+  if (!Irq_mgr::mgr->alloc(irq.obj, irqnum))
     return commit_result(-L4_err::EPerm);
 
   return commit_result(0);
@@ -55,7 +55,7 @@ Icu::icu_bind_irq(Irq *irq, unsigned irqnum)
 
 PUBLIC inline NEEDS["irq_mgr.h"]
 L4_msg_tag
-Icu::icu_set_mode(Mword pin, Irq_chip::Mode mode)
+Icu::op_icu_set_mode(Mword pin, Irq_chip::Mode mode)
 {
   Irq_mgr::Irq i = Irq_mgr::mgr->chip(pin);
 
@@ -66,33 +66,37 @@ Icu::icu_set_mode(Mword pin, Irq_chip::Mode mode)
 
   Irq_base *irq = i.chip->irq(i.pin);
   if (irq)
-    irq->switch_mode(i.chip->is_edge_triggered(i.pin));
+    {
+      auto g = lock_guard(irq->irq_lock());
+      if (irq->chip() == i.chip && irq->pin() == i.pin)
+        irq->switch_mode(i.chip->is_edge_triggered(i.pin));
+    }
 
   return commit_result(r);
 }
 
 
 PUBLIC inline NEEDS["irq_mgr.h"]
-void
-Icu::icu_get_info(Mword *features, Mword *num_irqs, Mword *num_msis)
+L4_msg_tag
+Icu::op_icu_get_info(Mword *features, Mword *num_irqs, Mword *num_msis)
 {
   *num_irqs = Irq_mgr::mgr->nr_irqs();
   *num_msis = Irq_mgr::mgr->nr_msis();
   *features = *num_msis ? (unsigned)Msi_bit : 0;
+  return L4_msg_tag(0);
 }
 
 PUBLIC inline NEEDS["irq_mgr.h"]
 L4_msg_tag
-Icu::icu_get_msi_info(Mword msi, Utcb *out)
+Icu::op_icu_msi_info(Mword msi, Unsigned64 source, Irq_mgr::Msi_info *out)
 {
-  out->values[0] = Irq_mgr::mgr->msg(msi);
-  return commit_result(0, 1);
+  return commit_result(Irq_mgr::mgr->msg(msi, source, out));
 }
 
 
 PUBLIC inline
 Icu::Icu()
 {
-  initial_kobjects.register_obj(this, 6);
+  initial_kobjects.register_obj(this, Initial_kobjects::Icu);
 }
 

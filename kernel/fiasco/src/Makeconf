@@ -1,3 +1,4 @@
+# vi:set ft=make:
 # -*- Makefile -*-
 # Fiasco make configuration file
 #
@@ -32,8 +33,8 @@ AWKP		?= gawk --posix
 CCACHE		?= ccache
 CFLAGS		:=
 CXXFLAGS	:= -std=c++0x
-OPT_CFLAGS	:= -O2
-OPT_CXXFLAGS	:= -O2
+OPT_CFLAGS	:= -O3
+OPT_CXXFLAGS	:= -O3
 NOOPT_CFLAGS	:= -Os
 NOOPT_CXXFLAGS	:= -Os
 ARFLAGS		:= crs
@@ -63,15 +64,20 @@ else
   PREPROCESS_FLAGS = -t
 endif
 
-AS			= $(SYSTEM_TARGET)as
-LD			= $(SYSTEM_TARGET)ld
-AR			= $(SYSTEM_TARGET)ar
-NM			= $(SYSTEM_TARGET)nm
-RANLIB			= $(SYSTEM_TARGET)ranlib
-SIZE			= $(SYSTEM_TARGET)size
-STRIP			= $(SYSTEM_TARGET)strip
-OBJCOPY			= $(SYSTEM_TARGET)objcopy
-OBJDUMP			= $(SYSTEM_TARGET)objdump
+ifneq ($(SYSTEM_TARGET),)
+  CROSS_COMPILE=$(SYSTEM_TARGET)
+  $(info The variable SYSTEM_TARGET has been deprecated in favor of CROSS_COMPILE.)
+endif
+
+AS			= $(CROSS_COMPILE)as
+LD			= $(CROSS_COMPILE)ld
+AR			= $(CROSS_COMPILE)ar
+NM			= $(CROSS_COMPILE)nm
+RANLIB			= $(CROSS_COMPILE)ranlib
+SIZE			= $(CROSS_COMPILE)size
+STRIP			= $(CROSS_COMPILE)strip
+OBJCOPY			= $(CROSS_COMPILE)objcopy
+OBJDUMP			= $(CROSS_COMPILE)objdump
 
 # Include architecture-specific rules. These may overwrite anything above
 include $(srcdir)/Makeconf.$(CONFIG_XARCH)
@@ -80,33 +86,60 @@ include $(srcdir)/Makeconf.$(CONFIG_XARCH)
 -include $(srcdir)/Makeconf.local
 -include $(objbase)/Makeconf.local
 
+get_cc_version_part      = $(shell echo $(1) | $(CC) -E -x c - | tail -1)
+
 ifneq ($(CCXX_VERSION),)
   CCXX_SUFFIX		:= -$(CCXX_VERSION)
 endif
 
-CPP			:= $(SYSTEM_TARGET)cpp$(CCXX_SUFFIX)
+# we would use "CPP ?= cpp" here but make has a default of "$(CC) -E" so we need to
+# overwrite the default with 'cpp' too, because 'gcc -E' does not always work correctly
+CPP			:= $(if $(filter undefined default,$(origin CPP)),cpp,$(CPP))
+CPP			:= $(CROSS_COMPILE)$(CPP)$(CCXX_SUFFIX)
 
-CC			:= $(CCXX_WRAP) $(call $(USE_CCACHE),$(CCACHE)) $(SYSTEM_TARGET)$(CC)$(CCXX_SUFFIX)
-CXX			:= $(CCXX_WRAP) $(call $(USE_CCACHE),$(CCACHE)) $(SYSTEM_TARGET)$(CXX)$(CCXX_SUFFIX)
+CC			:= $(CCXX_WRAP) $(if $(USE_CCACHE),$(CCACHE)) $(CROSS_COMPILE)$(CC)$(CCXX_SUFFIX)
+CXX			:= $(CCXX_WRAP) $(if $(USE_CCACHE),$(CCACHE)) $(CROSS_COMPILE)$(CXX)$(CCXX_SUFFIX)
+
+CCVER_ID_MAJOR-gcc        := __GNUC__
+CCVER_ID_MINOR-gcc        := __GNUC_MINOR__
+CCVER_ID_PATCHLEVEL-gcc   := __GNUC_PATCHLEVEL__
+CCVER_ID_MAJOR-clang      := __clang_major__
+CCVER_ID_MINOR-clang      := __clang_minor__
+CCVER_ID_PATCHLEVEL-clang := __clang_patchlevel__
 
 CC_TYPE                 := $(if $(findstring clang,$(shell $(CXX) --version)),clang,gcc)
-CCVER_MAJOR		:= $(shell $(CXX) -dumpversion | cut -d . -f 1)
-CCVER_MINOR		:= $(shell $(CXX) -dumpversion | cut -d . -f 2)
-LIBGCC			:= $(shell $(CXX) -print-libgcc-file-name)
+CCVER_MAJOR		:= $(call get_cc_version_part, $(CCVER_ID_MAJOR-$(CC_TYPE)))
+CCVER_MINOR		:= $(call get_cc_version_part, $(CCVER_ID_MINOR-$(CC_TYPE)))
+CCVER_PATCHLEVEL	:= $(call get_cc_version_part, $(CCVER_ID_PATCHLEVEL-$(CC_TYPE)))
+CCVER_VERSION-gcc       := $(CCVER_MAJOR)$(if $(filter $(CCVER_MAJOR),1 2 3 4),.$(CCVER_MINOR))
+CCVER_VERSION-clang     := $(CCVER_MAJOR).$(CCVER_MINOR)
+CCVER_VERSION           := $(CCVER_VERSION-$(CC_TYPE))
+CCVER_RELEASE-gcc       := $(CCVER_MAJOR).$(CCVER_MINOR)$(if $(filter $(CCVER_MAJOR),1 2 3 4),.$(CCVER_PATCHLEVEL))
+CCVER_RELEASE-clang     := $(CCVER_MAJOR).$(CCVER_MINOR).$(CCVER_PATCHLEVEL)
+CCVER_RELEASE           := $(CCVER_RELEASE-$(CC_TYPE))
+CCVER_FULL		:= $(CCVER_MAJOR).$(CCVER_MINOR).$(CCVER_PATCHLEVEL)
+CCVER_SEQ-gcc           := $(patsubst %$(word 1, " "),%,$(word 2,$(call get_cc_version_part, __VERSION__)))
+CCVER_SEQ-clang         := 0 # No (repo) version in release builds available
+CCVER_SEQ               := $(CCVER_SEQ-$(CC_TYPE))
+LIBGCC			:= $(shell $(CXX) $(SHARED_FLAGS) -print-libgcc-file-name)
+GCCINCDIR		:= $(shell $(CXX) $(SHARED_FLAGS) -print-file-name=include)
 
 
 L4ALL_INCDIR     	?= $(addprefix -I, $(PRIVATE_INCDIR))
 L4STD_INCDIR    	?= -nostdinc
-L4STD_INCDIR_LAST	?= -I$(wildcard $(dir $(LIBGCC))/include \
-			                $(dir $(LIBGCC))/../include)
+L4STD_INCDIR_LAST	?= -isystem $(GCCINCDIR)
 KERNEL_LDFLAGS		+= -gc-sections
+SHARED_FLAGS            += -fno-pic
 SHARED_FLAGS-gcc        += -fno-defer-pop
 # gcc #57845
 SHARED_FLAGS-gcc        += $(if $(filter sparc,$(CONFIG_XARCH)),,-freg-struct-return)
-# prevent a possible gcc 4.4 flaw from hitting us
-SHARED_FLAGS-gcc        += $(if $(filter 4.4,$(CCVER_MAJOR).$(CCVER_MINOR)),-fno-strict-aliasing)
-SHARED_FLAGS		+= -g -Wall -W
-SHARED_FLAGS		+= -Wno-parentheses
+SHARED_FLAGS-gcc	+= $(call CHECKCXX,-Wmisleading-indentation,)
+SHARED_FLAGS		+= -g -Wall -Wextra
+SHARED_FLAGS-clang	+= -Wno-unused-private-field
+SHARED_FLAGS-clang	+= -Wno-string-plus-int -Wno-overloaded-virtual
+SHARED_FLAGS-gcc	+= $(if $(call CHECKCC,-Wnonnull-compare),-Wno-nonnull-compare)
+SHARED_FLAGS		+= -Wundef
+
 SHARED_FLAGS		+= $(call CHECKCC,-Wformat=2,)
 SHARED_FLAGS		+= $(call CHECKCC,-fno-stack-protector,)
 SHARED_FLAGS		+= $(call CHECKCC,-fdiagnostics-show-option)
@@ -141,10 +174,14 @@ OPT_CXXFLAGS	+= $(OPT_SHARED_FLAGS)
 NOOPT_CFLAGS	+= $(NOOPT_SHARED_FLAGS)
 NOOPT_CXXFLAGS	+= $(NOOPT_SHARED_FLAGS)
 CPPFLAGS	+= $(L4STD_INCDIR) $(L4ALL_INCDIR) $(L4STD_INCDIR_LAST)
+
+CPPFLAGS-clang  += -fno-builtin
+
 CXXFLAGS	+= $(call CHECKCXX,-fno-threadsafe-statics,)
 CXXFLAGS	+= $(call CHECKCXX,-Wno-non-virtual-dtor,)
 
 ASFLAGS         += $(ASFLAGS-$(CC_TYPE))
+CPPFLAGS        += $(CPPFLAGS-$(CC_TYPE))
 CXXFLAGS        += $(CXXFLAGS-$(CC_TYPE))
 OPT_CFLAGS      += $(OPT_CFLAGS-$(CC_TYPE))
 OPT_CXXFLAGS    += $(OPT_CXXFLAGS-$(CC_TYPE))
@@ -183,9 +220,6 @@ endif
 SRC_ALL = $(SRC_S) $(SRC_CPP) $(SRC_C) $(SRC_CC)
 ifeq ($(filter clean cleanall mrproper,$(MAKECMDGOALS)),)
 DEPS	= $(foreach file,$(SRC_ALL), $(dir $(file)).$(notdir $(file)).d)
-else
-DEPS    = /dev/null
-endif
 
 # To enable all warning ...
 ENABLE_ALL_WARNINGS ?= n
@@ -210,3 +244,39 @@ ifeq ($(CC_TYPE),gcc)
 endif
 
 
+CC_WHITELIST-gcc     := 4.5 4.6 4.7 4.8 4.9 5 6
+CC_WHITELIST-clang   := 3.5 3.6 3.7 3.8
+CC_WHITELIST         := $(CC_WHITELIST-$(CC_TYPE))
+
+CC_BLACKLIST-arm-gcc   := 4.8.0 4.8.1 4.8.2
+
+# CC_LAST_BROKEN-SEQ* specifies the last broken version
+# using the sequential version
+#
+# Memory write back issue I'm seeing with those versions, disappeared
+# with more recent builds.
+CC_LAST_BROKEN-SEQ-gcc-6 := 20160802
+
+CC_LAST_BROKEN-SEQ-gcc   := $(CC_LAST_BROKEN-SEQ-gcc-$(CCVER_MAJOR))
+
+
+ifeq ($(filter $(CC_WHITELIST),$(CCVER_VERSION)),)
+  $(error $(CC_TYPE)-$(CCVER_VERSION) is not supported. \
+          Please use one of the following versions: $(CC_WHITELIST))
+endif
+
+# this is for GCC only
+ifneq ($(CC_LAST_BROKEN-SEQ-gcc),)
+  MIN_SEQ_VER := $(word 1,$(sort $(CC_LAST_BROKEN-SEQ-gcc) $(CCVER_SEQ)))
+  ifneq ($(CC_LAST_BROKEN-SEQ-gcc),$(MIN_SEQ_VER))
+    $(error $(CC_TYPE)-$(CCVER_FULL) $(CCVER_SEQ) is blacklisted, please update)
+  endif
+endif
+
+ifneq ($(filter $(CC_BLACKLIST-$(CONFIG_XARCH)-$(CC_TYPE)),$(CCVER_RELEASE))$(filter $(CC_BLACKLIST-$(CC_TYPE)),$(CCVER_RELEASE)),)
+  $(error $(CC_TYPE)-$(CCVER_FULL) is blacklisted, please update)
+endif
+
+else
+DEPS    = /dev/null
+endif

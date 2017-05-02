@@ -91,8 +91,8 @@ kernel_main()
 
   // switch to stack of kernel thread and bootstrap the kernel
   asm volatile
-    ("	mov sp,%0	        \n"	// switch stack
-     "	mov r0,%1	        \n"	// push "this" pointer
+    ("	mov sp, %0            \n"   // switch stack
+     "	mov r0, %1            \n"   // push "this" pointer
      "	bl call_bootstrap     \n"
      : : "r" (kernel->init_stack()), "r" (kernel));
 }

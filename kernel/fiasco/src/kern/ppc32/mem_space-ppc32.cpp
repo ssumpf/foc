@@ -66,7 +66,6 @@ IMPLEMENTATION [ppc32]:
 #include <cstring>
 #include <cstdio>
 #include "cpu.h"
-#include "kdb_ke.h"
 #include "l4_types.h"
 #include "mem_layout.h"
 #include "paging.h"
@@ -159,7 +158,7 @@ Mem_space::has_superpages()
 }
 
 //we flush tlb in htab implementation
-PUBLIC static inline NEEDS["mem_unit.h"]
+IMPLEMENT static inline NEEDS["mem_unit.h"]
 void
 Mem_space::tlb_flush(bool = false)
 {

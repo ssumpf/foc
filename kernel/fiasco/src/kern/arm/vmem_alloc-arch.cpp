@@ -7,7 +7,6 @@ IMPLEMENTATION [arm]:
 #include "kmem_alloc.h"
 #include "config.h"
 #include "panic.h"
-#include "kdb_ke.h"
 #include "mem_unit.h"
 #include "ram_quota.h"
 #include "static_init.h"
@@ -26,7 +25,8 @@ void *Vmem_alloc::page_alloc(void *address, Zero_fill zf, unsigned mode)
     return 0;
 
   Address page = Kmem_space::kdir()->virt_to_phys((Address)vpage);
-  //printf("  allocated page (virt=%p, phys=%08lx\n", vpage, page);
+  if (0)
+    printf("  allocated page (virt=%p, phys=%08lx\n", vpage, page);
   Mem_unit::inv_dcache(vpage, ((char*)vpage) + Config::PAGE_SIZE);
 
   // insert page into master page table
@@ -37,7 +37,8 @@ void *Vmem_alloc::page_alloc(void *address, Zero_fill zf, unsigned mode)
   if (mode & User)
     r |= Page::Rights::U();
 
-  pte.create_page(Phys_mem_addr(page), Page::Attr(r, Page::Type::Normal(), Page::Kern::Global()));
+  pte.create_page(Phys_mem_addr(page),
+                  Page::Attr(r, Page::Type::Normal(), Page::Kern::Global()));
   pte.write_back_if(true, Mem_unit::Asid_kernel);
   Mem_unit::dtlb_flush(address);
 

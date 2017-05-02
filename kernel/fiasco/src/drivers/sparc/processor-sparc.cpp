@@ -132,10 +132,8 @@ void Proc::write_alternative(Mword reg, Mword value)
 }
 
 
-IMPLEMENTATION [sparc && !mpcore]:
+IMPLEMENTATION [sparc && !mp]:
 
 IMPLEMENT static inline
 Cpu_phys_id Proc::cpu_id()
 { return Cpu_phys_id(0); }
-
-

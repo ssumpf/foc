@@ -237,7 +237,7 @@ static Jdb_misc_debug jdb_misc_debug INIT_PRIORITY(JDB_MODULE_INIT_PRIO);
 static void
 Jdb_misc_debug::show_ldt()
 {
-  Space *s = Kobject::dcast<Task*>(reinterpret_cast<Kobject*>(task));
+  Space *s = cxx::dyn_cast<Task*>(reinterpret_cast<Kobject*>(task));
   Address addr, size;
 
   if (!s)

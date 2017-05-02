@@ -7,29 +7,25 @@ INTERFACE:
 
 class Factory : public Ram_quota, public Kobject_h<Factory>
 {
-  FIASCO_DECLARE_KOBJ();
-
-private:
   typedef Slab_cache Self_alloc;
 };
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION:
 
-#include "ipc_gate.h"
 #include "kmem_slab.h"
-#include "task.h"
-#include "thread_object.h"
 #include "static_init.h"
 #include "l4_buf_iter.h"
 #include "l4_types.h"
-#include "irq.h"
+#include "irq.h" // for backward compat
 #include "map_util.h"
 #include "logdefs.h"
 #include "entry_frame.h"
+#include "task.h"
+
+JDB_DEFINE_TYPENAME(Factory, "\033[33;1mFactory\033[m");
 
 static Factory _root_factory INIT_PRIORITY(ROOT_FACTORY_INIT_PRIO);
-FIASCO_DEFINE_KOBJ(Factory);
 
 PUBLIC inline
 Factory::Factory()
@@ -47,7 +43,7 @@ static Kmem_slab_t<Factory> _factory_allocator("Factory");
 PRIVATE static
 Factory::Self_alloc *
 Factory::allocator()
-{ return &_factory_allocator; }
+{ return _factory_allocator.slab(); }
 
 PUBLIC static inline
 Factory * FIASCO_PURE
@@ -55,7 +51,7 @@ Factory::root()
 { return nonull_static_cast<Factory*>(Ram_quota::root); }
 
 
-PRIVATE
+PUBLIC inline NEEDS[Factory::Factory]
 Factory *
 Factory::create_factory(unsigned long max)
 {
@@ -89,10 +85,11 @@ void Factory::operator delete (void *_f)
 
 PRIVATE
 L4_msg_tag
-Factory::map_obj(Kobject_iface *o, Cap_index cap, Task *c_space,
+Factory::map_obj(Kobject_iface *o, Cap_index cap, Task *_c_space,
                  Obj_space *o_space, Utcb const *utcb)
 {
   // must be before the lock guard
+  Ref_ptr<Task> c_space(_c_space);
   Reap_list rl;
 
   auto space_lock_guard = lock_guard_dont_lock(c_space->existence_lock);
@@ -106,7 +103,7 @@ Factory::map_obj(Kobject_iface *o, Cap_index cap, Task *c_space,
       return commit_error(utcb, L4_error(L4_error::Overflow, L4_error::Rcv));
     }
 
-  if (!map(o, o_space, c_space, cap, rl.list()))
+  if (!map(o, o_space, c_space.get(), cap, rl.list()))
     {
       delete o;
       return commit_result(-L4_err::ENomem);
@@ -116,78 +113,13 @@ Factory::map_obj(Kobject_iface *o, Cap_index cap, Task *c_space,
   return commit_result(0, 0, 1);
 }
 
-
-
-PRIVATE inline NOEXPORT
-Kobject_iface *
-Factory::new_factory(Utcb const *u, int *)
-{
-  return create_factory(u->values[2]);
-}
-
-
-PRIVATE inline NOEXPORT
-Kobject_iface *
-Factory::new_task(Utcb const *u, int *)
-{
-  L4_fpage utcb_area(0);
-  utcb_area = L4_fpage(u->values[2]);
-
-  if (Task *new_t = Task::create<Task>(this, utcb_area))
-    return new_t;
-
-  return 0;
-}
-
-PRIVATE inline NOEXPORT
-Kobject_iface *
-Factory::new_thread(Utcb const *, int *)
-{ return new (this) Thread_object(); }
-
-PRIVATE inline NOEXPORT
-Kobject_iface *
-Factory::new_gate(L4_msg_tag const &tag, Utcb const *utcb, Obj_space *o_space,
-                  int *err)
-{
-  L4_snd_item_iter snd_items(utcb, tag.words());
-  Thread *thread = 0;
-
-  if (tag.items() && snd_items.next())
-    {
-      L4_fpage bind_thread(snd_items.get()->d);
-      *err = L4_err::EInval;
-      if (EXPECT_FALSE(!bind_thread.is_objpage()))
-	return 0;
-
-      L4_fpage::Rights thread_rights = L4_fpage::Rights(0);
-      thread = Kobject::dcast<Thread_object*>(o_space->lookup_local(bind_thread.obj_index(), &thread_rights));
-
-      *err = L4_err::EPerm;
-      if (EXPECT_FALSE(!(thread_rights & L4_fpage::Rights::W())))
-	return 0;
-    }
-
-  *err = L4_err::ENomem;
-  return static_cast<Ipc_gate_ctl*>(Ipc_gate::create(this, thread, utcb->values[2]));
-}
-
-PRIVATE inline NOEXPORT
-Kobject_iface *
-Factory::new_irq(unsigned w, Utcb const *utcb, int *)
-{
-  if (w >= 3 && utcb->values[2])
-    return Irq::allocate<Irq_muxer>(this);
-  else
-    return Irq::allocate<Irq_sender>(this);
-}
-
 PUBLIC
 L4_msg_tag
 Factory::kinvoke(L4_obj_ref ref, L4_fpage::Rights rights, Syscall_frame *f,
                  Utcb const *utcb, Utcb *)
 {
-  register Context *const c_thread = ::current();
-  register Task *const c_space = static_cast<Task*>(c_thread->space());
+  Context *const c_thread = ::current();
+  Task *const c_space = static_cast<Task*>(c_thread->space());
 
   if (EXPECT_FALSE(f->tag().proto() != L4_msg_tag::Label_factory))
     return commit_result(-L4_err::EBadproto);
@@ -207,8 +139,8 @@ Factory::kinvoke(L4_obj_ref ref, L4_fpage::Rights rights, Syscall_frame *f,
       L4_buf_iter buf(utcb, utcb->buf_desc.obj());
       L4_buf_iter::Item const *const b = buf.get();
       if (EXPECT_FALSE(b->b.is_void()
-	    || b->b.type() != L4_msg_item::Map))
-	return commit_error(utcb, L4_error(L4_error::Overflow, L4_error::Rcv));
+                       || b->b.type() != L4_msg_item::Map))
+        return commit_error(utcb, L4_error(L4_error::Overflow, L4_error::Rcv));
 
       buffer = L4_fpage(b->d);
     }
@@ -221,35 +153,8 @@ Factory::kinvoke(L4_obj_ref ref, L4_fpage::Rights rights, Syscall_frame *f,
 
   auto cpu_lock_guard = lock_guard<Lock_guard_inverse_policy>(cpu_lock);
 
-  switch ((long)utcb->values[0])
-    {
-    case 0:  // new IPC Gate
-      new_o = new_gate(f->tag(), utcb, c_space, &err);
-      break;
-
-    case L4_msg_tag::Label_factory:
-      new_o = new_factory(utcb, &err);
-      break;
-
-    case L4_msg_tag::Label_task:
-      new_o = new_task(utcb, &err);
-      break;
-
-    case L4_msg_tag::Label_thread:
-      new_o = new_thread(utcb, &err);
-      break;
-
-    case L4_msg_tag::Label_irq:
-      new_o = new_irq(f->tag().words(), utcb, &err);
-      break;
-
-    case L4_msg_tag::Label_vm:
-      new_o = new_vm(utcb, &err);
-      break;
-
-    default:
-      return commit_result(-L4_err::ENodev);
-    }
+  new_o = Kobject_iface::manufacture((long)access_once(utcb->values + 0),
+                                     this, c_space, f->tag(), utcb, &err);
 
   LOG_TRACE("Kobject create", "new", ::current(), Log_entry,
     l->op = utcb->values[0];
@@ -262,35 +167,41 @@ Factory::kinvoke(L4_obj_ref ref, L4_fpage::Rights rights, Syscall_frame *f,
     return map_obj(new_o, buffer.obj_index(), c_space, c_space, utcb);
   else
     return commit_result(-err);
-
 }
 
-
-//----------------------------------------------------------------------------
-IMPLEMENTATION [svm || vmx || arm_em_tz]:
-
-#include "vm_factory.h"
-#include "vm.h"
-
-PRIVATE inline NOEXPORT
-Kobject_iface *
-Factory::new_vm(Utcb const *, int *err)
+namespace {
+static Kobject_iface * FIASCO_FLATTEN
+factory_factory(Ram_quota *q, Space *,
+                L4_msg_tag, Utcb const *u,
+                int *err)
 {
-  if (Vm *new_t = Vm_factory::create(this, err))
-    return new_t;
-
-  return 0;
+  *err = L4_err::ENomem;
+  return static_cast<Factory*>(q)->create_factory(u->values[2]);
 }
 
-//----------------------------------------------------------------------------
-IMPLEMENTATION [!svm && !vmx && !arm_em_tz]:
-
-PRIVATE inline NOEXPORT
-Kobject_iface *
-Factory::new_vm(Utcb const *, int *err)
+// start BACKWARD COMPAT
+static Kobject_iface * FIASCO_FLATTEN
+compat_irq_factory(Ram_quota *q, Space *,
+                   L4_msg_tag tag, Utcb const *u,
+                   int *err)
 {
-  *err = L4_err::ENodev;
-  return 0;
+  *err = L4_err::ENomem;
+  printf("KERNEL: backward compat IRQ create, use new protocol IDs\n"
+         "        L4_PROTO_IRQ_SENDER, L4_PROTO_IRQ_MUX\n");
+  if (tag.words() >= 3 && u->values[2])
+    return Irq::allocate<Irq_muxer>(q);
+  else
+    return Irq::allocate<Irq_sender>(q);
+}
+// end BACKWARD COMPAT
+
+static inline void __attribute__((constructor)) FIASCO_INIT
+register_factory()
+{
+  Kobject_iface::set_factory(L4_msg_tag::Label_factory, factory_factory);
+  // BACKWARD COMPAT
+  Kobject_iface::set_factory(L4_msg_tag::Label_irq, compat_irq_factory);
+}
 }
 
 // ------------------------------------------------------------------------

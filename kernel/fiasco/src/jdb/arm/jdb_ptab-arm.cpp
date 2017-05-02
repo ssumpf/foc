@@ -8,18 +8,17 @@ IMPLEMENTATION [arm && armv5]:
 
 PRIVATE inline
 bool
-Jdb_ptab::is_cached(Mword entry, unsigned level)
+Jdb_ptab::is_cached(Pte_ptr const &entry)
 {
-  if (level == 0 && (entry & 3) != 2)
+  if (entry.level == 0 && (*entry.pte & 3) != 2)
     return true; /* No caching options on PDEs */
-  return (entry & Page::Cache_mask) == Page::CACHEABLE;
+  return (*entry.pte & Page::Cache_mask) == Page::CACHEABLE;
 }
 
 PRIVATE inline
 bool
-Jdb_ptab::is_executable(Mword entry)
+Jdb_ptab::is_executable(Pte_ptr const &)
 {
-  (void)entry;
   return 1;
 }
 
@@ -37,23 +36,23 @@ IMPLEMENTATION [arm && (armv6 || armv7) && !arm_lpae]:
 
 PRIVATE inline
 bool
-Jdb_ptab::is_cached(Mword entry, unsigned level)
+Jdb_ptab::is_cached(Pte_ptr const &entry)
 {
-  if (level == 0)
+  if (entry.level == 0)
     {
-      if ((entry & 3) == 2)
-        return (entry & Page::Section_cache_mask) == Page::Section_cachable_bits;
+      if ((*entry.pte & 3) == 2)
+        return (*entry.pte & Page::Section_cache_mask) == Page::Section_cachable_bits;
       return true;
     }
 
-  return (entry & Page::Cache_mask) == Page::CACHEABLE;
+  return (*entry.pte & Page::Cache_mask) == Page::CACHEABLE;
 }
 
 PRIVATE inline
 bool
-Jdb_ptab::is_executable(Mword entry)
+Jdb_ptab::is_executable(Pte_ptr const &entry)
 {
-  return (entry & 3) == 2 || (entry & 3) == 1;
+  return (*entry.pte & 3) == 2 || (*entry.pte & 3) == 1;
 }
 
 PRIVATE inline
@@ -111,16 +110,37 @@ Jdb_ptab::print_entry(Pte_ptr const &entry)
 	  }
 
       printf("%05lx%s%c", phys >> Config::PAGE_SHIFT,
-                          is_cached(*entry.pte, entry.level)
+                          is_cached(entry)
                            ? "-" : JDB_ANSI_COLOR(lightblue) "n" JDB_ANSI_END,
                           ps);
       if (entry.level == 0 && t != 2)
         putchar('-');
       else
 	printf("%s%c" JDB_ANSI_END,
-               is_executable(*entry.pte) ? "" : JDB_ANSI_COLOR(red),
+               is_executable(entry) ? "" : JDB_ANSI_COLOR(red),
 	       ap_char(ap));
     }
+}
+
+// -----------------------------------------------------------------------
+IMPLEMENTATION [arm && arm_lpae && !hyp]:
+
+PRIVATE inline
+char
+Jdb_ptab::ap_char(Pte_ptr const &entry)
+{
+  static char const ch[] = { 'W', 'w', 'R', 'r' };
+  return ch[(*entry.pte >> 6) & 3];
+}
+
+// -----------------------------------------------------------------------
+IMPLEMENTATION [arm && arm_lpae && hyp]:
+
+PRIVATE inline
+char
+Jdb_ptab::ap_char(Pte_ptr const &entry)
+{
+  return ((*entry.pte >> 7) & 1) ? 'w' : 'r';
 }
 
 // -----------------------------------------------------------------------
@@ -137,23 +157,9 @@ Jdb_ptab::is_cached(Pte_ptr const &entry)
 
 PRIVATE inline
 bool
-Jdb_ptab::is_executable(Mword entry)
+Jdb_ptab::is_executable(Pte_ptr const &entry)
 {
-  (void)entry;
-  return 1;
-}
-
-PRIVATE inline
-char
-Jdb_ptab::ap_char(Mword entry)
-{
-  switch ((entry >> 6) & 3)
-  {
-    case 0: return 'W';
-    case 1: return 'w';
-    case 2: return 'R';
-    case 3: default: return 'r';
-  };
+  return *entry.pte & 0x0040000000000000;
 }
 
 IMPLEMENT
@@ -161,12 +167,12 @@ void
 Jdb_ptab::print_entry(Pte_ptr const &entry)
 {
   if (dump_raw)
-    printf("%08lx", (unsigned long)*entry.pte);
+    printf("%16llx", *entry.pte);
   else
     {
       if (!entry.is_valid())
 	{
-	  putstr("    -   ");
+	  putstr("        -       ");
 	  return;
 	}
       Address phys = entry_phys(entry);
@@ -193,7 +199,7 @@ Jdb_ptab::print_entry(Pte_ptr const &entry)
           case 1: ps = 'p'; break;
           }
 
-      printf("%05lx%s%c", phys >> Config::PAGE_SHIFT,
+      printf("%13lx%s%c", phys >> Config::PAGE_SHIFT,
                           is_cached(entry)
                            ? "-" : JDB_ANSI_COLOR(lightblue) "n" JDB_ANSI_END,
                           ps);
@@ -201,7 +207,7 @@ Jdb_ptab::print_entry(Pte_ptr const &entry)
         putchar('-');
       else
         printf("%s%c" JDB_ANSI_END,
-               is_executable(*entry.pte) ? "" : JDB_ANSI_COLOR(red),
-               ap_char(*entry.pte));
+               is_executable(entry) ? "" : JDB_ANSI_COLOR(red),
+               ap_char(entry));
     }
 }

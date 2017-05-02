@@ -2,6 +2,10 @@ INTERFACE [arm && imx21]:
 
 #define TARGET_NAME "i.MX21"
 
+INTERFACE [arm && imx28]:
+
+#define TARGET_NAME "i.MX28"
+
 INTERFACE [arm && imx35]:
 
 #define TARGET_NAME "i.MX35"

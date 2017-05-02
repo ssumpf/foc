@@ -53,7 +53,7 @@ private:
 
 #line 65 "inline.cpp"
 extern "C" 
-void function(Foo* f);
+void function (Foo* f);
 
 #line 71 "inline.cpp"
 template <typename T> void* xcast(T* t);

@@ -137,7 +137,7 @@ Platform_control::write_phys_mem_coherent(Mword addr_p, Mword value)
 }
 
 //--------------------------------------------------------------------------
-IMPLEMENTATION [arm && exynos && arm_em_ns && arm_smif_mc]:
+IMPLEMENTATION [arm && exynos && mp && arm_em_ns && arm_smif_mc]:
 
 PRIVATE static
 void
@@ -157,7 +157,7 @@ Platform_control::cpuboot(Mword startup_vector, Cpu_phys_id cpu)
 }
 
 // ------------------------------------------------------------------------
-IMPLEMENTATION [exynos && (!arm_em_ns || arm_smif_none)]:
+IMPLEMENTATION [exynos && mp && (!arm_em_ns || arm_smif_none)]:
 
 #include "mem_layout.h"
 #include "platform.h"
@@ -247,7 +247,7 @@ IMPLEMENTATION [arm && exynos && mp && (exynos_extgic || exynos5) && cpu_suspend
 #include "processor.h"
 #include "smc.h"
 
-IMPLEMENT inline
+IMPLEMENT_OVERRIDE inline
 bool
 Platform_control::cpu_shutdown_available()
 { return true; }
@@ -279,7 +279,7 @@ Platform_control::suspend_cpu(Cpu_number cpu)
   return 0;
 }
 
-IMPLEMENT
+IMPLEMENT_OVERRIDE
 int
 Platform_control::cpu_allow_shutdown(Cpu_number cpu, bool allow)
 {
@@ -328,7 +328,7 @@ IMPLEMENTATION [arm && exynos && (exynos_extgic || exynos5) && cpu_suspend]:
 
 DEFINE_PER_CPU Per_cpu<bool> Platform_control::_suspend_allowed;
 
-IMPLEMENT
+IMPLEMENT_OVERRIDE
 void
 Platform_control::init(Cpu_number cpu)
 {

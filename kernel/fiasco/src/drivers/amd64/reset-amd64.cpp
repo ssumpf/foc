@@ -16,7 +16,7 @@ platform_reset()
   //   b0=0 ... no IRQ 1 is generated when data available in input buffer
   //   b1=0 ... no IRQ 1 is generated when mouse data available in input buffer
   //   b2=1 ... set SYS flag in status register -- tells POST to perform
-  //            "warm boot" tests/initiailization
+  //            "warm boot" tests/initialization
   //   b3=0 ... reserved
   //   b4=0 ... keyboard interface enabled
   //   b5=0 ... auxillary PS/2 device (mouse) interface enabled
@@ -36,6 +36,14 @@ platform_reset()
     ;
   Io::out8_p (0xfe,0x64);
 
+  // If system is still alive, we try to reset it using PCI
+  unsigned cf9 = Io::in8(0xcf9);
+  Io::out8(cf9 | 2, 0xcf9);
+  Io::iodelay();
+  Io::out8(cf9 | 0x06, 0xcf9);
+  Io::iodelay();
+
+  // If system is still alive we could try to trigger a triple fault
   for (;;)
     Proc::pause();
 }

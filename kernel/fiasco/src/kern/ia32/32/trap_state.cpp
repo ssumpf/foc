@@ -34,7 +34,6 @@ public:
   // Error code pushed by the processor, 0 if none
   Mword  _err;                                    // => utcb->values[11]
 
-protected:
   // Processor state frame
   Mword  _ip;                                     // => utcb->values[12]
   Mword  _cs;                                     // => utcb->values[13]
@@ -43,6 +42,35 @@ protected:
   Mword  _ss;
 };
 
+struct Trex
+{
+  Trap_state s;
+
+  void set_ipc_upcall()
+  {
+    s._err = 0;
+    s._trapno = 0xfe;
+  }
+
+  void dump() { s.dump(); }
+};
+
+namespace Ts
+{
+  enum
+  {
+    /// full number of words in a Trap_state
+    Words = sizeof(Trap_state) / sizeof(Mword),
+    /// words for the IRET frame at the end of the trap state
+    Iret_words = 5,
+    /// words for error code and trap number
+    Code_words = 2,
+    /// offset of the IRET frame
+    Iret_offset = Words - Iret_words,
+    /// number of words used for normal registers
+    Reg_words = Words - Iret_words - Code_words,
+  };
+}
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [ia32]:
@@ -81,15 +109,16 @@ IMPLEMENTATION [ia32 || ux]:
 #include <panic.h>
 #include "cpu.h"
 #include "atomic.h"
+#include "mem.h"
 
 Trap_state::Handler Trap_state::base_handler FIASCO_FASTCALL;
 
-PUBLIC inline
+PUBLIC inline NEEDS[Trap_state::sanitize_user_state, "mem.h"]
 void
-Trap_state::set_ipc_upcall()
+Trap_state::copy_and_sanitize(Trap_state const *src)
 {
-  _err = 0;
-  _trapno = 0xfe;
+  Mem::memcpy_mwords(this, src, sizeof(*this) / sizeof(Mword));
+  sanitize_user_state();
 }
 
 PUBLIC inline
@@ -216,7 +245,7 @@ Trap_state::dump()
          "ESI %08lx EDI %08lx EBP %08lx ESP %08lx\n"
          "EIP %08lx EFLAGS %08lx\n"
          "CS %04lx SS %04lx DS %04lx ES %04lx FS %04lx GS %04lx\n"
-         "trap %ld (%s), error %08lx, from %s mode\n",
+         "trap %lu (%s), error %08lx, from %s mode\n",
 	 _ax, _bx, _cx, _dx,
 	 _si, _di, _bp, from_user ? _sp : (Unsigned32)&_sp,
 	 _ip, _flags,

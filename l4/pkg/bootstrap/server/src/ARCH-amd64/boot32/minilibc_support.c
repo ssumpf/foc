@@ -26,7 +26,7 @@ static int  direct_cons_try_getchar(void);
 int __libc_backend_outs( const char *s, size_t len);
 int __getchar(void);
 
-static int porte9(unsigned char c)
+static void porte9(unsigned char c)
 {
   l4util_out8(c, 0xe9);
   if (c == 10)
@@ -85,6 +85,7 @@ __getchar(void)
 void
 _exit(int fd)
 {
+  (void)fd;
   printf("\n\033[1mReturn reboots...\033[m\n");
   __getchar();
   printf("Rebooting.\n");

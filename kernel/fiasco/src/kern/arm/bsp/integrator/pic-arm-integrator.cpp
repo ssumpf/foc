@@ -1,3 +1,7 @@
+INTERFACE [arm && integrator]:
+
+#include "initcalls.h"
+
 // ---------------------------------------------------------------------
 IMPLEMENTATION [arm && integrator]:
 
@@ -66,22 +70,11 @@ Irq_chip_arm_integr::unmask(Mword irq)
 
 static Static_object<Irq_mgr_single_chip<Irq_chip_arm_integr> > mgr;
 
-IMPLEMENT FIASCO_INIT
+PUBLIC static FIASCO_INIT
 void Pic::init()
 {
   Irq_mgr::mgr = mgr.construct();
 }
-
-IMPLEMENT inline
-Pic::Status Pic::disable_all_save()
-{
-  Status s = 0;
-  return s;
-}
-
-IMPLEMENT inline
-void Pic::restore_all(Status)
-{}
 
 PUBLIC inline
 Unsigned32 Irq_chip_arm_integr::pending()

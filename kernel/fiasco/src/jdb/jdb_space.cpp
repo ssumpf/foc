@@ -30,7 +30,7 @@ Task *Jdb_space::task;
 
 IMPLEMENT
 Jdb_space::Jdb_space()
-  : Jdb_module("INFO"), Jdb_kobject_handler(Task::static_kobj_type)
+  : Jdb_module("INFO"), Jdb_kobject_handler((Task*)0)
 {
   Jdb_kobject::module()->register_handler(this);
 }
@@ -39,7 +39,7 @@ PUBLIC
 bool
 Jdb_space::show_kobject(Kobject_common *o, int lvl)
 {
-  Task *t = Kobject::dcast<Task*>(o);
+  Task *t = cxx::dyn_cast<Task*>(o);
   show(t);
   if (lvl)
     {
@@ -51,17 +51,10 @@ Jdb_space::show_kobject(Kobject_common *o, int lvl)
 }
 
 PUBLIC
-char const *
-Jdb_space::kobject_type() const
-{
-  return JDB_ANSI_COLOR(red) "Task" JDB_ANSI_COLOR(default);
-}
-
-PUBLIC
 void
 Jdb_space::show_kobject_short(String_buffer *buf, Kobject_common *o)
 {
-  Task *t = Kobject::dcast<Task*>(o);
+  Task *t = cxx::dyn_cast<Task*>(o);
   if (t == Kernel_task::kernel_task())
     buf->printf(" {KERNEL}");
 
@@ -88,12 +81,12 @@ Jdb_space::show(Task *t)
 
   unsigned long m = t->ram_quota()->current();
   unsigned long l = t->ram_quota()->limit();
-  printf("  mem usage:  %ld (%ldKB) of %ld (%ldKB) @%p\n", 
+  printf("  mem usage:  %lu (%luKB) of %lu (%luKB) @%p\n", 
          m, m/1024, l, l/1024, t->ram_quota());
 }
 
 static bool space_filter(Kobject_common const *o)
-{ return Kobject::dcast<Task const *>(o); }
+{ return cxx::dyn_cast<Task const *>(o); }
 
 PUBLIC
 Jdb_module::Action_code
@@ -127,7 +120,7 @@ static
 bool
 filter_task_thread(Kobject_common const *o)
 {
-  return Kobject::dcast<Task const *>(o) || Kobject::dcast<Thread_object const *>(o);
+  return cxx::dyn_cast<Task const *>(o) || cxx::dyn_cast<Thread const *>(o);
 }
 static Jdb_space jdb_space INIT_PRIORITY(JDB_MODULE_INIT_PRIO);
 static Jdb_kobject_list::Mode INIT_PRIORITY(JDB_MODULE_INIT_PRIO) tnt("[Tasks + Threads]", filter_task_thread);

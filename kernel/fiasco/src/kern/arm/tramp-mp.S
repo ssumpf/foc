@@ -3,6 +3,11 @@
 
 #include TRAMP_MP_ASM_INCLUDE
 
+#ifndef HAVE_MACRO_BSP_EARLY_INIT
+.macro bsp_early_init tmp1, tmp2
+.endm
+#endif
+
 .macro defvar name
 .global \name
 \name: .long 0
@@ -12,7 +17,7 @@
 	.p2align 12
 
 #ifdef CONFIG_ARM_V7
-invalidate_l1_v7:
+cache_invalidate_v7:
 	// B2.2.7
 	mrc     p15, 1, r0, c0, c0, 1
 	ands    r3, r0, #0x07000000
@@ -60,6 +65,7 @@ finished:
 
 	.global _tramp_mp_entry
 _tramp_mp_entry:
+        bsp_early_init r0, r1
         mrs   r0, cpsr
         and   r1, r0, #0x1f
         cmp   r1, #0x1a // hyp mode
@@ -97,7 +103,7 @@ _tramp_mp_entry:
 #endif
 
 #ifdef CONFIG_ARM_V7
-	bl    invalidate_l1_v7
+	bl    cache_invalidate_v7
 #endif
 
 	mcr   p15, 0, r0, c7, c5, 0 // ICIALLU
@@ -189,11 +195,11 @@ _tramp_mp_entry:
 	movne  r1, #0
 	mcrrne p15, 0, r0, r1, c2
 	mcreq  p15, 0, r0, c2, c0
+#endif
 
 	adr r0, _tramp_mp_startup_cp15_c1
 	ldr r0, [r0]
 	mcr p15, 0, r0, c1, c0
-#endif
 
 	// barrier
 	mrc p15, 0, r0, c2, c0, 0

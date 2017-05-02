@@ -32,13 +32,17 @@ public:
     Size_32             = 0x04,
   };
 
-  Unsigned16   limit_low;
-  Unsigned16   base_low;
-  Unsigned8    base_med;
-  Unsigned8    access;
-  Unsigned8    limit_high;
-  Unsigned8    base_high;
-
+  union {
+    struct {
+      Unsigned16   limit_low;
+      Unsigned16   base_low;
+      Unsigned8    base_med;
+      Unsigned8    access;
+      Unsigned8    limit_high;
+      Unsigned8    base_high;
+    };
+    Unsigned64 raw;
+  };
 
 } __attribute__((packed));
 
@@ -219,7 +223,7 @@ Gdt_entry::show() const
          b, b + size(), (access & 0x60) >> 5,
          modes[mode()],
          access & 0x10 ? "code/data" : "system   ",
-         access & 0x1f, type_str());
+         (unsigned)access & 0x1f, type_str());
 }
 
 PUBLIC inline
@@ -236,14 +240,14 @@ Idt_entry::show() const
       // Task gate
 
       printf("--------  sel=%04x dpl=%d %02X (\033[33;1m%s\033[m)\n",
-             selector(), dpl(), type(), type_str());
+             selector(), dpl(), (unsigned)type(), type_str());
     }
   else
     {
       Address o = offset();
 
       printf("%016lx  sel=%04x dpl=%d %02X (\033[33;1m%s\033[m)\n",
-             o, selector(), dpl(), type(), type_str());
+             o, selector(), dpl(), (unsigned)type(), type_str());
     }
 }
 
@@ -262,7 +266,7 @@ X86desc::show() const
   else
     {
       printf("--------  dpl=%d %02X (\033[33;1m%s\033[m)\n",
-	  dpl(), type(), type_str());
+	  dpl(), (unsigned)type(), type_str());
     }
 }
 

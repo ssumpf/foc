@@ -133,7 +133,7 @@ Jdb::access_mem_task(Address virt, Space * task)
     {
       phys = Address(task->virt_to_phys(virt));
 
-      if(phys = (Address)-1)
+      if (phys == (Address)-1)
 	phys = task->virt_to_phys_s0((void *)virt);
 
       if (phys == (Address)-1)

@@ -38,8 +38,8 @@ open(GRUB1, ">$targetdir/menu.lst")
 open(GRUB2, ">$targetdir/grub.cfg")
   || die "Cannot create '$targetdir/grub.cfg': $!!";
 
-open(QEMU, ">$targetdir/qemu.sh")
-  || die "Cannot create '$targetdir/qemu.sh': $!!";
+open(QEMU, ">$targetdir/run_qemu")
+  || die "Cannot create '$targetdir/run_qemu': $!!";
 
 delete $opts{timeout}
   if @ARGV > 1 and defined $opts{timeout} and $opts{timeout} == 0;
@@ -47,7 +47,10 @@ delete $opts{timeout}
 print GRUB1 L4::Grub::grub1_config_prolog(%opts);
 print GRUB2 L4::Grub::grub2_config_prolog(%opts);
 print QEMU "#! /bin/sh\n".
-           "case \"\$1\" in\n";
+           "entry=\$1\n".
+           "shift\n".
+           "\n".
+           "case \"\$entry\" in\n";
 
 $qemu =~ s@.*/@@;
 
@@ -82,8 +85,10 @@ foreach my $entryname (@ARGV)
     $kernel =~ s@.*/@@;
 
     print QEMU
-      "     $entryname) $qemu -kernel $kernel -append \"$entry{bootstrap}{cmdline}\" ".
-      "-initrd \"$initrd\" $qemu_options ;;\n";
+      "     $entryname) $qemu -kernel $kernel \\\n".
+      "                  -append \"$entry{bootstrap}{cmdline}\" \\\n".
+      "                  -initrd \"$initrd\" \\\n".
+      "                  $qemu_options \"\$@\";;\n";
 
     $files{$_} = 1 foreach @{$entry{files}};
   }
@@ -100,4 +105,4 @@ close GRUB1;
 close GRUB2;
 close QEMU;
 
-chmod 0755, "$targetdir/qemu.sh";
+chmod 0755, "$targetdir/run_qemu";

@@ -31,7 +31,7 @@ INTERFACE [arm && arm_generic_timer && arm_em_tz]:
 EXTENSION class Timer { public: typedef Generic_timer::T<Generic_timer::Physical> Gtimer; };
 
 // --------------------------------------------------------------------------
-INTERFACE [arm && arm_generic_timer && ((arm_em_ns && !hyp) || arm_em_std)]:
+INTERFACE [arm && arm_generic_timer && (!hyp && (arm_em_ns || arm_em_std))]:
 
 EXTENSION class Timer { public: typedef Generic_timer::T<Generic_timer::Virtual> Gtimer; };
 
@@ -88,7 +88,7 @@ void Timer::init(Cpu_number cpu)
     ;
 }
 
-IMPLEMENT
+IMPLEMENT_OVERRIDE
 void
 Timer::enable()
 {

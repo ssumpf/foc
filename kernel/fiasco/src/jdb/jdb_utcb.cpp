@@ -51,10 +51,11 @@ Jdb_utcb::print(Thread *t)
       Vcpu_state *v = t->vcpu_state().kern();
       printf("\nVcpu-state-addr: %p\n", v);
       printf("state: %x    saved-state:  %x  sticky: %x\n",
-             (int)v->state, (int)v->_saved_state, (int)v->sticky_flags);
+             (unsigned)v->state, (unsigned)v->_saved_state,
+             (unsigned)v->sticky_flags);
       printf("entry_sp = %lx    entry_ip = %lx  sp = %lx\n",
              v->_entry_sp, v->_entry_ip, v->_sp);
-      v->_ts.dump();
+      v->_regs.dump();
     }
 }
 
@@ -65,7 +66,7 @@ Jdb_utcb::action( int cmd, void *&, char const *&, int &)
   if (cmd)
     return NOTHING;
 
-  Thread *t = Kobject::dcast<Thread_object *>(thread);
+  Thread *t = cxx::dyn_cast<Thread *>(thread);
   if (!t)
     {
       printf(" Invalid thread\n");
@@ -99,7 +100,6 @@ const * Jdb_utcb::cmds() const
 class Jdb_kobject_utcb_hdl : public Jdb_kobject_handler
 {
 public:
-  Jdb_kobject_utcb_hdl() : Jdb_kobject_handler(0) {}
   virtual bool show_kobject(Kobject_common *, int) { return true; }
   virtual ~Jdb_kobject_utcb_hdl() {}
 };
@@ -118,7 +118,7 @@ Jdb_kobject_utcb_hdl::handle_key(Kobject_common *o, int keycode)
 {
   if (keycode == 'z')
     {
-      Thread *t = Kobject::dcast<Thread_object *>(o);
+      Thread *t = cxx::dyn_cast<Thread *>(o);
       if (!t)
         return false;
 

@@ -4,9 +4,10 @@ INTERFACE:
 
 class Irq;
 
-class Vlog : public Icu_h<Vlog>, public Irq_chip_soft
+class Vlog :
+  public cxx::Dyn_castable<Vlog, Icu_h<Vlog> >,
+  public Irq_chip_soft
 {
-  FIASCO_DECLARE_KOBJ();
 public:
   enum O_flags
   {
@@ -45,8 +46,7 @@ IMPLEMENTATION:
 #include "irq.h"
 #include "irq_controller.h"
 
-
-FIASCO_DEFINE_KOBJ(Vlog);
+JDB_DEFINE_TYPENAME(Vlog, "Vlog");
 
 PUBLIC
 Vlog::Vlog()
@@ -54,8 +54,7 @@ Vlog::Vlog()
   _i_flags(F_ICRNL), _o_flags(F_ONLCR), _l_flags(F_ECHO)
 {
   Vkey::set_echo(Vkey::Echo_crnl);
-  // CAP idx 5 is the initial kernel stream
-  initial_kobjects.register_obj(this, 5);
+  initial_kobjects.register_obj(this, Initial_kobjects::Log);
 }
 
 PUBLIC void
@@ -148,7 +147,7 @@ Vlog::bind(Irq_base *irq, Mword irqnum)
 
 PUBLIC
 L4_msg_tag
-Vlog::icu_bind_irq(Irq *irq_o, unsigned irqnum)
+Vlog::op_icu_bind(unsigned irqnum, Ko::Cap<Irq> const &irq)
 {
   if (irqnum > 0)
     return commit_result(-L4_err::EInval);
@@ -156,13 +155,16 @@ Vlog::icu_bind_irq(Irq *irq_o, unsigned irqnum)
   if (_irq)
     _irq->unbind();
 
-  bind(irq_o, irqnum);
+  if (!Ko::check_rights(irq.rights, Ko::Rights::CW()))
+    return commit_result(-L4_err::EPerm);
+
+  bind(irq.obj, irqnum);
   return commit_result(0);
 }
 
 PUBLIC
 L4_msg_tag
-Vlog::icu_set_mode(Mword pin, Irq_chip::Mode)
+Vlog::op_icu_set_mode(Mword pin, Irq_chip::Mode)
 {
   if (pin != 0)
     return commit_result(-L4_err::EInval);
@@ -213,12 +215,13 @@ Vlog::icu_get_irq(unsigned irqnum)
 
 
 PUBLIC inline
-void
-Vlog::icu_get_info(Mword *features, Mword *num_irqs, Mword *num_msis)
+L4_msg_tag
+Vlog::op_icu_get_info(Mword *features, Mword *num_irqs, Mword *num_msis)
 {
   *features = 0; // supported features (only normal irqs)
   *num_irqs = 1;
   *num_msis = 0;
+  return L4_msg_tag(0);
 }
 
 

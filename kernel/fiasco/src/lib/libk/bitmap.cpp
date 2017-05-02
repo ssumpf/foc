@@ -63,6 +63,20 @@ public:
     return v & (1UL << b);
   }
 
+  bool atomic_get_and_set(unsigned long bit)
+  {
+    unsigned long idx = bit / Bpl;
+    unsigned long b   = bit % Bpl;
+    unsigned long v;
+    do
+      {
+        v = _bits[idx];
+      }
+    while (!mp_cas(&_bits[idx], v, v | (1UL << b)));
+
+    return v & (1UL << b);
+  }
+
   void atomic_set_bit(unsigned long bit)
   {
     unsigned long idx = bit / Bpl;
@@ -158,6 +172,18 @@ public:
         v = _bits;
       }
     while (!mp_cas(&_bits, v, v & ~(1UL << bit)));
+
+    return v & (1UL << bit);
+  }
+
+  bool atomic_get_and_set(unsigned long bit)
+  {
+    unsigned long v;
+    do
+      {
+        v = _bits;
+      }
+    while (!mp_cas(&_bits, v, v | (1UL << bit)));
 
     return v & (1UL << bit);
   }

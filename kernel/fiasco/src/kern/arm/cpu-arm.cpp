@@ -44,7 +44,7 @@ public:
     Copro_dbg_model_v7_1          = 5,
   };
 
-  bool has_generic_timer() const { return (_cpu_id._pfr[1] & 0xf000) == 0x1000; }
+  bool has_generic_timer() const { return (_cpu_id._pfr[1] & 0xf0000) == 0x10000; }
   unsigned copro_dbg_model() const { return _cpu_id._dfr0 & 0xf; }
 
 private:
@@ -437,7 +437,7 @@ Cpu::phys_id() const
 
 IMPLEMENT
 void
-Cpu::init(bool, bool is_boot_cpu)
+Cpu::init(bool /*resume*/, bool is_boot_cpu)
 {
   if (is_boot_cpu)
     {

@@ -33,7 +33,7 @@ public:
   void set_online(bool o);
   void set_present(bool o);
 
-  /** Convienience for Cpu::cpus.cpu(cpu).online() */
+  /** Convenience for Cpu::cpus.cpu(cpu).online() */
   static bool online(Cpu_number cpu);
   /** Is this CPU online ? */
   bool online() const;

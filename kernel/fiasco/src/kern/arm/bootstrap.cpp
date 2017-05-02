@@ -332,28 +332,25 @@ create_initial_mappings(void *const page_dir)
   typedef Bootstrap::Virt_addr Virt_addr;
 
   Kip *kip = reinterpret_cast<Kip*>(my_kernel_info_page);
-  Mem_desc const *md = kip->mem_descs();
-  Mem_desc const *const md_end = md + kip->num_mem_descs();
-
-  for (; md < md_end; ++md)
+  for (auto const &md: kip->mem_descs_a())
     {
-      if (!md->valid())
+      if (!md.valid())
 	{
-	  const_cast<Mem_desc*>(md)->type(Mem_desc::Undefined);
+	  const_cast<Mem_desc&>(md).type(Mem_desc::Undefined);
 	  continue;
 	}
 
-      if (md->is_virtual())
+      if (md.is_virtual())
 	continue;
 
-      unsigned long s = md->start();
-      unsigned long e = md->end();
+      unsigned long s = md.start();
+      unsigned long e = md.end();
 
       // Sweep out stupid descriptors (that have the end before the start)
       Virt_addr va;
       Phys_addr pa;
 
-      switch (md->type())
+      switch (md.type())
 	{
 	case Mem_desc::Conventional:
 	  if (e <= s)

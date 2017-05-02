@@ -13,6 +13,15 @@ Context::arch_setup_utcb_ptr()
 //---------------------------------------------------------------------------
 IMPLEMENTATION [ia32 || ux]:
 
+IMPLEMENT inline
+void
+Context::spill_user_state()
+{}
+
+IMPLEMENT inline
+void
+Context::fill_user_state()
+{}
 
 IMPLEMENT inline NEEDS [Context::update_consumed_time,
 			Context::store_segments]

@@ -8,5 +8,5 @@
 
 
 void
-Foo::gizmatic()
+Foo::gizmatic ()
 {}

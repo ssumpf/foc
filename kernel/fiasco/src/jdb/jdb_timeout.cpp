@@ -388,6 +388,7 @@ Jdb_list_timeouts::list()
                   y = y_max;
                   break;
                 case KEY_RETURN:
+                case KEY_RETURN_2:
                   if (jdb_show_tcb != 0)
                     {
                       Thread *owner;

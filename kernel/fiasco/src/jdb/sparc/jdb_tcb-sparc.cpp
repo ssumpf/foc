@@ -87,7 +87,7 @@ void
 Jdb_tcb::print_return_frame_regs(Jdb_tcb_ptr const &, Address)
 {}
 
-IMPLEMENT
+IMPLEMENT_OVERRIDE
 bool
 Jdb_stack_view::edit_registers()
 {

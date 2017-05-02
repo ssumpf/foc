@@ -109,10 +109,6 @@ Return_frame::user_mode()
 //---------------------------------------------------------------------------
 //TODO cbass: set registers properly 
 IMPLEMENT inline
-Mword Syscall_frame::next_period() const
-{ return false; }
-
-IMPLEMENT inline
 void Syscall_frame::from(Mword id)
 { r[5] = id; /*r6*/ }
 

@@ -4,7 +4,6 @@ IMPLEMENTATION [arm-debug]:
 #include <simpleio.h>
 #include "jdb_tbuf.h"
 #include "jdb_entry_frame.h"
-#include "kdb_ke.h"
 #include "cpu_lock.h"
 #include "vkey.h"
 #include "static_init.h"
@@ -77,8 +76,8 @@ static void tbuf(Thread *t, Entry_frame *r)
           str = regs->str();
 	  tb->set(t, ip-4);
 	  for (len=0; (c = s->peek(str++, user)); len++)
-            tb->set_buf(len, c);
-          tb->term_buf(len);
+            tb->msg.set_buf(len, c);
+          tb->msg.term_buf(len);
           regs->set_tb_entry(tb);
           Jdb_tbuf::commit_entry();
 	}
@@ -100,8 +99,8 @@ static void tbuf(Thread *t, Entry_frame *r)
           tb->v[1] = regs->val2();
           tb->v[2] = regs->val3();
           for (len=0; (c = s->peek(str++, user)); len++)
-            tb->set_buf(len, c);
-          tb->term_buf(len);
+            tb->msg.set_buf(len, c);
+          tb->msg.term_buf(len);
           regs->set_tb_entry(tb);
           Jdb_tbuf::commit_entry();
         }

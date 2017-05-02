@@ -5,60 +5,59 @@ not self descriptive:
 
 Core packages:
 
-  - bootstrap         L4 system boot loader / Boot-image generator
-  - crtn              Program startup support, part of C environment
-  - cxx*              C++ library containing
-                         - Data structures: AVL trees, lists, bitmaps
-                         - L4 IPC framework
-  - drivers*          Driver libraries
-  - io                Io server, maintains the platform and I/O resources
-  - l4re              L4 Runtime Environment interfaces and library, C++ version
-  - l4re_c            C interface for L4 Runtime Environment
-  - l4re_kernel       L4 Runtime Environment system
-  - l4re_vfs          L4Re Virtual Filesystem infrastructure
-  - l4sys             Kernel bindings
-  - l4util            Utility functions
-  - ldscripts         Linker scripts
-  - ldso              Dynamic library support
-  - libc_backends     Glue code between C library and L4 Runtime Environment
-                        such as memory and file handling
-  - libio             Interface and library to access device resources
-                         (e.g. MMIO, IRQs)
-  - libio-io          Specific interface library code for the io server.
-  - libgcc*           GCC runtime support
-  - libloader         Support library for l4re and moe.
-  - libsigma0         Sigma0 API library.
-  - libstdc++-headers Standard C++ library headers
-  - libstdc++-v3      Standard C++ library
-  - libsupc++         Standard C++ Runtime Environment
-  - libvbus           Virtual bus library for devices
-  - loader            L4Re program loader
-  - log               Library for debug logging support
-  - lua               Lua interpreter and library
-  - moe               L4 Root task (essential L4 program)
-  - ned               Scriptable application launcher
-  - sigma0            L4 Root pager (essential L4 program)
-  - ucblic            Standard C library, including POSIX thread environment
-
+  - bootstrap                   L4 system boot loader / Boot-image generator
+  - io/io                       Io server, maintains the platform and I/O resources
+  - io/libio                    Interface and library to access device resources
+                                (e.g. MMIO, IRQs)
+  - io/libio-io                 Specific interface library code for the io server.
+  - io/libvbus                  Virtual bus library for devices
+  - l4re-core/crtn              Program startup support, part of C environment
+  - l4re-core/cxx*              Small C++ library containing
+                                   - Data structures: AVL trees, lists, bitmaps
+                                   - L4 IPC framework
+  - l4re-core/l4re              L4 Runtime Environment interfaces and library, C++ version
+  - l4re-core/l4re_c            C interface for L4 Runtime Environment
+  - l4re-core/l4re_kernel       L4 Runtime Environment system
+  - l4re-core/l4re_vfs          L4Re Virtual Filesystem infrastructure
+  - l4re-core/l4sys             Kernel bindings
+  - l4re-core/l4util            Utility functions
+  - l4re-core/ldscripts         Linker scripts
+  - l4re-core/ldso              Dynamic library support
+  - l4re-core/libc_backends     Glue code between C library and L4 Runtime Environment
+                                such as memory and file handling
+  - l4re-core/libgcc*           GCC runtime support
+  - l4re-core/libloader         Support library for l4re and moe.
+  - l4re-core/libsigma0         Sigma0 API library.
+  - l4re-core/libstdc++-headers Standard C++ library headers
+  - l4re-core/libstdc++-v3      Standard C++ library
+  - l4re-core/libsupc++         Standard C++ Runtime Environment
+  - l4re-core/lua               Lua interpreter and library
+  - l4re-core/moe               L4 Root task (essential L4 program)
+  - l4re-core/ned               Scriptable application launcher
+  - l4re-core/sigma0            L4 Root pager (essential L4 program)
+  - l4re-core/ucblic            Standard C library, including POSIX thread environment
 
 Other packages:
 
-  - ankh              Network server and switch
-  - boost-lite        Subset of the boost library
-  - dope              DOpE windowing system
-  - examples          Examples
-  - fb-drv            Framebuffer driver server
-  - hello             'Hello World!' example
-  - input             Driver library for input devices (PS2: Keyboard, Mouse)
-  - l4con             Graphical console
-  - libgomp           Open MP library for gcc
-  - libirq            Convenience library for IRQ handling.
-  - libpng            libpng graphics library.
-  - libsdl*           SDL library
-  - lxfuxlibc         Support library for Fiasco-UX specific programs
-  - mag               Windowing system
-  - mag-gfx           Graphic routines
-  - rtc               Real-Time clock service
-  - scout*            Text browser
-  - shmc              Communication infracture based on shared memory
-  - zlib              zlib compression library
+  - ankh                        Network server and switch
+  - boost-lite                  Subset of the boost library
+  - dope                        DOpE windowing system
+  - drivers*                    Driver libraries
+  - examples                    Examples
+  - fb-drv                      Framebuffer driver server
+  - hello                       'Hello World!' example
+  - input                       Driver library for input devices (PS2: Keyboard, Mouse)
+  - l4con                       Graphical console
+  - libgomp                     Open MP library for gcc
+  - libirq                      Convenience library for IRQ handling.
+  - libpng                      libpng graphics library.
+  - libsdl*                     SDL library
+  - loader                      L4Re program loader
+  - log                         Library for debug logging support
+  - lxfuxlibc                   Support library for Fiasco-UX specific programs
+  - mag                         Windowing system
+  - mag-gfx                     Graphic routines
+  - rtc                         Real-Time clock service
+  - scout*                      Text browser
+  - shmc                        Communication infracture based on shared memory
+  - zlib                        zlib compression library

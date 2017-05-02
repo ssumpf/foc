@@ -31,6 +31,8 @@ private:
   static int  screen_height;
   static int  screen_width;
   static unsigned input_time_block_sec;
+
+  int wait_for_escape(Console *cons);
 };
 
 char Jdb_pcm::subcmd;
@@ -137,7 +139,7 @@ Jdb_pcm::action(int cmd, void *&args, char const *&fmt, int &)
 	  Kconsole::console()->list_consoles();
 	  return NOTHING;
         case 'i':
-          printf("\nScreen dimensions: %dx%d Cols: %ld\n",
+          printf("\nScreen dimensions: %ux%u Cols: %lu\n",
                  Jdb_screen::width(), Jdb_screen::height(),
                  Jdb_screen::cols());
           return NOTHING;
@@ -229,12 +231,30 @@ Jdb_pcm::Jdb_pcm()
   : Jdb_module("GENERAL")
 {}
 
+IMPLEMENTATION:
+
+#include "processor.h"
+
+IMPLEMENT_DEFAULT
+int
+Jdb_pcm::wait_for_escape(Console *cons)
+{
+  for (Mword cnt=100000; ; cnt--)
+    {
+      int c = cons->getchar(false);
+      if (c == '\033')
+	return 1;
+      if (!cnt)
+	return 0;
+      Proc::pause();
+    }
+}
 
 IMPLEMENTATION[ia32 || ux || amd64]:
 
 #include "cpu.h"
 
-PRIVATE
+IMPLEMENT_OVERRIDE
 int
 Jdb_pcm::wait_for_escape(Console *cons)
 {
@@ -249,26 +269,6 @@ Jdb_pcm::wait_for_escape(Console *cons)
       if (c == '\033')
 	return 1;
       if (c != -1 || Cpu::rdtsc() > to)
-	return 0;
-      Proc::pause();
-    }
-}
-
-
-IMPLEMENTATION[arm || ppc32 || sparc]:
-
-#include "processor.h"
-
-PRIVATE
-int
-Jdb_pcm::wait_for_escape(Console *cons)
-{
-  for (Mword cnt=100000; ; cnt--)
-    {
-      int c = cons->getchar(false);
-      if (c == '\033')
-	return 1;
-      if (!cnt)
 	return 0;
       Proc::pause();
     }

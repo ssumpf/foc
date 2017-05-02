@@ -6,23 +6,7 @@
 
 #include "kernel_console.h"
 #include "simpleio.h"
-#include "terminate.h"
-
-
-void
-__assert_fail (const char *__assertion, const char *__file,
-	       unsigned int __line)
-{
-  // make sure that GZIP mode is off
-  Kconsole::console()->end_exclusive(Console::GZIP);
-
-  printf("\nAssertion failed: '%s'\n"
-	 "  in %s:%i\n"
-	 "  at " L4_PTR_FMT "\n",
-	 __assertion, __file, __line, (Address)__builtin_return_address(0));
-
-  terminate(1);
-}
+#include "thread.h"
 
 void
 panic(const char *format, ...)
@@ -38,5 +22,5 @@ panic(const char *format, ...)
   va_end   (args);
   putstr("\033[m");
 
-  terminate (EXIT_FAILURE);
+  Thread::system_abort();
 }

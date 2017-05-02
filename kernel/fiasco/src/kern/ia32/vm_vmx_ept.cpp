@@ -183,7 +183,7 @@ static Mem_space::Fit_size::Size_array __ept_ps;
 
 PUBLIC
 Mem_space::Fit_size
-Vm_vmx_ept::mem_space_fitting_sizes() const
+Vm_vmx_ept::mem_space_fitting_sizes() const override
 { return Mem_space::Fit_size(__ept_ps); }
 
 PUBLIC static
@@ -198,7 +198,8 @@ Vm_vmx_ept::add_page_size(Mem_space::Page_order o)
 PUBLIC
 bool
 Vm_vmx_ept::v_lookup(Mem_space::Vaddr virt, Mem_space::Phys_addr *phys,
-                     Mem_space::Page_order *order, Mem_space::Attr *page_attribs)
+                     Mem_space::Page_order *order,
+                     Mem_space::Attr *page_attribs) override
 {
   auto i = _ept->walk(virt);
   if (order) *order = Mem_space::Page_order(i.page_order());
@@ -215,7 +216,8 @@ Vm_vmx_ept::v_lookup(Mem_space::Vaddr virt, Mem_space::Phys_addr *phys,
 PUBLIC
 Mem_space::Status
 Vm_vmx_ept::v_insert(Mem_space::Phys_addr phys, Mem_space::Vaddr virt,
-                     Mem_space::Page_order size, Mem_space::Attr page_attribs)
+                     Mem_space::Page_order size,
+                     Mem_space::Attr page_attribs) override
 {
   // insert page into page table
 
@@ -257,7 +259,7 @@ Vm_vmx_ept::v_insert(Mem_space::Phys_addr phys, Mem_space::Vaddr virt,
 PUBLIC
 L4_fpage::Rights
 Vm_vmx_ept::v_delete(Mem_space::Vaddr virt, Mem_space::Page_order size,
-                     L4_fpage::Rights page_attribs)
+                     L4_fpage::Rights page_attribs) override
 {
   (void)size;
   assert (cxx::get_lsb(Virt_addr(virt), size) == 0);
@@ -285,7 +287,7 @@ Vm_vmx_ept::v_delete(Mem_space::Vaddr virt, Mem_space::Page_order size,
 
 PUBLIC
 void
-Vm_vmx_ept::v_set_access_flags(Mem_space::Vaddr, L4_fpage::Rights)
+Vm_vmx_ept::v_set_access_flags(Mem_space::Vaddr, L4_fpage::Rights) override
 {}
 
 PUBLIC inline
@@ -302,7 +304,7 @@ void
 Vm_vmx_ept::operator delete (void *ptr)
 {
   Vm_vmx_ept *t = reinterpret_cast<Vm_vmx_ept*>(ptr);
-  allocator<Vm_vmx_ept>()->q_free(t->ram_quota(), ptr);
+  Kmem_slab_t<Vm_vmx_ept>::q_free(t->ram_quota(), ptr);
 }
 
 PUBLIC inline
@@ -342,7 +344,7 @@ void
 Vm_vmx_ept::load_vm_memory(void *src)
 {
   load(Vmx::F_guest_cr3, src);
-  Vmx::vmwrite(0x201a, _ept_phys | 6 | (3 << 3));
+  Vmx::vmwrite(Vmx::F_ept_ptr, _ept_phys | 6 | (3 << 3));
 }
 
 PUBLIC inline
@@ -356,11 +358,21 @@ PUBLIC static
 void
 Vm_vmx_ept::init()
 {
-
-  printf("VMX: init page sizes\n");
-  if (!Vmx::cpus.cpu(Cpu_number::boot_cpu()).vmx_enabled())
+  auto const &vmx = Vmx::cpus.cpu(Cpu_number::boot_cpu());
+  if (!vmx.vmx_enabled())
     return;
 
+  if (!vmx.info.procbased_ctls2.allowed(Vmx_info::PRB2_enable_ept))
+    {
+      Kobject_iface::set_factory(L4_msg_tag::Label_vm,
+                                 Task::generic_factory<Vm_vmx>);
+      return;
+    }
+
+  Kobject_iface::set_factory(L4_msg_tag::Label_vm,
+                             Task::generic_factory<Vm_vmx_ept>);
+
+  printf("VMX: init page sizes\n");
   add_page_size(Mem_space::Page_order(12));
   add_page_size(Mem_space::Page_order(21));
   add_page_size(Mem_space::Page_order(30));

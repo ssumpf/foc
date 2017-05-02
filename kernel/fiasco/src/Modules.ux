@@ -17,6 +17,7 @@ PREPROCESS_PARTS-$(CONFIG_CONTEXT_4K)        += context_4k
 PREPROCESS_PARTS-$(CONFIG_SCHED_FIXED_PRIO)  += sched_fixed_prio
 PREPROCESS_PARTS-$(CONFIG_SCHED_WFQ)         += sched_wfq
 PREPROCESS_PARTS-$(CONFIG_SCHED_FP_WFQ)      += sched_fp_wfq
+PREPROCESS_PARTS-$(CONFIG_JDB_LOGGING)       += jdb_logging
 
 PREPROCESS_PARTS        += $(PREPROCESS_PARTS-y)
 
@@ -81,7 +82,7 @@ INTERFACES_KERNEL	:= string_buffer mem_region simpleio kernel_console panic warn
 			   kip_init ipi queue_item queue cpu_mask rcupdate \
 			   boot_info config jdb_symbol jdb_util	          \
 			   tb_entry perf_cnt jdb_tbuf x86desc		  \
-			   emulation pic cpu trampoline cpu_lock \
+			   emulation irq_chip_ux_base pic cpu trampoline cpu_lock \
 			   spin_lock boot_alloc			  \
 			   entry_frame continuation                \
 			   kmem mem_unit  \
@@ -94,7 +95,8 @@ INTERFACES_KERNEL	:= string_buffer mem_region simpleio kernel_console panic warn
 			   obj_space kobject_dbg kobject kobject_iface    \
 			   l4_buf_iter lock  clock \
                            obj_space_types obj_space_phys_util \
-			   mem_space space utcb_init vcpu trap_state context \
+			   mem_space space utcb_init trap_state vcpu_host_regs vcpu \
+			   cpu_call context \
 			   helping_lock \
 			   usermode \
 			   mapping mapping_tree mappable                  \
@@ -106,9 +108,9 @@ INTERFACES_KERNEL	:= string_buffer mem_region simpleio kernel_console panic warn
 			   kobject_helper timer_tick platform_control     \
 			   syscalls ipc_gate irq_controller \
 			   kernel_thread dirq irq_chip irq_mgr \
-			   irq_chip_ia32 irq_chip_pic  \
+			   irq_chip_ia32 irq_chip_ux \
 			   banner fpu_alloc irq icu_helper main 	  \
-			   startup libc_support                 \
+			   startup libc_support reset semaphore          \
 			   jdb_dbinfo jdb fb net \
 			   jdb_core jdb_module jdb_table         	  \
 			   jdb_thread_list jdb_input jdb_input_task jdb_dump jdb_thread  \
@@ -133,8 +135,9 @@ INTERFACES_KERNEL	:= string_buffer mem_region simpleio kernel_console panic warn
                            jdb_list jdb_ipc_gate jdb_obj_space            \
 			   jdb_log jdb_factory scheduler \
                            platform_control_object    \
-			   jdb_scheduler jdb_sender_list            \
-			   jdb_disasm jdb_regex jdb_report
+			   jdb_sender_list            \
+			   jdb_disasm jdb_regex jdb_report                \
+                           jdb_object
 
 boot_info_IMPL		:= boot_info boot_info-ia32 boot_info-ux
 clock_IMPL              := clock clock-ia32
@@ -153,6 +156,7 @@ irq_IMPL		:= irq irq-ux
 ipi_IMPL		:= ipi ipi-ux
 jdb_IMPL		:= jdb jdb-ux jdb-ansi jdb-ia32-ux jdb-thread        \
 			   jdb-int3 jdb-int3-ia32-ux
+jdb_tbuf_IMPL		:= jdb_tbuf jdb_tbuf-ux
 jdb_tcb_IMPL		:= jdb_tcb jdb_tcb-ia32-ux
 jdb_bp_IMPL		:= jdb_bp-ia32-ux jdb_bp-ux
 jdb_bt_IMPL		:= jdb_bt-ia32-ux
@@ -163,7 +167,7 @@ jdb_misc_IMPL		:= jdb_misc-ia32-amd64
 jdb_ptab_IMPL		:= jdb_ptab jdb_ptab-ia32-ux-arm
 jdb_screen_IMPL		:= jdb_screen jdb_screen-ia32
 jdb_trace_set_IMPL	:= jdb_trace_set jdb_trace_set-ia32-ux
-kdb_ke_IMPL		:= kdb_ke kdb_ke-ia32
+kdb_ke_IMPL		:= kdb_ke-ia32
 kernel_thread_IMPL	:= kernel_thread kernel_thread-std kernel_thread-ux
 kip_init_IMPL		:= kip_init-ia32 kip_init-ux
 kmem_IMPL		:= kmem-ia32 kmem-ux
@@ -178,11 +182,10 @@ mem_unit_IMPL		:= mem_unit-ux
 obj_space_IMPL          := obj_space obj_space-phys
 paging_IMPL		:= paging-ia32-32 paging-ia32 paging
 perf_cnt_IMPL		:= perf_cnt perf_cnt-ia32
-pic_IMPL		:= pic pic-ux
 pmem_alloc_IMPL		:= pmem_alloc pmem_alloc-ia32-ux
+reset_IMPL		:= reset-ux
 sched_context_IMPL	:= sched_context-wfq sched_context-fixed_prio \
 			   sched_context-fp_wfq sched_context
-space_IMPL		:= space space-ux 
 syscalls_IMPL		:= syscalls syscalls-log
 sys_call_page_IMPL	:= sys_call_page sys_call_page-abs-ux
 task_IMPL		:= task task-ux
@@ -195,6 +198,7 @@ timer_IMPL 		:= timer timer-ia32-amd64-ux timer-ux
 timer_tick_IMPL		:= timer_tick timer_tick-single-vector timer_tick-ia32
 utcb_init_IMPL		:= utcb_init utcb_init-ux
 vmem_alloc_IMPL		:= vmem_alloc vmem_alloc-ia32 vmem_alloc-ux
+vcpu_host_regs_IMPL	:= vcpu_host_regs-ia32
 spin_lock_IMPL		:= spin_lock spin_lock-ia32
 
 CXXSRC_KERNEL		:= libc_backend_nolock.cc glue_libc_ux.cc tb_entry_output.cc
@@ -326,12 +330,10 @@ endif
 #
 # UNITTEST subsystem
 #
-ifeq (0,1)
 SUBSYSTEMS		+= UNITTEST
 VPATH			+= test/unit
 
 INTERFACES_UNITTEST	+= mapdb_t map_util_t
-endif
 
 # Compile all unit tests without -DNDEBUG.
 NONDEBUG += $(patsubst %.o, %, $(OBJ_UNITTEST))

@@ -76,17 +76,42 @@ sub prepare_grub2_dir($)
   mkdir "$dir/boot/grub";
 }
 
+sub check_for_program
+{
+  my $prog;
+  for my $p (@_)
+    {
+      my $o = `sh -c "command -v \"$p\""`;
+      if ($? == 0)
+        {
+          chomp $o;
+          $prog = $o;
+          last;
+        }
+
+    }
+
+  die "\nDid not find ".join(' or ', map "'$_'", @_)
+      ." program, required to proceed. Please install.\n\n"
+    unless defined $prog;
+
+  $prog;
+}
+
 sub grub2_mkisofs($$@)
 {
   my ($isofilename, $dir, @morefiles) = @_;
   # There are different versions of grub-mkrescue
   # With Grub 2.00 it's a shell script, with 2.02 it's a binary, with it
   # seems slightly different handling of mkisofs/xorriso options.
-  my $mkr = "grub-mkrescue";
-  my $fp = `sh -c "command -v $mkr"`;
-  die "Did not find '$mkr'" if $?;
+  my $mkr = check_for_program("grub2-mkrescue", "grub-mkrescue");
+  # grub-mkrescue returns without error if those are missing
+  check_for_program('xorriso');
+  check_for_program('mformat'); # EFI only?
+  check_for_program('mcopy');   # EFI only?
+
   my $opt = '';
-  open(A, $fp) && do {
+  open(A, $mkr) && do {
     $opt = " -as mkisofs" if <A> =~ /^#! +\/.+sh/;
     close A;
   };
@@ -94,6 +119,8 @@ sub grub2_mkisofs($$@)
             join(' ', @morefiles)." --$opt -f";
   system("$cmd");
   die "Failed to create ISO" if $?;
+  # grub-mkrescue does not propagate internal tool errors
+  die "Failed to create ISO" unless -e $isofilename;
 }
 
 

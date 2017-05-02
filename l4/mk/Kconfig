@@ -4,36 +4,22 @@ config KERNELVERSION
         string
 	option env="KERNELVERSION"
 
+config ARCH_ENABLE_STACK_PROTECTOR
+	bool
+
 choice
 	prompt "Target Architecture"
 	default BUILD_ARCH_x86
 	help
 	  Specify for which processor architecture you want to build.
 
-config BUILD_ARCH_x86
-	bool "X86-32 architecture"
-
-config BUILD_ARCH_amd64
-	bool "AMD64 architecture"
-
-config BUILD_ARCH_arm
-	bool "ARM architecture"
-
-config BUILD_ARCH_ppc32
-	bool "PowerPC 32 architecture (EXPERIMENTAL!)"
-
-config BUILD_ARCH_sparc
-	bool "Sparc architecture (EXPERIMENTAL)"
+#  ARCH_CHOICE
 
 endchoice
 
 config BUILD_ARCH
 	string
-	default "x86"   if BUILD_ARCH_x86
-	default "arm"   if BUILD_ARCH_arm
-	default "amd64" if BUILD_ARCH_amd64
-	default "ppc32" if BUILD_ARCH_ppc32
-	default "sparc" if BUILD_ARCH_sparc
+# ARCH_NAME
 
 # currently we have nothing for abi linux, so just do not offer this option
 #choice
@@ -56,246 +42,7 @@ config BUILD_ABI
 	default "l4f"   if BUILD_ABI_l4f
 	default "linux" if BUILD_ABI_linux
 
-if BUILD_ARCH_x86 || BUILD_ARCH_amd64
-
-choice
-	prompt "CPU variant"
-	
-config CPU_X86_586
-	bool "586 type CPU"
-	depends on BUILD_ARCH_x86
-
-config CPU_X86_PENTIUM
-	bool "Pentium type CPU"
-	depends on BUILD_ARCH_x86
-
-config CPU_X86_PENTIUMMMX
-	bool "Pentium with MMX type CPU"
-	depends on BUILD_ARCH_x86
-
-config CPU_X86_PENTIUMPRO
-	bool "Pentium Pro type CPU"
-	depends on BUILD_ARCH_x86
-
-config CPU_X86_686
-	bool "686 type CPU"
-	depends on BUILD_ARCH_x86
-
-config CPU_X86_PENTIUM2
-	bool "Pentium2 type CPU"
-	depends on BUILD_ARCH_x86
-
-config CPU_X86_PENTIUM3
-	bool "Pentium3 type CPU"
-	depends on BUILD_ARCH_x86
-
-config CPU_X86_PENTIUMM
-	bool "Pentium-M type CPU"
-	depends on BUILD_ARCH_x86
-
-config CPU_X86_PENTIUM4
-	bool "Pentium4 type CPU"
-	depends on BUILD_ARCH_x86
-
-config CPU_X86_PRESCOTT
-	bool "Pentium4 Prescott type CPU"
-	depends on BUILD_ARCH_x86
-
-config CPU_X86_NOCONA
-	bool "Pentium Nocona type CPU"
-	depends on BUILD_ARCH_x86
-
-config CPU_X86_CORE2
-	bool "Core2 type CPU"
-	depends on BUILD_ARCH_x86
-
-config CPU_X86_K6
-	bool "K6 type CPU"
-	depends on BUILD_ARCH_x86
-
-config CPU_X86_K7
-	bool "K7 type CPU"
-	depends on BUILD_ARCH_x86
-
-config CPU_X86_ATHLON4
-	bool "Athlon type CPU"
-	depends on BUILD_ARCH_x86
-
-config CPU_X86_K8
-	bool "K8 type CPU"
-	depends on BUILD_ARCH_x86 || BUILD_ARCH_amd64
-
-config CPU_X86_K10
-	bool "K10/Barcelona type CPU"
-	depends on BUILD_ARCH_x86 || BUILD_ARCH_amd64
-
-config CPU_X86_OPTERON
-	bool "Opteron type CPU"
-	depends on BUILD_ARCH_x86 || BUILD_ARCH_amd64
-
-
-
-endchoice
-
-
-config CPU
-	string
-	default "586"        if CPU_X86_586
-	default "pentium"    if CPU_X86_PENTIUM
-	default "pentiummmx" if CPU_X86_PENTIUMMMX
-	default "pentiumpro" if CPU_X86_PENTIUMPRO
-	default "686"        if CPU_X86_686
-	default "pentium2"   if CPU_X86_PENTIUM2
-	default "pentium3"   if CPU_X86_PENTIUM3
-	default "pentiumm"   if CPU_X86_PENTIUMM
-	default "pentium4"   if CPU_X86_PENTIUM4
-	default "prescott"   if CPU_X86_PRESCOTT
-	default "core2"      if CPU_X86_CORE2
-	default "nocona"     if CPU_X86_NOCONA
-	default "K6"         if CPU_X86_K6
-	default "K7"         if CPU_X86_K7
-	default "athlon4"    if CPU_X86_ATHLON4
-	default "K8"         if CPU_X86_K8
-	default "amdfam10"   if CPU_X86_K10
-	default "opteron"    if CPU_X86_OPTERON
-
-endif
-
-
-if BUILD_ARCH_arm
-
-choice
-	prompt "CPU variant"
-	
-config CPU_ARM_ARMV4
-	bool "ARMv4 type CPU"
-	depends on BUILD_ARCH_arm
-
-config CPU_ARM_ARMV4T
-	bool "ARMv4T type CPU"
-	depends on BUILD_ARCH_arm
-
-config CPU_ARM_ARMV5
-	bool "ARMv5 type CPU"
-	depends on BUILD_ARCH_arm
-
-config CPU_ARM_ARMV5T
-	bool "ARMv5T type CPU"
-	depends on BUILD_ARCH_arm
-
-config CPU_ARM_ARMV5TE
-	bool "ARMv5TE type CPU"
-	depends on BUILD_ARCH_arm
-
-config CPU_ARM_ARMV6
-	bool "ARMv6 type CPU"
-	depends on BUILD_ARCH_arm
-
-config CPU_ARM_ARMV6T2
-	bool "ARMv6t2 type CPU"
-	depends on BUILD_ARCH_arm
-
-config CPU_ARM_ARMV6ZK
-	bool "ARMv6zk type CPU"
-	depends on BUILD_ARCH_arm
-
-config CPU_ARM_ARMV7A
-	bool "ARMv7A type CPU"
-	depends on BUILD_ARCH_arm
-
-config CPU_ARM_ARMV7R
-	bool "ARMv7R type CPU"
-	depends on BUILD_ARCH_arm
-
-endchoice
-
-config CPU
-	string
-	default "armv4"    if CPU_ARM_ARMV4
-	default "armv4t"   if CPU_ARM_ARMV4T
-	default "armv5"    if CPU_ARM_ARMV5
-	default "armv5t"   if CPU_ARM_ARMV5T
-	default "armv5te"  if CPU_ARM_ARMV5TE
-	default "armv6"    if CPU_ARM_ARMV6
-	default "armv6t2"  if CPU_ARM_ARMV6T2
-	default "armv6zk"  if CPU_ARM_ARMV6ZK
-	default "armv7a"   if CPU_ARM_ARMV7A
-	default "armv7r"   if CPU_ARM_ARMV7R
-
-config CPU_ARMV6KPLUS
-	bool
-	default y if CPU_ARM_ARMV6ZK || CPU_ARM_ARMV7A || CPU_ARM_ARMV7R
-
-config CPU_ARMV6PLUS
-	bool
-	default y if CPU_ARM_ARMV6 || CPU_ARM_ARMV6T2 || CPU_ARMV6KPLUS
-
-endif
-
-if BUILD_ARCH_sparc
-
-choice
-	prompt "CPU"
-   
-	config CPU_SPARC_V7
-	bool "Generic Sparc V7"
-	depends on BUILD_ARCH_sparc
-
-	config CPU_SPARC_LEON
-	bool "LEON"
-	depends on BUILD_ARCH_sparc
-
-	config CPU_SPARC_LEON3
-	bool "LEON3"
-	depends on BUILD_ARCH_sparc
-
-	config CPU_SPARC_V8
-	bool "Generic Sparc V8"
-	depends on BUILD_ARCH_sparc
-
-	config CPU_SPARC_V9
-	bool "Generic Sparc V9"
-	depends on BUILD_ARCH_sparc
-
-	config CPU_SPARC_ULTRASPARC
-	bool "Ultrasparc"
-	depends on BUILD_ARCH_sparc
-
-	config CPU_SPARC_ULTRASPARC3
-	bool "Ultrasparc3"
-	depends on BUILD_ARCH_sparc
-
-	config CPU_SPARC_NIAGARA
-	bool "Niagara"
-	depends on BUILD_ARCH_sparc
-
-	config CPU_SPARC_NIAGARA2
-	bool "Niagara2"
-	depends on BUILD_ARCH_sparc
-
-	config CPU_SPARC_NIAGARA3
-	bool "Niagara3"
-	depends on BUILD_ARCH_sparc
-
-	config CPU_SPARC_NIAGARA4
-	bool "Niagara4"
-	depends on BUILD_ARCH_sparc
-endchoice
-
-config CPU
-	string
-	default "leon"        if CPU_SPARC_LEON
-	default "leon3"       if CPU_SPARC_LEON3
-	default "v7"          if CPU_SPARC_V7
-	default "v8"          if CPU_SPARC_V8
-	default "v9"          if CPU_SPARC_V9
-	default "ultrasparc"  if CPU_SPARC_ULTRASPARC
-	default "ultrasparc3" if CPU_SPARC_ULTRASPARC3
-	default "niagara"     if CPU_SPARC_NIAGARA
-	default "niagara2"    if CPU_SPARC_NIAGARA2
-	default "niagara3"    if CPU_SPARC_NIAGARA3
-	default "niagara4"    if CPU_SPARC_NIAGARA4
-endif
+# PF_INCLUDE
 
 choice
 	prompt "Platform Selection"
@@ -306,7 +53,7 @@ config PLATFORM_TYPE_custom
 	bool "Custom platform"
 	help
 	  Define your own platform, alternatively define the following
-	  in conf/Platform/yourname.conf:
+	  in conf/platforms/yourname.conf:
 	    PLATFORM_RAM_BASE    = 0
 	    PLATFORM_RAM_SIZE_MB = 64
 
@@ -422,7 +169,7 @@ config BID_GCC_OMIT_FP
 
 config BID_GCC_ENABLE_STACK_PROTECTOR
     bool "GCC: enable stack protector"
-    default y if BUILD_ARCH_x86 || BUILD_ARCH_amd64 || BUILD_ARCH_arm
+    default y if ARCH_ENABLE_STACK_PROTECTOR
     help
       If enabled, support for the gcc stack protector will be enabled.
       The stack protector uses stack canaries to detect stack smashing

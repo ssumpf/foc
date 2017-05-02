@@ -43,7 +43,6 @@ IMPLEMENTATION:
 #include "mem_layout.h"
 #include "panic.h"
 #include "warn.h"
-#include "kdb_ke.h"
 
 Jdb_symbol_info *Jdb_symbol::_task_symbols;
 
@@ -172,7 +171,6 @@ Jdb_symbol_info::transform ()
 
       // write link address to next symbol
       *sym_addr = (Address)++symstr;
-      sym += sizeof(Address);
       s--;
     }
 }

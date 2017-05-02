@@ -41,6 +41,11 @@ IMPLEMENT_DEFAULT inline NEEDS[Mem_unit::tlb_flush]
 void Mem_unit::kernel_tlb_flush()
 { tlb_flush(); }
 
+PUBLIC static inline ALWAYS_INLINE
+void
+Mem_unit::make_coherent_to_pou(void const *v)
+{ clean_dcache(v); }
+
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && armv5]:
 
@@ -126,7 +131,7 @@ void Mem_unit::tlb_flush(unsigned long asid)
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && hyp]:
 
-IMPLEMENT inline
+IMPLEMENT_OVERRIDE inline
 void Mem_unit::kernel_tlb_flush()
 {
   asm volatile("mcr p15, 4, r0, c8, c7, 0" : : "r" (0) : "memory");

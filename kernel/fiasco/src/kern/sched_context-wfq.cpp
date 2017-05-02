@@ -53,7 +53,6 @@ IMPLEMENTATION [sched_wfq]:
 #include <cassert>
 #include "config.h"
 #include "cpu_lock.h"
-#include "kdb_ke.h"
 #include "std_macros.h"
 
 
@@ -92,6 +91,7 @@ Sched_context::set(L4_sched_param const *_p)
   if (p->wfq.quantum == 0 || p->wfq.weight == 0)
     return -L4_err::EInval;
 
+  _dl = 0;
   _q = p->wfq.quantum;
   _w = p->wfq.weight;
   _qdw =  p->wfq.quantum / p->wfq.weight;

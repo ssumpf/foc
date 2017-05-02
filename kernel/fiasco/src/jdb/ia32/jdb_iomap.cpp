@@ -81,16 +81,16 @@ Jdb_iomap::show()
 	count++;
     }
   if(mapped)
-    printf("%04x ", Mem_layout::Io_port_max -1);
+    printf("%04x ", (unsigned)Mem_layout::Io_port_max -1);
 
   if (!any_mapped)
     putstr("<none>");
 
-  printf("\n\nPort counter: %ld ", space->get_io_counter() );
+  printf("\n\nPort counter: %lu ", space->get_io_counter() );
   if(count == space->get_io_counter())
     puts("(correct)");
   else
-    printf("%sshould be %d\033[m\n", Jdb::esc_emph, count);
+    printf("%sshould be %u\033[m\n", Jdb::esc_emph, count);
 }
 
 PUBLIC
@@ -117,7 +117,7 @@ Jdb_iomap::action(int cmd, void *&args, char const *&fmt, int &next_char)
       if (!task)
         return NOTHING;
 
-      space = Kobject::dcast<Task*>(reinterpret_cast<Kobject*>(task));
+      space = cxx::dyn_cast<Task*>(reinterpret_cast<Kobject*>(task));
       if (!space)
         return NOTHING;
 

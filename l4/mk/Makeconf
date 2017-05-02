@@ -33,52 +33,27 @@ all::
 # make .general.d dependent on the role-file
 $(if $(ROLE),$(OBJ_DIR)/.general.d: $(L4DIR)/mk/$(ROLE))
 
-SYSTEM_TARGET_arm     = arm-linux-
-SYSTEM_TARGET_ppc32   = powerpc-linux-
-SYSTEM_TARGET_sparc   = $(if $(GCCIS_sparc_leon),sparc-elf-,sparc-linux-)
-SYSTEM_TARGET         = $(SYSTEM_TARGET_$(ARCH))
+-include $(wildcard $(L4DIR)/mk/arch/Makeconf.*)
 
-CARCHFLAGS_amd64    = -mno-red-zone
-ASFLAGS_amd64       = -m64
-LDFLAGS_amd64      += -m elf_x86_64 -z max-page-size=0x1000 -z common-page-size=0x1000
+ifneq ($(SYSTEM_TARGET),) # Added late 2015
+  CROSS_COMPILE=$(SYSTEM_TARGET)
+  $(info The variable SYSTEM_TARGET has been deprecated in favor of CROSS_COMPILE.)
+endif
 
-LD_EMULATION_CHOICE_amd64   = elf_x86_64
-LD_EMULATION_CHOICE_arm     = armelf armelf_linux_eabi
-LD_EMULATION_CHOICE_ppc32   = elf32ppc
-LD_EMULATION_CHOICE_x86     = elf_i386
-LD_EMULATION_CHOICE_sparc   = $(if $(GCCIS_sparc_leon),sparcleon,elf32_sparc)
+CROSS_COMPILE    ?= $(CROSS_COMPILE_$(ARCH))
 
-OFORMAT_amd64     = elf64-x86-64
-OFORMAT_arm       = elf32-littlearm
-OFORMAT_ppc32     = elf32-powerpc
-OFORMAT_x86       = elf32-i386
-OFORMAT_sparc     = elf32-sparc
+
 OFORMAT           = $(OFORMAT_$(ARCH))
-
-BFD_ARCH_amd64    = i386
-BFD_ARCH_arm      = arm
-BFD_ARCH_ppc32    = powerpc
-BFD_ARCH_x86      = i386
-BFD_ARCH_sparc    = sparc
 BFD_ARCH          = $(BFD_ARCH_$(ARCH))
-
-L4_KIP_ADDR_amd64   ?= 0x6ffff000
-L4_KIP_ADDR_arm     ?= 0xaffff000
-L4_KIP_ADDR_ppc32   ?= 0xaffff000
-L4_KIP_ADDR_x86     ?= 0xaffff000
-L4_KIP_ADDR_sparc   ?= 0xaffff000
 L4_KIP_ADDR         ?= $(L4_KIP_ADDR_$(ARCH))
 
 L4_KIP_OFFS_SYS_INVOKE   = 0x800
 L4_KIP_OFFS_SYS_DEBUGGER = 0x900
-
-L4_STACK_ADDR_amd64     ?= 0x70000000
-L4_STACK_ADDR_arm       ?= 0xb0000000
-L4_STACK_ADDR_ppc32     ?= 0xb0000000
-L4_STACK_ADDR_x86       ?= 0xb0000000
-L4_STACK_ADDR_sparc     ?= 0xb0000000
 L4_STACK_ADDR           ?= $(L4_STACK_ADDR_$(ARCH))
 L4_STACK_SIZE           ?= $(if $(L4_STACK_SIZE_MAIN_THREAD),$(L4_STACK_SIZE_MAIN_THREAD),0x8000)
+
+CC_WHITELIST-gcc     := 4.6 4.7 4.8 4.9 5 6
+CC_WHITELIST-clang   := 3.5 3.6 3.7 4.9
 
 # This is quite bad: There is no other chance to disable the page-alignedment
 # of the linker. The linker aligns the first section at 0x100000 for AMD64!
@@ -93,88 +68,18 @@ DROPS_INSTDIR    = $(patsubst "%",%,$(CONFIG_DROPS_INSTDIR))
 RAM_SIZE_MB      = $(CONFIG_RAM_SIZE_MB)
 PLATFORM_TYPE    = $(patsubst "%",%,$(CONFIG_PLATFORM_TYPE))
 CPU              = $(patsubst "%",%,$(CONFIG_CPU))
+CPU_ABI          = $(patsubst "%",%,$(CONFIG_CPU_ABI))
 BUILD_ABI        = $(patsubst "%",%,$(CONFIG_BUILD_ABI))
 BUILD_ARCH       = $(patsubst "%",%,$(CONFIG_BUILD_ARCH))
 MAKECONFS_ADD    = $(patsubst "%,%,$(patsubst %",%,$(CONFIG_MAKECONFS_ADD))) #"
 
-CARCHFLAGS_x86_586        = -march=i586
-CARCHFLAGS_x86_pentium    = -march=i586
-CARCHFLAGS_x86_pentiummmx = -march=pentium-mmx
-CARCHFLAGS_x86_pentiumpro = -march=pentiumpro
-CARCHFLAGS_x86_686        = -march=i686
-CARCHFLAGS_x86_pentium2   = -march=pentium2
-CARCHFLAGS_x86_pentium3   = -march=pentium3
-CARCHFLAGS_x86_pentiumm   = -march=pentium-m
-CARCHFLAGS_x86_pentium4   = -march=pentium4
-CARCHFLAGS_x86_prescott   = -march=prescott
-CARCHFLAGS_x86_nocona     = -march=nocona
-CARCHFLAGS_x86_core2      = -march=core2
-CARCHFLAGS_x86_K6         = -march=k6
-CARCHFLAGS_x86_K7         = -march=athlon
-CARCHFLAGS_x86_athlon4    = -march=athlon-4
-CARCHFLAGS_x86_K8         = -march=k8
-CARCHFLAGS_x86_opteron    = -march=opteron
-
-CARCHFLAGS_amd64_K8       = -march=k8
-CARCHFLAGS_amd64_K10      = -march=k10
-CARCHFLAGS_amd64_opteron  = -march=opteron
-
-CARCHFLAGS_arm_armv4      = -march=armv4
-CARCHFLAGS_arm_armv4t     = -march=armv4t
-CARCHFLAGS_arm_armv5      = -march=armv5
-CARCHFLAGS_arm_armv5t     = -march=armv5t
-CARCHFLAGS_arm_armv5te    = -march=armv5te
-CARCHFLAGS_arm_armv6      = -march=armv6
-CARCHFLAGS_arm_armv6t2    = -march=armv6t2
-CARCHFLAGS_arm_armv6zk    = -march=armv6zk
-CARCHFLAGS_arm_armv7a     = -march=armv7-a
-CARCHFLAGS_arm_armv7r     = -march=armv7-r
-
-CARCHFLAGS_sparc_v7          = -mcpu=v7
-# the -Wa.. is probably a gcc buglet fix only, check again later
-CARCHFLAGS_sparc_leon        = -mcpu=leon -Wa,-Av8
-CARCHFLAGS_sparc_leon3       = -mcpu=leon3
-CARCHFLAGS_sparc_v8          = -mcpu=v8
-CARCHFLAGS_sparc_v9          = -mcpu=v9
-CARCHFLAGS_sparc_ultrasparc  = -mcpu=ultrasparc
-CARCHFLAGS_sparc_ultrasparc3 = -mcpu=ultrasparc3
-CARCHFLAGS_sparc_niagara     = -mcpu=niagara
-CARCHFLAGS_sparc_niagara2    = -mcpu=niagara2
-CARCHFLAGS_sparc_niagara3    = -mcpu=niagara3
-CARCHFLAGS_sparc_niagara4    = -mcpu=niagara4
-
-IDL_SYSTEMS 	= x86-l4f
-
-CCXX_FLAGS_arm   += -marm
-CCXX_FLAGS_amd64 += -m64
-CCXX_FLAGS_ppc32 += -m32
-CCXX_FLAGS_sparc += -m32
-CCXX_FLAGS_x86   += -m32
 CCXX_FLAGS        = $(CCXX_FLAGS_$(BUILD_ARCH))
-
-CC_x86          = $(SYSTEM_TARGET)gcc
-CC_amd64        = $(SYSTEM_TARGET)gcc
-CC_arm          = $(SYSTEM_TARGET)gcc
-CC_ppc32        = $(SYSTEM_TARGET)gcc
-CC_sparc        = $(SYSTEM_TARGET)gcc
-CXX_x86         = $(SYSTEM_TARGET)g++
-CXX_amd64       = $(SYSTEM_TARGET)g++
-CXX_arm         = $(SYSTEM_TARGET)g++
-CXX_ppc32       = $(SYSTEM_TARGET)g++
-CXX_sparc       = $(SYSTEM_TARGET)g++
-FC_x86          = $(SYSTEM_TARGET)gfortran
-FC_amd64        = $(SYSTEM_TARGET)gfortran
-FC_arm          = $(SYSTEM_TARGET)gfortran
-FC_ppc32        = $(SYSTEM_TARGET)gfortran
-FC_sparc        = $(SYSTEM_TARGET)gfortran
-
-SYSTEMS_ABI    := x86-l4f amd64-l4f arm-l4f ppc32-l4f sparc-l4f
-SYSTEMS_PLAIN  := x86     amd64     arm     ppc32     sparc
 
 dv               = $(if $(filter-out default undefined,$(origin $(1))),$(1)-default,$(1))
 
-$(call dv,AR)	 = $(SYSTEM_TARGET)ar
-$(call dv,AS)	 = $(SYSTEM_TARGET)as
+$(call dv,AR)	 = $(CROSS_COMPILE)ar
+$(call dv,AS)	 = $(CROSS_COMPILE)as
+$(call dv,CPP)	 = $(CROSS_COMPILE)cpp
 AWKP		?= gawk --posix
 CCACHE          ?= ccache
 $(call dv,CC)    = $(if $(USE_CCACHE),$(CCACHE) )$(CC_$(BUILD_ARCH))
@@ -204,25 +109,26 @@ HOST_CC		?= gcc
 HOST_CXX	?= g++
 HOST_LD		?= ld
 INSTALL		= install
-$(call dv,LD)   = $(SYSTEM_TARGET)ld -m $(LD_EMULATION)
+$(call dv,LD)   = $(CROSS_COMPILE)ld -m $(LD_EMULATION)
+DTC		?= dtc
 LATEX		= latex
 PDFLATEX	= pdflatex
 GREP		= GREP_OPTIONS= grep
 LN		= ln
 MKDIR		= mkdir -p
 MKFLAGS		+=$(MKFLAGS_$@)
-NM		?= $(SYSTEM_TARGET)nm
-OBJCOPY		?= $(SYSTEM_TARGET)objcopy
+NM		?= $(CROSS_COMPILE)nm
+OBJCOPY		?= $(CROSS_COMPILE)objcopy
 PKG_CONFIG      = pkg-config
 PWDCMD		= pwd -P
-RANLIB		?= $(SYSTEM_TARGET)ranlib
+RANLIB		?= $(CROSS_COMPILE)ranlib
 $(call dv,RM)   = rm -f
 SCRUB		= $(RM) $(wildcard *.old) $(wildcard *~) $(wildcard *.bak) \
 		        $(wildcard \#*\#)
 SED		= sed
 SHELL		= bash
-SIZE		?= $(SYSTEM_TARGET)size
-STRIP		?= $(SYSTEM_TARGET)strip
+SIZE		?= $(CROSS_COMPILE)size
+STRIP		?= $(CROSS_COMPILE)strip
 SVN		= svn
 TR		= tr
 GEN_DOPECODE	= $(L4DIR)/tool/gen_dopecode/gen_dopecode
@@ -230,7 +136,7 @@ ABS2REL		= $(L4DIR)/tool/bin/abs2rel.sh
 # it is optional to be able to set it as environment variable
 FIASCOUX	?= $(L4DIR)/../kernel/fiasco/build-ux/fiasco
 PAGER		?= less
-DISASM_CMD      ?= $(SYSTEM_TARGET)objdump -lCSd $(1) | $(PAGER)
+DISASM_CMD      ?= $(CROSS_COMPILE)objdump -lCSd $(1) | $(PAGER)
 IMAGES_DIR      ?= $(OBJ_BASE)/images
 
 # functions that are handy
@@ -244,7 +150,7 @@ endef
 
 # Move $(2) to $(1) if content of both files differ
 define move_if_changed
-  $(VERBOSE)if test ! -r "$(1)" || ! cmp -s $(1) $(2); then \
+  if test ! -r "$(1)" || ! cmp -s $(1) $(2); then \
     mv $(2) $(1); \
   else \
     rm $(2); \
@@ -351,7 +257,7 @@ INCLUDE_BOOT_CONFIG := required
 endif
 
 ifneq ($(INCLUDE_BOOT_CONFIG),)
- PLATFORM_CONF_FILE := $(wildcard $(L4DIR)/conf/platforms/$(PLATFORM_TYPE).conf $(L4DIR)/mk/platforms/$(PLATFORM_TYPE).conf)
+ PLATFORM_CONF_FILE := $(firstword $(wildcard $(L4DIR)/conf/platforms/$(PLATFORM_TYPE).conf $(L4DIR)/mk/platforms/$(PLATFORM_TYPE).conf))
  ifneq ($(PLATFORM_TYPE),$(patsubst "%",%,$(CONFIG_PLATFORM_TYPE)))
   include $(PLATFORM_CONF_FILE)
  else
@@ -447,6 +353,9 @@ endif
 # We recognize the following Fortran file extensions.
 FORTRAN_FILE_EXTENSIONS = .f .F .f90 .F90 .f95 .F95
 
+# We recognize the following file extensions for assembly.
+BID_ASM_FILE_EXTENSIONS = .S
+
 # macros used here and in packages
 checkcc   = $(shell if $(CC)  $(CCXX_FLAGS) $(1) -o /dev/null -c -x c \
                     /dev/null > /dev/null 2>&1; then echo "$(1)"; fi)
@@ -467,13 +376,29 @@ define get_gccversion
   fi
 endef
 
+get_cc_version_part = $(shell echo $(1) | $(callcc) -E -x c - | tail -1)
+
 # the gcc specific variables: version, base dir, include dir, gcc lib, ...
 # note: determining these variables is slow, and the values should
 #       be set in .config.all. However, this is the place were
 #       they are determined on a 'make config' in $(L4DIR)
-GCCVERSION_f	= $(shell $(get_gccversion))
-GCCMAJORVERSION_f=$(shell $(callcc) -dumpversion | sed -e 's/\([^.]*\).*/\1/')
-GCCMINORVERSION_f=$(shell $(callcc) -dumpversion | sed -e 's/[^.]*\.\([^.]*\).*/\1/')
+BID_COMPILER_TYPE_f = $(if $(findstring clang, $(shell $(callcc) --version)),clang,gcc)
+
+GCCVERSION_f_clang = 4.9
+GCCMAJORVERSION_f_clang = 4
+GCCMINORVERSION_f_clang = 9
+GCCPATCHLEVEL_f_clang   = 0
+
+GCCVERSION_f_gcc      =$(shell $(get_gccversion))
+GCCMAJORVERSION_f_gcc =$(call get_cc_version_part, __GNUC__)
+GCCMINORVERSION_f_gcc =$(call get_cc_version_part, __GNUC_MINOR__)
+GCCPATCHLEVEL_f_gcc   =$(call get_cc_version_part, __GNUC_PATCHLEVEL__)
+
+GCCVERSION_f     =$(GCCVERSION_f_$(BID_COMPILER_TYPE_f))
+GCCMAJORVERSION_f=$(GCCMAJORVERSION_f_$(BID_COMPILER_TYPE_f))
+GCCMINORVERSION_f=$(GCCMINORVERSION_f_$(BID_COMPILER_TYPE_f))
+GCCPATCHLEVEL_f  =$(GCCPATCHLEVEL_f_$(BID_COMPILER_TYPE_f))
+
 LDVERSION_f     = $(shell $(firstword $(LD)) -v | sed -e 's/.* \([0-9]\)\.\([^. ]*\).*/\1\2/')
 GCCSYSLIBDIRS_f = $(shell $(callcc) -print-search-dirs | sed '/^libraries:/{s/^libraries: =\?/-L/;s/:/ -L/g;q;};d')
 GCCDIR_f	= $(shell $(callcc) -print-search-dirs | sed -ne 's+^install: \(.*[^/][^/]*\)/+\1+p' )
@@ -486,25 +411,26 @@ GCCNOSTACKPROTOPT_f= $(call checkcc,-fno-stack-protector)
 GCCSTACKPROTOPT_f = $(call checkcc,-fstack-protector)
 GCCSTACKPROTALLOPT_f = $(call checkcc,-fstack-protector-all)
 GCCFORTRANAVAIL_f = $(shell echo | $(callfc) -dD -E - 2>&1 | grep -q __GNUC__ && echo y)
-GCCNOFPU_x86_f  = $(call checkcc,-mno-mmx) $(call checkcc,-mno-3dnow) \
-                  $(call checkcc,-mno-sse) $(call checkcc,-mno-sse2)  \
-                  $(call checkcc,-mno-sse3) $(call checkcc,-mno-sse4) \
-                  $(call checkcc,-mno-sse4a)
 GCC_HAS_ATOMICS_f = $(shell if echo '\#include <bits/c++config.h>' | \
 		               $(callcxx) -dD -E -x c++ - | \
 			       grep -q _GLIBCXX_ATOMIC_BUILTINS; then \
 			         echo y; fi)
-GCCIS_sparc_leon_f= $(shell if $(CC) -dD -E -x c /dev/null 2>&1 | grep -qw __leonbare__; then echo y; fi)
 
+BID_NOSTDINC_clang ?= #-nostdlibinc
+BID_NOSTDINC_gcc   ?= -nostdinc
+BID_NOSTDINC       ?= $(BID_NOSTDINC_$(BID_COMPILER_TYPE))
+ifneq ($(strip $(GCCDIR)),)
 GCCINCDIR	= $(GCCDIR)/include $(GCCDIR)/include-fixed
 I_GCCINCDIR	= $(addprefix -isystem ,$(GCCINCDIR))
+endif
 
 GCCLIB          = $(OBJ_BASE)/lib/$(subst -,/,$(SYSTEM))/libgcc.a
 GCCLIB_SO       = $(OBJ_BASE)/lib/$(subst -,/,$(SYSTEM))/libgcc.$(if $(filter %l4f,$(SYSTEM)),so,a)
 
+PKGNAME_DIRNAME := $(notdir $(abspath $(if $(PKGDIR),$(PKGDIR),.)))
 ifneq ($(PKGDIR),)
   ifeq ($(origin PKGNAME),undefined)
-    PKGNAME := $(notdir $(shell cd $(PKGDIR);pwd))
+    PKGNAME := $(PKGNAME_DIRNAME)
   endif
 endif
 
@@ -556,15 +482,7 @@ endif
 all:: $(OBJ_DIR)/Makefile
 
 $(OBJ_DIR)/Makefile: $(L4DIR)/mk/Makeconf
-	$(VERBOSE)install -d $(dir $@)
-	$(VERBOSE)echo '# automatically created -- modifications will be lost' > $@
-	$(VERBOSE)echo 'SRC := $(SRC_DIR)'                                    >> $@
-	$(VERBOSE)echo 'OBJ := $(OBJ_BASE)'                                   >> $@
-	$(VERBOSE)echo '.PHONY: x $$(MAKECMDGOALS)'                           >> $@
-	$(VERBOSE)echo 'x:'                                                   >> $@
-	$(VERBOSE)echo '	@PWD=$$(SRC) $$(MAKE) -C $$(SRC) O=$$(OBJ)'    >> $@
-	$(VERBOSE)echo '$$(MAKECMDGOALS):'                                    >> $@
-	$(VERBOSE)echo '	@PWD=$$(SRC) $$(MAKE) -C $$(SRC) O=$$(OBJ) $$@'>> $@
+	$(call build_obj_redir_Makefile,$@)
 
 else
 # we are within an OBJ-*/ dir, create dummy target
@@ -587,8 +505,8 @@ endif
 # if-readable magic .general.d is used on existance or non-existence.
 
 BID_DEPEND_GENERAL_D_COND = \
-	if [ -r $(1) ] ; then echo -e '$@: $(1)\n$(1):\n' >>$@ ; \
-	  else echo '$$(if $$(wildcard $(1)), $@: FORCE)' >>$@; fi
+	if [ -r $(1) ] ; then echo -e '$@: $(strip $(1))\n$(strip $(1)):\n' >>$@ ; \
+	  else echo '$$(if $$(wildcard $(strip $(1))), $@: FORCE)' >>$@; fi
 
 ifeq ($(SYSTEM),)
 GENERAL_D_LOC := $(OBJ_DIR)/.general.d
@@ -599,6 +517,7 @@ endif
 $(GENERAL_D_LOC): $(L4DIR)/mk/Makeconf $(EXTRA_GENERAL_D_DEP)
 	@$(BUILD_MESSAGE)
 	@install -d $(dir $@)
+	$(DEPEND_VERBOSE)$(RM) $(DEPS)
 	$(DEPEND_VERBOSE)echo '$@: $(SRC_DIR)/Makefile ' > $@
 	$(DEPEND_VERBOSE)$(call BID_DEPEND_GENERAL_D_COND,\
 		$(OBJ_BASE)/.config.all)
@@ -640,25 +559,24 @@ ifeq ($(CONFIG_BID_COLORED_PHASES),y)
   endif
 endif
 
-AR_MESSAGE                 ?= echo -e "  ==> Archiving into $@"
-BUILD_MESSAGE              ?= echo -e "  ... Building $(if $(filter $(GENERAL_D_LOC),$@),Dependencies,$@)"
-BUILT_MESSAGE              ?= echo -e $(EMPHSTART)'  ==> "$@" built'$(EMPHSTOP)
-COMP_MESSAGE               ?= echo -e "  ... Compiling $@"
-COMP_P_MESSAGE             ?= echo -e "  ... Compiling PIC $@"
-COMP_PR_MESSAGE            ?= echo -e "  ... Compiling PROFILE $@"
-GEN_MESSAGE                ?= echo -e "  ... Generating $@"
-LINK_MESSAGE               ?= echo -e "  ==> Linking $@"
-LINK_SHARED_MESSAGE        ?= echo -e "  ==> Linking to shared $@"
-LINK_PARTIAL_MESSAGE       ?= echo -e "  ==> Partial linking to $@"
-DEP_MESSAGE                ?= echo -e "  ... Building dependencies for $<"
-CLEAN_MESSAGE              ?= echo -e "  ... Removing created files"
-CLEANALL_MESSAGE           ?= echo -e "  ... Removing all created files"
-INSTALL_LINK_MESSAGE       ?= echo -e "  ==> Updating symlinks"
-INSTALL_DOC_MESSAGE        ?= echo -e "  ==> Installing $(<) documentation"
-INSTALL_DOC_LOCAL_MESSAGE  ?= echo -e "  ==> Installing $(<) documentation locally"
-INSTALL_MESSAGE            ?= echo -e "  ==> Installing $^"
-INSTALL_LOCAL_MESSAGE      ?= echo -e "  ==> Installing $(<) to local build-tree"
-UPDATE_HTML_MESSAGE        ?= echo -e "  ! You should remake your doc directory in $(1)"
+AR_MESSAGE                 ?= echo -e "  [$(PKGNAME_DIRNAME)] ==> Archiving into $@"
+BUILD_MESSAGE              ?= echo -e "  [$(PKGNAME_DIRNAME)] ... Building $(if $(filter $(GENERAL_D_LOC),$@),Dependencies,$@)"
+BUILT_MESSAGE              ?= echo -e $(EMPHSTART)'  [$(PKGNAME_DIRNAME)] ==> $@ built'$(EMPHSTOP)
+COMP_MESSAGE               ?= echo -e "  [$(PKGNAME_DIRNAME)] ... Compiling $@"
+COMP_P_MESSAGE             ?= echo -e "  [$(PKGNAME_DIRNAME)] ... Compiling PIC $@"
+COMP_PR_MESSAGE            ?= echo -e "  [$(PKGNAME_DIRNAME)] ... Compiling PROFILE $@"
+GEN_MESSAGE                ?= echo -e "  [$(PKGNAME_DIRNAME)] ... Generating $@"
+LINK_MESSAGE               ?= echo -e "  [$(PKGNAME_DIRNAME)] ==> Linking $@"
+LINK_SHARED_MESSAGE        ?= echo -e "  [$(PKGNAME_DIRNAME)] ==> Linking to shared $@"
+LINK_PARTIAL_MESSAGE       ?= echo -e "  [$(PKGNAME_DIRNAME)] ==> Partial linking to $@"
+DEP_MESSAGE                ?= echo -e "  [$(PKGNAME_DIRNAME)] ... Building dependencies for $<"
+CLEAN_MESSAGE              ?= echo -e "  [$(PKGNAME_DIRNAME)] ... Removing created files"
+CLEANALL_MESSAGE           ?= echo -e "  [$(PKGNAME_DIRNAME)] ... Removing all created files"
+INSTALL_LINK_MESSAGE       ?= echo -e "  [$(PKGNAME_DIRNAME)] ==> Updating symlinks"
+INSTALL_DOC_MESSAGE        ?= echo -e "  [$(PKGNAME_DIRNAME)] ==> Installing $(if $(1),$(1),$(<)) documentation"
+INSTALL_DOC_LOCAL_MESSAGE  ?= echo -e "  [$(PKGNAME_DIRNAME)] ==> Installing $(if $(1),$(1),$(<)) documentation locally"
+INSTALL_MESSAGE            ?= echo -e "  [$(PKGNAME_DIRNAME)] ==> Installing $(if $(1),$(1),$^)"
+INSTALL_LOCAL_MESSAGE      ?= echo -e "  [$(PKGNAME_DIRNAME)] ==> Installing $(if $(1),$(1),$(<)) to local build-tree"
 
 # allows an include $(DEPSVAR) at the end of the makefile
 # but prevents rebuilding them on a scrub, clean, cleanall and help
@@ -709,5 +627,15 @@ generate_pcfile =                                                            \
 	$(if $(BID_GEN_CONTROL),;echo "Provides: $(1)"             >> $(PKGDIR)/Control) \
 	$(if $(BID_GEN_CONTROL),;echo "Requires: $(5)"             >> $(PKGDIR)/Control) ;
 
+define build_obj_redir_Makefile
+	$(VERBOSE)install -d $(dir $(1))
+	$(VERBOSE)echo '# automatically created -- modifications will be lost' > $(1)
+	$(VERBOSE)echo 'SRC := $(if $(2),$(2),$(SRC_DIR))'                    >> $(1)
+	$(VERBOSE)echo 'OBJ := $(OBJ_BASE)'                                   >> $(1)
+	$(VERBOSE)echo '.PHONY: $$(MAKECMDGOALS) do-all-make-goals'           >> $(1)
+	$(VERBOSE)echo 'do-all-make-goals:'                                   >> $(1)
+	$(VERBOSE)echo '	@PWD=$$(SRC) $$(MAKE) -C $$(SRC) O=$$(OBJ) $$(MAKECMDGOALS)'>> $(1)
+	$(VERBOSE)echo '$$(MAKECMDGOALS): do-all-make-goals'                  >> $(1)
+endef
 
 endif	# _L4DIR_MK_MAKECONF undefined

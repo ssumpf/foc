@@ -19,7 +19,7 @@ public:
 
   typedef Return_frame User_return_frame;
 
-  bool valid() const
+  bool valid(void const *) const
   { return _ip != ~0UL; }
 
   Address ip() const { return _ip; }

@@ -1,12 +1,12 @@
 INTERFACE [arm_em_tz]:
 
-#include "kmem_slab.h"
 #include "task.h"
 
-class Vm : public Task
+class Vm : public cxx::Dyn_castable<Vm, Task>
 {
 public:
-  explicit Vm(Ram_quota *q) : Task(q, Caps::mem() | Caps::obj()) {}
+  explicit Vm(Ram_quota *q)
+    : Dyn_castable_class(q, Caps::mem() | Caps::obj()) {}
 
   struct Vm_state_mode
   {
@@ -72,11 +72,6 @@ private:
 
 };
 
-struct Vm_allocator
-{
-  static Kmem_slab_t<Vm> a;
-};
-
 //-----------------------------------------------------------------------------
 INTERFACE [debug && arm_em_tz]:
 
@@ -109,18 +104,14 @@ IMPLEMENTATION [arm]:
 #include "mem_space.h"
 #include "thread_state.h"
 #include "timer.h"
+#include "kmem_slab.h"
 
-Kmem_slab_t<Vm> Vm_allocator::a("Vm");
+JDB_DEFINE_TYPENAME(Vm, "\033[33;1mVm\033[m");
 
 PUBLIC inline virtual
 Page_number
 Vm::map_max_address() const
 { return Page_number(1UL << (MWORD_BITS - Mem_space::Page_shift)); }
-
-PUBLIC static
-Slab_cache *
-Vm::allocator()
-{ return &Vm_allocator::a; }
 
 PUBLIC inline
 void *
@@ -136,7 +127,7 @@ void
 Vm::operator delete(void *ptr)
 {
   Vm *t = reinterpret_cast<Vm*>(ptr);
-  allocator()->q_free(t->ram_quota(), ptr);
+  Kmem_slab_t<Vm>::q_free(t->ram_quota(), ptr);
 }
 
 // ------------------------------------------------------------------------
@@ -150,7 +141,7 @@ int
 Vm::resume_vcpu(Context *ctxt, Vcpu_state *vcpu, bool user_mode)
 {
   (void)user_mode;
-  assert_kdb(user_mode);
+  assert(user_mode);
 
   assert(cpu_lock.test());
 
@@ -228,7 +219,34 @@ Vm::resume_vcpu(Context *ctxt, Vcpu_state *vcpu, bool user_mode)
                                  t->vcpu_state().usr().get());
         }
     }
+}
 
+namespace {
+static Kobject_iface * FIASCO_FLATTEN
+vm_factory(Ram_quota *q, Space *,
+           L4_msg_tag, Utcb const *,
+           int *err)
+{
+  typedef Kmem_slab_t<Vm> Alloc;
+
+  *err = L4_err::ENomem;
+  Vm *v = Alloc::q_new(q, q);
+
+  if (EXPECT_FALSE(!v))
+    return 0;
+
+  if (EXPECT_TRUE(v->initialize()))
+    return v;
+
+  Alloc::q_del(q, v);
+  return 0;
+}
+
+static inline void __attribute__((constructor)) FIASCO_INIT
+register_factory()
+{
+  Kobject_iface::set_factory(L4_msg_tag::Label_vm, vm_factory);
+}
 }
 
 // --------------------------------------------------------------------------

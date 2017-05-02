@@ -26,7 +26,7 @@ public:
   static void init();
 
   static Per_cpu<unsigned> apic_tpr;
-  static Pic::Status pic_status;
+  static Unsigned16 pic_status;
   static volatile char msr_test;
   static volatile char msr_fail;
 
@@ -153,7 +153,7 @@ DEFINE_PER_CPU Per_cpu<int> Jdb::ss_level;  // current call level
 const Unsigned8*Jdb::debug_ctrl_str;	// string+length for remote control of
 int             Jdb::debug_ctrl_len;	// Jdb via enter_kdebugger("*#");
 
-Pic::Status Jdb::pic_status;
+Unsigned16 Jdb::pic_status;
 DEFINE_PER_CPU Per_cpu<unsigned> Jdb::apic_tpr;
 DEFINE_PER_CPU Per_cpu<int> Jdb::jdb_irqs_disabled;
 
@@ -203,7 +203,7 @@ Jdb::connected()
   return _connected;
 }
 
-IMPLEMENT inline template< typename T >
+IMPLEMENT_OVERRIDE inline template< typename T >
 T
 Jdb::monitor_address(Cpu_number current_cpu, T volatile const *addr)
 {
@@ -248,7 +248,7 @@ Jdb::save_disable_irqs(Cpu_number cpu)
       if (Io_apic::active() && Apic::is_present())
 	{
 	  apic_tpr.cpu(cpu) = Apic::tpr();
-	  Apic::tpr(APIC_IRQ_BASE - 0x10);
+	  Apic::tpr(APIC_IRQ_BASE - 0x08);
 	}
 
       if (cpu == Cpu_number::boot_cpu() && Config::getchar_does_hlt_works_ok)
@@ -310,7 +310,7 @@ struct On_dbg_stack
 // Do thread lookup using Trap_state. In contrast to Thread::current_thread()
 // this function can also handle cases where we entered from kernel stack
 // context. We _never_ return 0!
-IMPLEMENT
+IMPLEMENT_OVERRIDE
 Thread*
 Jdb::get_thread(Cpu_number cpu)
 {
@@ -404,7 +404,7 @@ Jdb::poke_task(Address addr, Space *task, void const *value, int width)
 {
   Address phys;
 
-  if (task && Kmem::is_kmem_page_fault(addr, 0))
+  if (!task && Kmem::is_kmem_page_fault(addr, 0))
     {
       Address pdbr;
       asm volatile ("mov %%cr3, %0" : "=r" (pdbr));
@@ -458,11 +458,9 @@ Jdb::is_adapter_memory(Address virt, Space *task)
   if (phys == ~0UL)
     return false;
 
-  Mem_desc *m = Kip::k()->mem_descs();
-  Mem_desc *e = m + Kip::k()->num_mem_descs();
-  for (; m != e; ++m)
-    if (m->type() == Mem_desc::Conventional && !m->is_virtual()
-	&& m->start() <= phys && m->end() >= phys)
+  for (auto const &m: Kip::k()->mem_descs_a())
+    if (m.type() == Mem_desc::Conventional && !m.is_virtual()
+        && m.start() <= phys && m.end() >= phys)
       return false;
 
   return true;

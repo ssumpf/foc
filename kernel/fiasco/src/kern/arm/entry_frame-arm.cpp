@@ -76,10 +76,6 @@ Return_frame::sp(Mword sp)
 
 //---------------------------------------------------------------------------
 IMPLEMENT inline
-Mword Syscall_frame::next_period() const
-{ return false; }
-
-IMPLEMENT inline
 void Syscall_frame::from(Mword id)
 { r[4] = id; }
 

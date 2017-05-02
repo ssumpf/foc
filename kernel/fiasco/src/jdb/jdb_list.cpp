@@ -210,13 +210,45 @@ Jdb_list::render_visible(void *i)
 }
 
 PRIVATE
+int
+Jdb_list::print_limit(const char *s, int visible_len)
+{
+  if (!s || !visible_len)
+    return 0;
+
+  int s_len = 0, e = 0;
+  while (*s && visible_len)
+    {
+      if (e == 0 && *s == '\033')
+        e = 1;
+      else if (e == 1 && *s == '[')
+        e = 2;
+      else if (e == 2)
+        {
+          if (isalpha(*s))
+            e = 0;
+        }
+      else
+        visible_len--;
+
+      s_len++;
+      s++;
+    }
+
+  return s_len;
+}
+
+PRIVATE
 void
 Jdb_list::show_line(Jdb_list::Line_buf *b)
 {
   Kconsole::console()->getchar_chance();
 
-  printf("%.*s\033[K\n",
-         min((int)Jdb_screen::width(), b->length()), b->begin());
+  // our modified printf ignores the length argument if used with
+  // strings containing ESC-sequences
+  int s_len_visible = print_limit(b->begin(), Jdb_screen::width());
+  b->begin()[s_len_visible] = 0;
+  printf("%s\033[K\n", b->begin());
 }
 
 PRIVATE
@@ -373,7 +405,7 @@ void
 Jdb_list::show_header()
 {
   Jdb::cursor();
-  printf("%.*s\033[K\n", Jdb_screen::width(), show_head());
+  printf("%.*s\033[K\n", (int)Jdb_screen::width(), show_head());
 }
 
 PUBLIC
@@ -419,10 +451,12 @@ Jdb_list::do_list()
 	  for (unsigned i = y_max; i < Jdb_screen::height()-3; ++i)
             putstr("\033[K\n");
 
-	  Jdb::printf_statline("Objs",
-                               "<Space>=mode <Tab>=link <CR>=select /=filter",
-                               _filter_str[0] ? "%s (%s)" : "%s",
-                               get_mode_str(), _filter_str);
+          char const *d = "<Space>=mode <Tab>=link <CR>=select /=filter";
+          if (_filter_str[0])
+            Jdb::printf_statline("Objs", d,
+                                 "%s (%s)", get_mode_str(), _filter_str);
+          else
+            Jdb::printf_statline("Objs", d, "%s", get_mode_str());
 
 	  // key event loop
 	  for (bool redraw=false; !redraw; )
@@ -495,6 +529,7 @@ Jdb_list::do_list()
 		    }
 		  break;
 		case KEY_RETURN:
+		case KEY_RETURN_2:
 		  _current = index(y);
 		  if (!enter_item(_current))
 		    return;

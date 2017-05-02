@@ -93,17 +93,24 @@ OUTPUTDIR = $(shell perl -n -e '/^\s*OUTPUT_DIRECTORY\s*=\s*(\S+)/ && print "$$1
 # won't work)
 $(addprefix $(OBJ_DIR)/,$(addsuffix /html,$(TARGET_DOX))):$(OBJ_DIR)/%/html:$(TARGET_DOX)
 
+# all our packages
+ifeq ($(ALL_SUBDIRS),)
+ALL_SUBDIRS := $(shell find -L $(L4DIR)/pkg -maxdepth 4 -type d ! -name .svn -exec test -f {}/Control \; -printf %P' ' -prune)
+endif
+
 # We can give an internal rule for doxygen, as the directory specified
 # in the config-file should be the name of the config file with the
 # .cfg removed.
 # Use make DOXY_FAST=y to just build the HTML without graphics
 # Use make DOXY_FULL=y to build HTMl with graphics and the PDF
 # $(VERBOSE)$(ECHO) ENABLED_SECTIONS=WORKING_SUBPAGES >> $@.flags
-$(OBJ_DIR)/% $(OBJ_DIR)/%/html:$(SRC_DIR)/%.cfg
+FORCE: ;
+$(OBJ_DIR)/% $(OBJ_DIR)/%/html:$(SRC_DIR)/%.cfg FORCE
         #generate the flags-file
 	$(VERBOSE)$(MKDIR) $@
 	$(VERBOSE)$(ECHO) '@INCLUDE_PATH=/'                                 > $@.flags
 	$(VERBOSE)$(ECHO) '@INCLUDE=$(SRC_DIR)/$(notdir $<)'               >> $@.flags
+	$(VERBOSE)$(ECHO) 'INCLUDE_PATH += $(OBJ_BASE)/include'            >> $@.flags
 	$(VERBOSE)$(ECHO) $(DOXY_FLAGS)                                    >> $@.flags
 	$(VERBOSE)$(ECHO) OUTPUT_DIRECTORY=$(OBJ_DIR)/$(call OUTPUTDIR,$<) >> $@.flags
 	$(VERBOSE)if [ -n "$(DOXY_FAST)" ]; then $(ECHO) HAVE_DOT=NO;  $(ECHO) GENERATE_LATEX=NO;  fi   >> $@.flags
@@ -120,9 +127,9 @@ $(OBJ_DIR)/% $(OBJ_DIR)/%/html:$(SRC_DIR)/%.cfg
 	            $(ECHO) HIDE_UNDOC_MEMBERS=YES; \
 	          fi   >> $@.flags
 	$(VERBOSE)cd $(L4DIR)/pkg && \
-	  for f in $(addsuffix /doc/files.cfg,*); \
-	    do echo '@INCLUDE = $$(L4DIR)/pkg/'$$f; done >> $@.flags
-	$(VERBOSE)cd $(OBJ_BASE)/include && $(call MAKEDEP,doxygen) L4DIR=$(L4DIR) $(DOXYGEN) $@.flags
+	  for f in $(ALL_SUBDIRS); \
+	    do [ ! -e $(L4DIR)/pkg/$$f/doc/files.cfg ] || sed -e "s,%PKGDIR%,$(L4DIR)/pkg/$$f,g" $(L4DIR)/pkg/$$f/doc/files.cfg || true; done >> $@.flags
+	$(VERBOSE)cd $(OBJ_BASE)/include && L4DIR=$(L4DIR) $(DOXYGEN) $@.flags
 	$(VERBOSE)for file in $(ADD_FILES_TO_HTML); do cp $$file $@/html; done
 	$(VERBOSE)( [ -r $@/latex/Makefile ] && \
 	   echo | PWD=$@/latex $(MAKE) -C $@/latex ) || true
@@ -162,7 +169,6 @@ $(OBJ_DIR)/%.title:$(SRC_DIR)/%.cfg $(OBJ_DIR)/.general.d
 # The installed title file depends on the installed doku for message reasons
 $(foreach f,$(INSTALL_TARGET_DOX),$(INSTALLDIR_LOCAL)/$(f).title):$(INSTALLDIR_LOCAL)/%.title:$(OBJ_DIR)/%.title $(INSTALLDIR_LOCAL)/%
 	$(VERBOSE)$(call INSTALLFILE_LOCAL,$<,$@)
-	@$(call UPDATE_HTML_MESSAGE,$(INSTALLDIR_LOCAL))
 
 # Install the docu locally, the title file will depend on
 $(foreach f,$(INSTALL_TARGET_DOX),$(INSTALLDIR_LOCAL)/$(f)):$(INSTALLDIR_LOCAL)/%:$(OBJ_DIR)/% $(OBJ_DIR)/%/html
@@ -174,7 +180,6 @@ $(foreach f,$(INSTALL_TARGET_DOX),$(INSTALLDIR_LOCAL)/$(f)):$(INSTALLDIR_LOCAL)/
 # The installed title file depends on the installed doku for message reasons
 $(foreach f,$(INSTALL_TARGET_DOX),$(INSTALLDIR)/$(f).title):$(INSTALLDIR)/%.title:$(OBJ_DIR)/%.title $(INSTALLDIR)/%
 	$(VERBOSE)$(call INSTALLFILE,$<,$@)
-	@$(call UPDATE_HTML_MESSAGE,$(INSTALLDIR))
 
 # Install the docu globally, the title file will depend on
 $(foreach f,$(INSTALL_TARGET_DOX),$(INSTALLDIR)/$(f)):$(INSTALLDIR)/%:$(OBJ_DIR)/% $(OBJ_DIR)/%/html

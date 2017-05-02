@@ -4,7 +4,6 @@
   DUMP_MEMBER1 (THREAD, Context, _lock_cnt,		LOCK_CNT)
   DUMP_MEMBER1 (THREAD, Context, _sched_context,	SCHED_CONTEXT)
   DUMP_MEMBER1 (THREAD, Context, _sched,		SCHED)
-  DUMP_MEMBER1 (THREAD, Context, _period,		PERIOD)
   DUMP_MEMBER1 (THREAD, Context, _fpu_state,		FPU_STATE)
   DUMP_MEMBER1 (THREAD, Context, _consumed_time,	CONSUMED_TIME)
   DUMP_MEMBER1 (THREAD, Thread, _caller,		REPLY_CAP)
@@ -49,8 +48,22 @@
   DUMP_CAST_OFFSET (Thread, Sender)
 
   DUMP_CONSTANT (SIZEOF_TRAP_STATE, sizeof(Trap_state))
+#if defined(CONFIG_AMD64) || defined(CONFIG_IA32)
+  DUMP_MEMBER1 (TRAP_STATE, Trap_state, _ip, IP)
+#endif
+  DUMP_MEMBER1 (VCPU_STATE, Vcpu_state, _regs, TREX)
   DUMP_MEMBER1 (VCPU_STATE, Vcpu_state, _entry_ip, ENTRY_IP)
   DUMP_MEMBER1 (VCPU_STATE, Vcpu_state, _sp, ENTRY_SP)
+
+  DUMP_THREAD_STATE (Thread_ready)
+  DUMP_THREAD_STATE (Thread_cancel)
+  DUMP_THREAD_STATE (Thread_dis_alien)
+  DUMP_THREAD_STATE (Thread_ipc_mask)
+  DUMP_THREAD_STATE (Thread_ext_vcpu_enabled)
+  DUMP_THREAD_STATE (Thread_fpu_owner)
+  DUMP_CONSTANT (Thread_alien_or_vcpu_user, Thread_vcpu_user | Thread_alien)
+  DUMP_CONSTANT (Thread_vcpu_state_mask, Thread_vcpu_state_mask)
+
 #ifdef CONFIG_IA32
   DUMP_CONSTANT (MEM_LAYOUT__PHYSMEM,          Mem_layout::Physmem)
   DUMP_CONSTANT (MEM_LAYOUT__TBUF_STATUS_PAGE, Mem_layout::Tbuf_status_page)
@@ -81,4 +94,7 @@
 
   //physical atddress of kernel image
   DUMP_CONSTANT(KERNEL__START, Mem_layout::Kernel_start)
+#endif
+#ifdef  CONFIG_MIPS
+  DUMP_MEMBER1 (THREAD, Context, _ulr, ULR)
 #endif

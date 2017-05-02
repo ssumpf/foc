@@ -102,7 +102,6 @@ static void init2()
   Cpu::init_global_features();
   Config::init();
   Kmem::init_mmu(*Cpu::boot_cpu());
-  Pic::init();
 }
 
 class Fake_factory : public Ram_quota

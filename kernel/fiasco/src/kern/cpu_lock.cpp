@@ -30,7 +30,7 @@ public:
 
   /**
    * Acquire the CPU lock.
-   * The CPU lock disables IRQ's it should be held only for a very 
+   * The CPU lock disables IRQ's it should be held only for a very
    * short amount of time.
    */
   void lock();
@@ -42,8 +42,8 @@ public:
 
   /**
    * Acquire the CPU lock and return the old status.
-   * @return something else that 0 if the lock was already held and
-   *   0 if it was not held. 
+   * @return something else than 0 if the lock was already held and
+   *   0 if it was not held.
    */
   Status test_and_set();
 
@@ -56,7 +56,6 @@ public:
 private:
   /// Default copy constructor not implemented.
   Cpu_lock (const Cpu_lock&);
-
 };
 
 /**
@@ -71,7 +70,6 @@ IMPLEMENTATION:
 
 Cpu_lock cpu_lock INIT_PRIORITY(EARLY_INIT_PRIO);
 
-
 IMPLEMENT inline //NEEDS [Cpu_lock::lock, Cpu_lock::test]
 Cpu_lock::Status Cpu_lock::test_and_set()
 {
@@ -79,8 +77,6 @@ Cpu_lock::Status Cpu_lock::test_and_set()
   lock();
   return ret;
 }
-
-
 
 IMPLEMENT inline //NEEDS [Cpu_lock::lock, Cpu_lock::clear]
 void Cpu_lock::set(Cpu_lock::Status state)
@@ -90,5 +86,3 @@ void Cpu_lock::set(Cpu_lock::Status state)
   else
     clear();
 }
-
-

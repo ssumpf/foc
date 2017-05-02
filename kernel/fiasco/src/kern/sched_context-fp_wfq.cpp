@@ -109,7 +109,6 @@ IMPLEMENTATION [sched_fp_wfq]:
 
 #include <cassert>
 #include "cpu_lock.h"
-#include "kdb_ke.h"
 #include "std_macros.h"
 #include "config.h"
 
@@ -230,7 +229,7 @@ Sched_context::Ready_queue_base::enqueue(Sched_context *sc, bool is_current)
 /**
  * Remove context from ready-list.
  */
-IMPLEMENT inline NEEDS ["cpu_lock.h", "kdb_ke.h", "std_macros.h"]
+IMPLEMENT inline NEEDS ["cpu_lock.h", "std_macros.h"]
 void
 Sched_context::Ready_queue_base::dequeue(Sched_context *sc)
 {

@@ -15,7 +15,7 @@ class Foo
 public:  
 #line 217 "template.cpp"
   template <typename T> T*
-  bar(T* t);
+  bar (T* t);
 };
 #line 209 "template.cpp"
 
@@ -26,7 +26,7 @@ class TFoo
 public:  
 #line 231 "template.cpp"
   template <typename T> T*
-  baz(T* t);
+  baz (T* t);
 };
 
 //
@@ -39,7 +39,7 @@ public:
 
 
 template <typename T> T*
-Foo::bar(T* t)
+Foo::bar (T* t)
 {
 }
 
@@ -48,7 +48,7 @@ Foo::bar(T* t)
 
 
 template <typename T> T*
-Foo::goo(T* t)
+Foo::goo (T* t)
 {
 }
 
@@ -58,7 +58,7 @@ Foo::goo(T* t)
 
 
 template <class Bar> template <typename T> T*
-TFoo::baz(T* t)
+TFoo::baz (T* t)
 {
 }
 

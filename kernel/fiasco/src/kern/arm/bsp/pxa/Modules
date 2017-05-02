@@ -3,7 +3,7 @@
 PREPROCESS_PARTS        += pxa 16550 vcache armv5 generic_tickless_idle libuart
 RAM_PHYS_BASE           := 0xa0000000
 VPATH                   += kern/arm/bsp/pxa-sa
-OBJECTS_LIBUART         += uart_pxa.o
+OBJECTS_LIBUART         += uart_16550.o
 SUBSYSTEMS              += LIBUART
 
 # fully override uart_IMPL, all other ARM BSPs use uart-mmio

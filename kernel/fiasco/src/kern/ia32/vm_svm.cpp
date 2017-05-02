@@ -3,13 +3,13 @@ INTERFACE [svm]:
 #include "config.h"
 #include "vm.h"
 
-class Vmcb;
+struct Vmcb;
 class Svm;
 
 class Vm_svm : public Vm
 {
 private:
-  static void resume_vm_svm(Mword phys_vmcb, Vcpu_state *regs)
+  static void resume_vm_svm(Mword phys_vmcb, Trex *regs)
     asm("resume_vm_svm") __attribute__((__regparm__(3)));
 
   struct Asid_info
@@ -193,7 +193,7 @@ void
 Vm_svm::operator delete (void *ptr)
 {
   Vm_svm *t = reinterpret_cast<Vm_svm*>(ptr);
-  allocator<Vm_svm>()->q_free(t->ram_quota(), ptr);
+  Kmem_slab_t<Vm_svm>::q_free(t->ram_quota(), ptr);
 }
 
 
@@ -202,7 +202,7 @@ Vm_svm::operator delete (void *ptr)
 //   - force fpu ownership
 //   - debug registers not covered by VMCB
 
-PRIVATE
+PRIVATE inline
 void
 Vm_svm::copy_state_save_area(Vmcb *dest, Vmcb *src)
 {
@@ -260,13 +260,6 @@ Vm_svm::copy_state_save_area(Vmcb *dest, Vmcb *src)
   d->tr_base      = s->tr_base;
 
   d->cpl          = s->cpl;
-  d->efer         = s->efer;
-
-  d->cr4          = s->cr4;
-  d->cr3          = s->cr3;
-  d->cr0          = s->cr0;
-  d->dr7          = s->dr7;
-  d->dr6          = s->dr6;
   d->rflags       = s->rflags;
 
   d->rip          = s->rip;
@@ -283,7 +276,6 @@ Vm_svm::copy_state_save_area(Vmcb *dest, Vmcb *src)
   d->sysenter_eip = s->sysenter_eip;
   d->cr2          = s->cr2;
 
-  d->g_pat        = s->g_pat;
   d->dbgctl       = s->dbgctl;
   d->br_from      = s->br_from;
   d->br_to        = s->br_to;
@@ -292,42 +284,54 @@ Vm_svm::copy_state_save_area(Vmcb *dest, Vmcb *src)
 }
 
 
-PRIVATE
+PRIVATE inline
 void
 Vm_svm::copy_control_area(Vmcb *dest, Vmcb *src)
 {
   Vmcb_control_area *d = &dest->control_area;
   Vmcb_control_area *s = &src->control_area;
 
-  d->intercept_rd_crX          = s->intercept_rd_crX;
-  d->intercept_wr_crX          = s->intercept_wr_crX;
+  d->interrupt_shadow = s->interrupt_shadow & 1;
+  d->eventinj         = s->eventinj;
 
-  d->intercept_rd_drX          = s->intercept_rd_drX;
-  d->intercept_wr_drX          = s->intercept_wr_drX;
+  Vmcb_control_area::Clean_bits clean = d->clean_bits;
+  if (!clean.i())
+    {
+      d->intercept_rd_crX       = s->intercept_rd_crX;
+      d->intercept_wr_crX       = s->intercept_wr_crX;
 
-  d->intercept_exceptions      = s->intercept_exceptions;
+      d->intercept_rd_drX       = s->intercept_rd_drX;
+      d->intercept_wr_drX       = s->intercept_wr_drX;
 
-  d->intercept_instruction0    = s->intercept_instruction0;
-  d->intercept_instruction1    = s->intercept_instruction1;
+      d->intercept_exceptions   = s->intercept_exceptions;
 
-  d->pause_filter_threshold    = s->pause_filter_threshold;
-  d->pause_filter_count        = s->pause_filter_count;
+      d->intercept_instruction0 = s->intercept_instruction0;
+      d->intercept_instruction1 = s->intercept_instruction1;
+
+      d->pause_filter_threshold = s->pause_filter_threshold;
+      d->pause_filter_count     = s->pause_filter_count;
+
+      d->tsc_offset             = s->tsc_offset;
+    }
 
   // skip iopm_base_pa and msrpm_base_pa
+  // skip asid and TLB control, those are handle in fiasco
 
-  d->tsc_offset                = s->tsc_offset;
-  d->guest_asid_tlb_ctl        = s->guest_asid_tlb_ctl;
-  d->interrupt_ctl             = s->interrupt_ctl;
-  d->interrupt_shadow          = s->interrupt_shadow;
-  d->exitcode                  = s->exitcode;
-  d->exitinfo1                 = s->exitinfo1;
-  d->exitinfo2                 = s->exitinfo2;
-  d->exitintinfo               = s->exitintinfo;
-  d->np_enable                 = s->np_enable;
+  if (!clean.tpr())
+    {
+      d->int_tpr_irq = s->int_tpr_irq & 0x1ff; // 15:9 RSVD, SBZ
+      d->int_ctl     = (s->int_ctl & ~0xfee0) | 0x0100;
+      // 23:21 RSVD, SBZ
+      // 24    always enable V_INTR_MASKING
+      // 30:25 RSVD, SBZ
+      // 31    disable AVIC, we do not support this
 
-  d->eventinj                  = s->eventinj;
-  d->n_cr3                     = s->n_cr3;
-  d->lbr_virtualization_enable = s->lbr_virtualization_enable;
+      d->int_vector  = s->int_vector;
+      // no sure if this is necessary w/o V_IRQ set
+    }
+
+  if (!clean.lbr())
+    d->lbr_virtualization_enable = s->lbr_virtualization_enable;
 }
 
 
@@ -339,7 +343,7 @@ Vm_svm::copy_control_area_back(Vmcb *dest, Vmcb *src)
   Vmcb_control_area *d = &dest->control_area;
   Vmcb_control_area *s = &src->control_area;
 
-  d->interrupt_ctl    = s->interrupt_ctl;
+  d->int_tpr_irq      = s->int_tpr_irq;
   d->interrupt_shadow = s->interrupt_shadow;
 
   d->exitcode         = s->exitcode;
@@ -348,15 +352,13 @@ Vm_svm::copy_control_area_back(Vmcb *dest, Vmcb *src)
   d->exitintinfo      = s->exitintinfo;
 
   d->eventinj = s->eventinj;
+  d->n_rip    = s->n_rip;
 }
 
 PRIVATE inline NOEXPORT
 int
 Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
 {
-  //Mword host_cr0;
-  Unsigned64 orig_cr3, orig_ncr3;
-
   assert (cpu_lock.test());
 
   /* these 4 must not use ldt entries */
@@ -374,31 +376,6 @@ Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
       return -L4_err::EInval;
     }
 
-  if (EXPECT_FALSE(vmcb_s->np_enabled() && !s.has_npt()))
-    {
-      WARN("svm: No NPT available\n");
-      return -L4_err::EInval;
-    }
-
-  Address vm_cr3 = get_vm_cr3(vmcb_s);
-  // can only fail on 64bit, will be optimized away on 32bit
-  if (EXPECT_FALSE(is_64bit() && !vm_cr3))
-    return -L4_err::ENomem;
-
-  // neither EFER.LME nor EFER.LMA must be set
-  if (EXPECT_FALSE(!is_64bit()
-	           && (vmcb_s->state_save_area.efer & (EFER_LME | EFER_LMA))))
-    {
-      WARN("svm: EFER invalid %llx\n", vmcb_s->state_save_area.efer);
-      return -L4_err::EInval;
-    }
-
-  // EFER.SVME must be set
-  if (!(vmcb_s->state_save_area.efer & 0x1000))
-    {
-      WARN("svm: EFER invalid %llx\n", vmcb_s->state_save_area.efer);
-      return -L4_err::EInval;
-    }
   // allow PAE in combination with NPT
 #if 0
   // CR4.PAE must be clear
@@ -433,40 +410,71 @@ Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
 
   // sanitize VMCB
 
-  orig_cr3  = vmcb_s->state_save_area.cr3;
-  orig_ncr3 = vmcb_s->control_area.n_cr3;
-
-  Vmcb *kernel_vmcb_s = s.kernel_vmcb();
+  // this also handles the clean-bits for state caching
+  Vmcb *kernel_vmcb_s = s.kernel_vmcb(vmcb_s);
+  Vmcb_control_area::Clean_bits clean
+    = kernel_vmcb_s->control_area.clean_bits;
 
   copy_control_area(kernel_vmcb_s, vmcb_s);
   copy_state_save_area(kernel_vmcb_s, vmcb_s);
+
+  if (!clean.np())
+    {
+      kernel_vmcb_s->state_save_area.g_pat = vmcb_s->state_save_area.g_pat;
+      kernel_vmcb_s->control_area.np_enable = vmcb_s->control_area.np_enable;
+    }
+
+  if (!clean.crx())
+    kernel_vmcb_s->state_save_area.efer = vmcb_s->state_save_area.efer;
+
+  if (!clean.drx())
+    {
+      kernel_vmcb_s->state_save_area.dr7 = vmcb_s->state_save_area.dr7;
+      kernel_vmcb_s->state_save_area.dr6 = vmcb_s->state_save_area.dr6;
+    }
+
+  // barrier for the whole state save area and control area
+  asm volatile ("" : "=m" (*vmcb_s));
+
+  if (EXPECT_FALSE(!clean.np() && kernel_vmcb_s->np_enabled() && !s.has_npt()))
+    {
+      WARN("svm: No NPT available\n");
+      return -L4_err::EInval;
+    }
+
+  // needs EFER in vmcb
+  Address vm_cr3 = get_vm_cr3(kernel_vmcb_s);
+  // can only fail on 64bit, will be optimized away on 32bit
+  if (EXPECT_FALSE(is_64bit() && !vm_cr3))
+    return -L4_err::ENomem;
+
+  // neither EFER.LME nor EFER.LMA must be set
+  if (EXPECT_FALSE(!is_64bit()
+	           && (kernel_vmcb_s->state_save_area.efer & (EFER_LME | EFER_LMA))))
+    {
+      WARN("svm: EFER invalid %llx\n", kernel_vmcb_s->state_save_area.efer);
+      return -L4_err::EInval;
+    }
+
+  // EFER.SVME must be set
+  if (EXPECT_FALSE(!(kernel_vmcb_s->state_save_area.efer & 0x1000)))
+    {
+      WARN("svm: EFER invalid %llx\n", kernel_vmcb_s->state_save_area.efer);
+      return -L4_err::EInval;
+    }
+
+
   // we copy xcr0 here not in copy_state_save_area,
   // because it is written by the VMM only, never by the guest itself
   kernel_vmcb_s->state_save_area.xcr0 = vmcb_s->state_save_area.xcr0;
 
-  if (EXPECT_FALSE(is_64bit() && !kernel_vmcb_s->np_enabled()
-                   && (kernel_vmcb_s->state_save_area.cr0 & CR0_PG)
-                   && !(kernel_vmcb_s->state_save_area.cr4 & CR4_PAE)))
-    {
-      WARN("svm: No 32bit shadow page-tables on AMD64, use PAE!\n");
-      return -L4_err::EInval;
-    }
-
-  // set MCE according to host
-  kernel_vmcb_s->state_save_area.cr4 |= Cpu::get_cr4() & CR4_MCE;
 
   // allow w access to cr0, cr2, cr3
   // allow r access to cr0, cr2, cr3, cr4
-  // to do: check if enabling PAE in cr4 needs to be controlled
 
   // allow r/w access to dr[0-7]
   kernel_vmcb_s->control_area.intercept_rd_drX |= 0xff00;
   kernel_vmcb_s->control_area.intercept_wr_drX |= 0xff00;
-
-#if 0
-  // intercept exception vectors 0-31
-  kernel_vmcb_s->control_area.intercept_exceptions = 0xffffffff;
-#endif
 
   // enable iopm and msrpm
   kernel_vmcb_s->control_area.intercept_instruction0 |= 0x18000000;
@@ -487,6 +495,9 @@ Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
   // intercept XSETBV
   kernel_vmcb_s->control_area.intercept_instruction1 |= (1 << 13);
 
+  // intercept #AC and #DB
+  kernel_vmcb_s->control_area.intercept_exceptions |= (1 << 1) | (1 << 17);
+
   // intercept virtualization related instructions
   //  vmrun interception is required by the hardware
   kernel_vmcb_s->control_area.intercept_instruction1 |= 0xff;
@@ -495,39 +506,24 @@ Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
   Unsigned64 iopm_base_pa = s.iopm_base_pa();
   Unsigned64 msrpm_base_pa = s.msrpm_base_pa();
 
+  // XXX: handle clean bits for this
   kernel_vmcb_s->control_area.iopm_base_pa = iopm_base_pa;
   kernel_vmcb_s->control_area.msrpm_base_pa = msrpm_base_pa;
 
   Cpu_number ccpu = current_cpu();
-
+  // XXX: must handle ASIDs correctly ...
+  //      need to flush NP TLBs on unmaps, not on VMM request
+  //      prevent VMM from using ASIDs on its own a VMM cany use
+  //      multiple Vm objects instead
   if (// vmm requests flush
-      ((vmcb_s->control_area.guest_asid_tlb_ctl >> 32) & 1) == 1
+      (vmcb_s->control_area.tlb_ctl & 1) == 1
       // our asid is not valid or expired
       || !(s.asid_valid(asid(ccpu)->asid, asid(ccpu)->generation)))
     new_asid(ccpu, &s);
 
   s.flush_asids_if_needed();
 
-  // 7:0 V_TPR, 8 V_IRQ, 15:9 reserved SBZ,
-  // 19:16 V_INTR_PRIO, 20 V_IGN_TPR, 23:21 reserved SBZ
-  // 24 V_INTR_MASKING 31:25 reserved SBZ
-  // 39:32 V_INTR_VECTOR, 63:40 reserved SBZ
-#if 0
-  kernel_vmcb_s->control_area.interrupt_ctl = 0x10f0000;
-#endif
-  // enable IRQ masking virtualization
-  kernel_vmcb_s->control_area.interrupt_ctl |= 0x01000000;
-
-#if 0
-  // 0 INTERRUPT_SHADOW, 31:1 reserved SBZ
-  // 63:32 reserved SBZ
-  kernel_vmcb_s->control_area.interrupt_shadow = 0;
-#endif
-
-  kernel_vmcb_s->control_area.exitcode = 0;
-  kernel_vmcb_s->control_area.exitinfo1 = 0;
-  kernel_vmcb_s->control_area.exitinfo2 = 0;
-  kernel_vmcb_s->control_area.exitintinfo = 0;
+  kernel_vmcb_s->control_area.guest_asid = asid(ccpu)->asid;
 
 #if 0
   // 0/1 NP_ENABLE, 31:1 reserved SBZ
@@ -537,27 +533,59 @@ Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
   kernel_vmcb_s->control_area.eventinj = 0;
 #endif
 
-  // N_CR3
-  kernel_vmcb_s->control_area.n_cr3 = vm_cr3;
-
-  if (!kernel_vmcb_s->np_enabled())
+  if (EXPECT_TRUE(kernel_vmcb_s->np_enabled()))
+    {
+      if (!clean.crx())
+        {
+          kernel_vmcb_s->state_save_area.cr0 = vmcb_s->state_save_area.cr0;
+          kernel_vmcb_s->state_save_area.cr3 = vmcb_s->state_save_area.cr3;
+          kernel_vmcb_s->state_save_area.cr4 = vmcb_s->state_save_area.cr4;
+          asm volatile ("" : "=m"(vmcb_s->state_save_area));
+        }
+      kernel_vmcb_s->control_area.n_cr3 = vm_cr3;
+    }
+  else
     {
       // to do: check that the vmtask has the
       // VM property set, i.e. does not contain mappings
       // to the fiasco kernel regions or runs with PL 3
 
+      // when we change nested paging mode or the crx regs
+      // we need to reload and recheck the values
+      if (!clean.crx() || !clean.np())
+        {
+          // enforce paging and protection enable
+          kernel_vmcb_s->state_save_area.cr0 = access_once(&vmcb_s->state_save_area.cr0) | CR0_PG | CR0_PE;
+          kernel_vmcb_s->state_save_area.cr4 = access_once(&vmcb_s->state_save_area.cr4);
+
+          // FIXME: do we need more CR4 checking here ?
+          // PAE for 64bit fiasco and non-PAE for 32bit fiasco
+          if (is_64bit())
+            kernel_vmcb_s->state_save_area.cr4 |= CR4_PAE;
+          else
+            kernel_vmcb_s->state_save_area.cr4 &= ~CR4_PAE;
+
+          // fiasco uses super pages in the SPTs
+          kernel_vmcb_s->state_save_area.cr4 |= CR4_PSE;
+        }
+
       // printf("nested paging disabled, use n_cr3 as cr3\n");
       kernel_vmcb_s->state_save_area.cr3 = vm_cr3;
 
-      // intercept accesses to cr0, cr3 and cr4
-      kernel_vmcb_s->control_area.intercept_rd_crX = 0xfff9;
-      kernel_vmcb_s->control_area.intercept_wr_crX = 0xfff9;
+      // re-enforce intercepts when cache changed
+      if (!clean.i())
+        {
+          // intercept accesses to cr0, cr3 and cr4
+          kernel_vmcb_s->control_area.intercept_rd_crX = 0xfff9;
+          kernel_vmcb_s->control_area.intercept_wr_crX = 0xfff9;
+        }
     }
 
-#if 0
-  kernel_vmcb_s->control_area.lbr_virtualization_enable = 0;
-#endif
 
+  // set MCE according to host
+  kernel_vmcb_s->state_save_area.cr4 |= Cpu::get_cr4() & CR4_MCE;
+
+  kernel_vmcb_s->control_area.clean_bits.raw = 0; // nothing clean, the safe way currently
 
   // to do:
   // - initialize VM_HSAVE_PA (done)
@@ -569,7 +597,6 @@ Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
 
   Unsigned32 fs, gs;
   Unsigned16 tr, ldtr;
-  //Unsigned32 cr4;
 
   fs = Cpu::get_fs();
   gs = Cpu::get_gs();
@@ -593,13 +620,13 @@ Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
     Cpu::set_cr4(cr4 & ~CR4_PGE);
 #endif
 
-  if (Cpu::have_xsave() && (kernel_vmcb_s->state_save_area.xcr0 ^ s.host_xcr0))
-    Cpu::xsetbv(kernel_vmcb_s->state_save_area.xcr0 & s.host_xcr0 | 1, 0);
+  Unsigned64 host_xcr0 = Fpu::fpu.current().get_xcr0();
 
-  resume_vm_svm(kernel_vmcb_pa, vcpu);
+  load_guest_xcr0(host_xcr0, kernel_vmcb_s->state_save_area.xcr0);
 
-  if (Cpu::have_xsave() && (kernel_vmcb_s->state_save_area.xcr0 ^ s.host_xcr0))
-    Cpu::xsetbv(s.host_xcr0, 0);
+  resume_vm_svm(kernel_vmcb_pa, &vcpu->_regs);
+
+  load_host_xcr0(host_xcr0, kernel_vmcb_s->state_save_area.xcr0);
 
 #if 0
   if (cr4 & CR4_PGE)
@@ -621,12 +648,19 @@ Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
   Cpu::set_tr(tr); // TODO move under stgi in asm
 
   copy_state_save_area(vmcb_s, kernel_vmcb_s);
+  // do not copy back EFER, MSR intercepts for EFER are always set
+  // vmcb_s->state_save_area.efer = kernel_vmcb_s->state_save_area.efer;
+  vmcb_s->state_save_area.g_pat = kernel_vmcb_s->state_save_area.g_pat;
+  vmcb_s->state_save_area.dr7 = kernel_vmcb_s->state_save_area.dr7;
+  vmcb_s->state_save_area.dr6 = kernel_vmcb_s->state_save_area.dr6;
+
+  if (EXPECT_TRUE(kernel_vmcb_s->np_enabled()))
+    {
+      vmcb_s->state_save_area.cr3 = kernel_vmcb_s->state_save_area.cr3;
+      vmcb_s->state_save_area.cr4 = kernel_vmcb_s->state_save_area.cr4;
+    }
+
   copy_control_area_back(vmcb_s, kernel_vmcb_s);
-
-  if (!(vmcb_s->np_enabled()))
-    vmcb_s->state_save_area.cr3 = orig_cr3;
-
-  vmcb_s->control_area.n_cr3 = orig_ncr3;
 
   LOG_TRACE("VM-SVM", "svm", current(), Log_vm_svm_exit,
             l->exitcode = vmcb_s->control_area.exitcode;
@@ -639,7 +673,7 @@ Vm_svm::do_resume_vcpu(Context *ctxt, Vcpu_state *vcpu, Vmcb *vmcb_s)
   if (kernel_vmcb_s->control_area.exitcode == 0x60)
     return 1;
 
-  vcpu->state &= ~(Vcpu_state::F_traps | Vcpu_state::F_user_mode);
+  force_kern_entry_vcpu_state(vcpu);
   return 0;
 }
 
@@ -648,11 +682,12 @@ int
 Vm_svm::resume_vcpu(Context *ctxt, Vcpu_state *vcpu, bool user_mode)
 {
   (void)user_mode;
-  assert_kdb (user_mode);
+  assert (user_mode);
 
   if (EXPECT_FALSE(!(ctxt->state(true) & Thread_ext_vcpu_enabled)))
     {
       ctxt->arch_load_vcpu_kern_state(vcpu, true);
+      force_kern_entry_vcpu_state(vcpu);
       return -L4_err::EInval;
     }
 
@@ -666,6 +701,7 @@ Vm_svm::resume_vcpu(Context *ctxt, Vcpu_state *vcpu, bool user_mode)
 	{
 	  vmcb_s->control_area.exitcode = 0x60;
           ctxt->arch_load_vcpu_kern_state(vcpu, true);
+          force_kern_entry_vcpu_state(vcpu);
 	  return 1; // return 1 to indicate pending IRQs (IPCs)
 	}
 
@@ -675,6 +711,7 @@ Vm_svm::resume_vcpu(Context *ctxt, Vcpu_state *vcpu, bool user_mode)
       if (r <= 0)
         {
           ctxt->arch_load_vcpu_kern_state(vcpu, true);
+          force_kern_entry_vcpu_state(vcpu);
           return r;
         }
 
@@ -691,6 +728,7 @@ Vm_svm::resume_vcpu(Context *ctxt, Vcpu_state *vcpu, bool user_mode)
 
       if (t->continuation_test_and_restore())
         {
+          force_kern_entry_vcpu_state(vcpu);
           ctxt->arch_load_vcpu_kern_state(vcpu, true);
           t->fast_return_to_user(vcpu->_entry_ip, vcpu->_entry_sp,
                                  t->vcpu_state().usr().get());
@@ -698,7 +736,17 @@ Vm_svm::resume_vcpu(Context *ctxt, Vcpu_state *vcpu, bool user_mode)
     }
 }
 
+namespace {
+static inline void __attribute__((constructor)) FIASCO_INIT
+register_factory()
+{
+  if (!Svm::cpu_svm_available(Cpu_number::boot_cpu()))
+    return;
 
+  Kobject_iface::set_factory(L4_msg_tag::Label_vm,
+                             Task::generic_factory<Vm_svm>);
+}
+}
 
 // ------------------------------------------------------------------------
 IMPLEMENTATION [svm && debug]:

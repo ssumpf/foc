@@ -59,8 +59,8 @@ Jdb::handle_int3_threadctx_generic(Trap_state *ts)
               tb->v[1] = ts->value2();
               tb->v[2] = ts->value3();
 	      for (i=0; i<len; i++)
-      		tb->set_buf(i, s->peek(str++, user));
-	      tb->term_buf(len);
+      		tb->msg.set_buf(i, s->peek(str++, user));
+	      tb->msg.term_buf(len);
 	    }
 	  else
 	    {
@@ -69,8 +69,8 @@ Jdb::handle_int3_threadctx_generic(Trap_state *ts)
 	      Tb_entry_ke *tb = Jdb_tbuf::new_entry<Tb_entry_ke>();
 	      tb->set(t, ip-1);
 	      for (i=0; i<len; i++)
-		tb->set_buf(i, s->peek(str++, user));
-	      tb->term_buf(len);
+		tb->msg.set_buf(i, s->peek(str++, user));
+	      tb->msg.term_buf(len);
 	    }
 	  Jdb_tbuf::commit_entry();
 	  break;
@@ -122,7 +122,7 @@ Jdb::handle_int3_threadctx_generic(Trap_state *ts)
 	  printf("%02lx", regs->value() & 0xff);
 	  break;
 	case 11: // l4kd_outdec
-	  printf("%ld", regs->value());
+	  printf("%lu", regs->value());
 	  break;
 	case 13: // l4kd_inchar
 	  return 0; // => Jdb
@@ -145,8 +145,8 @@ Jdb::handle_int3_threadctx_generic(Trap_state *ts)
 		  str = regs->str();
 		  tb->set(t, ip-1);
 		  for (len=0; (c = s->peek(str++, user)); len++)
-		    tb->set_buf(len, c);
-		  tb->term_buf(len);
+		    tb->msg.set_buf(len, c);
+		  tb->msg.term_buf(len);
 		  regs->set_tb_entry(tb);
 		  Jdb_tbuf::commit_entry();
 		}
@@ -168,8 +168,8 @@ Jdb::handle_int3_threadctx_generic(Trap_state *ts)
                   tb->v[1] = regs->val2();
                   tb->v[2] = regs->val3();
 		  for (len=0; (c = s->peek(str++, user)); len++)
-		    tb->set_buf(len, c);
-		  tb->term_buf(len);
+		    tb->msg.set_buf(len, c);
+		  tb->msg.term_buf(len);
 		  regs->set_tb_entry(tb);
 		  Jdb_tbuf::commit_entry();
 		}
@@ -209,7 +209,7 @@ Jdb::handle_int3_threadctx_generic(Trap_state *ts)
 		{
 		  Jdb_symbols_frame *regs =
 		    reinterpret_cast<Jdb_symbols_frame*>(ts);
-		  Jdb_dbinfo::set(Jdb_symbol::lookup(Kobject::dcast<Task*>(os->lookup(regs->task()))),
+		  Jdb_dbinfo::set(Jdb_symbol::lookup(cxx::dyn_cast<Task*>(os->lookup(regs->task()))),
 				  regs->addr(), regs->size());
 		}
 	      break;

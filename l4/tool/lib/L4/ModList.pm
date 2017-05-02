@@ -31,13 +31,59 @@ sub error($)
   exit(1);
 }
 
-sub handle_line($)
+sub handle_options($)
+{
+  my $optstring = shift;
+  my %opts;
+
+  foreach (split /\s*,\s*/, $optstring)
+    {
+      if (/(\S+)\s*=\s*(.+)/)
+        {
+          $opts{$1} = $2;
+        }
+      else
+        {
+          $opts{$_} = undef;
+        }
+    }
+
+  return %opts;
+}
+
+sub handle_line
 {
   my $r = shift;
+  my $mod_file = shift;
+  my %opts = @_;
 
+  $r =~ s/\s+$//;
+
+  if (exists $opts{perl})
+    {
+      my @m = eval $r;
+      die "perl: ".$@ if $@;
+      return @m;
+    }
+
+  if (exists $opts{shell})
+    {
+      my @m = split /\n/, `$r`;
+      error "$mod_file:$.: Shell command failed\n" if $?;
+      return @m;
+    }
+
+  return ( glob $r ) if exists $opts{glob};
+
+
+  # Deprecated start -- remove in 2016
   if ($r =~ /^((perl|glob|shell):\s+)/)
     {
       substr $r, 0, length($1), "";
+
+      print STDERR "ATTENTION:\n".
+                   "  Using deprecated syntax '$2:' on line $.\n".
+                   "  Use option syntax now: <command>[$2] $r\n";
 
       if ($2 eq 'perl')
         {
@@ -60,13 +106,14 @@ sub handle_line($)
           die "should not happen";
         }
     }
+  # Deprecated end
 
   return ( $r );
 }
 
-sub handle_line_first($)
+sub handle_line_first
 {
-  return (handle_line(shift))[0];
+  return (handle_line(shift, shift, @_))[0];
 }
 
 sub readin_config($)
@@ -119,7 +166,7 @@ sub readin_config($)
 
           if ($cmd eq 'include')
             {
-              my @f = handle_line($remaining);
+              my @f = handle_line($remaining, $mod_file);
               foreach my $f (@f)
                 {
                   my $abs;
@@ -209,6 +256,7 @@ sub get_module_entry($$)
   foreach my $fileentry (@{$mod_file_db{contents}})
     {
       $_ = $$fileentry[2];
+      $. = $$fileentry[1];
 
       chomp;
       s/#.*$//;
@@ -221,13 +269,23 @@ sub get_module_entry($$)
         next;
       }
 
-      my ($type, $remaining) = split /\s+/, $_, 2;
+      /^([^\s\[]+)(\[\s*(.*)\s*\])?(\s+(.*))?/;
+      my ($type, $opts, $remaining) = ($1, $3, $5);
+
+      my %opts;
+      %opts = handle_options($opts) if defined $opts;
+
+      print "Options: ",
+            join(", ", map { $opts{$_} ? "$_=$opts{$_}" : $_ } keys %opts),
+            "\n"
+        if %opts && 0;
+
       $type = lc($type);
 
       $type = 'bin'   if $type eq 'module';
 
       if ($type =~ /^(entry|title)$/) {
-        ($remaining) = handle_line($remaining);
+        ($remaining) = handle_line($remaining, $mod_file, %opts);
         if (lc($entry_to_pick) eq lc($remaining)) {
           $process_mode = 'entry';
           $found_entry = 1;
@@ -239,29 +297,29 @@ sub get_module_entry($$)
       }
 
       if ($type eq 'searchpath') {
-        push @internal_searchpaths, handle_line($remaining);
+        push @internal_searchpaths, handle_line($remaining, $mod_file, %opts);
         next;
       } elsif ($type eq 'group') {
         $process_mode = 'group';
-        $current_group_name = (split /\s+/, handle_line_first($remaining))[0];
+        $current_group_name = (split /\s+/, handle_line_first($remaining, $mod_file, %opts))[0];
         next;
       } elsif ($type eq 'default-bootstrap') {
-        my ($file, $full) = get_command_and_cmdline(handle_line_first($remaining));
+        my ($file, $full) = get_command_and_cmdline(handle_line_first($remaining, $mod_file, %opts));
         $bootstrap_command = $file;
         $bootstrap_cmdline = $full;
         next;
       } elsif ($type eq 'default-kernel') {
-        my ($file, $full) = get_command_and_cmdline(handle_line_first($remaining));
+        my ($file, $full) = get_command_and_cmdline(handle_line_first($remaining, $mod_file, %opts));
         $mods[0]{command}  = $file;
         $mods[0]{cmdline}  = $full;
         next;
       } elsif ($type eq 'default-sigma0') {
-        my ($file, $full) = get_command_and_cmdline(handle_line_first($remaining));
+        my ($file, $full) = get_command_and_cmdline(handle_line_first($remaining, $mod_file, %opts));
         $mods[1]{command}  = $file;
         $mods[1]{cmdline}  = $full;
         next;
       } elsif ($type eq 'default-roottask') {
-        my ($file, $full) = get_command_and_cmdline(handle_line_first($remaining));
+        my ($file, $full) = get_command_and_cmdline(handle_line_first($remaining, $mod_file, %opts));
         $mods[2]{command}  = $file;
         $mods[2]{cmdline}  = $full;
         next;
@@ -269,7 +327,7 @@ sub get_module_entry($$)
 
       next unless $process_mode;
 
-      my @params = handle_line($remaining);
+      my @params = handle_line($remaining, $mod_file, %opts);
 
       my @valid_types = ( 'bin', 'data', 'bin-nostrip', 'data-nostrip',
                           'bootstrap', 'roottask', 'kernel', 'sigma0',
@@ -336,9 +394,7 @@ sub get_module_entry($$)
     }
 
   error "$mod_file: Unknown entry \"$entry_to_pick\"!\n" unless $found_entry;
-  error "$mod_file: 'modaddr' not set\n" unless $modaddr_title || $modaddr_global;
 
-  my $m = $modaddr_title || $modaddr_global;
   if (defined $is_mode_linux)
     {
       error "No Linux kernel image defined\n" unless defined $mods[0]{cmdline};
@@ -364,11 +420,18 @@ sub get_module_entry($$)
     }
 
   # now some implicit stuff
-  if ($bootstrap_cmdline =~ /-modaddr\s+/) {
-    $bootstrap_cmdline =~ s/(-modaddr\s+)%modaddr%/$1$m/;
-  } else {
-    $bootstrap_cmdline .= " -modaddr $m";
-  }
+  my $m = $modaddr_title || $modaddr_global;
+  if (defined $m)
+    {
+      if ($bootstrap_cmdline =~ /-modaddr\s+/)
+        {
+          $bootstrap_cmdline =~ s/(-modaddr\s+)%modaddr%/$1$m/;
+        }
+      else
+        {
+          $bootstrap_cmdline .= " -modaddr $m";
+        }
+    }
 
   my @files; # again, this is redundant but helps generator functions
   push @files, $bootstrap_command;
@@ -405,7 +468,7 @@ sub get_entries($)
 
   foreach my $fileentry (@{$mod_file_db{contents}})
     {
-      push @entry_list, $2 if $$fileentry[2] =~ /^(entry|title)\s+(.+)/;
+      push @entry_list, $2 if $$fileentry[2] =~ /^(entry|title)\s+(.+)\s*$/;
     }
 
   return @entry_list;

@@ -1,5 +1,5 @@
 # -*- makefile -*-
 # vi:se ft=make:
 
-SYSTEM_TARGET			?= sparc-linux-
+CROSS_COMPILE			?= sparc-linux-
 LD_EMULATION_CHOICE             := elf32_sparc

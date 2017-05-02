@@ -87,7 +87,7 @@ Hostproc::create()
 
   static unsigned long esp;
   static Mword _stack[256];
-  register pid_t pid;
+  pid_t pid;
 
   /*
    * Careful with local variables here because we are changing the

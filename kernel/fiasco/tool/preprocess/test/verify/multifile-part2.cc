@@ -8,5 +8,5 @@
 
 
 void 
-Foo::bingo(Bar* bar)
+Foo::bingo (Bar* bar)
 {}

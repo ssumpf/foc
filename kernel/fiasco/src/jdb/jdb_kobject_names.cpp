@@ -53,7 +53,7 @@ Jdb_kobject_name *Jdb_kobject_name::_names;
 
 
 PUBLIC
-unsigned
+int
 Jdb_kobject_name::max_len()
 { return sizeof(_name); }
 
@@ -99,10 +99,12 @@ Jdb_kobject_name::operator delete (void *p)
 
 PUBLIC
 void
-Jdb_kobject_name::name(const char *name)
+Jdb_kobject_name::name(char const *name, int size)
 {
-  unsigned i = 0;
-  for (; name[i] && i < max_len(); ++i)
+  int i = 0;
+  if (size > max_len())
+    size = max_len();
+  for (; name[i] && i < size; ++i)
     _name[i] = name[i];
 
   for (; i < max_len(); ++i)
@@ -122,7 +124,6 @@ Jdb_kobject_name::name()
 class Jdb_name_hdl : public Jdb_kobject_handler
 {
 public:
-  Jdb_name_hdl() : Jdb_kobject_handler(0) {}
   virtual bool show_kobject(Kobject_common *, int) { return true; }
   virtual ~Jdb_name_hdl() {}
 };
@@ -160,7 +161,9 @@ Jdb_name_hdl::invoke(Kobject_common *o, Syscall_frame *f, Utcb *utcb)
               enqueue = true;
             }
 
-          ne->name(reinterpret_cast<char const*>(&utcb->values[1]));
+          if (f->tag().words() > 0)
+            ne->name(reinterpret_cast<char const *>(&utcb->values[1]),
+                     (f->tag().words() - 1) * sizeof(Mword));
           if (enqueue)
             o->dbg_info()->_jdb_data.add(ne);
           f->tag(Kobject_iface::commit_result(0));

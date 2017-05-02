@@ -34,6 +34,8 @@ public:
 
 INTERFACE[arm && !arm_em_tz]:
 
+#define ARM_CPS_INTERRUPT_FLAGS "if"
+
 EXTENSION class Proc
 {
 public:
@@ -43,11 +45,13 @@ public:
       Sti_mask                = Status_interrupts_disabled,
       Status_preempt_disabled = Status_IRQ_disabled,
       Status_interrupts_mask  = Status_interrupts_disabled,
-      Status_always_mask      = 0x10,
+      Status_always_mask      = 0x110,
     };
 };
 
 INTERFACE[arm && arm_em_tz]:
+
+#define ARM_CPS_INTERRUPT_FLAGS "f"
 
 EXTENSION class Proc
 {
@@ -58,7 +62,7 @@ public:
       Sti_mask                = Status_FIQ_disabled,
       Status_preempt_disabled = Status_FIQ_disabled,
       Status_interrupts_mask  = Status_FIQ_disabled,
-      Status_always_mask      = 0x10 | Status_IRQ_disabled,
+      Status_always_mask      = 0x110 | Status_IRQ_disabled,
     };
 };
 
@@ -81,14 +85,14 @@ IMPLEMENT static inline
 Mword Proc::stack_pointer()
 {
   Mword sp;
-  asm volatile ( "mov %0, sp \n" : "=r"(sp) );
+  asm volatile ("mov %0, sp" : "=r" (sp));
   return sp;
 }
 
 IMPLEMENT static inline
 void Proc::stack_pointer(Mword sp)
 {
-  asm volatile ( "mov sp, %0 \n" : : "r"(sp) );
+  asm volatile ("mov sp, %0" : : "r" (sp));
 }
 
 IMPLEMENT static inline
@@ -98,6 +102,29 @@ Mword Proc::program_counter()
   asm ("mov %0, pc" : "=r" (pc));
   return pc;
 }
+
+IMPLEMENT static inline
+Proc::Status Proc::interrupts()
+{
+  Status ret;
+  asm volatile("mrs %0, cpsr" : "=r" (ret));
+  return !(ret & Sti_mask);
+}
+
+IMPLEMENT static inline ALWAYS_INLINE
+void Proc::sti_restore(Status st)
+{
+  if (!(st & Sti_mask))
+    sti();
+}
+
+IMPLEMENT static inline
+void Proc::irq_chance()
+{
+  asm volatile ("nop; nop" : : : "memory");
+}
+
+IMPLEMENTATION [arm && !armv6plus]:
 
 IMPLEMENT static inline
 void Proc::cli()
@@ -128,36 +155,40 @@ Proc::Status Proc::cli_save()
 {
   Status ret;
   Mword v;
-  asm volatile("mrs    %0, cpsr    \n"
-               "orr    %1, %0, %2  \n"
-               "msr    cpsr_c, %1  \n"
+  asm volatile("mrs %0, cpsr    \n"
+               "orr %1, %0, %2  \n"
+               "msr cpsr_c, %1  \n"
                : "=r" (ret), "=r" (v)
                : "I" (Cli_mask)
                : "memory");
   return ret;
 }
 
+IMPLEMENTATION [arm && armv6plus]:
+
 IMPLEMENT static inline
-Proc::Status Proc::interrupts()
+void Proc::cli()
 {
-  Status ret;
-  asm volatile("mrs %0, cpsr" : "=r" (ret));
-  return !(ret & Sti_mask);
+  asm volatile("cpsid " ARM_CPS_INTERRUPT_FLAGS : : : "memory");
 }
 
 IMPLEMENT static inline ALWAYS_INLINE
-void Proc::sti_restore(Status st)
+void Proc::sti()
 {
-  if (!(st & Sti_mask))
-    sti();
+  asm volatile("cpsie " ARM_CPS_INTERRUPT_FLAGS : : : "memory");
 }
 
-IMPLEMENT static inline
-void Proc::irq_chance()
+IMPLEMENT static inline ALWAYS_INLINE
+Proc::Status Proc::cli_save()
 {
-  asm volatile ("nop; nop;" : : : "memory");
+  Status prev;
+  asm volatile("mrs %0, cpsr \n"
+               "cpsid " ARM_CPS_INTERRUPT_FLAGS
+               : "=r" (prev)
+               :
+               : "memory");
+  return prev;
 }
-
 
 //----------------------------------------------------------------
 IMPLEMENTATION[arm && !mp]:
@@ -201,16 +232,16 @@ void Proc::halt()
 {
   Status f = cli_save();
   asm volatile("mov     r0, #0                                              \n\t"
-	       "mrc     p15, 0, r1, c1, c0, 0       @ Read control register \n\t"
-	       "mcr     p15, 0, r0, c7, c10, 4      @ Drain write buffer    \n\t"
-	       "bic     r2, r1, #1 << 12                                    \n\t"
-	       "mcr     p15, 0, r2, c1, c0, 0       @ Disable I cache       \n\t"
-	       "mcr     p15, 0, r0, c7, c0, 4       @ Wait for interrupt    \n\t"
-	       "mcr     15, 0, r1, c1, c0, 0        @ Restore ICache enable \n\t"
-	       :::"memory",
-	       "r0", "r1", "r2", "r3", "r4", "r5",
-	       "r6", "r7", "r8", "r9", "r10", "r11",
-	       "r12", "r13", "r14", "r15"
+               "mrc     p15, 0, r1, c1, c0, 0       @ Read control register \n\t"
+               "mcr     p15, 0, r0, c7, c10, 4      @ Drain write buffer    \n\t"
+               "bic     r2, r1, #1 << 12                                    \n\t"
+               "mcr     p15, 0, r2, c1, c0, 0       @ Disable I cache       \n\t"
+               "mcr     p15, 0, r0, c7, c0, 4       @ Wait for interrupt    \n\t"
+               "mcr     15, 0, r1, c1, c0, 0        @ Restore ICache enable \n\t"
+               :::"memory",
+               "r0", "r1", "r2", "r3", "r4", "r5",
+               "r6", "r7", "r8", "r9", "r10", "r11",
+               "r12", "r13", "r14", "r15"
       );
   sti_restore(f);
 }

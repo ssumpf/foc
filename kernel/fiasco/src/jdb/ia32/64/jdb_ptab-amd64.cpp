@@ -24,8 +24,10 @@ Jdb_ptab::print_entry(Pdir::Pte_ptr const &entry)
     printf((phys >> 20) > 0xFF
 	   ? "       %03lx/2" : "        %02lx/2", phys >> 20);
   else
+    // truncates the upper 4bit of the physical address,
+    // which are attributes anyways
     printf((phys >> Config::PAGE_SHIFT) > 0xFFFF
-           ? "%13lx" : "         %04lx", phys >> Config::PAGE_SHIFT);
+           ? "%12lx" : "        %04lx", phys >> Config::PAGE_SHIFT);
 
   putchar(((cur_pt_level >= Pdir::Depth || entry.is_leaf()) &&
 	 (*entry.pte & Pt_entry::Cpu_global)) ? '+' : '-');
@@ -36,6 +38,7 @@ Jdb_ptab::print_entry(Pdir::Pte_ptr const &entry)
   putchar(*entry.pte & Pt_entry::User
 	    ? (*entry.pte & Pt_entry::Writable) ? 'w' : 'r'
 	    : (*entry.pte & Pt_entry::Writable) ? 'W' : 'R');
+  putchar(*entry.pte & Pt_entry::XD ? '-' : 'x');
 }
 
 

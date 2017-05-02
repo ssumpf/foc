@@ -1,10 +1,28 @@
 INTERFACE [svm]:
 
 #include "l4_types.h"
+#include <cxx/bitfield>
 
 // TODO: Make this sharable with user-land (see uarts)
 struct Vmcb_control_area
 {
+  struct Clean_bits
+  {
+    Unsigned64 raw;
+    CXX_BITFIELD_MEMBER( 0,  0, i, raw);
+    CXX_BITFIELD_MEMBER( 1,  1, iopm, raw);
+    CXX_BITFIELD_MEMBER( 2,  2, asid, raw);
+    CXX_BITFIELD_MEMBER( 3,  3, tpr, raw);
+    CXX_BITFIELD_MEMBER( 4,  4, np, raw);
+    CXX_BITFIELD_MEMBER( 5,  5, crx, raw);
+    CXX_BITFIELD_MEMBER( 6,  6, drx, raw);
+    CXX_BITFIELD_MEMBER( 7,  7, dt, raw);
+    CXX_BITFIELD_MEMBER( 8,  8, seg, raw);
+    CXX_BITFIELD_MEMBER( 9,  9, cr2, raw);
+    CXX_BITFIELD_MEMBER(10, 10, lbr, raw);
+    CXX_BITFIELD_MEMBER(11, 11, avic, raw);
+  };
+
   Unsigned16 intercept_rd_crX;
   Unsigned16 intercept_wr_crX;
 
@@ -24,9 +42,14 @@ struct Vmcb_control_area
   Unsigned64 iopm_base_pa;
   Unsigned64 msrpm_base_pa;
   Unsigned64 tsc_offset;
-  Unsigned64 guest_asid_tlb_ctl;
-  Unsigned64 interrupt_ctl;
-  Unsigned64 interrupt_shadow;
+  Unsigned32 guest_asid;
+  Unsigned32 tlb_ctl;
+  Unsigned16 int_tpr_irq;
+  Unsigned16 int_ctl;
+  Unsigned8  int_vector;
+  Unsigned8  _reserved10[3];
+  Unsigned8  interrupt_shadow;
+  Unsigned8  _reserved11[7];
   Unsigned64 exitcode;
   Unsigned64 exitinfo1;
   Unsigned64 exitinfo2;
@@ -38,8 +61,10 @@ struct Vmcb_control_area
   Unsigned64 eventinj;
   Unsigned64 n_cr3;
   Unsigned64 lbr_virtualization_enable;
+  Clean_bits clean_bits;
+  Unsigned64 n_rip;
 
-  Unsigned8 _reserved2[832];
+  Unsigned8 _reserved2[816];
 } __attribute__((packed));
 
 struct Vmcb_state_save_area

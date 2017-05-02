@@ -33,7 +33,7 @@ public:
 
 DEFINE_PER_CPU static Per_cpu<Static_object<Arm_ipis> > _arm_ipis;
 
-IMPLEMENT
+IMPLEMENT_OVERRIDE
 void
 Thread::init_per_cpu(Cpu_number cpu, bool resume)
 {

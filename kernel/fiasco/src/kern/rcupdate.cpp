@@ -191,7 +191,6 @@ IMPLEMENTATION:
 #include "cpu.h"
 #include "cpu_lock.h"
 #include "globals.h"
-#include "kdb_ke.h"
 #include "lock_guard.h"
 #include "mem.h"
 #include "static_init.h"

@@ -21,7 +21,7 @@ void
 Jdb_ipi_module::print_info(Cpu_number cpu)
 {
   Ipi &ipi = Ipi::_ipi.cpu(cpu);
-  printf("CPU%02u sent/rcvd: %ld/%ld\n",
+  printf("CPU%02u sent/rcvd: %lu/%lu\n",
          cxx::int_value<Cpu_number>(cpu), ipi._stat_sent, ipi._stat_received);
 }
 

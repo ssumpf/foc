@@ -35,9 +35,18 @@
  * raises an exception 13 which is handled properly.
  */
 	.macro	RESET_KERNEL_SEGMENTS_FORCE_DS_ES
-        movw    $ (GDT_DATA_USER|SEL_PL_U), %cx
-        movl    %ecx,%ds
-        movl    %ecx,%es
+	mov	%ds, %cx
+	cmp	$ (GDT_DATA_USER|SEL_PL_U), %cx
+	jne	9f
+
+	mov	%es, %cx
+	cmpw	$ (GDT_DATA_USER|SEL_PL_U), %cx
+	je	8f
+
+9:	movw    $ (GDT_DATA_USER|SEL_PL_U), %cx
+	movl    %ecx,%ds
+	movl    %ecx,%es
+8:
 	.endm
 
 	.macro	DO_SYSEXIT
@@ -57,11 +66,11 @@
 	.endm
 
 	.macro	RESET_THREAD_CANCEL_AT reg
-	andl	$~(Thread_cancel), OFS__THREAD__STATE (\reg)
+	andl	$~(VAL__Thread_cancel), OFS__THREAD__STATE (\reg)
 	.endm
 
 	.macro	RESET_THREAD_IPC_MASK_AT reg
-	andl	$~Thread_ipc_mask, OFS__THREAD__STATE (\reg)
+	andl	$~VAL__Thread_ipc_mask, OFS__THREAD__STATE (\reg)
 	.endm
 
 	.macro	ESP_TO_TCB_AT reg

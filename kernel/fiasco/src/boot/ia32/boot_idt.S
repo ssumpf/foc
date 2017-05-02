@@ -1,63 +1,48 @@
 #include "globalconfig.h"
+#include "idt_init.h"
 
-#define GATE_INITTAB_BEGIN(name)	\
-	.text	1			;\
-	.globl	name			;\
-name:					;\
-	.text
-
-#define	GATE_ENTRY(n,entry,type)	\
-	.text	1			;\
-	.long	entry			;\
-	.word	n			;\
-	.word	type			;\
-	.text
-
-#define GATE_INITTAB_END		\
-	.text	1			;\
-	.long	0			;\
-	.text
-
-#define	EXCEPTION(n,name)		\
-	GATE_ENTRY(n,1f,0x0e)		;\
-1:	pushl	$(0)			;\
-	pushl	$(n)			;\
+.macro	EXCEPTION n
+	GATE_ENTRY	\n, 1f, 0x0e
+1:	pushl	$(0)
+	pushl	$(\n)
 	jmp	2f
+.endm
 
-#define	EXCEP_USR(n,name)		\
-	GATE_ENTRY(n,1f,0x6e)		;\
-1:	pushl	$(0)			;\
-	pushl	$(n)			;\
+.macro	EXCEP_USR n
+	GATE_ENTRY	\n, 1f, 0x6e
+1:	pushl	$(0)
+	pushl	$(\n)
 	jmp	2f
+.endm
 
-#define	EXCEP_ERR(n,name)		\
-	GATE_ENTRY(n,1f,0x0e)		;\
-1:	pushl	$(n)			;\
+.macro	EXCEP_ERR n
+	GATE_ENTRY \n, 1f, 0x0e
+1:	pushl	$(\n)
 	jmp	2f
+.endm
 
+GATE_INITTAB_BEGIN boot_idt_inittab
 
-GATE_INITTAB_BEGIN(boot_idt_inittab)
-
-EXCEPTION(0x00,t_zero_div)
-EXCEPTION(0x01,t_debug)
-EXCEPTION(0x02,t_nmi)
-EXCEP_USR(0x03,t_int3)
-EXCEP_USR(0x04,t_into)
-EXCEP_USR(0x05,t_bounds)
-EXCEPTION(0x06,t_invop)
-EXCEPTION(0x07,t_nofpu)
-GATE_ENTRY(0x08,0x20,0x05)
-EXCEPTION(0x09,a_fpu_over)
-EXCEP_ERR(0x0a,a_inv_tss)
-EXCEP_ERR(0x0b,t_segnp)
-EXCEP_ERR(0x0c,t_stack_fault)
-EXCEP_ERR(0x0d,t_gen_prot)
-EXCEP_ERR(0x0e,t_page_fault)
-EXCEPTION(0x0f,t_trap_0f)
-EXCEPTION(0x10,t_fpu_err)
-EXCEPTION(0x11,t_trap_11)
-EXCEPTION(0x12,t_trap_12)
-EXCEPTION(0x13,t_trap_13)
+EXCEPTION	0x00
+EXCEPTION	0x01
+EXCEPTION	0x02
+EXCEP_USR	0x03
+EXCEP_USR	0x04
+EXCEP_USR	0x05
+EXCEPTION	0x06
+EXCEPTION	0x07
+GATE_ENTRY	0x08, 0x20 ,0x05
+EXCEPTION	0x09
+EXCEP_ERR	0x0a
+EXCEP_ERR	0x0b
+EXCEP_ERR	0x0c
+EXCEP_ERR	0x0d
+EXCEP_ERR	0x0e
+EXCEPTION	0x0f
+EXCEPTION	0x10
+EXCEPTION	0x11
+EXCEPTION	0x12
+EXCEPTION	0x13
 
 GATE_INITTAB_END
 

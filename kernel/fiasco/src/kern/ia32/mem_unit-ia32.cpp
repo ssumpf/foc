@@ -9,6 +9,11 @@ class Mem_unit
 
 IMPLEMENTATION[ia32 || amd64]:
 
+PUBLIC static inline ALWAYS_INLINE
+void
+Mem_unit::make_coherent_to_pou(void const *)
+{}
+
 /** Flush the whole TLB.
  */
 PUBLIC static inline ALWAYS_INLINE
@@ -31,5 +36,23 @@ Mem_unit::tlb_flush(Address addr)
 
 PUBLIC static inline ALWAYS_INLINE
 void
-Mem_unit::clean_dcache(void *)
-{}
+Mem_unit::clean_dcache()
+{ asm volatile ("wbinvd"); }
+
+PUBLIC static inline ALWAYS_INLINE
+void
+Mem_unit::clean_dcache(void const *addr)
+{ asm volatile ("clflush %0" : : "m" (*(char const *)addr)); }
+
+PUBLIC static inline ALWAYS_INLINE
+void
+Mem_unit::clean_dcache(void const *start, void const *end)
+{
+  enum { Cl_size = 64 };
+  if (((Address)end) - ((Address)start) >= 8192)
+    clean_dcache();
+  else
+    for (char const *s = (char const *)start; s < (char const *)end;
+         s += Cl_size)
+      clean_dcache(s);
+}

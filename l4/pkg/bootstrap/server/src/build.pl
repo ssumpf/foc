@@ -30,11 +30,7 @@ my $compress      = $ENV{OPT_COMPRESS}  || 0;
 my $strip         = $ENV{OPT_STRIP}     || 1;
 my $output_dir    = $ENV{OUTPUT_DIR}    || '.';
 my $make_inc_file = $ENV{MAKE_INC_FILE} || "mod.make.inc";
-
-my $flags_cc     = "";
-$flags_cc = "-m32" if $arch eq 'x86';
-$flags_cc = "-m64" if $arch eq 'amd64';
-
+my $flags_cc      = $ENV{FLAGS_CC}      || '';
 
 my $modulesfile      = $ARGV[1];
 my $entryname        = $ARGV[2];
@@ -100,25 +96,17 @@ sub build_obj($$$)
   my $md5_compr = $c_compr->hexdigest;
   my $md5_uncompr = $c_unc->hexdigest;
 
-  my $section_attr = ($arch eq 'x86' || $arch eq 'amd64' || $arch eq 'ppc32'
+  my $section_attr = ($arch ne 'sparc' && $arch ne 'arm'
        ? #'"a", @progbits' # Not Xen
          '\"awx\", @progbits' # Xen
        : '#alloc' );
 
   write_to_file("$modname.extra.c",qq|
-    struct Mi {
-      void const *start;
-      unsigned size;
-      unsigned size_uncompr;
-      char const *name;
-      char const *cmdline;
-      char const *md5sum_compr;
-      char const *md5sum_uncompr;
-    } __attribute__((packed));
+    #include "mod_info.h"
 
     extern char const _binary_${modname}_start[];
 
-    struct Mi const _binary_${modname}_info
+    struct Mod_info const _binary_${modname}_info
     __attribute__((section(".module_info"), aligned(4))) =
     {
       _binary_${modname}_start, $size, $uncompressed_size,
@@ -135,6 +123,7 @@ sub build_obj($$$)
   |);
 
   system("$prog_cc $flags_cc -c -o $modname.bin $modname.extra.c");
+  die "Assembling $modname failed" if $?;
   unlink("$modname.extra.c", "$modname.obj", "$modname.ugz");
 }
 
@@ -147,6 +136,7 @@ sub build_mbi_modules_obj($@)
   # generate mbi module structures
   write_to_file("mbi_modules.c", qq|char const _mbi_cmdline[] = "$cmdline";|);
   system("$prog_cc $flags_cc -c -o mbi_modules.bin mbi_modules.c");
+  die "Compiling mbi_modules.bin failed" if $?;
   unlink("mbi_modules.c");
 
 }
@@ -191,7 +181,7 @@ sub list_files(@)
 sub dump_entry(@)
 {
   my %entry = @_;
-  print "modaddr=$entry{modaddr}\n";
+  print "modaddr=$entry{modaddr}\n" if defined $entry{modaddr};
   print "$entry{bootstrap}{command}\n";
   print "$entry{bootstrap}{cmdline}\n";
   print join("\n", map { $_->{cmdline} } @{$entry{mods}}), "\n";

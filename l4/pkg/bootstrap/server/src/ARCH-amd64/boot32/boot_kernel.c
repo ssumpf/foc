@@ -14,6 +14,8 @@
 #include "boot_paging.h"
 #include "load_elf.h"
 
+extern void _exit(int rc);
+
 extern unsigned KERNEL_CS_64;
 extern char _binary_bootstrap64_bin_start;
 
@@ -27,6 +29,23 @@ static l4_uint64_t find_upper_mem(l4util_mb_info_t *mbi)
         max = mmap->addr + mmap->size;
     }
   return max;
+}
+
+static void check_mbi_modules_in_limit(l4util_mb_info_t *mbi,
+                                       unsigned long long limit)
+{
+  l4util_mb_mod_t *mb_mod = (l4util_mb_mod_t *)(unsigned long)mbi->mods_addr;
+  unsigned i;
+  for (i = 0; i < mbi->mods_count; ++i)
+    if (mb_mod[i].mod_end >= limit)
+      {
+        printf("Multiboot module outside of supported initial memory size.\n");
+        printf("mod%d: end=%x >= limit=%llx\n", i, mb_mod[i].mod_end, limit);
+        printf("Please adapt your boot process\n"
+               "  or supply more memory to bootstrap's allocator.\n");
+        while (1);
+        _exit(-1);
+      }
 }
 
 void bootstrap (l4util_mb_info_t *mbi, unsigned int flag, char *rm_pointer);
@@ -53,7 +72,19 @@ bootstrap (l4util_mb_info_t *mbi, unsigned int flag, char *rm_pointer)
     mem_upper = 1024 * (1024 + mbi->mem_upper);
 #endif
 
-  printf("Highest physical memory address found: %llx\n", mem_upper);
+  printf("Highest physical memory address found: %llx (%llxMiB)\n",
+         mem_upper, mem_upper >> 20);
+
+  // our memory available for our initial identity mapped page table is
+  // enough to cover 4GB of physical memory that must contain anything that
+  // is required to boot, i.e. bootstrap, all modules, any required devices
+  // and the final location of sigma0 and moe
+  const unsigned long long Max_initial_mem = 4ull << 30;
+
+  check_mbi_modules_in_limit(mbi, Max_initial_mem);
+
+  if (mem_upper > Max_initial_mem)
+    mem_upper = Max_initial_mem;
 
   // now do base_paging_init(): sets up paging with one-to-one mapping
   base_paging_init(round_superpage(mem_upper));

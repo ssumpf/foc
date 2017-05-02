@@ -8,5 +8,5 @@
 
 
 void 
-Foo::bar()
+Foo::bar ()
 {}

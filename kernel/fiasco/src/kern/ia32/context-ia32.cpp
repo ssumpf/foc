@@ -6,8 +6,8 @@ EXTENSION class Context
 {
 protected:
   enum { Gdt_user_entries = 4 };
-  Gdt_entry	_gdt_user_entries[Gdt_user_entries+1];
-  Unsigned32	_es, _fs, _gs;
+  Gdt_entry  _gdt_user_entries[Gdt_user_entries+1];
+  Unsigned16 _es, _fs, _gs;
 };
 
 
@@ -23,17 +23,6 @@ IMPLEMENTATION [ia32,amd64,ux]:
 #include "space.h"
 #include "thread_state.h"
 
-
-IMPLEMENT inline
-void
-Context::spill_user_state()
-{}
-
-IMPLEMENT inline
-void
-Context::fill_user_state()
-{}
-
 /** Thread context switchin.  Called on every re-activation of a thread
     (switch_exec()).  This method is public only because it is called from
     from assembly code in switch_cpu().
@@ -42,8 +31,8 @@ IMPLEMENT
 void
 Context::switchin_context(Context *from)
 {
-  assert_kdb (this == current());
-  assert_kdb (state() & Thread_ready_mask);
+  assert (this == current());
+  assert (state() & Thread_ready_mask);
 
   from->handle_lock_holder_preemption();
   // Set kernel-esp in case we want to return to the user.
@@ -66,9 +55,9 @@ PROTECTED inline NEEDS["cpu.h"]
 void
 Context::load_segments()
 {
-  Cpu::set_es((Unsigned32)_es);
-  Cpu::set_fs((Unsigned32)_fs);
-  Cpu::set_gs((Unsigned32)_gs);
+  Cpu::set_es(_es);
+  Cpu::set_fs(_fs);
+  Cpu::set_gs(_gs);
 }
 
 PROTECTED inline NEEDS["cpu.h"]

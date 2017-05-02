@@ -1,11 +1,11 @@
 IMPLEMENTATION [sparc]:
 
 #include "banner.h"
-#include "boot_info.h"
 #include "config.h"
 #include "cpu.h"
 #include "kip_init.h"
 #include "kernel_task.h"
+#include "kernel_uart.h"
 #include "kmem_alloc.h"
 #include "per_cpu_data.h"
 #include "per_cpu_data_alloc.h"
@@ -19,8 +19,8 @@ IMPLEMENT FIASCO_INIT FIASCO_NOINLINE
 void
 Startup::stage1()
 {
+  Kernel_uart::init(Kernel_uart::Init_after_mmu);
   Proc::cli();
-  Boot_info::init();
   Cpu::early_init();
   Config::init();
 }

@@ -1,6 +1,5 @@
 /*
- * Fiasco Kernel-Entry Frame-Layout Code
- * Shared between UX and native IA32.
+ * Fiasco Kernel-Entry Frame-Layout Code for x86-64
  */
 
 INTERFACE[amd64]:
@@ -150,10 +149,6 @@ IMPLEMENTATION [ux,amd64]:
 //---------------------------------------------------------------------------
 // IPC frame methods for IA32
 // 
-IMPLEMENT inline
-Mword Syscall_frame::next_period() const
-{ return false; }
- 
 IMPLEMENT inline
 Mword Syscall_frame::from_spec() const
 { return _rsi; }

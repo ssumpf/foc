@@ -28,7 +28,7 @@ IMPLEMENTATION:
 #include "initcalls.h"
 #include "irq_chip.h"
 #include "kmem.h"
-#include "pic.h"
+#include "irq_chip_ux.h"
 #include "warn.h"
 
 IMPLEMENT FIASCO_INIT
@@ -111,7 +111,7 @@ Fb::setup_mbi()
   vbi->x_resolution       = Boot_info::fb_width();
   vbi->bits_per_pixel     = Boot_info::fb_depth();
   vbi->bytes_per_scanline = Boot_info::fb_width()
-                             * (Boot_info::fb_depth() + 7 >> 3);
+                            * ((Boot_info::fb_depth() + 7) >> 3);
 
   set_color_mapping(vbi);
 }
@@ -127,22 +127,24 @@ Fb::init()
   // setup multiboot info
   setup_mbi();
 
+  auto chip = Irq_chip_ux::main;
+  auto const irq = Irq_chip_ux::Irq_con;
+
   // Setup virtual interrupt
-  if (!Pic::setup_irq_prov(Pic::Irq_con,
-                           Boot_info::fb_program(), bootstrap))
+  if (!chip->setup_irq_prov(irq, Boot_info::fb_program(), bootstrap))
     {
       puts ("Problems setting up console interrupt!");
       exit (1);
     }
 
+  auto const pid = chip->pid_for_irq_prov(irq);
+
   Kip::k()->vhw()->set_desc(Vhw_entry::TYPE_FRAMEBUFFER,
-                         Boot_info::fb_virt(), Boot_info::fb_size(),
-                         Pic::Irq_con,
-                         Pic::get_pid_for_irq_prov(Pic::Irq_con), 0);
+                            Boot_info::fb_virt(), Boot_info::fb_size(),
+                            irq, pid, 0);
   Kip::k()->vhw()->set_desc(Vhw_entry::TYPE_INPUT,
-                         Boot_info::input_start(), Boot_info::input_size(),
-                         Pic::Irq_con,
-                         Pic::get_pid_for_irq_prov(Pic::Irq_con), 0);
+                            Boot_info::input_start(), Boot_info::input_size(),
+                            irq, pid, 0);
 
   printf ("Starting Framebuffer: %ux%u@%u\n\n",
           Boot_info::fb_width(), Boot_info::fb_height(),

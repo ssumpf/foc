@@ -392,7 +392,7 @@ Jdb::send_nmi(Cpu_number cpu)
          cxx::int_value<Cpu_number>(cpu));
 }
 
-IMPLEMENT inline template< typename T >
+IMPLEMENT_OVERRIDE inline template< typename T >
 void
 Jdb::set_monitored_address(T *dest, T val)
 {
@@ -401,7 +401,7 @@ Jdb::set_monitored_address(T *dest, T val)
   asm volatile("sev");
 }
 
-IMPLEMENT inline template< typename T >
+IMPLEMENT_OVERRIDE inline template< typename T >
 T
 Jdb::monitor_address(Cpu_number, T volatile const *addr)
 {

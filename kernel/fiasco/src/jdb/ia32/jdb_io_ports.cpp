@@ -127,7 +127,7 @@ Io_m::action( int cmd, void *&args, char const *&fmt, int &)
 		  else
 		    {
 		      answer = Io::in8(buf.io.adr);
-		      printf("%02x\n", (int)answer);
+		      printf("%02x\n", answer);
 		    }
 		}
 	      else // out

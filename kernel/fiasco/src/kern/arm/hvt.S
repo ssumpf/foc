@@ -44,15 +44,9 @@
 
 GEN_SYSCALL_TABLE
 
-.align  4
-.global __return_from_user_invoke
-__return_from_user_invoke:
-exception_return:
-	cpsid	iaf // disable IRQs
-	add	sp, sp, #12   // pfa, err & tpidruro
-	ldmia	sp!, {r0 - r12}
-	return_from_exception
-
+.macro disable_irqs
+	cpsid	iaf
+.endm
 
 .macro LOAD_USR_SP vcpu_ptr
 	ldr r0, [\vcpu_ptr, #OFS__VCPU_STATE__ENTRY_SP]
@@ -63,8 +57,10 @@ exception_return:
 	ldr \reg, [\thread, #(OFS__THREAD__USER_VCPU)]
 .endm
 
+.align  4
 .LCslowtrap_entry:	.word	slowtrap_entry
 
+GEN_EXCEPTION_RETURN
 GEN_VCPU_UPCALL OFS__THREAD__KERN_VCPU, LOAD_USR_SP, LOAD_USR_VCPU, 0
 GEN_LEAVE_BY_TRIGGER_EXCEPTION
 GEN_DEBUGGER_ENTRIES
@@ -80,7 +76,7 @@ hyp_irq_entry:
 	ldr	pc, 1f
 	ldr	sp, [sp]
 	ldmia	sp, {r0 - r3, r12}		@ Restore user state
-	cpsid	iaf
+	disable_irqs
 	add	sp, sp, #20
 	return_from_exception
 1:	.word	irq_handler
@@ -101,7 +97,7 @@ hyp_vector_base:
 .macro HYP_FAULT err
 	switch_to_hyp_kernel
 	stmdb	sp!, {r0 - r12}		@ Stack rest of user state
-	add	sp, #(4 * 3)
+	sub	sp, #(4 * 3)
 	mov	r0, #\err
 	b	hyp_fault_call
 .endm
@@ -136,11 +132,9 @@ hyp_trap_entry:
 .global fast_ret_from_irq
 fast_ret_from_irq:
 	ldmia	sp, {r0 - r12}		@ Restore user state
-	cpsid iaf
+	disable_irqs
 	add	sp, sp, #(13*4)
-.global __iret
-__iret:
-	return_from_exception
+GEN_IRET
 1:	.word arm_hyp_entry
 
 .global	vcpu_resume

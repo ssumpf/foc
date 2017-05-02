@@ -4,7 +4,6 @@ IMPLEMENTATION:
 
 #include "acpi.h"
 #include "acpi_fadt.h"
-#include "apic.h"
 #include "context.h"
 #include "kernel_thread.h"
 #include "kmem.h"
@@ -17,7 +16,7 @@ static Unsigned32 _pm1a, _pm1b, _pm1a_sts, _pm1b_sts;
 static Address phys_wake_vector;
 static Acpi_facs *facs;
 
-IMPLEMENT
+IMPLEMENT_OVERRIDE
 void
 Platform_control::init(Cpu_number cpu)
 {
@@ -79,6 +78,8 @@ int acpi_save_cpu_and_suspend(Unsigned32 sleep_type,
 
 IMPLEMENTATION [mp]:
 
+#include "cpu_call.h"
+
 static Cpu_mask _cpus_to_suspend;
 
 static void
@@ -88,7 +89,7 @@ suspend_ap_cpus()
   _cpus_to_suspend = Cpu::online_mask();
   _cpus_to_suspend.clear(Cpu_number::boot_cpu());
 
-  Context::cpu_call_many(_cpus_to_suspend, [](Cpu_number cpu)
+  Cpu_call::cpu_call_many(_cpus_to_suspend, [](Cpu_number cpu)
     {
       Context::spill_current_fpu(cpu);
       current()->kernel_context_drq([](Context::Drq *, Context *, void *)
@@ -97,7 +98,7 @@ suspend_ap_cpus()
           Cpu &cpu = Cpu::cpus.current();
           Pm_object::run_on_suspend_hooks(cpun);
           cpu.pm_suspend();
-          cpu.set_online(false);
+          check (Context::take_cpu_offline(cpun, true));
           Platform_control::prepare_cpu_suspend(cpun);
           _cpus_to_suspend.atomic_clear(current_cpu());
           Platform_control::cpu_suspend(cpun);
@@ -120,13 +121,16 @@ static void suspend_ap_cpus() {}
 
 IMPLEMENTATION:
 
+#include "cpu_call.h"
+
 /**
  * \brief Initiate a full system suspend to RAM.
- * \pre must run a the boot CPU
+ * \pre must run on the boot CPU
  */
 static Context::Drq::Result
 do_system_suspend(Context::Drq *, Context *, void *data)
 {
+  assert (current_cpu() == Cpu_number::boot_cpu());
   Context::spill_current_fpu(current_cpu());
   suspend_ap_cpus();
 
@@ -159,16 +163,23 @@ do_system_suspend(Context::Drq *, Context *, void *data)
   return Context::Drq::no_answer_resched();
 }
 
-IMPLEMENT
+IMPLEMENT_OVERRIDE
 static int
 Platform_control::system_suspend(Mword extra)
 {
   auto guard = lock_guard(cpu_lock);
 
-  // save PIC if we have no IO APIC
-  if (!_system_suspend_enabled || !Apic::is_present())
+  if (!_system_suspend_enabled)
     return -L4_err::ENodev;
 
-  current()->kernel_context_drq(do_system_suspend, &extra);
+  Cpu_mask cpus;
+  cpus.set(Cpu_number::boot_cpu());
+
+  Cpu_call::cpu_call_many(cpus, [&extra](Cpu_number)
+    {
+      current()->kernel_context_drq(do_system_suspend, &extra);
+      return false;
+    }, true);
+
   return extra;
 }

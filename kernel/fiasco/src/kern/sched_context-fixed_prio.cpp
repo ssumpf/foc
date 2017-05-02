@@ -39,7 +39,7 @@ public:
     Sched_context *current_sched() const { return _current_sched; }
     void ready_enqueue(Sched_context *sc)
     {
-      assert_kdb(cpu_lock.test());
+      assert(cpu_lock.test());
 
       // Don't enqueue threads which are already enqueued
       if (EXPECT_FALSE (sc->in_ready_list()))
@@ -67,7 +67,6 @@ IMPLEMENTATION [sched_fixed_prio]:
 
 #include <cassert>
 #include "cpu_lock.h"
-#include "kdb_ke.h"
 #include "std_macros.h"
 #include "config.h"
 

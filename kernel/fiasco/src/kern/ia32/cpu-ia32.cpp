@@ -1130,54 +1130,54 @@ Cpu::show_cache_tlb_info(const char *indent) const
 
   *s = '\0';
   if (_l2_inst_tlb_4k_entries)
-    snprintf(s, sizeof(s), "/%u", _l2_inst_tlb_4k_entries);
+    snprintf(s, sizeof(s), "/%d", _l2_inst_tlb_4k_entries);
   if (_inst_tlb_4k_entries)
-    printf("%s%4u%s Entry I TLB (4K pages)", indent, _inst_tlb_4k_entries, s);
+    printf("%s%4d%s Entry I TLB (4K pages)", indent, _inst_tlb_4k_entries, s);
   *s = '\0';
   if (_l2_inst_tlb_4m_entries)
-    snprintf(s, sizeof(s), "/%u", _l2_inst_tlb_4k_entries);
+    snprintf(s, sizeof(s), "/%d", _l2_inst_tlb_4k_entries);
   if (_inst_tlb_4m_entries)
-    printf("   %4u%s Entry I TLB (4M pages)", _inst_tlb_4m_entries, s);
+    printf("   %4d%s Entry I TLB (4M pages)", _inst_tlb_4m_entries, s);
   if (_inst_tlb_4k_4m_entries)
-    printf("%s%4u Entry I TLB (4K or 4M pages)",
+    printf("%s%4d Entry I TLB (4K or 4M pages)",
            indent, _inst_tlb_4k_4m_entries);
   if (_inst_tlb_4k_entries || _inst_tlb_4m_entries || _inst_tlb_4k_4m_entries)
     putchar('\n');
   *s = '\0';
   if (_l2_data_tlb_4k_entries)
-    snprintf(s, sizeof(s), "/%u", _l2_data_tlb_4k_entries);
+    snprintf(s, sizeof(s), "/%d", _l2_data_tlb_4k_entries);
   if (_data_tlb_4k_entries)
-    printf("%s%4u%s Entry D TLB (4K pages)", indent, _data_tlb_4k_entries, s);
+    printf("%s%4d%s Entry D TLB (4K pages)", indent, _data_tlb_4k_entries, s);
   *s = '\0';
   if (_l2_data_tlb_4m_entries)
-    snprintf(s, sizeof(s), "/%u", _l2_data_tlb_4m_entries);
+    snprintf(s, sizeof(s), "/%d", _l2_data_tlb_4m_entries);
   if (_data_tlb_4m_entries)
-    printf("   %4u%s Entry D TLB (4M pages)", _data_tlb_4m_entries, s);
+    printf("   %4d%s Entry D TLB (4M pages)", _data_tlb_4m_entries, s);
   if (_data_tlb_4k_4m_entries)
-    printf("%s%4u Entry D TLB (4k or 4M pages)",
+    printf("%s%4d Entry D TLB (4k or 4M pages)",
            indent, _data_tlb_4k_4m_entries);
   if (_data_tlb_4k_entries || _data_tlb_4m_entries || _data_tlb_4k_4m_entries)
     putchar('\n');
 
   if (_l1_trace_cache_size)
-    printf("%s%3uK %c-ops T Cache (%u-way associative)\n",
+    printf("%s%3dK %c-ops T Cache (%d-way associative)\n",
            indent, _l1_trace_cache_size, Config::char_micro,
            _l1_trace_cache_asso);
 
   else if (_l1_inst_cache_size)
-    printf("%s%4u KB L1 I Cache (%u-way associative, %u bytes per line)\n",
+    printf("%s%4d KB L1 I Cache (%d-way associative, %d bytes per line)\n",
            indent, _l1_inst_cache_size, _l1_inst_cache_asso,
            _l1_inst_cache_line_size);
 
   if (_l1_data_cache_size)
-    printf("%s%4u KB L1 D Cache (%u-way associative, %u bytes per line)\n"
-           "%s%4u KB L2 U Cache (%u-way associative, %u bytes per line)\n",
+    printf("%s%4d KB L1 D Cache (%d-way associative, %d bytes per line)\n"
+           "%s%4d KB L2 U Cache (%d-way associative, %d bytes per line)\n",
            indent, _l1_data_cache_size, _l1_data_cache_asso,
            _l1_data_cache_line_size,
            indent, _l2_cache_size, _l2_cache_asso, _l2_cache_line_size);
 
   if (_l3_cache_size)
-    printf("%s%4u KB L3 U Cache (%u-way associative, %u bytes per line)\n",
+    printf("%s%4u KB L3 U Cache (%d-way associative, %d bytes per line)\n",
            indent, _l3_cache_size, _l3_cache_asso, _l3_cache_line_size);
 }
 
@@ -1203,55 +1203,54 @@ Cpu::muldiv(Unsigned32 val, Unsigned32 mul, Unsigned32 div)
 
 
 PUBLIC static inline
-Unsigned32
+Unsigned16
 Cpu::get_cs()
 {
-  Unsigned32 val;
+  Unsigned16 val;
   asm volatile ("mov %%cs, %0" : "=rm" (val));
   return val;
 }
 
 PUBLIC static inline
-Unsigned32
+Unsigned16
 Cpu::get_ds()
 {
-  Unsigned32 val;
+  Unsigned16 val;
   asm volatile ("mov %%ds, %0" : "=rm" (val));
   return val;
 }
 
 PUBLIC static inline
-Unsigned32
+Unsigned16
 Cpu::get_es()
 {
-  Unsigned32 val;
+  Unsigned16 val;
   asm volatile ("mov %%es, %0" : "=rm" (val));
   return val;
 }
 
 PUBLIC static inline
-Unsigned32
+Unsigned16
 Cpu::get_ss()
 {
-  Unsigned32 val;
+  Unsigned16 val;
   asm volatile ("mov %%ss, %0" : "=rm" (val));
   return val;
 }
 
 PUBLIC static inline
 void
-Cpu::set_ds(Unsigned32 val)
+Cpu::set_ds(Unsigned16 val)
 { asm volatile ("mov %0, %%ds" : : "rm" (val)); }
 
 PUBLIC static inline
 void
-Cpu::set_es(Unsigned32 val)
+Cpu::set_es(Unsigned16 val)
 { asm volatile ("mov %0, %%es" : : "rm" (val)); }
 
 //----------------------------------------------------------------------------
 IMPLEMENTATION[ia32, amd64]:
 
-#include "boot_info.h"
 #include "config.h"
 #include "div32.h"
 #include "gdt.h"
@@ -1325,7 +1324,7 @@ Cpu::set_ldt(Unsigned16 val)
 
 PUBLIC static inline
 void
-Cpu::set_ss(Unsigned32 val)
+Cpu::set_ss(Unsigned16 val)
 { asm volatile ("mov %0, %%ss" : : "r" (val)); }
 
 PUBLIC static inline
@@ -1617,9 +1616,14 @@ Cpu::init()
 
   set_cr4 (cr4);
 
-  // reset time stamp counter (better for debugging)
   if ((features() & FEAT_TSC) && can_wrmsr())
-    wrmsr(0, 0, MSR_TSC);
+    {
+      if (_ext_07_ebx & FEATX_IA32_TSC_ADJUST)
+        wrmsr(0, 0, MSR_IA32_TSC_ADJUST);
+      else
+        // at least reset time stamp counter (better for debugging)
+        wrmsr(0, 0, MSR_TSC);
+    }
 
   if ((features() & FEAT_PAT) && can_wrmsr())
     wrmsr(0x00010406, 0x00070406, MSR_PAT);
@@ -1739,22 +1743,22 @@ Cpu::enable_ldt(Address addr, int size)
 
 
 PUBLIC static inline
-Unsigned32
+Unsigned16
 Cpu::get_fs()
-{ Unsigned32 val; asm volatile ("mov %%fs, %0" : "=rm" (val)); return val; }
+{ Unsigned16 val; asm volatile ("mov %%fs, %0" : "=rm" (val)); return val; }
 
 PUBLIC static inline
-Unsigned32
+Unsigned16
 Cpu::get_gs()
-{ Unsigned32 val; asm volatile ("mov %%gs, %0" : "=rm" (val)); return val; }
+{ Unsigned16 val; asm volatile ("mov %%gs, %0" : "=rm" (val)); return val; }
 
 PUBLIC static inline
 void
-Cpu::set_fs(Unsigned32 val)
+Cpu::set_fs(Unsigned16 val)
 { asm volatile ("mov %0, %%fs" : : "rm" (val)); }
 
 PUBLIC static inline
 void
-Cpu::set_gs(Unsigned32 val)
+Cpu::set_gs(Unsigned16 val)
 { asm volatile ("mov %0, %%gs" : : "rm" (val)); }
 

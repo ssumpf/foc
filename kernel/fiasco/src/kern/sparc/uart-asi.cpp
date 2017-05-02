@@ -20,5 +20,3 @@ PUBLIC bool Uart::startup()
     }
   return false;
 }
-
-

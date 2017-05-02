@@ -8,6 +8,9 @@ public:
   bool is_kernel_mem_op_hit_and_clear();
   void set_kernel_mem_op_hit() { _kernel_mem_op.hit = 1; }
 
+protected:
+  void sanitize_user_state(Return_frame *dst) const;
+
 private:
   struct Kernel_mem_op
   {
@@ -105,8 +108,8 @@ Context::switch_cpu(Context *t)
 IMPLEMENT
 void Context::switchin_context(Context *from)
 {
-  assert_kdb (this == current());
-  assert_kdb (state() & Thread_ready_mask);
+  assert (this == current());
+  assert (state() & Thread_ready_mask);
   from->handle_lock_holder_preemption();
 
   // switch to our page directory if nessecary
@@ -138,6 +141,14 @@ IMPLEMENTATION [arm && !hyp]:
 
 IMPLEMENT inline
 void
+Context::sanitize_user_state(Return_frame *dst) const
+{
+  dst->psr &= ~(Proc::Status_mode_mask | Proc::Status_interrupts_mask);
+  dst->psr |= Proc::Status_mode_user | Proc::Status_always_mask;
+}
+
+IMPLEMENT inline
+void
 Context::fill_user_state()
 {
   // do not use 'Return_frame const *rf = regs();' here as it triggers an
@@ -152,7 +163,7 @@ void
 Context::spill_user_state()
 {
   Entry_frame *ef = regs();
-  assert_kdb (current() == this);
+  assert (current() == this);
   asm volatile ("stmia %[rf], {sp, lr}^"
       : "=m"(ef->usp), "=m"(ef->ulr) : [rf] "r" (&ef->usp));
 }
@@ -168,11 +179,11 @@ PROTECTED inline void Context::arch_setup_utcb_ptr()
 }
 
 
-IMPLEMENT inline
+IMPLEMENT_OVERRIDE inline
 void
 Context::arch_update_vcpu_state(Vcpu_state *vcpu)
 {
-  vcpu->host_tpidruro = _tpidruro;
+  vcpu->host.tpidruro = _tpidruro;
 }
 
 PRIVATE inline
@@ -213,20 +224,20 @@ Context::tpidruro() const
 // ------------------------------------------------------------------------
 IMPLEMENTATION [armv6plus && !hyp]:
 
-IMPLEMENT inline
+IMPLEMENT_OVERRIDE inline
 void
 Context::arch_load_vcpu_kern_state(Vcpu_state *vcpu, bool do_load)
 {
-  _tpidruro = vcpu->host_tpidruro;
+  _tpidruro = vcpu->host.tpidruro;
   if (do_load)
     load_tpidruro();
 }
 
-IMPLEMENT inline
+IMPLEMENT_OVERRIDE inline
 void
 Context::arch_load_vcpu_user_state(Vcpu_state *vcpu, bool do_load)
 {
-  _tpidruro = vcpu->user_tpidruro;
+  _tpidruro = vcpu->_regs.s.tpidruro;
   if (do_load)
     load_tpidruro();
 }

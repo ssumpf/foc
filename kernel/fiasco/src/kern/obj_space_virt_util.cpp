@@ -50,7 +50,6 @@ IMPLEMENTATION:
 #include "atomic.h"
 #include "config.h"
 #include "cpu.h"
-#include "kdb_ke.h"
 #include "kmem_alloc.h"
 #include "mem_layout.h"
 
@@ -115,7 +114,7 @@ Obj_space_virt<SPACE>::caps_alloc(Cap_index virt)
       return 0;
     };
 
-  unsigned long cap = cv & (Config::PAGE_SIZE - 1) | (unsigned long)mem;
+  unsigned long cap = (cv & (Config::PAGE_SIZE - 1)) | (unsigned long)mem;
 
   return reinterpret_cast<Entry*>(cap);
 }
@@ -137,7 +136,7 @@ Obj_space_virt<SPACE>::caps_free()
 	continue;
 
       Address cp = Address(ms->virt_to_phys(Address(c)));
-      assert_kdb (cp != ~0UL);
+      assert (cp != ~0UL);
       void *cv = (void*)Mem_layout::phys_to_pmem(cp);
       Obj::remove_cap_page_dbg_info(cv);
 
@@ -263,7 +262,7 @@ Obj_space_virt<SPACE>::v_delete(V_pfn virt, Order size,
 
 IMPLEMENT  template< typename SPACE >
 inline NEEDS[Obj_space_virt::cap_virt, Obj_space_virt::caps_alloc,
-             Obj_space_virt::get_cap, "kdb_ke.h"]
+             Obj_space_virt::get_cap, <cassert>]
 typename Obj::Insert_result FIASCO_FLATTEN
 Obj_space_virt<SPACE>::v_insert(Phys_addr phys, V_pfn const &virt, Order size,
                                 Attr page_attribs)

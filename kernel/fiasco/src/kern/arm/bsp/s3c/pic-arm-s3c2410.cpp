@@ -1,5 +1,6 @@
 INTERFACE [arm && s3c2410]:
 
+#include "initcalls.h"
 #include "kmem.h"
 
 EXTENSION class Pic
@@ -12,7 +13,6 @@ IMPLEMENTATION [arm && s3c2410]:
 
 #include "assert.h"
 #include "config.h"
-#include "initcalls.h"
 #include "irq_chip_generic.h"
 #include "irq_mgr.h"
 #include "mmio_register_block.h"
@@ -205,23 +205,11 @@ S3c_chip::mask_and_ack(Mword irq)
 static Static_object<Irq_mgr_single_chip<S3c_chip> > mgr;
 
 
-IMPLEMENT FIASCO_INIT
+PUBLIC static FIASCO_INIT
 void Pic::init()
 {
   Irq_mgr::mgr = mgr.construct();
 }
-
-
-IMPLEMENT inline
-Pic::Status Pic::disable_all_save()
-{
-  Status s = 0;
-  return s;
-}
-
-IMPLEMENT inline
-void Pic::restore_all(Status)
-{}
 
 PUBLIC inline
 Unsigned32 S3c_chip::pending()

@@ -12,7 +12,7 @@ public:
     bool deblock(Sched_context *sc, Sched_context *crs, bool lazy_q = false);
     void ready_enqueue(Sched_context *sc)
     {
-      assert_kdb(cpu_lock.test());
+      assert(cpu_lock.test());
 
       // Don't enqueue threads which are already enqueued
       if (EXPECT_FALSE (sc->in_ready_list()))
@@ -23,7 +23,7 @@ public:
 
     void ready_dequeue(Sched_context *sc)
     {
-      assert_kdb (cpu_lock.test());
+      assert (cpu_lock.test());
 
       // Don't dequeue threads which aren't enqueued
       if (EXPECT_FALSE (!sc->in_ready_list()))
@@ -34,7 +34,7 @@ public:
 
     void switch_sched(Sched_context *from, Sched_context *to)
     {
-      assert_kdb (cpu_lock.test());
+      assert (cpu_lock.test());
 
       // If we're leaving the global timeslice, invalidate it This causes
       // schedule() to select a new timeslice via set_current_sched()
@@ -55,7 +55,7 @@ public:
 
 IMPLEMENTATION:
 
-#include "kdb_ke.h"
+#include <cassert>
 #include "timer.h"
 #include "timeout.h"
 #include "globals.h"
@@ -70,7 +70,7 @@ IMPLEMENT
 void
 Sched_context::Ready_queue::set_current_sched(Sched_context *sched)
 {
-  assert_kdb (sched);
+  assert (sched);
   // Save remainder of previous timeslice or refresh it, unless it had
   // been invalidated
   Timeout * const tt = timeslice_timeout.current();
@@ -102,24 +102,25 @@ Sched_context::Ready_queue::set_current_sched(Sched_context *sched)
  * \param crs the Sched_context of the currently running context
  * \param lazy_q queue lazily if applicable
  */
-IMPLEMENT inline NEEDS["kdb_ke.h"]
+IMPLEMENT inline NEEDS[<cassert>]
 bool
 Sched_context::Ready_queue::deblock(Sched_context *sc, Sched_context *crs, bool lazy_q)
 {
-  assert_kdb(cpu_lock.test());
+  assert(cpu_lock.test());
 
   Sched_context *cs = current_sched();
   bool res = true;
   if (sc == cs)
     {
-      if (crs->dominates(sc))
+      if (crs && crs->dominates(sc))
         res = false;
     }
   else
     {
       deblock_refill(sc);
 
-      if ((EXPECT_TRUE(cs != 0) && cs->dominates(sc)) || crs->dominates(sc))
+      if ((EXPECT_TRUE(cs != 0) && cs->dominates(sc))
+          || (crs && crs->dominates(sc)))
         res = false;
     }
 
@@ -165,7 +166,7 @@ Tb_entry_sched::print(String_buffer *buf) const
               mode == 1 ? "load" :
               mode == 2 ? "invl" : "????",
               t,
-              id, prio, left, quantum);
+              (unsigned)id, (unsigned)prio, left, quantum);
 }
 
 

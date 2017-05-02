@@ -28,6 +28,8 @@ enum {
   ARCH_PAGE_SHIFT = 12,
 };
 
+typedef signed char Small_atomic_int;
+
 /// (virtual or physical address) should be addr_t or something
 typedef unsigned long int      Address;
 enum Address_vals

@@ -23,7 +23,7 @@ class Jdb_log_list : public Jdb_list
 {
   friend class Jdb_log_list_hdl;
 public:
-  void *get_head() const { return _log_table; }
+  void *get_head() const { return _jdb_log_table; }
   char const *show_head() const { return "[Log]"; }
 
 private:
@@ -35,7 +35,6 @@ Tb_log_table_entry *Jdb_log_list::_end;
 class Jdb_log_list_hdl : public Jdb_kobject_handler
 {
 public:
-  Jdb_log_list_hdl() : Jdb_kobject_handler(0) {}
   virtual bool show_kobject(Kobject_common *, int) { return true; }
 };
 
@@ -48,7 +47,7 @@ Jdb_log_list_hdl::invoke(Kobject_common *, Syscall_frame *f, Utcb *utcb)
       case Op_query_log_typeid:
           {
             unsigned char const idx = utcb->values[1];
-            if (f->tag().words() < 3 || _log_table + idx >= &_log_table_end)
+            if (f->tag().words() < 3 || _jdb_log_table + idx >= &_jdb_log_table_end)
               {
                 f->tag(Kobject_iface::commit_result(-L4_err::EInval));
                 return true;
@@ -59,22 +58,22 @@ Jdb_log_list_hdl::invoke(Kobject_common *, Syscall_frame *f, Utcb *utcb)
             nbuf[sizeof(nbuf) - 1] = 0;
 
             Tb_log_table_entry *r;
-            r = Jdb_log_list::find_next_log(nbuf, nbuf, _log_table + idx);
+            r = Jdb_log_list::find_next_log(nbuf, nbuf, _jdb_log_table + idx);
 
-            utcb->values[0] = r ? (r - _log_table) + Tbuf_dynentries : ~0UL;
+            utcb->values[0] = r ? (r - _jdb_log_table) + Tbuf_dynentries : ~0UL;
             f->tag(Kobject_iface::commit_result(0, 1));
             return true;
           }
       case Op_query_log_name:
           {
             unsigned char const idx = utcb->values[1];
-            if (f->tag().words() != 2 || _log_table + idx >= &_log_table_end)
+            if (f->tag().words() != 2 || _jdb_log_table + idx >= &_jdb_log_table_end)
               {
                 f->tag(Kobject_iface::commit_result(-L4_err::EInval));
                 return true;
               }
 
-            Tb_log_table_entry *e = _log_table + idx;
+            Tb_log_table_entry *e = _jdb_log_table + idx;
 	    char *dst = (char *)&utcb->values[0];
             unsigned sz = strlen(e->name) + 1;
             sz += strlen(e->name + sz) + 1;
@@ -83,7 +82,8 @@ Jdb_log_list_hdl::invoke(Kobject_common *, Syscall_frame *f, Utcb *utcb)
             memcpy(dst, e->name, sz);
             dst[sz - 1] = 0;
 
-            f->tag(Kobject_iface::commit_result(0));
+            f->tag(Kobject_iface::commit_result(0, (sz + sizeof(Mword) - 1)
+                                                   / sizeof(Mword)));
             return true;
           }
       case Op_switch_log:
@@ -99,7 +99,7 @@ Jdb_log_list_hdl::invoke(Kobject_common *, Syscall_frame *f, Utcb *utcb)
             strncpy(nbuf, (char const *)&utcb->values[2], sizeof(nbuf));
             nbuf[sizeof(nbuf) - 1] = 0;
 
-            Tb_log_table_entry *r = _log_table;
+            Tb_log_table_entry *r = _jdb_log_table;
             while ((r = Jdb_log_list::find_next_log(nbuf, nbuf, r)))
               {
                 Jdb_log_list::patch_item(r, on ? Jdb_log_list::patch_val(r) : 0);
@@ -127,7 +127,7 @@ Jdb_log_list::show_item(String_buffer *buffer, void *item) const
 PRIVATE static inline
 unsigned
 Jdb_log_list::patch_val(Tb_log_table_entry const *e)
-{ return (e - _log_table) + Tbuf_dynentries; }
+{ return (e - _jdb_log_table) + Tbuf_dynentries; }
 
 PRIVATE static
 Tb_log_table_entry *
@@ -157,15 +157,15 @@ Jdb_log_list::patch_item(Tb_log_table_entry const *e, unsigned char val)
   if (e->patch)
     {
       *(e->patch) = val;
-      Mem_unit::clean_dcache(e->patch);
+      Mem_unit::make_coherent_to_pou(e->patch);
     }
 
-  for (Tb_log_table_entry *x = _end; x < &_log_table_end; ++x)
+  for (Tb_log_table_entry *x = _end; x < &_jdb_log_table_end; ++x)
     {
       if (equal(x, e) && x->patch)
         {
           *(x->patch) = val;
-          Mem_unit::clean_dcache(x->patch);
+          Mem_unit::make_coherent_to_pou(x->patch);
         }
     }
 }
@@ -192,7 +192,7 @@ Jdb_log_list::next(void **item)
 {
   Tb_log_table_entry *e = static_cast<Tb_log_table_entry*>(*item);
 
-  while (e + 1 < &_log_table_end)
+  while (e + 1 < &_jdb_log_table_end)
     {
 #if 0
       if (equal(e, e+1))
@@ -214,12 +214,12 @@ Jdb_log_list::pref(void **item)
 {
   Tb_log_table_entry *e = static_cast<Tb_log_table_entry*>(*item);
 
-  if (e > _log_table)
+  if (e > _jdb_log_table)
     --e;
   else
     return false;
 #if 0
-  while (e > _log_table)
+  while (e > _jdb_log_table)
     {
       if (equal(e, e-1))
 	--e;
@@ -244,8 +244,8 @@ Jdb_log_list::seek(int cnt, void **item)
     }
   else if (cnt < 0)
     {
-      if (e + cnt < _log_table)
-	cnt = _log_table - e;
+      if (e + cnt < _jdb_log_table)
+	cnt = _jdb_log_table - e;
     }
 
   if (cnt)
@@ -282,9 +282,9 @@ static bool lt_cmp(Tb_log_table_entry *a, Tb_log_table_entry *b)
 
 static void sort_tb_log_table()
 {
-  for (Tb_log_table_entry *p = _log_table; p < &_log_table_end; ++p)
+  for (Tb_log_table_entry *p = _jdb_log_table; p < &_jdb_log_table_end; ++p)
     {
-      for (Tb_log_table_entry *x = &_log_table_end -1; x > p; --x)
+      for (Tb_log_table_entry *x = &_jdb_log_table_end -1; x > p; --x)
 	if (lt_cmp(x, x - 1))
 	  swap(x - 1, x);
     }
@@ -295,9 +295,9 @@ static
 void
 Jdb_log_list::move_dups()
 {
-  _end = &_log_table_end;
-  Tb_log_table_entry *const tab_end = &_log_table_end;
-  for (Tb_log_table_entry *p = _log_table + 1; p < _end;)
+  _end = &_jdb_log_table_end;
+  Tb_log_table_entry *const tab_end = &_jdb_log_table_end;
+  for (Tb_log_table_entry *p = _jdb_log_table + 1; p < _end;)
     {
       if (equal(p-1, p))
 	{
@@ -319,7 +319,7 @@ Jdb_log_list::move_dups()
 #if 0
 static void disable_all()
 {
-  for (Tb_log_table_entry *p = _log_table; p < _log_table_end; ++p)
+  for (Tb_log_table_entry *p = _jdb_log_table; p < _jdb_log_table_end; ++p)
     *(p->patch) = 0;
 }
 #endif
@@ -341,11 +341,11 @@ PUBLIC
 Jdb_module::Action_code
 Jdb_log::action(int, void *&, char const *&, int &)
 {
-  if (_log_table >= &_log_table_end)
+  if (_jdb_log_table >= &_jdb_log_table_end)
     return NOTHING;
 
   Jdb_log_list list;
-  list.set_start(_log_table);
+  list.set_start(_jdb_log_table);
   list.do_list();
 
   return NOTHING;

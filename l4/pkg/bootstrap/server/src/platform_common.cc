@@ -44,6 +44,9 @@ scan_ram_size(unsigned long base_addr, unsigned long max_scan_size_mb)
        offset *= 2)
     *(unsigned long *)(base_addr + offset) = 0;
 
+  // avoid gcc/clang optimization figuring out that base_addr might
+  // always be 0 and generating a trap here
+  asm("" : "+r" (base_addr));
   // write something at offset 0, does it appear elsewhere?
   *(unsigned long *)base_addr = 0x12345678;
   asm volatile("" : : : "memory");

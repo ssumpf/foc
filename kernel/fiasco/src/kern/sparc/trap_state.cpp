@@ -20,6 +20,15 @@ public:
   bool exclude_logging() { return false; }
 };
 
+struct Trex
+{
+  Trap_state s;
+  void set_ipc_upcall()
+  { s.error_code = 0x10000000; /* see Msr */ }
+
+  void dump() { s.dump(); }
+};
+
 
 IMPLEMENTATION:
 
@@ -27,9 +36,9 @@ IMPLEMENTATION:
 
 PUBLIC inline
 void
-Trap_state::sanitize_user_state()
+Trap_state::copy_and_sanitize(Trap_state const *)
 {
-  // implement me
+  // FIXME: unimplemented
 }
 
 PUBLIC inline
@@ -46,13 +55,6 @@ PUBLIC inline
 Mword
 Trap_state::error() const
 { return 0; }
-
-PUBLIC inline
-void
-Trap_state::set_ipc_upcall()
-{
-  error_code = 0x10000000; // see Msr
-}
 
 PUBLIC inline
 void

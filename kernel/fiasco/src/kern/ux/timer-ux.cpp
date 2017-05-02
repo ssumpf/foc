@@ -19,11 +19,11 @@ IMPLEMENTATION[ux]:
 #include "boot_info.h"
 #include "initcalls.h"
 #include "irq_mgr.h"
-#include "pic.h"
+#include "irq_chip_ux.h"
 
-PUBLIC static inline NEEDS["pic.h"]
+PUBLIC static inline NEEDS["irq_chip_ux.h"]
 unsigned
-Timer::irq() { return Pic::Irq_timer; }
+Timer::irq() { return Irq_chip_ux::Irq_timer; }
 
 PUBLIC static inline NEEDS["irq_chip.h"]
 Irq_chip::Mode
@@ -37,7 +37,7 @@ Timer::init(Cpu_number)
   if (Boot_info::irq0_disabled())
     return;
 
-  if (!Pic::setup_irq_prov(Pic::Irq_timer, Boot_info::irq0_path(), bootstrap))
+  if (!Irq_chip_ux::main->setup_irq_prov(irq(), Boot_info::irq0_path(), bootstrap))
     {
       puts ("Problems setting up timer interrupt!");
       exit (1);

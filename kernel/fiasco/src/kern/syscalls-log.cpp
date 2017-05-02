@@ -18,7 +18,7 @@ IMPLEMENT void FIASCO_FLATTEN sys_ipc_log_wrapper()
 {
   Thread *curr = current_thread();
   Entry_frame   *regs      = curr->regs();
-  Syscall_frame *ipc_regs  = nonull_static_cast<Syscall_frame*>(regs);
+  Syscall_frame *ipc_regs  = regs->syscall_frame();
 
   Mword entry_event_num    = (Mword)-1;
   Unsigned8 have_snd       = (ipc_regs->ref().op() & L4_obj_ref::Ipc_send)
@@ -87,7 +87,7 @@ IMPLEMENT void FIASCO_FLATTEN sys_ipc_trace_wrapper()
 {
   Thread *curr = current_thread();
   Entry_frame *ef      = curr->regs();
-  Syscall_frame *regs  = nonull_static_cast<Syscall_frame*>(ef);
+  Syscall_frame *regs  = ef->syscall_frame();
 
   //Mword      from_spec = regs->from_spec();
   L4_obj_ref snd_dst   = regs->ref();

@@ -136,7 +136,7 @@ ssize_t
 write(int fd, const void *buf, size_t count)
 {
   if (!uart())
-    return 0;
+    return count;
 
   if (fd == STDOUT_FILENO || fd == STDERR_FILENO)
     {

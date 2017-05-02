@@ -50,7 +50,7 @@ public:
     if (level == 0)
       return 20; // 1MB
     else
-      { // no tiny pages !!!
+      { // no tiny pages
         if ((*pte & 3) == 1)
           return 16;
         else
@@ -61,7 +61,7 @@ public:
   Mword page_addr() const
   { return cxx::mask_lsb(*pte, page_order()); }
 
-  Mword *pte;
+  Entry *pte;
   unsigned char level;
 };
 
@@ -115,7 +115,7 @@ public:
   Mword page_addr() const
   { return cxx::mask_lsb(*pte, page_order()); }
 
-  Unsigned64 *pte;
+  Entry *pte;
   unsigned char level;
 };
 
@@ -176,10 +176,8 @@ EXTENSION class K_pte_ptr
 {
   // we have virtually tagged caches so need a cache flush before enabling
   // a page table
-  enum { Need_cache_clean = false }; // we have virtuially tagged caches
+  enum { Need_cache_clean = false };
 };
-
-
 
 //---------------------------------------------------------------------------
 INTERFACE [arm && armv6plus && (mpcore || armca9)]:
@@ -311,7 +309,7 @@ typedef Ptab::Shift<Ptab_traits, Virt_addr::Shift>::List Ptab_traits_vpn;
 typedef Ptab::Page_addr_wrap<Page_number, Virt_addr::Shift> Ptab_va_vpn;
 
 //-----------------------------------------------------------------------------
-INTERFACE [arm && arm_lpae]:
+INTERFACE [arm && arm_lpae && !hyp]:
 
 #include "ptab_base.h"
 #include "types.h"
@@ -327,6 +325,28 @@ public:
     BUFFERED      = 0x004, ///< Write buffer enabled -- Normal, non-cached
   };
 };
+
+//-----------------------------------------------------------------------------
+INTERFACE [arm && arm_lpae && hyp]:
+
+#include "ptab_base.h"
+#include "types.h"
+
+EXTENSION class Page
+{
+public:
+  enum Attribs_enum
+  {
+    Cache_mask    = 0x03c,
+    NONCACHEABLE  = 0x000, ///< Caching is off
+    CACHEABLE     = 0x03c, ///< Cache is enabled
+    BUFFERED      = 0x004, ///< Write buffer enabled -- Normal, non-cached
+  };
+};
+
+
+//-----------------------------------------------------------------------------
+INTERFACE [arm && arm_lpae]:
 
 typedef Ptab::Tupel< Ptab::Traits< Unsigned64, 30, 2, true>,
                      Ptab::Traits< Unsigned64, 21, 9, true>,
@@ -421,8 +441,8 @@ Mword
 K_pte_ptr::_attribs(Page::Attr attr) const
 {
   static const unsigned short perms[] = {
-      0x1 << 10, // 0000: none, hmmm
-      0x1 << 10, // 000X: kernel rw (there is no ro)
+      0x1 << 10, // 0000: none
+      0x1 << 10, // 000X: kernel RW (there is no RO)
       0x1 << 10, // 00W0:
       0x1 << 10, // 00WX:
 
@@ -544,7 +564,6 @@ K_pte_ptr::del_rights(L4_fpage::Rights r)
       write_now(pte, p);
     }
 }
-
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && !arm_lpae && (armv6 || armv7)]:
@@ -725,7 +744,6 @@ K_pte_ptr::del_rights(L4_fpage::Rights r)
     }
 }
 
-
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && arm_lpae && armv7]:
 
@@ -898,9 +916,9 @@ Pte_ptr::_attribs(Page::Attr attr) const
   typedef Page::Type T;
 
   Entry lower = 0x300 | (0x1 << 6); // inner sharable, readable
-  if (attr.type == T::Normal())   lower |= (0xf << 2);
-  if (attr.type == T::Buffered()) lower |= (1 << 2);
-  if (attr.type == T::Uncached()) lower |= (0 << 2);
+  if (attr.type == T::Normal())   lower |= Page::CACHEABLE;
+  if (attr.type == T::Buffered()) lower |= Page::BUFFERED;
+  if (attr.type == T::Uncached()) lower |= Page::NONCACHEABLE;
 
   if (attr.rights & R::W())
     lower |= (0x2 << 6);
@@ -931,12 +949,12 @@ Pte_ptr::attribs() const
     rights |= R::X();
 
   T type;
-  switch (c & 0x3c)
+  switch (c & Page::Cache_mask)
     {
     default:
-    case 0x3c: type = T::Normal(); break;
-    case 0x04: type = T::Buffered(); break;
-    case 0x00: type = T::Uncached(); break;
+    case Page::CACHEABLE:    type = T::Normal(); break;
+    case Page::BUFFERED:     type = T::Buffered(); break;
+    case Page::NONCACHEABLE: type = T::Uncached(); break;
     }
 
   return Page::Attr(rights, type, K(0));
@@ -1015,21 +1033,19 @@ Pte_ptr::del_rights(L4_fpage::Rights r)
     write_now(pte, p);
 }
 
-
-
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && (armv6 || armv7) && !arm_lpae]:
 
 PUBLIC static inline
 Mword PF::is_alignment_error(Mword error)
-{ return ((error >> 26) & 0x04) && ((error & 0x40f) == 0x001); }
+{ return ((error >> 26) == 0x24) && ((error & 0x40f) == 0x001); }
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && (armv6 || armv7) && arm_lpae]:
 
 PUBLIC static inline
 Mword PF::is_alignment_error(Mword error)
-{ return ((error >> 26) & 0x04) && ((error & 0x3f) == 0x21); }
+{ return ((error >> 26) == 0x24) && ((error & 0x3f) == 0x21); }
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && (armv6 || armv7)]:
@@ -1043,13 +1059,11 @@ K_pte_ptr::set_attribs(Page::Attr attr)
   write_now(pte, p);
 }
 
-
-
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && !arm_lpae]:
 
 IMPLEMENT inline
-Mword PF::is_translation_error( Mword error )
+Mword PF::is_translation_error(Mword error)
 {
   return (error & 0x0d/*FSR_STATUS_MASK*/) == 0x05/*FSR_TRANSL*/;
 }
@@ -1067,27 +1081,26 @@ Mword PF::is_translation_error(Mword error)
 IMPLEMENTATION [arm]:
 
 IMPLEMENT inline
-Mword PF::is_usermode_error( Mword error )
+Mword PF::is_usermode_error(Mword error)
 {
   return !((error >> 26) & 1);
 }
 
 IMPLEMENT inline
-Mword PF::is_read_error( Mword error )
+Mword PF::is_read_error(Mword error)
 {
   return !(error & (1 << 6));
 }
 
 IMPLEMENT inline NEEDS[PF::is_read_error]
-Mword PF::addr_to_msgword0( Address pfa, Mword error )
+Mword PF::addr_to_msgword0(Address pfa, Mword error)
 {
   Mword a = pfa & ~7;
-  if(is_translation_error( error ))
+  if (is_translation_error(error))
     a |= 1;
-  if(!is_read_error(error))
+  if (!is_read_error(error))
     a |= 2;
   if (!((error >> 26) & 0x04))
     a |= 4;
   return a;
 }
-

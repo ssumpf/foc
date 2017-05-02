@@ -72,75 +72,84 @@ public:
     cxx::int_null_chk<Rights>
   {
     Rights() = default;
-    explicit Rights(unsigned char v)
+
+    explicit constexpr Rights(unsigned char v)
     : cxx::int_type_base<unsigned char, Rights>(v) {}
 
-    Rights apply(Rights r) const { return *this & r; }
+    /// Allow implicit conversion from the safe Value_enum type
+    constexpr Rights(Value_enum v)
+    : cxx::int_type_base<unsigned char, Rights>(v) {}
+
+    /// Allow implicit conversion to the safe Value_enum type
+    constexpr operator Value_enum () const
+    { return static_cast<Value_enum>(_v); }
+
+    constexpr Rights apply(Rights r) const { return *this & r; }
 
     /// Memory flex page is user accessible
-    static Rights U() { return Rights(8); }
+    static constexpr Rights U() { return Rights(8); }
 
     /// Memory flex page is readable
-    static Rights R() { return Rights(4); }
+    static constexpr Rights R() { return Rights(4); }
 
     /// Memory flex page is writable
-    static Rights W() { return Rights(2); }
+    static constexpr Rights W() { return Rights(2); }
 
     /// Memory flex page is executable (often equal to #R)
-    static Rights X() { return Rights(1); }
+    static constexpr Rights X() { return Rights(1); }
 
-    static Rights UR() { return U() | R(); }
-    static Rights URX() { return U() | R() | X(); }
-    static Rights URWX() { return U() | R() | W() | X(); }
-    static Rights URW() { return U() | R() | W(); }
+    static constexpr Rights UR() { return U() | R(); }
+    static constexpr Rights URX() { return U() | R() | X(); }
+    static constexpr Rights URWX() { return U() | R() | W() | X(); }
+    static constexpr Rights URW() { return U() | R() | W(); }
 
     /// Memory flex page is readable and executable
-    static Rights RX() { return R() | X(); }
+    static constexpr Rights RX() { return R() | X(); }
 
     /// Memory flex page is readable, writeable, and executable
-    static Rights RWX() { return R() | W() | X(); }
+    static constexpr Rights RWX() { return R() | W() | X(); }
 
     /// Memory flex page is readable and writable
-    static Rights RW() { return R() | W(); }
+    static constexpr Rights RW() { return R() | W(); }
 
     ///< Memory flex page is writable and executable
-    static Rights WX() { return W() | X(); }
+    static constexpr Rights WX() { return W() | X(); }
 
 
     /// Object flex page: delete rights
-    static Rights CD() { return Rights(0x8); }
+    static constexpr Rights CD() { return Rights(0x8); }
 
     /// Object flex page: read rights (w/o this the mapping is not present)
-    static Rights CR() { return Rights(0x4); }
+    static constexpr Rights CR() { return Rights(0x4); }
 
     /** Object flex page: strong semantics (object specific, i.e. not having
      *  this right on an IPC gate demotes all capabilities transferred via this
      *  IPC gate to also suffer this right. */
-    static Rights CS() { return Rights(0x2); }
+    static constexpr Rights CS() { return Rights(0x2); }
 
     /// Object flex page: write rights (purely object specific)
-    static Rights CW() { return Rights(0x1); }
+    static constexpr Rights CW() { return Rights(0x1); }
 
     /// Object flex page: combine #CR and #CW
-    static Rights CRW() { return CR() | CW(); }
+    static constexpr Rights CRW() { return CR() | CW(); }
 
     /// Object flex page: combine #CR and #CS
-    static Rights CRS() { return CR() | CS(); }
+    static constexpr Rights CRS() { return CR() | CS(); }
 
     /// Object flex page: combine #CR, #CW, and #CS
-    static Rights CRWS() { return CRW() | CS(); }
+    static constexpr Rights CRWS() { return CRW() | CS(); }
 
     /// Object flex page: combine #CS and #CW
-    static Rights CWS() { return CW() | CS(); }
+    static constexpr Rights CWS() { return CW() | CS(); }
 
     /// Object flex page: combine #CS, #CW, and #CD
-    static Rights CWSD() { return CW() | CS() | CD(); }
+    static constexpr Rights CWSD() { return CW() | CS() | CD(); }
 
     /// Object flex page: combine #CR, #CW, #CS, and #CD
-    static Rights CRWSD() { return CRWS() | CD(); }
+    static constexpr Rights CRWSD() { return CRWS() | CD(); }
 
     /// All rights shall be transferred, independent of the type
-    static Rights FULL() { return Rights(0xf); }
+    static constexpr Rights FULL() { return Rights(0xf); }
   };
 
 private:

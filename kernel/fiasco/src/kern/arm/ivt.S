@@ -29,6 +29,10 @@
 #endif
 .endm
 
+.macro disable_irqs
+	msr	cpsr_c, #0xd3
+.endm
+
 .macro  __switch_to_kernel reg adjust atomic_fixup not_svc
 .if \adjust != 0
 	sub	lr, lr, #\adjust
@@ -45,14 +49,14 @@
 .endif
 #if defined(CONFIG_ARM_V6PLUS)
 	srsdb   #0x13!
-	msr	cpsr_c, #0xd3 @cpsid   f, #0x13
+	disable_irqs
 	str	lr, [sp, #-4]!
 #else
 .if \not_svc
 	str	lr, s_lr
 	mrs	\reg, spsr
 	str	\reg, s_spsr
-	msr	cpsr_c, #0xd3
+	disable_irqs
 .endif  @ syscall (already in svc mode)
 	str	lr, [sp, #-12]!
 .if \not_svc
@@ -162,7 +166,7 @@
  */
 .macro  enter_sys_call no_sys_call
 	ldr	lr, [sp, #RF(PC,  0)]
-	cmn	lr, #0x2a		@ Range Check !!! UNSIGNED !!!
+	cmn	lr, #0x0d		@ Range Check !!! UNSIGNED !!!
 	bls	\no_sys_call		@ no syscall
 	cmn	lr, #0x08
 	bhi	\no_sys_call
@@ -173,7 +177,7 @@
 	stmdb   sp!, {r0 - r12}
 	CONTEXT_OF	r1, sp
 	RESET_THREAD_CANCEL_AT r1       @ sets r0 to state 
-	tst	r0, #0x810000
+	tst	r0, #VAL__Thread_alien_or_vcpu_user
 	bne	alien_syscall
 	ldr	r0, [sp, #RF(SVC_LR, 13*4)]     @ read exception PC from stack (km_lr)
 	adr	r1, sys_call_table
@@ -183,7 +187,7 @@
 .global fast_ret_from_irq
 fast_ret_from_irq:
 2:      ldmia   sp, {r0 - r12}^
-        msr	cpsr_c, #0xd3 // disable IRQs
+	disable_irqs
         add     sp, sp, #13*4
 
         // XXX: use rfe here
@@ -387,8 +391,8 @@ data_abort_entry:
 	/* user data abort */
 #ifdef CONFIG_ARM_V6PLUS
 	mrc     p15, 0, r1, c5, c0, 0	@ Load DFSR into r1
-        bic     r1, r1, #(1 << 6)       @ HSR WnR
         and     r2, r1, #(1 << 11)      @ FSR WnR
+        bic     r1, r1, #((1 << 6) | (1 << 11)) @ clear HSR & FSR WnR
         orr     r1, r1, r2, lsr #5      @ make HSR.Wnr from FSR.WnR
 	bic	r1, r1, #GET_HSR(0x3f)
 	mrc     p15, 0, r0, c6, c0, 0	@ Load DFAR into r0
@@ -488,7 +492,7 @@ pagefault_return:
 	return_from_exception
 
 slowtrap_from_pagefault:
-        msr	cpsr_c, #0xd3 // disable IRQs
+	disable_irqs
 	ldmia 	sp!, {r0 - r3}
 	stmdb 	sp!, {r0 - r11}
 	make_tpidruro_space sp
@@ -497,20 +501,8 @@ slowtrap_from_pagefault:
 	adr   	lr, exception_return
 	ldr	pc, .LCslowtrap_entry	@ slow trap
 
-	.global __return_from_user_invoke
-exception_return:
-	msr	cpsr_c, #0xd3 // disable IRQs
-	ldr	sp, [sp]
-__return_from_user_invoke:
-	add	sp, sp, #12   // pfa, err & tpidruro
-	ldmia	sp!, {r0 - r12}
-	return_from_exception
-
-	.align 4
-	.global __iret
-__iret:
-	return_from_exception
-
+GEN_EXCEPTION_RETURN
+GEN_IRET
 
 /***************************************************************************
  * Exception irq ()
@@ -529,7 +521,7 @@ irq_entry:
         ldr     pc, 1f
 	ldr	sp, [sp]
 	ldmia	sp, {r0 - r3, r12}		@ Restore user state
-        msr	cpsr_c, #0xd3 // disable IRQs
+	disable_irqs
 	add	sp, sp, #20
 	return_from_exception
 1:	.word	irq_handler
@@ -624,7 +616,7 @@ fiq_entry:
 	ldr	pc, 1f
 	ldr	sp, [sp]
 	ldmia	sp, {r0 - r3, r12}		@ Restore user state
-	msr	cpsr_c, #0xd3 // disable IRQs
+	disable_irqs
 	add	sp, sp, #20
 	return_from_exception
 1:	.word	irq_handler
@@ -634,8 +626,8 @@ fiq_entry:
 /* The alien stuff is below                                               */
 /**************************************************************************/
 alien_syscall: @ Do it for an alien ---------------------------------------
-	tst	r0, #0x20000
-	bicne	r0, r0, #0x20000
+	tst	r0, #VAL__Thread_dis_alien
+	bicne	r0, r0, #VAL__Thread_dis_alien
 	bne	1f
 	@ Trap alien before system call -----------------------------------
 	@ The trap is an insn abort on the syscall address in the kernel.
@@ -644,7 +636,8 @@ alien_syscall: @ Do it for an alien ---------------------------------------
 	ldr	lr, [sp, #RF(SVC_LR, 13*4)] @ read orig exception PC
 	sub	lr, lr, #4                  @ adjust pc to be on insn
 	str	lr, [sp, #RF(PC,     13*4)] @ store to entry_stack_PC
-	enter_slowtrap_w_stack GET_HSR(0x20)
+	make_tpidruro_space sp
+	enter_slowtrap_w_stack GET_HSR(0x3d)
 	@ Never reach this -- end up in user land after exception reply
 
 1:	@ Resume the alien system call ------------------------------------
@@ -655,12 +648,13 @@ alien_syscall: @ Do it for an alien ---------------------------------------
 	adr	lr, 2f
 	ldr	pc, [r0]
 2:	nop @ The return point after the resumed alien system call --------
-	msr	cpsr_c, #0xd3 // disable IRQs
+	disable_irqs
 	@ Trap after the resumed alien system call ------------------------
 	@ The trap occurs at the insn where the system call returns to.
 	@ Set the bit 0x00000040 to indicate a trap after the resumed 
 	@ system call.
-	enter_slowtrap_w_stack GET_HSR(0x20), 0x40
+	make_tpidruro_space sp
+	enter_slowtrap_w_stack GET_HSR(0x3d), 0x40
 
 	
 .macro LOAD_USR_SP vcpu_ptr

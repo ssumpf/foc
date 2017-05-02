@@ -10,6 +10,6 @@
 
 #line 11 "c-preproc.cpp"
 void 
-function(void);
+function (void);
 
 #endif // c_preproc_h

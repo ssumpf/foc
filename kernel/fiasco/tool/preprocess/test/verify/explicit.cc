@@ -7,5 +7,5 @@
 #line 8 "explicit.cpp"
 
 
-Foo::Foo(int bar)
+Foo::Foo (int bar)
 {}

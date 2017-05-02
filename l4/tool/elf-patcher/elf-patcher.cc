@@ -1,5 +1,3 @@
-#define _BSD_SOURCE
-
 #include <sys/mman.h>
 #include <stdio.h>
 #include <sys/types.h>

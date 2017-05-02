@@ -5,6 +5,16 @@
 
 IMPLEMENTATION [{ia32,amd64}-fpu]:
 
+EXTENSION class Fpu
+{
+public:
+  Unsigned64 get_xcr0() const
+  { return _xcr0; }
+
+private:
+  Unsigned64 _xcr0;
+};
+
 #include "cpu.h"
 #include "globalconfig.h"
 #include "globals.h"
@@ -21,15 +31,12 @@ Fpu::init_xsave(Cpu_number cpu)
 
   Cpu::cpus.cpu(cpu).cpuid(0xd, 0, &eax, &ebx, &ecx, &edx);
 
-  Unsigned64 valid_xcr0 = ((Unsigned64)edx << 32) | eax;
+  // allow safe features: x87, SSE, and AVX
+  Fpu::fpu.cpu(cpu)._xcr0 = (((Unsigned64)edx << 32) | eax) & 0x07;
 
-  // enable AVX and friends
+  // enable xsave features
   Cpu::cpus.cpu(cpu).set_cr4(Cpu::cpus.cpu(cpu).get_cr4() | CR4_OSXSAVE);
-  asm volatile("xsetbv"
-               :
-               : "a" ((Mword)valid_xcr0),
-                 "d" ((Mword)(valid_xcr0 >> 32)),
-                 "c" (0));
+  Cpu::xsetbv(Fpu::fpu.cpu(cpu).get_xcr0(), 0);
 }
 
 PRIVATE static

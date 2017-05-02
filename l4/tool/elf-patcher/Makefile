@@ -1,10 +1,6 @@
 L4DIR ?= ../..
 include $(L4DIR)/mk/Makeconf
 
-ifeq ($(HOST_SYSTEM),darwin)
-  HOST_CPPFLAGS += -I/usr/include/machine
-endif
-
 CFLAGS	= -O3 $(HOST_CPPFLAGS)
 TARGET  = elf-patcher
 

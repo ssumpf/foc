@@ -71,14 +71,15 @@ Jdb_input::get_mword(Mword *mword, int digits, int base, int first_char = 0)
 	    }
 	  break;
 	case ' ':
-	case KEY_RETURN: 
-	  if (digit) 
-	    { 
+	case KEY_RETURN:
+	case KEY_RETURN_2:
+	  if (digit)
+	    {
 	      *mword = val;
-	      return true; 
+	      return true;
 	    }
-	  *mword = 0; 
-	  return false; 
+	  *mword = 0;
+	  return false;
 	case KEY_ESC:
 	  return 0;
 	}

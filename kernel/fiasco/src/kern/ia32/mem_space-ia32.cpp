@@ -67,7 +67,6 @@ IMPLEMENTATION [ia32 || ux || amd64]:
 #include <cstring>
 #include <cstdio>
 #include "cpu.h"
-#include "kdb_ke.h"
 #include "l4_types.h"
 #include "mem_layout.h"
 #include "paging.h"
@@ -116,7 +115,7 @@ Mem_space::has_superpages()
 }
 
 
-PUBLIC inline NEEDS["mem_unit.h"]
+IMPLEMENT inline NEEDS["mem_unit.h"]
 void
 Mem_space::tlb_flush(bool = false)
 {

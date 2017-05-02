@@ -33,6 +33,8 @@ IMPLEMENTATION[ia32,amd64]:
 #include "utcb_init.h"
 
 #include "io_apic.h"
+#include "io_apic_remapped.h"
+#include "intel_iommu.h"
 
 IMPLEMENT FIASCO_INIT FIASCO_NOINLINE
 void
@@ -68,21 +70,19 @@ Startup::stage2()
   // set frequency in KIP to that of the boot CPU
   Kip_init::init_freq(Cpu::cpus.cpu(Cpu_number::boot_cpu()));
 
-  bool use_io_apic = Io_apic::init(Cpu_number::boot_cpu());
+  Intel::Io_mmu::init(Cpu_number::boot_cpu());
+  // also has a fallback to IO-APIC without remapping
+  bool use_io_apic = Io_apic_remapped::init_apics();
   if (use_io_apic)
     {
+      Io_apic::init(Cpu_number::boot_cpu());
       Config::apic = true;
-      // ensure PIC state save/restore on suspend/resume
-      Pic *p = new Boot_object<Pic>();
-      p->register_pm(Cpu_number::boot_cpu());
       Pic::disable_all_save();
     }
   else
     {
-      Pic *p = new Boot_object<Pic>();
-      p->init();
+      auto p = new Boot_object<Irq_chip_ia32_pic>();
       p->register_pm(Cpu_number::boot_cpu());
-      Irq_chip_ia32_pic::init();
     }
 
   Kernel_task::init(); // enables current_mem_space()

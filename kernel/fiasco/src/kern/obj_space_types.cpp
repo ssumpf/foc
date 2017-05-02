@@ -69,8 +69,8 @@ namespace Obj {
 
     enum Flag
     {
-      Delete  = 0x08, //L4_fpage::CD
-      Ref_cnt = 0x10,
+      Delete  = 0x08, // L4_fpage::Rights::CD()
+      Ref_cnt = L4_msg_item::C_weak_ref,
 
       Initial_flags = Delete | Ref_cnt | L4_msg_item::C_ctl_rights
     };

@@ -17,7 +17,6 @@ IMPLEMENTATION [ux]:
 #include "boot_info.h"
 #include "config.h"		// for page sizes
 #include "emulation.h"
-#include "kdb_ke.h"
 #include "lock_guard.h"
 #include "panic.h"
 #include "per_cpu_data.h"

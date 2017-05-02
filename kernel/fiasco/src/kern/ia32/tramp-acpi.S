@@ -39,16 +39,31 @@ _tramp_acpi_wakeup:
   popfl
 
 #if SET_VIDEO_MODE
+  /*
+   * Mask everything in the PIC for some reason the PIT timer is
+   * unmasked which causes spurious calls to IDT vecotor zero at least
+   * during video mode reset.
+   */
+  mov $0xff, %al
+  outb %al, $0xa1
+  outb %al, $0x21
+
   /* IDT needed for BIOS */
   lidtw RM_OFFS(rm_idt_desc)
+
+  cld
+  cli
 
   /* Call the bios */
   lcallw $0xc000,$3
   RM_LOAD_SEGMENT_BASE
 
+  cld
+  cli
+
   /* set graphics mode */
-  mov  $58, %ax
-  int  $10
+  mov  $3, %ax
+  int  $0x10
 
   RM_LOAD_SEGMENT_BASE
 #endif

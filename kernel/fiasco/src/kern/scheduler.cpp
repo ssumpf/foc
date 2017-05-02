@@ -6,7 +6,6 @@ INTERFACE:
 
 class Scheduler : public Icu_h<Scheduler>, public Irq_chip_soft
 {
-  FIASCO_DECLARE_KOBJ();
   typedef Icu_h<Scheduler> Icu;
 
 public:
@@ -20,6 +19,9 @@ public:
   static Scheduler scheduler;
 private:
   Irq_base *_irq;
+
+  L4_RPC(Info,      sched_info, (L4_cpu_set_descr set, Mword *rm, Mword *max_cpus));
+  L4_RPC(Idle_time, sched_idle, (L4_cpu_set cpus, Cpu_time *time));
 };
 
 // ----------------------------------------------------------------------------
@@ -30,8 +32,8 @@ IMPLEMENTATION:
 #include "l4_types.h"
 #include "entry_frame.h"
 
-FIASCO_DEFINE_KOBJ(Scheduler);
 
+JDB_DEFINE_TYPENAME(Scheduler, "\033[34mSched\033[m");
 Scheduler Scheduler::scheduler;
 
 PUBLIC void
@@ -44,7 +46,7 @@ Scheduler::operator delete (void *)
 PUBLIC inline
 Scheduler::Scheduler() : _irq(0)
 {
-  initial_kobjects.register_obj(this, 7);
+  initial_kobjects.register_obj(this, Initial_kobjects::Scheduler);
 }
 
 
@@ -52,13 +54,8 @@ PRIVATE
 L4_msg_tag
 Scheduler::sys_run(L4_fpage::Rights, Syscall_frame *f, Utcb const *utcb)
 {
-  L4_msg_tag const tag = f->tag();
+  L4_msg_tag tag = f->tag();
   Cpu_number const curr_cpu = current_cpu();
-
-  Obj_space *s = current()->space();
-  assert(s);
-
-  L4_snd_item_iter snd_items(utcb, tag.words());
 
   if (EXPECT_FALSE(tag.words() < 5))
     return commit_result(-L4_err::EInval);
@@ -77,16 +74,10 @@ Scheduler::sys_run(L4_fpage::Rights, Syscall_frame *f, Utcb const *utcb)
 	return commit_result(-L4_err::EInval);
     }
 
-  if (EXPECT_FALSE(!tag.items() || !snd_items.next()))
-    return commit_result(-L4_err::EInval);
-
-  L4_fpage _thread(snd_items.get()->d);
-  if (EXPECT_FALSE(!_thread.is_objpage()))
-    return commit_result(-L4_err::EInval);
-
-  Thread *thread = Kobject::dcast<Thread_object*>(s->lookup_local(_thread.obj_index()));
+  Ko::Rights rights;
+  Thread *thread = Ko::deref<Thread>(&tag, utcb, &rights);
   if (!thread)
-    return commit_result(-L4_err::EInval);
+    return tag;
 
 
   Mword _store[sz];
@@ -121,39 +112,27 @@ Scheduler::sys_run(L4_fpage::Rights, Syscall_frame *f, Utcb const *utcb)
 
 PRIVATE
 L4_msg_tag
-Scheduler::sys_idle_time(L4_fpage::Rights,
-                         Syscall_frame *f, Utcb *utcb)
+Scheduler::op_sched_idle(L4_cpu_set const &cpus, Cpu_time *time)
 {
-  if (f->tag().words() < 3)
-    return commit_result(-L4_err::EInval);
-
-  L4_cpu_set cpus = access_once(reinterpret_cast<L4_cpu_set const *>(&utcb->values[1]));
   Cpu_number const cpu = cpus.first(Cpu::online_mask(), Config::max_num_cpus());
   if (EXPECT_FALSE(cpu == Config::max_num_cpus()))
     return commit_result(-L4_err::EInval);
 
-  reinterpret_cast<Utcb::Time_val *>(utcb->values)->t
-    = Context::kernel_context(cpu)->consumed_time();
-
-  return commit_result(0, Utcb::Time_val::Words);
+  *time = Context::kernel_context(cpu)->consumed_time();
+  return commit_result(0);
 }
 
 PRIVATE
 L4_msg_tag
-Scheduler::sys_info(L4_fpage::Rights, Syscall_frame *f,
-                    Utcb const *iutcb, Utcb *outcb)
+Scheduler::op_sched_info(L4_cpu_set_descr const &s, Mword *m, Mword *max_cpus)
 {
-  if (f->tag().words() < 2)
-    return commit_result(-L4_err::EInval);
-
-  L4_cpu_set_descr const s = access_once(reinterpret_cast<L4_cpu_set_descr const*>(&iutcb->values[1]));
   Mword rm = 0;
   Cpu_number max = Config::max_num_cpus();
   Order granularity = s.granularity();
   Cpu_number const offset = s.offset();
 
   if (offset >= max)
-    return commit_result(-L4_err::EInval);
+    return commit_result(-L4_err::ERange);
 
   if (max > offset + Cpu_number(MWORD_BITS) << granularity)
     max = offset + Cpu_number(MWORD_BITS) << granularity;
@@ -162,9 +141,9 @@ Scheduler::sys_info(L4_fpage::Rights, Syscall_frame *f,
     if (Cpu::present_mask().get(i + offset))
       rm |= (1 << cxx::int_value<Cpu_number>(i >> granularity));
 
-  outcb->values[0] = rm;
-  outcb->values[1] = Config::Max_num_cpus;
-  return commit_result(0, 2);
+  *m = rm;
+  *max_cpus = Config::Max_num_cpus;
+  return commit_result(0);
 }
 
 PUBLIC inline
@@ -178,17 +157,18 @@ Scheduler::icu_get_irq(unsigned irqnum)
 }
 
 PUBLIC inline
-void
-Scheduler::icu_get_info(Mword *features, Mword *num_irqs, Mword *num_msis)
+L4_msg_tag
+Scheduler::op_icu_get_info(Mword *features, Mword *num_irqs, Mword *num_msis)
 {
   *features = 0; // supported features (only normal irqs)
   *num_irqs = 1;
   *num_msis = 0;
+  return L4_msg_tag(0);
 }
 
 PUBLIC
 L4_msg_tag
-Scheduler::icu_bind_irq(Irq *irq_o, unsigned irqnum)
+Scheduler::op_icu_bind(unsigned irqnum, Ko::Cap<Irq> const &irq)
 {
   if (irqnum > 0)
     return commit_result(-L4_err::EInval);
@@ -196,14 +176,17 @@ Scheduler::icu_bind_irq(Irq *irq_o, unsigned irqnum)
   if (_irq)
     _irq->unbind();
 
-  Irq_chip_soft::bind(irq_o, irqnum);
-  _irq = irq_o;
+  if (!Ko::check_rights(irq.rights, Ko::Rights::CW()))
+    return commit_result(-L4_err::EPerm);
+
+  Irq_chip_soft::bind(irq.obj, irqnum);
+  _irq = irq.obj;
   return commit_result(0);
 }
 
 PUBLIC
 L4_msg_tag
-Scheduler::icu_set_mode(Mword pin, Irq_chip::Mode)
+Scheduler::op_icu_set_mode(Mword pin, Irq_chip::Mode)
 {
   if (pin != 0)
     return commit_result(-L4_err::EInval);
@@ -238,9 +221,9 @@ Scheduler::kinvoke(L4_obj_ref ref, L4_fpage::Rights rights, Syscall_frame *f,
 
   switch (iutcb->values[0])
     {
-    case Info:       return sys_info(rights, f, iutcb, outcb);
+    case Info:       return Msg_sched_info::call(this, f->tag(), iutcb, outcb);
     case Run_thread: return sys_run(rights, f, iutcb);
-    case Idle_time:  return sys_idle_time(rights, f, outcb);
+    case Idle_time:  return Msg_sched_idle::call(this, f->tag(), iutcb, outcb);
     default:         return commit_result(-L4_err::ENosys);
     }
 }

@@ -1,4 +1,7 @@
 
+
+#include "kernel.ld.inc"
+
 _load	= 0x10000;	/* kernel load address */
 
 OUTPUT_FORMAT("elf32-i386", "elf32-i386", "elf32-i386")
@@ -69,7 +72,7 @@ SECTIONS {
     _initkip_start = .;
     KEEP(*(.initkip.version))
     KEEP(*(.initkip.features))
-    KEEP(*(.initkip.features.fini))
+    KEEP(*(.initkip.features.end))
     _initkip_end = .;
     . = ALIGN(4K);
   }
@@ -142,13 +145,10 @@ SECTIONS {
     __PER_CPU_LATE_CTORS_LIST__ = .;
 
     . = ALIGN(4);
-    PROVIDE (_log_table = .);
-    /*
-     * The section must start with ".debug" because else the linker
-     * complains about references to discarded sections
-     */
-    KEEP(*(SORT(.debug.jdb.log_table)))
-    PROVIDE (_log_table_end = .);
+    JDB_TABLE(log);
+
+    . = ALIGN(4);
+    JDB_TABLE(typeinfo);
   }
 
   .tdata : {

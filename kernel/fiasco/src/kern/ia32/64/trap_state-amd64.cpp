@@ -37,7 +37,6 @@ public:
   // Error code pushed by the processor, 0 if none
   Mword  _err;
 
-protected:
   // Processor state frame
   Mword  _ip;
   Mword  _cs;
@@ -45,6 +44,39 @@ protected:
   Mword  _sp;
   Mword  _ss;
 };
+
+struct Trex
+{
+  Trap_state s;
+  Mword fs_base;
+  Mword gs_base;
+  Unsigned16 ds, es, fs, gs;
+
+  void set_ipc_upcall()
+  {
+    s._err = 0;
+    s._trapno = 0xfe;
+  }
+
+  void dump() { s.dump(); }
+};
+
+namespace Ts
+{
+  enum
+  {
+    /// full number of words in a Trap_state
+    Words = sizeof(Trap_state) / sizeof(Mword),
+    /// words for the IRET frame at the end of the trap state
+    Iret_words = 5,
+    /// words for error code and trap number
+    Code_words = 2,
+    /// offset of the IRET frame
+    Iret_offset = Words - Iret_words,
+    /// number of words used for normal registers
+    Reg_words = Words - Iret_words - Code_words,
+  };
+}
 
 IMPLEMENTATION:
 
@@ -54,6 +86,7 @@ IMPLEMENTATION:
 #include "atomic.h"
 #include "gdt.h"
 #include "regdefs.h"
+#include "mem.h"
 
 Trap_state::Handler Trap_state::base_handler FIASCO_FASTCALL;
 
@@ -68,12 +101,12 @@ Trap_state::sanitize_user_state()
   _flags = (_flags & ~(EFLAGS_IOPL | EFLAGS_NT)) | EFLAGS_IF;
 }
 
-PUBLIC inline
+PUBLIC inline NEEDS[Trap_state::sanitize_user_state, "mem.h"]
 void
-Trap_state::set_ipc_upcall()
+Trap_state::copy_and_sanitize(Trap_state const *src)
 {
-  _err = 0;
-  _trapno = 0xfe;
+  Mem::memcpy_mwords(this, src, sizeof(*this) / sizeof(Mword));
+  sanitize_user_state();
 }
 
 PUBLIC inline
@@ -207,8 +240,8 @@ Trap_state::dump()
   printf("RIP %016lx RFLAGS %016lx\n", _ip, _flags);
   printf("CS %04lx SS %04lx\n", _cs, _ss);
   printf("\n");
-  printf("trapno %d, error %lx, from %s mode\n",
-      (unsigned)_trapno, _err, from_user ? "user" : "kernel");
+  printf("trapno %lu, error %lx, from %s mode\n",
+         _trapno, _err, from_user ? "user" : "kernel");
 
   if (_trapno == 13)
     {

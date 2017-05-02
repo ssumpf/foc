@@ -170,7 +170,7 @@ return_from_exception:
   li		%r11, (THREAD_BLOCK_SIZE - 1)@l
   andc		%r11, %r1, %r11			//apply mask to r1
   lwz		%r12, OFS__THREAD__STATE(%r11)
-  rlwinm	%r12, %r12, 0, 24, 22		//clear 0x100 (or bit 23)
+  rlwinm	%r12, %r12, 0, 25, 23		//clear 0x80 (VAL__Thread_cancel) (or bit 24)
   stw		%r12, OFS__THREAD__STATE(%r11)
 .endm
 

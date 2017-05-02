@@ -23,5 +23,6 @@ namespace L4
     int char_avail() const;
     inline void out_char(char c) const;
     int write(char const *s, unsigned long count) const;
+    void irq_ack();
   };
 };

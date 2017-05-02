@@ -31,7 +31,8 @@ class Platform_arm_sunxi : public Platform_single_region_ram
     kuart.base_baud    = 1500000;
     kuart.baud         = 115200;
     kuart.irqno        = 33;
-    setup_16550_mmio_uart();
+    static L4::Uart_16550 _uart(kuart.base_baud, 0, 0, 0, 0);
+    setup_16550_mmio_uart(&_uart);
   }
 };
 }

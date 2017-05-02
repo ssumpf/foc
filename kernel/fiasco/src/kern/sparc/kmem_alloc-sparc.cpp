@@ -39,3 +39,11 @@ Kmem_alloc::to_phys(void *v) const
   return ~0UL;
 }
 
+//----------------------------------------------------------------------------
+IMPLEMENTATION [sparc && debug]:
+
+PUBLIC
+void Kmem_alloc::debug_dump()
+{
+  a->dump();
+}

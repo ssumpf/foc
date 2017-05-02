@@ -68,7 +68,6 @@ IMPLEMENTATION [sched_wfq || sched_fp_wfq]:
 #include <cassert>
 #include "config.h"
 #include "cpu_lock.h"
-#include "kdb_ke.h"
 #include "std_macros.h"
 
 
@@ -146,7 +145,7 @@ template<typename E>
 void
 Ready_queue_wfq<E>::enqueue(E *i, bool /*is_current_sched**/)
 {
-  assert_kdb(cpu_lock.test());
+  assert(cpu_lock.test());
 
   // Don't enqueue threads which are already enqueued
   if (EXPECT_FALSE (i->in_ready_list()))
@@ -164,12 +163,12 @@ Ready_queue_wfq<E>::enqueue(E *i, bool /*is_current_sched**/)
 /**
  * Remove context from ready-list.
  */
-IMPLEMENT inline NEEDS ["cpu_lock.h", "kdb_ke.h", "std_macros.h"]
+IMPLEMENT inline NEEDS ["cpu_lock.h", <cassert>, "std_macros.h"]
 template<typename E>
 void
 Ready_queue_wfq<E>::dequeue(E *i)
 {
-  assert_kdb (cpu_lock.test());
+  assert (cpu_lock.test());
 
   // Don't dequeue threads which aren't enqueued
   if (EXPECT_FALSE (!i->in_ready_list() || i == idle))

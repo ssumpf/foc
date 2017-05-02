@@ -193,6 +193,7 @@ IMPLEMENTATION:
 
 #include "config.h"
 #include "globals.h"
+#include "kdb_ke.h"
 #include "kmem_slab.h"
 #include "ram_quota.h"
 #include "space.h"
@@ -264,7 +265,8 @@ struct Mapping_tree_allocator
   enum
   {
     Elem_size = (Size_factor << SIZE_ID) * sizeof (Mapping)
-                + sizeof(Mapping_tree)
+                + ((sizeof(Mapping_tree) + Mapping::Alignment - 1)
+                   & ~((unsigned long)Mapping::Alignment - 1))
   };
 
   Mapping_tree_allocator(Kmem_slab **array)
@@ -538,7 +540,7 @@ Mapping_tree::check_integrity(Space *owner = (Space*)-1)
         || mappings()[_count + _empty_count].is_end_tag()))
     {
       printf("mapdb consistency error: "
-             "%d == %d + %d || mappings()[%d + %d].is_end_tag()=%d\n",
+             "%u == %u + %u || mappings()[%u + %u].is_end_tag()=%d\n",
              number_of_entries(), static_cast<unsigned>(_count), _empty_count,
              _count, _empty_count, mappings()[_count + _empty_count].is_end_tag());
       enter_ke = true;
@@ -552,7 +554,7 @@ Mapping_tree::check_integrity(Space *owner = (Space*)-1)
             && (owner == (Space *)-1 || m->space() == owner))))
     {
       printf("mapdb corrupted: owner=%p\n"
-             "  m=%p (end: %s depth: %d space: %p page: %lx)\n",
+             "  m=%p (end: %s depth: %u space: %p page: %lx)\n",
              owner, m, m->is_end_tag() ? "yes" : "no", m->depth(), m->space(),
              cxx::int_value<Page>(m->page()));
       enter_ke = true;
@@ -570,14 +572,14 @@ Mapping_tree::check_integrity(Space *owner = (Space*)-1)
       m++;
     }
 
-  if (enter_ke |= _count != used)
-    printf("mapdb: _count=%d != used=%d\n", _count, used);
-  if (enter_ke |= _empty_count != dead)
-    printf("mapdb: _empty_count=%d != dead=%d\n", _empty_count, dead);
+  if ((enter_ke |= _count != used))
+    printf("mapdb: _count=%u != used=%u\n", _count, used);
+  if ((enter_ke |= _empty_count != dead))
+    printf("mapdb: _empty_count=%u != dead=%u\n", _empty_count, dead);
 
   if (enter_ke)
     {
-      printf("mapdb:    from %p on CPU%d\n",
+      printf("mapdb:    from %p on CPU%u\n",
              __builtin_return_address(0),
              cxx::int_value<Cpu_number>(current_cpu()));
       kdb_ke("mapdb");
@@ -604,7 +606,7 @@ Mapping_tree::reset()
 
 PUBLIC inline NEEDS[Mapping_tree::next, <cassert>]
 Treemap *
-Mapping_tree::find_submap(Mapping* parent)
+Mapping_tree::find_submap(Mapping *parent)
 {
   assert (! parent->submap());
 
@@ -747,7 +749,7 @@ Mapping_tree::free_mapping(Ram_quota *q, Mapping *m)
 PUBLIC template< typename SUBMAP_OPS >
 void
 Mapping_tree::flush(Mapping *parent, bool me_too,
-                    Pcnt offs_begin, Pcnt offs_end, 
+                    Pcnt offs_begin, Pcnt offs_end,
                     SUBMAP_OPS const &submap_ops = SUBMAP_OPS())
 {
   assert (! parent->unused());

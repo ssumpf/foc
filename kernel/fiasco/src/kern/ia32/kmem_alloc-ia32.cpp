@@ -1,8 +1,8 @@
+IMPLEMENTATION [ia32,ux,amd64]:
+
 // base_init() puts those Mem_region_map's on the stack which is slightly
 // larger than our warning limit, it's init code only, so it's ok
 #pragma GCC diagnostic ignored "-Wframe-larger-than="
-
-IMPLEMENTATION [ia32,ux,amd64]:
 
 #include <cstdio>
 
@@ -127,25 +127,23 @@ Kmem_alloc::Kmem_alloc()
 {
   if (0)
     printf("Kmem_alloc::Kmem_alloc()\n");
-  Mem_desc *md = Kip::k()->mem_descs();
-  Mem_desc const *const md_end = md + Kip::k()->num_mem_descs();
   bool initialized = false;
 
-  for (; md < md_end; ++md)
+  for (auto &md: Kip::k()->mem_descs_a())
     {
-      if (md->is_virtual())
+      if (md.is_virtual())
 	continue;
 
-      unsigned long s = md->start(), e = md->end();
+      unsigned long s = md.start(), e = md.end();
 
       // Sweep out stupid descriptors (that have the end before the start)
       if (s >= e)
 	{
-	  md->type(Mem_desc::Undefined);
+	  md.type(Mem_desc::Undefined);
 	  continue;
 	}
 
-      if (md->type() == Mem_desc::Kernel_tmp)
+      if (md.type() == Mem_desc::Kernel_tmp)
 	{
 	  unsigned long s_v = Mem_layout::phys_to_pmem(s);
 	  if (!initialized)
@@ -160,7 +158,7 @@ Kmem_alloc::Kmem_alloc()
             printf("  Kmem_alloc: block %014lx(%014lx) size=%lx\n",
                    s_v, s, e - s + 1);
 	  a->add_mem((void *)s_v, e - s + 1);
-	  md->type(Mem_desc::Reserved);
+	  md.type(Mem_desc::Reserved);
 	  _orig_free += e - s + 1;
 	}
     }
@@ -180,7 +178,7 @@ Kmem_alloc::debug_dump()
   a->dump();
 
   unsigned long free = a->avail();
-  printf("Used %ld%%, %ldKB out of %ldKB of Kmem\n",
+  printf("Used %lu%%, %luKB out of %luKB of Kmem\n",
          (unsigned long)div32(100ULL * (orig_free() - free), orig_free()),
 	 (orig_free() - free + 1023) / 1024,
 	 (orig_free()        + 1023) / 1024);

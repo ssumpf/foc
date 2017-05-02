@@ -38,12 +38,12 @@ LDS_dyn_bin       = $(call findfile,main_dyn.ld,$(L4LIBDIR))
 LDS_stat_bin      = $(call findfile,main_stat.ld,$(L4LIBDIR))
 
 
-LIBC_INCLUDE   = -nostdinc                                  \
+LIBC_INCLUDE   = $(BID_NOSTDINC)                            \
+                 -I$(OBJ_BASE)/include/contrib/libstdc++-v3 \
                  -I$(OBJ_BASE)/include/uclibc               \
-                 -I$(OBJ_BASE)/include/contrib/libstdc++-v3        \
                  $(if $(CONFIG_USE_DROPS_STDDIR),           \
+                  -I$(DROPS_STDDIR)/include/contrib/libstdc++-v3,) \
                   -I$(DROPS_STDDIR)/include/uclibc          \
-                  -I$(DROPS_STDDIR)/include/contrib/libstdc++-v3,)      \
                  $(I_GCCINCDIR)
 
 #############################################################################

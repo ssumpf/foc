@@ -2,6 +2,7 @@ INTERFACE:
 
 #include "types.h"
 #include "irq_chip.h"
+#include "l4_types.h"
 #include <cxx/type_traits>
 
 /**
@@ -15,6 +16,12 @@ INTERFACE:
 class Irq_mgr
 {
 public:
+  struct Msi_info
+  {
+    Unsigned64 addr;
+    Unsigned32 data;
+  };
+
   /**
    * Chip and pin for an IRQ pin.
    */
@@ -52,7 +59,8 @@ public:
   /** Get the message to use for a given MSI.
    * \pre The IRQ pin needs to be already allocated before using this function.
    */
-  virtual Mword msg(Mword irqnum) const { (void)irqnum; return 0; }
+  virtual int msg(Mword irqnum, Unsigned64, Msi_info *) const
+  { (void)irqnum; return -L4_err::EPerm; }
 
   virtual void set_cpu(Mword irqnum, Cpu_number cpu) const;
 
@@ -89,9 +97,9 @@ IMPLEMENT inline Irq_mgr::~Irq_mgr() {}
 
 PUBLIC inline
 bool
-Irq_mgr::alloc(Irq_base *irq, Mword pin)
+Irq_mgr::alloc(Irq_base *irq, Mword global_irq)
 {
-  Irq i = chip(pin);
+  Irq i = chip(global_irq);
   if (!i.chip)
     return false;
 
@@ -129,6 +137,9 @@ IMPLEMENT
 void
 Irq_mgr::set_cpu(Mword irqnum, Cpu_number cpu) const
 {
-  WARNX(Warning, "IRQ%ld: ignoring CPU setting (%d).\n", irqnum,
-        cxx::int_value<Cpu_number>(cpu));
+  Irq i = chip(irqnum);
+  if (!i.chip)
+    return;
+
+  return i.chip->set_cpu(i.pin, cpu);
 }

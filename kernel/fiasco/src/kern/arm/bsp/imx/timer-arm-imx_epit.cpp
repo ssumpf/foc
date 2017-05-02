@@ -27,6 +27,13 @@ public:
   static unsigned irq() { return 40; }
 };
 
+INTERFACE [arm && imx6]: // -----------------------------------------------
+
+EXTENSION class Timer
+{
+public:
+  static unsigned irq() { return 88; }
+};
 
 // ------------------------------------------------------------------------
 IMPLEMENTATION [arm && imx_epit]:

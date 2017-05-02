@@ -63,7 +63,6 @@ IMPLEMENTATION:
 
 #include <cstdio>
 #include <cassert>
-#include "kdb_ke.h"
 #include "warn.h"
 
 PRIVATE
@@ -99,9 +98,9 @@ inline
 void
 Buddy_t_base<A,B,M>::free(void *block, unsigned long size)
 {
-  assert_kdb ((unsigned long)block >= _base);
-  assert_kdb ((unsigned long)block - _base < Max_mem);
-  assert_kdb (!_free_map[((unsigned long)block - _base) / Min_size]);
+  assert ((unsigned long)block >= _base);
+  assert ((unsigned long)block - _base < Max_mem);
+  assert (!_free_map[((unsigned long)block - _base) / Min_size]);
   //bool _b = 0;
   //if (_debug) printf("Buddy::free(%p, %ld)\n", block, size);
   unsigned size_index = 0;
@@ -229,12 +228,12 @@ Buddy_t_base<A,B,M>::dump() const
       unsigned c = 0;
       unsigned long avail = 0;
       B_list::Const_iterator h = _free[i].begin();
-      printf("  [%d] %p(%ld)", Min_size << i, *h, h != _free[i].end() ? h->index : 0UL);
+      printf("  [%d] %p(%lu)", Min_size << i, *h, h != _free[i].end() ? h->index : 0UL);
       while (h != _free[i].end())
 	{
 	  ++h;
 	  if (c < 5)
-	    printf(" -> %p(%ld)", *h, *h?h->index:0UL);
+	    printf(" -> %p(%lu)", *h, *h?h->index:0UL);
 	  else if (c == 5)
             printf(" ...");
 
@@ -243,11 +242,11 @@ Buddy_t_base<A,B,M>::dump() const
 
 	  ++c;
 	}
-      printf(" == %ldK (%ld)\n", avail / 1024, avail);
+      printf(" == %luK (%lu)\n", avail / 1024, avail);
       total += avail;
     }
 
-  printf("sum of available memory: %ldK (%ld)\n", total / 1024, total);
+  printf("sum of available memory: %luK (%lu)\n", total / 1024, total);
 }
 
 PUBLIC

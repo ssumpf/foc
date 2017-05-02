@@ -22,15 +22,15 @@ format_timeout(String_buffer *buf, Mword us)
   if (us >= 1000000000)		// =>100s
     buf->printf(">99s");
   else if (us >= 10000000)	// >=10s
-    buf->printf("%lds", us/1000000);
+    buf->printf("%lus", us/1000000);
   else if (us >= 1000000)	// >=1s
-    buf->printf("%ld.%lds", us/1000000, (us%1000000)/100000);
+    buf->printf("%lu.%lus", us/1000000, (us%1000000)/100000);
   else if (us >= 10000)		// 10ms
-    buf->printf("%ldm", us/1000);
+    buf->printf("%lum", us/1000);
   else if (us >= 1000)		// 1ms
-    buf->printf("%ld.%ldm", us/1000, (us%1000)/100);
+    buf->printf("%lu.%lum", us/1000, (us%1000)/100);
   else
-    buf->printf("%ld%c", us, Config::char_micro);
+    buf->printf("%lu%c", us, Config::char_micro);
 }
 
 template< typename T >
@@ -110,6 +110,7 @@ print_msgtag(String_buffer *buf, L4_msg_tag const &tag)
 class Tb_entry_ipc_fmt : public Tb_entry_formatter
 {
 public:
+  Tb_entry_ipc_fmt() {}
   void print(String_buffer *, Tb_entry const *) const {}
   Group_order has_partner(Tb_entry const *) const
   { return Tb_entry::Group_order::first(); }
@@ -126,6 +127,7 @@ public:
 class Tb_entry_ipc_res_fmt : public Tb_entry_formatter
 {
 public:
+  Tb_entry_ipc_res_fmt() {}
   void print(String_buffer *, Tb_entry const *) const {}
   Group_order has_partner(Tb_entry const *) const
   { return Tb_entry::Group_order::last(); }
@@ -143,7 +145,7 @@ public:
 // ipc / irq / shortcut success
 static
 void
-formatter_ipc(String_buffer *buf, Tb_entry *tb, const char *tidstr, unsigned tidlen)
+formatter_ipc(String_buffer *buf, Tb_entry *tb, const char *tidstr, int tidlen)
 {
   Tb_entry_ipc *e = static_cast<Tb_entry_ipc*>(tb);
   unsigned char type = e->ipc_type();
@@ -154,7 +156,7 @@ formatter_ipc(String_buffer *buf, Tb_entry *tb, const char *tidstr, unsigned tid
   const char *m = get_ipc_type(e);
 
   buf->printf("%s: ", (e->type()==Tbuf_ipc) ? "ipc" : "sc ");
-  buf->printf("%s%-*s %s->", /*e->dst().next_period() ? "[NP] " :*/ "", tidlen, tidstr, m);
+  buf->printf("%-*s %s->", tidlen, tidstr, m);
 
   // print destination id
   if (e->dst().special())
@@ -222,7 +224,7 @@ formatter_ipc(String_buffer *buf, Tb_entry *tb, const char *tidstr, unsigned tid
 // result of ipc
 static
 void
-formatter_ipc_res(String_buffer *buf, Tb_entry *tb, const char *tidstr, unsigned tidlen)
+formatter_ipc_res(String_buffer *buf, Tb_entry *tb, const char *tidstr, int tidlen)
 {
   Tb_entry_ipc_res *e = static_cast<Tb_entry_ipc_res*>(tb);
   L4_error error;
@@ -243,7 +245,7 @@ formatter_ipc_res(String_buffer *buf, Tb_entry *tb, const char *tidstr, unsigned
 // pagefault
 static
 void
-formatter_pf(String_buffer *buf, Tb_entry *tb, const char *tidstr, unsigned tidlen)
+formatter_pf(String_buffer *buf, Tb_entry *tb, const char *tidstr, int tidlen)
 {
   Tb_entry_pf *e = static_cast<Tb_entry_pf*>(tb);
   buf->printf("pf:  %-*s pfa=" L4_PTR_FMT " ip=" L4_PTR_FMT " (%c%c) spc=%p err=%lx",
@@ -269,22 +271,22 @@ Tb_entry_pf::print(String_buffer *buf) const
 // kernel event (enter_kdebug("*..."))
 static
 void
-formatter_ke(String_buffer *buf, Tb_entry *tb, const char *tidstr, unsigned tidlen)
+formatter_ke(String_buffer *buf, Tb_entry *tb, const char *tidstr, int tidlen)
 {
   Tb_entry_ke *e = static_cast<Tb_entry_ke*>(tb);
   buf->printf("ke:  %-*s \"%s\" @ " L4_PTR_FMT,
-              tidlen, tidstr, e->msg(), e->ip());
+              tidlen, tidstr, e->msg.str(), e->ip());
 }
 
 // kernel event (enter_kdebug_verb("*+...", val1, val2, val3))
 static
 void
-formatter_ke_reg(String_buffer *buf, Tb_entry *tb, const char *tidstr, unsigned tidlen)
+formatter_ke_reg(String_buffer *buf, Tb_entry *tb, const char *tidstr, int tidlen)
 {
   Tb_entry_ke_reg *e = static_cast<Tb_entry_ke_reg*>(tb);
   buf->printf("ke:  %-*s \"%s\" "
       L4_PTR_FMT " " L4_PTR_FMT " " L4_PTR_FMT " @ " L4_PTR_FMT,
-      tidlen, tidstr, e->msg(), e->v[0], e->v[1], e->v[2],
+      tidlen, tidstr, e->msg.str(), e->v[0], e->v[1], e->v[2],
       e->ip());
 }
 
@@ -292,7 +294,7 @@ formatter_ke_reg(String_buffer *buf, Tb_entry *tb, const char *tidstr, unsigned 
 // breakpoint
 static
 void
-formatter_bp(String_buffer *buf, Tb_entry *tb, const char *tidstr, unsigned tidlen)
+formatter_bp(String_buffer *buf, Tb_entry *tb, const char *tidstr, int tidlen)
 {
   Tb_entry_bp *e = static_cast<Tb_entry_bp*>(tb);
   buf->printf("b%c:  %-*s @ " L4_PTR_FMT " ",
@@ -326,22 +328,23 @@ void
 Tb_entry_trap::print(String_buffer *buf) const
 {
   if (!cs())
-    buf->printf("#%02x: err=%08x @ " L4_PTR_FMT, trapno(), error(), ip());
+    buf->printf("#%02x: err=%08x @ " L4_PTR_FMT,
+                (unsigned)trapno(), (unsigned)error(), ip());
   else
     buf->printf(trapno() == 14
 		  ? "#%02x: err=%04x @ " L4_PTR_FMT
 		    " cs=%04x sp=" L4_PTR_FMT " cr2=" L4_PTR_FMT
 		  : "#%02x: err=%04x @ " L4_PTR_FMT
 		    " cs=%04x sp=" L4_PTR_FMT " eax=" L4_PTR_FMT,
-	        trapno(),
-		error(), ip(), cs(), sp(),
+	        (unsigned)trapno(),
+		(unsigned)error(), ip(), (unsigned)cs(), sp(),
 		trapno() == 14 ? cr2() : eax());
 }
 
 // kernel event log binary data
 static
 void
-formatter_ke_bin(String_buffer *buf, Tb_entry *tb, const char *tidstr, unsigned tidlen)
+formatter_ke_bin(String_buffer *buf, Tb_entry *tb, const char *tidstr, int tidlen)
 {
   Tb_entry_ke_bin *e = static_cast<Tb_entry_ke_bin*>(tb);
   buf->printf("ke:  %-*s BINDATA @ " L4_PTR_FMT, tidlen, tidstr, e->ip());

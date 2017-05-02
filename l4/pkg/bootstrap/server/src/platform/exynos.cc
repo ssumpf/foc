@@ -30,7 +30,7 @@ public:
     static L4::Uart_s5pv210 _uart;
     const unsigned long uart_offset = 0x10000;
     unsigned long uart_base;
-    unsigned uart_nr = 2;
+    unsigned uart_nr = PLATFORM_UART_NR;
 
 #ifdef PLATFORM_TYPE_exynos4
     uart_base = 0x13800000;

@@ -247,7 +247,7 @@ Outer_cache::show_info(unsigned ways, Mword cache_id, Mword aux)
       break;
     case 3:
       type = "310";
-      if (cache_id & 0x3f == 5)
+      if ((cache_id & 0x3f) == 5)
         printf("L2: r3p0\n");
       break;
     default:

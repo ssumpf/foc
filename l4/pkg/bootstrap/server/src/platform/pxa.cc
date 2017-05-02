@@ -30,7 +30,8 @@ class Platform_arm_pxa : public Platform_single_region_ram
     kuart.base_baud    = L4::Uart_16550::Base_rate_pxa;
     kuart.baud         = 115200;
     kuart.irqno        = -1;
-    setup_16550_mmio_uart();
+    static L4::Uart_16550 _uart(kuart.base_baud, 0, 1 << 6, 0, 0);
+    setup_16550_mmio_uart(&_uart);
   }
 };
 }

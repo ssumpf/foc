@@ -26,6 +26,7 @@
 #define LOG_CONTEXT_SWITCH                     do { } while (0)
 #define LOG_TRAP                               do { } while (0)
 #define LOG_TRAP_N(n)                          do { } while (0)
+#define LOG_TRAP_CN(c, n)                      do { } while (0)
 #define LOG_SCHED_SAVE(n)                      do { } while (0)
 #define LOG_SCHED_LOAD(n)                      do { } while (0)
 #define LOG_MSG(ctx, txt)                      do { } while (0)
@@ -71,10 +72,13 @@
     l->set(ts->ip(), ts);                                               \
     Jdb_tbuf::commit_entry() )
 
-#define LOG_TRAP_N(n)                                                   \
-  LOG_TRACE("Exceptions", "exc", current(), Tb_entry_trap,              \
+#define LOG_TRAP_CN(curr, n)                                            \
+  LOG_TRACE("Exceptions", "exc", curr, Tb_entry_trap,                   \
     Mword ip = (Mword)(__builtin_return_address(0));                    \
     l->set(ip, n))
+
+#define LOG_TRAP_N(n)                                                   \
+  LOG_TRAP_CN(current(), n)
 
 #define LOG_SCHED_SAVE(cs)                                              \
   LOG_TRACE("Scheduling context save", "sch", current(), Tb_entry_sched,\
@@ -102,7 +106,8 @@
     /* The cpu_lock is needed since virq::hit() depends on it */        \
     auto guard = lock_guard(cpu_lock);                                  \
     Tb_entry_ke *tb = static_cast<Tb_entry_ke*>(Jdb_tbuf::new_entry()); \
-    tb->set_const(context, Proc::program_counter(), text);              \
+    tb->set(context, Proc::program_counter());                          \
+    tb->msg.set_const(text);                                            \
     Jdb_tbuf::commit_entry();                                           \
   } while (0)
 
@@ -114,7 +119,9 @@
     /* The cpu_lock is needed since virq::hit() depends on it */        \
     auto guard = lock_guard(cpu_lock);                                  \
     Tb_entry_ke_reg *tb = Jdb_tbuf::new_entry<Tb_entry_ke_reg>();       \
-    tb->set_const(context, Proc::program_counter(), text, v1, v2, v3);  \
+    tb->set(context, Proc::program_counter());                          \
+    tb->v[0] = v1; tb->v[1] = v2; tb->v[2] = v3;                        \
+    tb->msg.set_const(text);                                            \
     Jdb_tbuf::commit_entry();                                           \
   } while (0)
 

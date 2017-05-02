@@ -10,9 +10,8 @@ DDIR	= gendep-$(VERSION)
 CC	= $(HOST_CC)
 CFLAGS	= -fPIC -Wall -pedantic -g
 
-checkbuild = $(shell if echo 'int main(){return 0;}' | \
-                     $(CC) -m$(1) $(CFLAGS) -o /dev/null  \
-                     -x c - > /dev/null 2>&1; then echo 1; fi)
+checkbuild = $(shell if $(CC) -m$(1) -c -o /dev/null $(SRC_DIR)/syscall.c \
+                     > /dev/null 2>&1; then echo 1; fi)
 
 OBJS32	= $(addprefix $(OBJ_DIR)/,$(CSRC:.c=.32.o))
 OBJS64  = $(addprefix $(OBJ_DIR)/,$(CSRC:.c=.64.o))
@@ -35,8 +34,14 @@ $(error Your host system type "$(HOST_SYSTEM)" is not supported here. Fix me.)
 endif
 endif
 
-ifeq ($(LIB),)
+ifeq ($(strip $(LIB)),)
 $(error Neither 32 nor 64 bit version are built?!)
+endif
+
+ifeq ($(words $(LIB)),2)
+$(info gendep: Building 32bit and 64bit variants)
+else
+$(info gendep: Building $(if $(LIB32),32bit)$(if $(LIB64),64bit) variant)
 endif
 
 all:: $(LIB)

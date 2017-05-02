@@ -109,7 +109,7 @@ Jdb_kern_info_bench::do_ipi_bench(Cpu_number my_cpu, Cpu_number partner)
   for (i = 0; i < (1 << Runs2); i++)
     Jdb::remote_work_ipi(my_cpu, partner, empty_func, 0, true);
 
-  printf(" %2u:%8lld", cxx::int_value<Cpu_number>(partner),
+  printf(" %2u:%8llu", cxx::int_value<Cpu_number>(partner),
          (get_time_now() - time) >> Runs2);
 
   if (ipi_cnt != Rounds)

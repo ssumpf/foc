@@ -7,7 +7,7 @@ EXTENSION class Perf_cnt
 {
 public:
   enum Perf_event_type
-    { P5, P6, P4, };
+  { P5, P6, P4, };
 
   static Perf_read_fn read_pmc[Max_slot];
   virtual void init_loadcnt() = 0;
@@ -32,7 +32,7 @@ public:
   virtual void set_pmc_event(Mword slot) = 0;
 
   inline void touch_watchdog()
-    { Cpu::wrmsr(hold_watchdog, _ctr_reg0+pmc_watchdog); }
+  { Cpu::wrmsr(hold_watchdog, _ctr_reg0 + pmc_watchdog); }
 
 protected:
   Mword _nr_regs;
@@ -285,7 +285,7 @@ Perf_cnt_p5::set_pmc_event(Mword slot)
       msr &= 0x0000ffff;
       msr |= (event << 16);
     }
-  Cpu::wrmsr(event, Msr_p5_cesr);
+  Cpu::wrmsr(msr, Msr_p5_cesr);
 }
 
 static Mword p5_read_pmc_0()
@@ -980,7 +980,7 @@ Perf_cnt::init()
             }
         }
 
-      // set PCE-Flag in CR4 to enable read of performace measurement
+      // set PCE-Flag in CR4 to enable read of performance measurement
       // counters in usermode. PMC were introduced in Pentium MMX and
       // PPro processors.
       if (cpu.local_features() & Cpu::Lf_rdpmc)
@@ -1008,9 +1008,12 @@ Perf_cnt::init()
 PUBLIC static inline void FIASCO_INIT_CPU
 Perf_cnt::init_ap()
 {
-  Perf_cnt::pcnt->init();
-  Perf_cnt::pcnt->init_loadcnt();
-  Perf_cnt::pcnt->start_pmc(0);
+  if (Perf_cnt::pcnt)
+    {
+      Perf_cnt::pcnt->init();
+      Perf_cnt::pcnt->init_loadcnt();
+      Perf_cnt::pcnt->start_pmc(0);
+    }
 }
 
 PUBLIC static inline NOEXPORT void

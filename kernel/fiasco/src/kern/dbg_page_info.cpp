@@ -81,7 +81,7 @@ static Kmem_slab_t<Dbg_page_info> _dbg_page_info_allocator("Dbg_page_info");
 PRIVATE static
 Dbg_page_info::Allocator *
 Dbg_page_info::alloc()
-{ return &_dbg_page_info_allocator; }
+{ return _dbg_page_info_allocator.slab(); }
 
 
 PUBLIC template<typename B, typename E> static inline

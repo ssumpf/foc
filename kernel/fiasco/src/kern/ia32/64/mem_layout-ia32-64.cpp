@@ -83,7 +83,6 @@ private:
 IMPLEMENTATION [amd64]:
 
 #include <cassert>
-#include <kdb_ke.h>
 
 Address Mem_layout::physmem_offs;
 Address Mem_layout::pmem_size;
@@ -104,13 +103,13 @@ Mem_layout::pmem_to_phys (Address addr)
   return addr - physmem_offs;
 }
 
-PUBLIC static inline NEEDS[<kdb_ke.h>]
+PUBLIC static inline NEEDS[<cassert>]
 Address
 Mem_layout::pmem_to_phys (const void *ptr)
 {
   Address addr = reinterpret_cast<Address>(ptr);
 
-  assert_kdb (in_pmem(addr));
+  assert (in_pmem(addr));
   return addr - physmem_offs;
 }
 

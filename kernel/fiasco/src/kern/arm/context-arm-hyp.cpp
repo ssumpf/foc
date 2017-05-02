@@ -115,20 +115,33 @@ public:
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && hyp]:
 
+#include "mem.h"
+
 IMPLEMENT inline
 void
-Context::sanitize_user_state(Trap_state *ts) const
+Context::sanitize_user_state(Return_frame *dst) const
 {
   if (state() & Thread_ext_vcpu_enabled)
     {
-      if ((ts->psr & Proc::Status_mode_mask) == Proc::PSR_m_hyp)
-        ts->psr = (ts->psr & ~Proc::Status_mode_mask) | Proc::PSR_m_usr;
+      if ((dst->psr & Proc::Status_mode_mask) == Proc::PSR_m_hyp)
+        dst->psr = (dst->psr & ~Proc::Status_mode_mask) | Proc::PSR_m_usr;
     }
   else
     {
-      ts->psr &= ~(Proc::Status_mode_mask | Proc::Status_interrupts_mask);
-      ts->psr |= Proc::Status_mode_user | Proc::Status_always_mask;
+      dst->psr &= ~(Proc::Status_mode_mask | Proc::Status_interrupts_mask);
+      dst->psr |= Proc::Status_mode_user | Proc::Status_always_mask;
     }
+}
+
+IMPLEMENT_OVERRIDE inline NEEDS["mem.h", Context::sanitize_user_state]
+void
+Context::copy_and_sanitize_trap_state(Trap_state *dst,
+                                      Trap_state const *src) const
+{
+  Mem::memcpy_mwords(dst, src, 19);
+  dst->pc = src->pc;
+  dst->psr = access_once(&src->psr);
+  sanitize_user_state(dst);
 }
 
 IMPLEMENT inline
@@ -148,7 +161,24 @@ Context::Vm_state *
 Context::vm_state(Vcpu_state *vs)
 { return reinterpret_cast<Vm_state *>(reinterpret_cast<char *>(vs) + 0x400); }
 
-PUBLIC inline NEEDS[Context::vm_state]
+PRIVATE inline
+void
+Context::arm_hyp_load_non_vm_state(bool vgic)
+{
+  asm volatile ("mcr p15, 4, %0, c1, c1, 0"
+                : : "r"(Cpu::Hcr_tge | Cpu::Hcr_dc | Cpu::Hcr_must_set_bits));
+  // load normal SCTLR ...
+  asm volatile ("mcr p15, 0, %0, c1, c0, 0"
+                : : "r" ((Cpu::Cp15_c1_generic | Cpu::Cp15_c1_cache_bits) & ~Cpu::Cp15_c1_mmu));
+  asm volatile ("mcr p15, 0, %0,  c1, c0, 2" : : "r" (0xf00000));
+  asm volatile ("mcr p15, 0, %0, c13, c0, 0" : : "r" (0));
+  asm volatile ("mcr p15, 0, %0, c13, c0, 1" : : "r" (0));
+  asm volatile ("mcr p15, 0, %0, c14, c3, 1" : : "r" (0)); // disable VTIMER
+  if (vgic)
+    Gic_h::gic->hcr(Gic_h::Hcr(0));
+}
+
+PUBLIC inline NEEDS[Context::vm_state, Context::arm_hyp_load_non_vm_state]
 void
 Context::switch_vm_state(Context *t)
 {
@@ -325,28 +355,27 @@ Context::switch_vm_state(Context *t)
         Gic_h::gic->hcr(Gic_h::Hcr(0));
     }
   else
-    {
-      asm volatile ("mcr p15, 4, %0, c1, c1, 0"
-                    : : "r"(Cpu::Hcr_tge | Cpu::Hcr_dc | Cpu::Hcr_must_set_bits));
-      // load normal SCTLR ...
-      asm volatile ("mcr p15, 0, %0, c1, c0, 0"
-                    : : "r" ((Cpu::Cp15_c1_generic | Cpu::Cp15_c1_cache_bits) & ~Cpu::Cp15_c1_mmu));
-      asm volatile ("mcr p15, 0, %0,  c1, c0, 2" : : "r" (0xf00000));
-      asm volatile ("mcr p15, 0, %0, c13, c0, 0" : : "r" (0));
-      asm volatile ("mcr p15, 0, %0, c13, c0, 1" : : "r" (0));
-      asm volatile ("mcr p15, 0, %0, c14, c3, 1" : : "r" (0)); // disable VTIMER
-      if (vgic)
-        Gic_h::gic->hcr(Gic_h::Hcr(0));
-    }
+    arm_hyp_load_non_vm_state(vgic);
 }
 
-IMPLEMENT inline NEEDS[Context::vm_state]
+IMPLEMENT_OVERRIDE
+void
+Context::arch_vcpu_ext_shutdown()
+{
+  if (!(state() & Thread_ext_vcpu_enabled))
+    return;
+
+  state_del_dirty(Thread_ext_vcpu_enabled);
+  arm_hyp_load_non_vm_state(Gic_h::gic->hcr().en());
+}
+
+IMPLEMENT_OVERRIDE inline NEEDS[Context::vm_state]
 void
 Context::arch_load_vcpu_kern_state(Vcpu_state *vcpu, bool do_load)
 {
   if (!(state() & Thread_ext_vcpu_enabled))
     {
-      _tpidruro = vcpu->host_tpidruro;
+      _tpidruro = vcpu->host.tpidruro;
       if (do_load)
         load_tpidruro();
       return;
@@ -367,7 +396,7 @@ Context::arch_load_vcpu_kern_state(Vcpu_state *vcpu, bool do_load)
       if (do_load)
         {
           asm volatile ("mrc p15, 0, %0, c13, c0, 3"
-                        : "=r"(vcpu->user_tpidruro));
+                        : "=r"(vcpu->_regs.s.tpidruro));
           asm volatile ("mrc p15, 0, %0, c1,  c0, 0"
                         : "=r"(v->guest_regs.sctlr));
           asm volatile ("mrc p15, 0, %0, c13, c0, 0"
@@ -410,7 +439,7 @@ Context::arch_load_vcpu_kern_state(Vcpu_state *vcpu, bool do_load)
         }
       else
         {
-          vcpu->user_tpidruro      = _tpidruro;
+          vcpu->_regs.s.tpidruro = _tpidruro;
           v->guest_regs.sctlr      = v->sctlr;
           v->guest_regs.fcseidr    = v->fcseidr;
           v->guest_regs.contextidr = v->contextidr;
@@ -422,10 +451,10 @@ Context::arch_load_vcpu_kern_state(Vcpu_state *vcpu, bool do_load)
         }
     }
 
-  _tpidruro = vcpu->host_tpidruro;
+  _tpidruro = vcpu->host.tpidruro;
   if (do_load)
     {
-      asm volatile ("mcr p15, 0, %0, c13, c0, 3" : : "r"(vcpu->host_tpidruro));
+      asm volatile ("mcr p15, 0, %0, c13, c0, 3" : : "r"(vcpu->host.tpidruro));
       asm volatile ("mcr p15, 4, %0, c1,  c1, 0" : : "r"(Cpu::Hcr_must_set_bits | Cpu::Hcr_dc));
       asm volatile ("mcr p15, 0, %0, c1,  c0, 0" : : "r"(v->host_regs.sctlr));
     }
@@ -436,14 +465,14 @@ Context::arch_load_vcpu_kern_state(Vcpu_state *vcpu, bool do_load)
     }
 }
 
-IMPLEMENT inline NEEDS[Context::vm_state]
+IMPLEMENT_OVERRIDE inline NEEDS[Context::vm_state]
 void
 Context::arch_load_vcpu_user_state(Vcpu_state *vcpu, bool do_load)
 {
 
   if (!(state() & Thread_ext_vcpu_enabled))
     {
-      _tpidruro = vcpu->user_tpidruro;
+      _tpidruro = vcpu->_regs.s.tpidruro;
       if (do_load)
         load_tpidruro();
       return;
@@ -496,7 +525,7 @@ Context::arch_load_vcpu_user_state(Vcpu_state *vcpu, bool do_load)
 
   if (do_load)
     {
-      asm volatile ("mrc p15, 0, %0, c13, c0, 3" : "=r"(vcpu->host_tpidruro));
+      asm volatile ("mrc p15, 0, %0, c13, c0, 3" : "=r"(vcpu->host.tpidruro));
       asm volatile ("mrc p15, 0, %0, c1,  c0, 0" : "=r"(v->host_regs.sctlr));
 
       asm volatile ("mcr p15, 4, %0, c1,  c1, 0" : : "r"(hcr));
@@ -504,13 +533,13 @@ Context::arch_load_vcpu_user_state(Vcpu_state *vcpu, bool do_load)
       if (hcr & Cpu::Hcr_tge)
         sctlr &= ~Cpu::Cp15_c1_mmu;
       asm volatile ("mcr p15, 0, %0, c1,  c0, 0" : : "r"(sctlr));
-      asm volatile ("mcr p15, 0, %0, c13, c0, 3" : : "r"(vcpu->user_tpidruro));
-      _tpidruro          = vcpu->user_tpidruro;
+      asm volatile ("mcr p15, 0, %0, c13, c0, 3" : : "r"(vcpu->_regs.s.tpidruro));
+      _tpidruro          = vcpu->_regs.s.tpidruro;
     }
   else
     {
-      vcpu->host_tpidruro = _tpidruro;
-      _tpidruro           = vcpu->user_tpidruro;
+      vcpu->host.tpidruro = _tpidruro;
+      _tpidruro           = vcpu->_regs.s.tpidruro;
       v->host_regs.sctlr  = v->sctlr;
       v->hcr              = hcr;
       v->sctlr            = v->guest_regs.sctlr;

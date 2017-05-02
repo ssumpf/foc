@@ -9,6 +9,7 @@ IMPLEMENTATION:
 #include "jdb_screen.h"
 #include "jdb_table.h"
 #include "kernel_console.h"
+#include "kernel_task.h"
 #include "kmem.h"
 #include "keycodes.h"
 #include "space.h"
@@ -41,15 +42,13 @@ private:
   static unsigned entry_is_pt_ptr(Pdir::Pte_ptr const &entry,
                                   unsigned *entries, unsigned *next_level);
   static Address entry_phys(Pdir::Pte_ptr const &entry);
+  static void *entry_virt(Pdir::Pte_ptr const &entry);
 
   void print_entry(Pdir::Pte_ptr const &);
   void print_head(void *entry);
 };
 
 char Jdb_ptab_m::first_char;
-
-typedef Mword My_pte;			// shoud be replaced by
-					// arch-dependent type
 
 PUBLIC
 Jdb_ptab::Jdb_ptab(void *pt_base = 0, Space *task = 0,
@@ -59,7 +58,7 @@ Jdb_ptab::Jdb_ptab(void *pt_base = 0, Space *task = 0,
   _task(task), entries(entries), cur_pt_level(pt_level), dump_raw(0)
 {
   if (entries == 0)
-    this->entries = Pdir::entries_at_level(pt_level);
+    this->entries = Pdir::Levels::length(pt_level);
 }
 
 PUBLIC
@@ -69,14 +68,14 @@ Jdb_ptab::col_width(unsigned column) const
   if (column == 0)
     return Jdb_screen::Col_head_size;
   else
-    return Jdb_screen::Mword_size_bmode;
+    return sizeof(Pdir::Pte_ptr::Entry) * 2;
 }
 
 PUBLIC
 unsigned long
 Jdb_ptab::cols() const
 {
-  return Jdb_screen::cols();
+  return Jdb_screen::cols(sizeof(Mword) * 2, sizeof(Pdir::Pte_ptr::Entry) * 2);
 }
 
 
@@ -114,6 +113,13 @@ Jdb_ptab::entry_phys(Pdir::Pte_ptr const &entry)
   return entry.page_addr();
 }
 
+IMPLEMENT_DEFAULT
+void *
+Jdb_ptab::entry_virt(Pdir::Pte_ptr const &entry)
+{
+  return (void*)Mem_layout::phys_to_pmem(entry_phys(entry));
+}
+
 
 PRIVATE inline
 int
@@ -142,8 +148,13 @@ Jdb_ptab::entry_is_pt_ptr(Pdir::Pte_ptr const &entry,
   if (!entry.is_valid() || entry.is_leaf())
     return 0;
 
-  *entries = Pdir::entries_at_level(entry.level+1);
-  *next_level = entry.level+1;
+  unsigned n = 1;
+  while (   (entry.level + n) < Pdir::Depth
+         && Pdir::Levels::length(entry.level + n) <= 1)
+    ++n;
+
+  *entries = Pdir::Levels::length(entry.level + n);
+  *next_level = entry.level + n;
   return 1;
 }
 
@@ -162,10 +173,10 @@ Jdb_ptab_m::handle_key(Kobject_common *o, int code)
   if (code != 'p')
     return false;
 
-  Space *t = Kobject::dcast<Task*>(o);
+  Space *t = cxx::dyn_cast<Task*>(o);
   if (!t)
     {
-      Thread *th = Kobject::dcast<Thread_object*>(o);
+      Thread *th = cxx::dyn_cast<Thread*>(o);
       if (!th || !th->space())
         return false;
 
@@ -197,6 +208,7 @@ Jdb_ptab::key_pressed(int c, unsigned long &row, unsigned long &col)
       return Redraw;
 
     case KEY_RETURN:	// goto ptab/address under cursor
+    case KEY_RETURN_2:
       if (_level<=7)
 	{
           int idx = index(row, col);
@@ -207,7 +219,7 @@ Jdb_ptab::key_pressed(int c, unsigned long &row, unsigned long &col)
 	  if (!pt_entry.is_valid())
 	    break;
 
-	  void *pd_virt = (void*)Mem_layout::phys_to_pmem(entry_phys(pt_entry));
+	  void *pd_virt = entry_virt(pt_entry);
 
 	  unsigned next_level, entries;
 
@@ -275,7 +287,8 @@ Jdb_ptab_m::action(int cmd, void *&args, char const *&fmt, int &next_char)
     {
       if (args == &first_char)
 	{
-	  if (first_char != KEY_RETURN && first_char != ' ')
+	  if (first_char != KEY_RETURN && first_char != KEY_RETURN_2
+              && first_char != ' ')
 	    {
 	      fmt       = "%q";
 	      args      = &task;
@@ -303,7 +316,7 @@ Jdb_ptab_m::action(int cmd, void *&args, char const *&fmt, int &next_char)
       Space *s;
       if (task)
         {
-          s = Kobject::dcast<Task*>(reinterpret_cast<Kobject*>(task));
+          s = cxx::dyn_cast<Task*>(reinterpret_cast<Kobject*>(task));
           if (!s)
 	    return Jdb_module::NOTHING;
         }
@@ -345,7 +358,7 @@ Jdb_ptab_m::num_cmds() const
 
 IMPLEMENT
 Jdb_ptab_m::Jdb_ptab_m()
-  : Jdb_module("INFO"), Jdb_kobject_handler(0)
+  : Jdb_module("INFO")
 {
   Jdb_kobject::module()->register_handler(this);
 }

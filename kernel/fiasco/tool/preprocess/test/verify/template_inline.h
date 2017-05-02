@@ -40,10 +40,10 @@ public:
   
   
   
-  inline stack_top_t(int version, T *next);
+  inline stack_top_t (int version, T *next);
   
 #line 67 "template.cpp"
-  inline stack_top_t();
+  inline stack_top_t ();
 };
 #line 17 "template.cpp"
 
@@ -144,7 +144,7 @@ template_with_dfl_arg2();
 
 
 
-template<class T> inline stack_top_t<T>::stack_top_t(int version, T *next)
+template<class T> inline stack_top_t<T>::stack_top_t (int version, T *next)
   : _version (version),
     _next (next)
 {}
@@ -153,7 +153,7 @@ template<class T> inline stack_top_t<T>::stack_top_t(int version, T *next)
 
 
 
-template<class T> inline stack_top_t<T>::stack_top_t()
+template<class T> inline stack_top_t<T>::stack_top_t ()
   : _version (0),
     _next (0)
 {}

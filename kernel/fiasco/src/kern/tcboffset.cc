@@ -7,11 +7,9 @@ bool dumpzero;
 
 #define NAME_LEN 58
 
-static int _t;
-
 #if 1
 #define DUMP_CAST_OFFSET(type, subtype) 		\
-  ((unsigned long)((subtype *)((type *)(&_t))) - (unsigned long)&_t),
+  ((unsigned long)((subtype *)((type *)(10))) - (unsigned long)10),
 #endif
 
 #define DUMP_OFFSET(prefix,name,offset) (offset), 
@@ -26,6 +24,7 @@ static int _t;
                      name) (GET_MEMBER_PTR (type1, member1)),
 
 #define DUMP_CONSTANT(prefix, value) (value),
+#define DUMP_THREAD_STATE(value) (value),
 
 #if 0
 #define DUMP_CAST_OFFSET(type, subtype, member) 		\
@@ -46,11 +45,11 @@ int log2(int value)
 }
 
 
-void offsets_func(char **a, unsigned long **b) 
+void offsets_func(char const **a, unsigned long const **b) 
 {
-static char length[32] __attribute__((unused, section(".e_length"))) = 
+static char const length[32] __attribute__((unused, section(".e_length"))) = 
   { sizeof(unsigned long), };
-static unsigned long offsets[] __attribute__((unused, section(".offsets"))) = 
+static unsigned long const offsets[] __attribute__((unused, section(".offsets"))) = 
 {
 #include "tcboffset_in.h"
 };

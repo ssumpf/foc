@@ -41,6 +41,8 @@ namespace L4
     virtual int char_avail() const = 0;
     virtual int write(char const *s, unsigned long count) const = 0;
 
+    virtual void irq_ack() {}
+
     virtual bool enable_rx_irq(bool = true) { return false; }
     Transfer_mode mode() const { return _mode; }
     Baud_rate rate() const { return _rate; }

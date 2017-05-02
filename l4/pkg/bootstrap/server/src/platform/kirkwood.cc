@@ -30,8 +30,8 @@ class Platform_arm_kirkwood : public Platform_single_region_ram
     kuart.base_baud    = 12500000;
     kuart.baud         = 115200;
     kuart.irqno        = 33;         /* uart 1 irq: ??? */
-    setup_16550_mmio_uart();
-    set_stdio_uart(&_uart);
+    static L4::Uart_16550 _uart(kuart.base_baud, 0, 0, 0, 0);
+    setup_16550_mmio_uart(&_uart);
 
 
     // SPI init, as there's an interrupt pending when coming from u-boot on

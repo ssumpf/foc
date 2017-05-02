@@ -43,7 +43,7 @@ private:
     APIC_tpri_mask		= 0xFF,
     APIC_eoi			= 0xB0,
     APIC_ldr			= 0xD0,
-    APIC_ldr_mask		= (0xFF<<24),
+    APIC_ldr_mask		= 0xFFul << 24,
     APIC_dfr			= 0xE0,
     APIC_spiv			= 0xF0,
     APIC_isr			= 0x100,
@@ -61,12 +61,12 @@ private:
     APIC_tmcct			= 0x390,
     APIC_tdcr			= 0x3E0,
 
-    APIC_snd_pending		= (1<<12),
-    APIC_input_polarity		= (1<<13),
-    APIC_lvt_remote_irr		= (1<<14),
-    APIC_lvt_level_trigger	= (1<<15),
-    APIC_lvt_masked		= (1<<16),
-    APIC_lvt_timer_periodic	= (1<<17),
+    APIC_snd_pending		= 1 << 12,
+    APIC_input_polarity		= 1 << 13,
+    APIC_lvt_remote_irr		= 1 << 14,
+    APIC_lvt_level_trigger	= 1 << 15,
+    APIC_lvt_masked		= 1 << 16,
+    APIC_lvt_timer_periodic	= 1 << 17,
     APIC_tdr_div_1		= 0xB,
     APIC_tdr_div_2		= 0x0,
     APIC_tdr_div_4		= 0x1,
@@ -118,7 +118,7 @@ struct By_id
 {
   Unsigned32 p;
   By_id(Unsigned32 p) : p(p) {}
-  bool operator () (Apic const *a) const { return a->apic_id() == p; }
+  bool operator () (Apic const *a) const { return a && a->apic_id() == p; }
 };
 }
 
@@ -472,7 +472,7 @@ Apic::timer_set_divisor(unsigned newdiv)
 	{
 	  if (divval & ~1)
 	    {
-	      printf("bad APIC divisor %d\n", newdiv);
+	      printf("bad APIC divisor %u\n", newdiv);
 	      return;
 	    }
 	  div = divisor_tab[i];
@@ -603,7 +603,7 @@ Apic::route_pic_through_apic()
   auto guard = lock_guard(cpu_lock);
 
   // mask 8259 interrupts
-  Pic::Status old_irqs = Pic::disable_all_save();
+  Unsigned16 old_irqs = Pic::disable_all_save();
 
   // set LINT0 to ExtINT, edge triggered
   tmp_val = reg_read(APIC_lvt0);
@@ -784,13 +784,13 @@ Apic::error_interrupt(Return_frame *regs)
       if (ignore_invalid_apic_reg_access)
 	return;
 
-      printf("cpu%d: APIC invalid register access error at " L4_PTR_FMT "\n",
+      printf("CPU%u: APIC invalid register access error at " L4_PTR_FMT "\n",
 	     cxx::int_value<Cpu_number>(current_cpu()), regs->ip());
       return;
     }
 
   apic_error_cnt++;
-  printf("cpu%d: APIC error %08x(%08x)\n",
+  printf("CPU%u: APIC error %08x(%08x)\n",
          cxx::int_value<Cpu_number>(current_cpu()), err1, err2);
 }
 

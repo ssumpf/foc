@@ -1,13 +1,12 @@
 //----------------------------------------------------------------------------
 IMPLEMENTATION [amd64]:
 
-
 PUBLIC template<typename T> inline
 void FIASCO_NORETURN
 Thread::fast_return_to_user(Mword ip, Mword sp, T arg)
 {
-  assert_kdb(cpu_lock.test());
-  assert_kdb(current() == this);
+  assert(cpu_lock.test());
+  assert(current() == this);
 
   regs()->ip(ip);
   regs()->sp(sp);
@@ -99,44 +98,59 @@ Thread::trap_state_to_rf(Trap_state *ts)
   return reinterpret_cast<Return_frame*>(im)-1;
 }
 
-PRIVATE static inline NEEDS[Thread::trap_state_to_rf]
+PRIVATE static inline NEEDS[Thread::trap_state_to_rf, Thread::sanitize_user_flags]
 bool FIASCO_WARN_RESULT
 Thread::copy_utcb_to_ts(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
                         L4_fpage::Rights rights)
 {
+  if (EXPECT_FALSE((tag.words() * sizeof(Mword)) < sizeof(Trex)))
+    return true;
+
   Trap_state *ts = (Trap_state*)rcv->_utcb_handler;
-  Mword       s  = tag.words();
   Unsigned32  cs = ts->cs();
   Utcb *snd_utcb = snd->utcb().access();
+  Trex const *src = reinterpret_cast<Trex const *>(snd_utcb->values);
 
   if (EXPECT_FALSE(rcv->exception_triggered()))
     {
       // triggered exception pending
-      Mem::memcpy_mwords (ts, snd_utcb->values, s > 19 ? 19 : s);
-      if (EXPECT_TRUE(s > 22))
-	{
-	  Continuation::User_return_frame const *s
-	    = reinterpret_cast<Continuation::User_return_frame const *>((char*)&snd_utcb->values[19]);
+      Mem::memcpy_mwords(ts, &src->s, Ts::Reg_words);
+      Continuation::User_return_frame const *urfp
+        = reinterpret_cast<Continuation::User_return_frame const *>
+            ((char*)&src->s._ip);
 
-	  rcv->_exc_cont.set(trap_state_to_rf(ts), s);
-	}
+      Continuation::User_return_frame urf = access_once(urfp);
+
+      // sanitize flags
+      urf.flags(sanitize_user_flags(urf.flags()));
+      rcv->_exc_cont.set(trap_state_to_rf(ts), &urf);
     }
   else
-    Mem::memcpy_mwords (ts, snd_utcb->values, s > 23 ? 23 : s);
+    {
+      Mem::memcpy_mwords(ts, &src->s, Ts::Words);
+      // sanitize flags
+      ts->flags(sanitize_user_flags(ts->flags()));
+      // don't allow to overwrite the code selector!
+      ts->cs(cs & ~0x80);
+    }
+
+  rcv->_fs_base = access_once(&src->fs_base);
+  rcv->_gs_base = access_once(&src->gs_base);
+
+  rcv->_ds = access_once(&src->ds);
+  rcv->_es = access_once(&src->es);
+  rcv->_fs = access_once(&src->fs);
+  rcv->_gs = access_once(&src->gs);
+
+  if (rcv == current())
+    rcv->load_gdt_user_entries(rcv);
 
   if (tag.transfer_fpu() && (rights & L4_fpage::Rights::W()))
     snd->transfer_fpu(rcv);
 
-  // sanitize eflags
-  ts->flags((ts->flags() & ~(EFLAGS_IOPL | EFLAGS_NT)) | EFLAGS_IF);
-
-  // don't allow to overwrite the code selector!
-  ts->cs(cs);
-
   bool ret = transfer_msg_items(tag, snd, snd_utcb,
                                 rcv, rcv->utcb().access(), rights);
 
-  rcv->state_del(Thread_in_exception);
   return ret;
 }
 
@@ -147,22 +161,32 @@ Thread::copy_ts_to_utcb(L4_msg_tag const &, Thread *snd, Thread *rcv,
 {
   Trap_state *ts = (Trap_state*)snd->_utcb_handler;
   Utcb *rcv_utcb = rcv->utcb().access();
-  {
-    auto guard = lock_guard(cpu_lock);
-    if (EXPECT_FALSE(snd->exception_triggered()))
-      {
-	Mem::memcpy_mwords (rcv_utcb->values, ts, 19);
-	Continuation::User_return_frame *d
-	    = reinterpret_cast<Continuation::User_return_frame *>((char*)&rcv_utcb->values[19]);
+  Trex *dst = reinterpret_cast<Trex *>(rcv_utcb->values);
+    {
+      auto guard = lock_guard(cpu_lock);
 
-	snd->_exc_cont.get(d, trap_state_to_rf(ts));
-      }
-    else
-      Mem::memcpy_mwords (rcv_utcb->values, ts, 23);
+      dst->ds = snd->_ds;
+      dst->es = snd->_es;
+      dst->fs = snd->_fs;
+      dst->gs = snd->_gs;
+      dst->fs_base = snd->_fs_base;
+      dst->gs_base = snd->_gs_base;
 
-    if (rcv_utcb->inherit_fpu() && (rights & L4_fpage::Rights::W()))
-      snd->transfer_fpu(rcv);
-}
+      if (EXPECT_FALSE(snd->exception_triggered()))
+        {
+          Mem::memcpy_mwords(&dst->s, ts, Ts::Reg_words + Ts::Code_words);
+          Continuation::User_return_frame *d
+            = reinterpret_cast<Continuation::User_return_frame *>
+            ((char*)&dst->s._ip);
+
+          snd->_exc_cont.get(d, trap_state_to_rf(ts));
+        }
+      else
+        Mem::memcpy_mwords(&dst->s, ts, Ts::Words);
+
+      if (rcv_utcb->inherit_fpu() && (rights & L4_fpage::Rights::W()))
+        snd->transfer_fpu(rcv);
+    }
   return true;
 }
 
@@ -273,7 +297,7 @@ Thread::call_nested_trap_handler(Trap_state *ts)
      : "rdx", "rcx", "r8", "r9", "memory");
 
   if (!ntr)
-    handle_global_requests();
+    Cpu_call::handle_global_requests();
 
   return ret == 0 ? 0 : -1;
 }

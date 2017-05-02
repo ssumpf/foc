@@ -1,4 +1,3 @@
-
 #include "support.h"
 #include "startup.h"
 
@@ -27,4 +26,3 @@ void __main()
   while(1)
     ;
 }
-

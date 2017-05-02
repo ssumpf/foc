@@ -22,16 +22,14 @@ class Irq_base;
 
 typedef Context_ptr_base<Thread> Thread_ptr;
 
-
 /** A thread.  This class is the driver class for most kernel functionality.
  */
 class Thread :
   public Receiver,
   public Sender,
-  public Kobject
+  public cxx::Dyn_castable<Thread, Kobject>
 {
   MEMBER_OFFSET();
-  FIASCO_DECLARE_KOBJ();
 
   friend class Jdb;
   friend class Jdb_bt;
@@ -54,7 +52,7 @@ public:
     Op_vcpu_resume = 4,
     Op_register_del_irq = 5,
     Op_modify_senders = 6,
-    Op_vcpu_control= 7,
+    Op_vcpu_control = 7,
     Op_gdt_x86 = 0x10,
     Op_set_tpidruro_arm = 0x10,
     Op_set_segment_base_amd64 = 0x12,
@@ -77,9 +75,8 @@ public:
 
   enum Vcpu_ctl_flags
   {
-    Vcpu_ctl_extendet_vcpu = 0x10000,
+    Vcpu_ctl_extended_vcpu = 0x10000,
   };
-
 
   class Dbg_stack
   {
@@ -111,7 +108,6 @@ private:
     Thread *victim;
   };
 
-  Thread(const Thread&);	///< Default copy constructor is undefined
   void *operator new(size_t);	///< Default new operator undefined
 
   bool handle_sigma0_page_fault (Address pfa);
@@ -183,10 +179,8 @@ IMPLEMENTATION:
 #include "thread_state.h"
 #include "timeout.h"
 
-FIASCO_DEFINE_KOBJ(Thread);
-
+JDB_DEFINE_TYPENAME(Thread,  "\033[32mThread\033[m");
 DEFINE_PER_CPU Per_cpu<unsigned long> Thread::nested_trap_recover;
-
 
 IMPLEMENT
 Thread::Dbg_stack::Dbg_stack()
@@ -249,7 +243,7 @@ Thread::unbind()
       auto guard = lock_guard(_space.lock());
 
       if (_space.space() == Kernel_task::kernel_task())
-	return true;
+        return true;
 
       old = static_cast<Task*>(_space.space());
       _space.space(Kernel_task::kernel_task());
@@ -259,7 +253,7 @@ Thread::unbind()
         Kernel_task::kernel_task()->switchin_context(old);
 
       if (old->dec_ref())
-	old = 0;
+        old = 0;
     }
 
   if (old)
@@ -286,7 +280,7 @@ Thread::Thread(Context_mode_kernel)
 
   if (Config::Stack_depth)
     std::memset((char*)this + sizeof(Thread), '5',
-		Thread::Size-sizeof(Thread)-64);
+                Thread::Size-sizeof(Thread) - 64);
 }
 
 
@@ -303,12 +297,10 @@ Thread::~Thread()		// To be called in locked state.
   unsigned long *init_sp = reinterpret_cast<unsigned long*>
     (reinterpret_cast<unsigned long>(this) + Size - sizeof(Entry_frame));
 
-
   _kernel_sp = 0;
   *--init_sp = 0;
   Fpu_alloc::free_state(fpu_state());
 }
-
 
 // IPC-gate deletion stuff ------------------------------------
 
@@ -372,7 +364,6 @@ Thread::remove_delete_irq()
 
 // end of: IPC-gate deletion stuff -------------------------------
 
-
 /** Currently executing thread.
     @return currently executing thread.
  */
@@ -384,13 +375,13 @@ current_thread()
 PUBLIC inline
 bool
 Thread::exception_triggered() const
-{ return _exc_cont.valid(); }
+{ return _exc_cont.valid(regs()); }
 
 PUBLIC inline
 bool
 Thread::continuation_test_and_restore()
 {
-  bool v = _exc_cont.valid();
+  bool v = _exc_cont.valid(regs());
   if (v)
     _exc_cont.restore(regs());
   return v;
@@ -399,7 +390,6 @@ Thread::continuation_test_and_restore()
 //
 // state requests/manipulation
 //
-
 
 PUBLIC inline NEEDS ["config.h", "timeout.h"]
 void
@@ -452,7 +442,7 @@ void
 Thread::user_invoke_generic()
 {
   Context *const c = current();
-  assert_kdb (c->state() & Thread_ready_mask);
+  assert (c->state() & Thread_ready_mask);
 
   if (c->handle_drq())
     c->schedule();
@@ -478,7 +468,11 @@ PUBLIC static
 Context::Drq::Result
 Thread::handle_kill_helper(Drq *src, Context *, void *)
 {
-  delete static_cast<Thread*>(static_cast<Kernel_drq*>(src)->src);
+  Thread *to_delete = static_cast<Thread*>(static_cast<Kernel_drq*>(src)->src);
+  assert (!to_delete->in_ready_list());
+  if (to_delete->dec_ref() == 0)
+    delete to_delete;
+
   return Drq::no_answer_resched();
 }
 
@@ -532,10 +526,10 @@ Thread::do_kill()
     auto guard = lock_guard(cpu_lock);
     while (Sender *s = Sender::cast(sender_list()->first()))
       {
-	s->sender_dequeue(sender_list());
-	vcpu_update_state();
-	s->ipc_receiver_aborted();
-	Proc::preemption_point();
+        s->sender_dequeue(sender_list());
+        vcpu_update_state();
+        s->ipc_receiver_aborted();
+        Proc::preemption_point();
       }
   }
 
@@ -543,15 +537,15 @@ Thread::do_kill()
   if (in_sender_list())
     {
       while (Locked_prio_list *q = wait_queue())
-	{
-	  auto g = lock_guard(q->lock());
-	  if (wait_queue() == q)
-	    {
-	      sender_dequeue(q);
-	      set_wait_queue(0);
-	      break;
-	    }
-	}
+        {
+          auto g = lock_guard(q->lock());
+          if (wait_queue() == q)
+            {
+              sender_dequeue(q);
+              set_wait_queue(0);
+              break;
+            }
+        }
     }
 
   release_fpu_if_owner();
@@ -562,6 +556,8 @@ Thread::do_kill()
   vcpu_set_user_space(0);
 
   cpu_lock.lock();
+
+  arch_vcpu_ext_shutdown();
 
   state_change_dirty(0, Thread_dead);
 
@@ -574,21 +570,16 @@ Thread::do_kill()
       _del_observer = 0;
     }
 
-  if (dec_ref())
-    while (1)
-      {
-	state_del_dirty(Thread_ready_mask);
-	schedule();
-	WARN("woken up dead thread %lx\n", dbg_id());
-	kdb_ke("X");
-      }
-
   rcu_wait();
 
   state_del_dirty(Thread_ready_mask);
 
   Sched_context::rq.current().ready_dequeue(sched());
 
+  // make sure this thread really never runs again by migrating it
+  // to the 'invalid' CPU forcefully and then switching to the kernel
+  // thread for doing the last bits.
+  force_to_invalid_cpu();
   kernel_context_drq(handle_kill_helper, 0);
   kdb_ke("Im dead");
   return true;
@@ -680,11 +671,9 @@ PUBLIC static inline
 void
 Thread::assert_irq_entry()
 {
-  assert_kdb(Sched_context::rq.current().schedule_in_progress
+  assert(Sched_context::rq.current().schedule_in_progress
              || current_thread()->state() & (Thread_ready_mask | Thread_drq_wait | Thread_waiting | Thread_ipc_transfer));
 }
-
-
 
 // ---------------------------------------------------------------------------
 
@@ -729,7 +718,7 @@ PRIVATE inline
 Thread::Migration *
 Thread::start_migration()
 {
-  assert_kdb(cpu_lock.test());
+  assert(cpu_lock.test());
   Migration *m = _migration;
 
   assert (!((Mword)m & 0x3)); // ensure alignment
@@ -761,7 +750,7 @@ Thread::do_migration()
 
   if (current() == this)
     {
-      assert_kdb (current_cpu() == home_cpu());
+      assert (current_cpu() == home_cpu());
       return kernel_context_drq(handle_migration_helper, inf);
     }
   else
@@ -795,16 +784,12 @@ void
 Thread::finish_migration()
 { enqueue_timeout_again(); }
 
-
-
-
 //---------------------------------------------------------------------------
 IMPLEMENTATION [fpu && !ux]:
 
 #include "fpu.h"
 #include "fpu_alloc.h"
 #include "fpu_state.h"
-
 
 /*
  * Handle FPU trap for this context. Assumes disabled interrupts
@@ -818,7 +803,7 @@ Thread::switchin_fpu(bool alloc_new_fpu = true)
 
   Fpu &f = Fpu::fpu.current();
   // If we own the FPU, we should never be getting an "FPU unavailable" trap
-  assert_kdb (f.owner() != this);
+  assert (f.owner() != this);
 
   // Allocate FPU state slab if we didn't already have one
   if (!fpu_state()->state_buffer()
@@ -863,18 +848,18 @@ Thread::transfer_fpu(Thread *to) //, Trap_state *trap_state, Utcb *to_utcb)
 
   Fpu &f = Fpu::fpu.current();
 
-  f.disable(); // it will be reanabled in switch_fpu
+  f.disable(); // it will be reenabled in switch_fpu
 
   if (EXPECT_FALSE(f.owner() == to))
     {
-      assert_kdb (to->state() & Thread_fpu_owner);
+      assert (to->state() & Thread_fpu_owner);
 
       f.set_owner(0);
       to->state_del_dirty(Thread_fpu_owner);
     }
   else if (f.owner() == this)
     {
-      assert_kdb (state() & Thread_fpu_owner);
+      assert (state() & Thread_fpu_owner);
 
       state_del_dirty(Thread_fpu_owner);
 
@@ -927,7 +912,6 @@ PUBLIC inline
 unsigned Thread::sys_fpage_unmap_log(Syscall_frame *)
 { return 0; }
 
-
 // ----------------------------------------------------------------------------
 IMPLEMENTATION [!mp]:
 
@@ -936,8 +920,8 @@ PRIVATE inline
 bool
 Thread::migrate_away(Migration *inf, bool remote)
 {
-  assert_kdb (current() != this);
-  assert_kdb (cpu_lock.test());
+  assert (current() != this);
+  assert (cpu_lock.test());
   bool resched = false;
 
   Cpu_number cpu = inf->cpu;
@@ -1000,7 +984,7 @@ PUBLIC
 void
 Thread::migrate(Migration *info)
 {
-  assert_kdb (cpu_lock.test());
+  assert (cpu_lock.test());
 
   LOG_TRACE("Thread migration", "mig", this, Migration_log,
       l->state = state(false);
@@ -1013,6 +997,16 @@ Thread::migrate(Migration *info)
   current()->schedule_if(do_migration());
 }
 
+PRIVATE inline NOEXPORT
+void
+Thread::force_to_invalid_cpu()
+{
+  // make sure this thread really never runs again by migrating it
+  // to the 'invalid' CPU forcefully and then switching to the kernel
+  // thread for doing the last bits.
+  set_home_cpu(Cpu::invalid());
+  handle_drq();
+}
 
 //----------------------------------------------------------------------------
 INTERFACE [debug]:
@@ -1043,7 +1037,7 @@ PUBLIC
 void
 Thread::migrate(Migration *info)
 {
-  assert_kdb (cpu_lock.test());
+  assert (cpu_lock.test());
 
   LOG_TRACE("Thread migration", "mig", this, Migration_log,
       l->state = state(false);
@@ -1076,11 +1070,24 @@ Thread::migrate(Migration *info)
 
 }
 
+PRIVATE inline NOEXPORT
+void
+Thread::force_to_invalid_cpu()
+{
+  // make sure this thread really never runs again by migrating it
+  // to the 'invalid' CPU forcefully.
+    {
+      auto g = lock_guard(_pending_rqq.current().q_lock());
+      set_home_cpu(Cpu::invalid());
+    }
+  handle_drq();
+}
+
 IMPLEMENT
 void
 Thread::handle_remote_requests_irq()
 {
-  assert_kdb (cpu_lock.test());
+  assert (cpu_lock.test());
   // printf("CPU[%2u]: > RQ IPI (current=%p)\n", current_cpu(), current());
   Context *const c = current();
   Ipi::eoi(Ipi::Request, current_cpu());
@@ -1116,19 +1123,19 @@ IMPLEMENT
 void
 Thread::handle_global_remote_requests_irq()
 {
-  assert_kdb (cpu_lock.test());
+  assert (cpu_lock.test());
   // printf("CPU[%2u]: > RQ IPI (current=%p)\n", current_cpu(), current());
   Ipi::eoi(Ipi::Global_request, current_cpu());
-  Context::handle_global_requests();
+  Cpu_call::handle_global_requests();
 }
 
 PRIVATE inline
 bool
 Thread::migrate_away(Migration *inf, bool remote)
 {
-  assert_kdb (check_for_current_cpu());
-  assert_kdb (current() != this);
-  assert_kdb (cpu_lock.test());
+  assert (check_for_current_cpu());
+  assert (current() != this);
+  assert (cpu_lock.test());
   bool resched = false;
 
   if (_timeout)
@@ -1165,10 +1172,10 @@ Thread::migrate_away(Migration *inf, bool remote)
                ? lock_guard(q.q_lock())
                : Lock_guard<cxx::remove_pointer<decltype(q.q_lock())>::type>();
 
-      assert_kdb (q.q_lock()->test());
+      assert (q.q_lock()->test());
       // potentially dequeue from our local queue
       if (_pending_rq.queued())
-        check_kdb (q.dequeue(&_pending_rq, Queue_item::Ok));
+        check (q.dequeue(&_pending_rq, Queue_item::Ok));
 
       Sched_context *sc = sched_context();
       sc->set(inf->sp);
@@ -1177,8 +1184,8 @@ Thread::migrate_away(Migration *inf, bool remote)
 
       Mem::mp_wmb();
 
-      assert_kdb (!in_ready_list());
-      assert_kdb (!_pending_rq.queued());
+      assert (!in_ready_list());
+      assert (!_pending_rq.queued());
 
       state_add_dirty(Thread_finish_migration);
       set_home_cpu(target_cpu);
@@ -1224,7 +1231,7 @@ Thread::migrate_to(Cpu_number target_cpu, bool /*remote*/)
           q.enqueue(&_pending_rq);
         }
       else
-        assert_kdb (_pending_rq.queue() == &q);
+        assert (_pending_rq.queue() == &q);
     }
 
   if (ipi)
@@ -1286,6 +1293,18 @@ Thread::migrate_xcpu(Cpu_number cpu)
 IMPLEMENTATION [debug]:
 
 #include "string_buffer.h"
+#include "kdb_ke.h"
+#include "terminate.h"
+
+PUBLIC static
+void FIASCO_NORETURN
+Thread::system_abort()
+{
+  if (nested_trap_handler)
+    kdb_ke("abort");
+
+  terminate(EXIT_FAILURE);
+}
 
 IMPLEMENT
 void
@@ -1295,3 +1314,13 @@ Thread::Migration_log::print(String_buffer *buf) const
               cxx::int_value<Cpu_number>(src_cpu),
               cxx::int_value<Cpu_number>(target_cpu), state, user_ip);
 }
+
+//----------------------------------------------------------------------------
+IMPLEMENTATION [!debug]:
+
+#include "terminate.h"
+
+PUBLIC static
+void FIASCO_NORETURN
+Thread::system_abort()
+{ terminate(EXIT_FAILURE); }

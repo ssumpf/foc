@@ -2,7 +2,7 @@ INTERFACE:
 
 #include "spin_lock.h"
 #include "queue_item.h"
-#include "kdb_ke.h"
+#include "assert.h"
 #include <cxx/dlist>
 
 class Queue
@@ -19,7 +19,7 @@ private:
 
     void set_item(Queue_item *i)
     {
-      assert_kdb (!(Mword(i) & 5));
+      assert (!(Mword(i) & 5));
       set_unused((Mword)i | (get_unused() & 5));
     }
 
@@ -55,7 +55,7 @@ private:
 //--------------------------------------------------------------------------
 IMPLEMENTATION:
 
-#include "kdb_ke.h"
+#include "assert.h"
 #include "std_macros.h"
 
 PUBLIC inline
@@ -67,23 +67,23 @@ Queue::Inner_lock *
 Queue::q_lock()
 { return &_m.head(); }
 
-PUBLIC inline NEEDS["kdb_ke.h"]
+PUBLIC inline NEEDS["assert.h"]
 void
 Queue::enqueue(Queue_item *i)
 {
   // Queue i at the end of the list
-  assert_kdb (i && !i->queued());
-  assert_kdb (_m.head().test());
+  assert (i && !i->queued());
+  assert (_m.head().test());
   i->_q = this;
   _m.push_back(i);
 }
 
-PUBLIC inline NEEDS["kdb_ke.h", "std_macros.h"]
+PUBLIC inline NEEDS["assert.h", "std_macros.h"]
 bool
 Queue::dequeue(Queue_item *i, Queue_item::Status reason)
 {
-  assert_kdb (_m.head().test());
-  assert_kdb (i->queued());
+  assert (_m.head().test());
+  assert (i->queued());
 
   if (EXPECT_FALSE(i->_q != this))
     return false;
@@ -103,35 +103,35 @@ bool
 Queue::blocked() const
 { return _m.head().blocked(); }
 
-PUBLIC inline NEEDS["kdb_ke.h"]
+PUBLIC inline NEEDS["assert.h"]
 void
 Queue::block()
 {
-  assert_kdb (_m.head().test());
+  assert (_m.head().test());
   _m.head().block();
 }
 
-PUBLIC inline NEEDS["kdb_ke.h"]
+PUBLIC inline NEEDS["assert.h"]
 void
 Queue::unblock()
 {
-  assert_kdb (_m.head().test());
+  assert (_m.head().test());
   _m.head().unblock();
 }
 
-PUBLIC inline NEEDS["kdb_ke.h"]
+PUBLIC inline NEEDS["assert.h"]
 bool
 Queue::invalid() const
 {
-  assert_kdb (_m.head().test());
+  assert (_m.head().test());
   return _m.head().invalid();
 }
 
-PUBLIC inline NEEDS["kdb_ke.h"]
+PUBLIC inline NEEDS["assert.h"]
 void
 Queue::invalidate()
 {
-  assert_kdb (_m.head().test());
+  assert (_m.head().test());
   _m.head().invalidate();
 }
 

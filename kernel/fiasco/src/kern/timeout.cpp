@@ -228,7 +228,7 @@ PUBLIC inline NEEDS ["cpu_lock.h", "lock_guard.h", "timer.h",
 void
 Timeout::reset()
 {
-  assert_kdb (cpu_lock.test());
+  assert (cpu_lock.test());
   To_list::remove(this);
 
   // Normaly we should reprogramm the timer in one shot mode

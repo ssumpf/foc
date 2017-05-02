@@ -5,15 +5,15 @@
 #
 # add kernel command line arguments with
 #  kernel fiasco arguments...
-# the seconds argument here is the binary name
-# 
+# the second argument (here 'fiasco') is the binary name
+#
 # add sigma command line arguments with
 #  sigma0 sigma0 arguments...
-# the second sigma0 is the binary name
+# the second argument (here 'sigma0') is the binary name
 #
 # add roottask command line arguments with
 #  roottask moe arguments...
-# the second roottask is the binary name
+# the second argument (here 'moe') is the binary name
 #
 # modaddr: address where modules start, relative to begin of RAM
 #   this statement is either global (before first entry statement)
@@ -21,8 +21,9 @@
 #
 # 'module' variants
 # - module file: add file
-# - module-glob /some/path/*.foo: add all file matching
-# - module-perl perl-code: Perl code returns array of files to include
+# - module[glob] /some/path/*.foo: add all file matching
+# - module[perl] perl-code: Perl code returns array of files to include
+# - module[shell] shell-code: Return list of files to include
 # - moe file.cfg: expands to
 #        roottask moe rom/file.cfg
 #        module file.cfg
@@ -78,15 +79,25 @@ module libc_be_l4re.so
 module libsupc++.so
 module libuc_c.so
 
-entry L4Linux ARM
-roottask moe rom/l4lx.cfg
+entry framebuffer-example-x86
+roottask moe rom/x86-fb.cfg
+module x86-fb.cfg
 module l4re
 module ned
-module l4lx.cfg
 module io
-module arm-rv.io
-module vmlinuz.arm
-module ramdisk-arm.rd
+module x86-legacy.devs
+module x86-fb.io
+module fb-drv
+module mag
+module ex_fb_spectrum_cc
+
+entry L4Linux-basic
+roottask moe rom/l4lx.cfg
+module l4lx.cfg
+module l4re
+module ned
+module vmlinuz
+module[perl] "ramdisk-$ENV{ARCH}.rd"
 
 entry L4Linux-mag-x86
 roottask moe rom/l4lx-gfx.cfg
@@ -99,5 +110,5 @@ module mag
 module x86-legacy.devs
 module l4lx-x86.io
 module vmlinuz
-module ramdisk-x86.rd
+module[perl] "ramdisk-$ENV{ARCH}.rd"
 

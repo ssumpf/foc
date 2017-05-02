@@ -4,6 +4,7 @@ INTERFACE:
 #include "l4_types.h"
 #include "space.h"
 #include <cxx/function>
+#include "cpu_call.h"
 
 class Mapdb;
 
@@ -61,13 +62,8 @@ struct Auto_tlb_flush<Mem_space>
         return;
       }
 
-    for (unsigned i = 0; i < N_spaces; ++i)
-      {
-        if (spaces[i])
-          spaces[i]->tlb_flush(true);
-        else
-          return;
-      }
+    for (unsigned i = 0; i < N_spaces && spaces[i]; ++i)
+      spaces[i]->tlb_flush(true);
   }
 
   void global_flush()
@@ -75,7 +71,7 @@ struct Auto_tlb_flush<Mem_space>
     if (empty)
       return;
 
-    Context::cpu_call_many(Context::active_tlb(), [this](Cpu_number) {
+    Cpu_call::cpu_call_many(Mem_space::active_tlb(), [this](Cpu_number) {
       this->do_flush();
       return false;
     });
@@ -101,7 +97,7 @@ v_delete(M *m, O order, L4_fpage::Rights flush_rights,
                                                flush_rights);
   tlb.add_page(child_space, SPACE::to_virt(m->pfn(order)), SPACE::to_order(order));
   (void) full_flush;
-  assert_kdb (full_flush != child_space->v_lookup(SPACE::to_virt(m->pfn(order))));
+  assert (full_flush != child_space->v_lookup(SPACE::to_virt(m->pfn(order))));
   return res;
 }
 
@@ -471,6 +467,7 @@ map(MAPDB* mapdb,
             }
         }
 
+      bool const s_valid = mapdb->valid_address(SPACE::to_pfn(s_phys));
       // Also, look up mapping database entry.  Depending on whether
       // we can overmap, either look up the destination mapping first
       // (and compute the sender mapping from it) or look up the
@@ -488,7 +485,8 @@ map(MAPDB* mapdb,
           // mapping.
           if (! grant                         // Grant currently always flushes
               && r_order <= i_order             // Rcv frame in snd frame
-              && SPACE::page_address(r_phys, i_order) == i_phys)
+              && SPACE::page_address(r_phys, i_order) == i_phys
+              && s_valid)
             sender_mapping = mapdb->check_for_upgrade(SPACE::to_pfn(r_phys), from_id,
                                                       SPACE::to_pfn(snd_addr), to_id,
                                                       SPACE::to_pfn(rcv_addr), &mapdb_frame);
@@ -501,7 +499,7 @@ map(MAPDB* mapdb,
       // Loop increment is size of insertion
       size = i_size;
 
-      if (! sender_mapping && mapdb->valid_address(SPACE::to_pfn(s_phys))
+      if (s_valid && ! sender_mapping
           && EXPECT_FALSE(! mapdb->lookup(from_id,
                                           SPACE::to_pfn(SPACE::page_address(snd_addr, s_order)),
                                           SPACE::to_pfn(s_phys),
@@ -528,12 +526,12 @@ map(MAPDB* mapdb,
         case SPACE::Insert_warn_attrib_upgrade:
         case SPACE::Insert_ok:
 
-          assert_kdb (mapdb->valid_address(SPACE::to_pfn(s_phys)) || status == SPACE::Insert_ok);
+          assert (s_valid || status == SPACE::Insert_ok);
           // Never doing upgrades for mapdb-unmanaged memory
 
           if (grant)
             {
-              if (mapdb->valid_address(SPACE::to_pfn(s_phys))
+              if (s_valid
                   && EXPECT_FALSE(!mapdb->grant(mapdb_frame, sender_mapping,
                                                 to_id, SPACE::to_pfn(rcv_addr))))
                 {
@@ -551,7 +549,7 @@ map(MAPDB* mapdb,
             }
           else if (status == SPACE::Insert_ok)
             {
-              if (mapdb->valid_address(SPACE::to_pfn(s_phys))
+              if (s_valid
                   && !mapdb->insert(mapdb_frame, sender_mapping,
                                     to_id, SPACE::to_pfn(rcv_addr),
                                     SPACE::to_pfn(i_phys), SPACE::to_pcnt(i_order)))
@@ -716,7 +714,7 @@ unmap(MAPDB* mapdb, SPACE* space, Space *space_id,
         }
 
       // all pages shall be handled by our mapping data base
-      assert_kdb (mapdb->valid_address(SPACE::to_pfn(phys)));
+      assert (mapdb->valid_address(SPACE::to_pfn(phys)));
 
       Mapping *mapping;
       Frame mapdb_frame;
@@ -749,10 +747,11 @@ unmap(MAPDB* mapdb, SPACE* space, Space *space_id,
       save_access_flags<MAPDB>(space, page_address, me_too, mapping, mapdb_frame, page_rights);
 
       if (full_flush)
-        mapdb->flush(mapdb_frame, mapping, mask, SPACE::to_pfn(address), SPACE::to_pfn(end));
-
-      if (full_flush)
-        Map_traits<SPACE>::free_object(phys, reap_list);
+        {
+          mapdb->flush(mapdb_frame, mapping, mask, SPACE::to_pfn(address),
+                       SPACE::to_pfn(end));
+          Map_traits<SPACE>::free_object(phys, reap_list);
+        }
 
       mapdb->free(mapdb_frame);
     }

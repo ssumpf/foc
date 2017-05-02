@@ -20,11 +20,6 @@ IMPLEMENTATION [debug]:
 #include "kmem.h"
 #include "mem_layout.h"
 #include "simpleio.h"
-
-
-//---------------------------------------------------------------------------
-IMPLEMENTATION [debug]:
-
 #include "string_buffer.h"
 
 IMPLEMENT

@@ -37,7 +37,7 @@ void Kern_lib_page::init()
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && hyp]:
 
-IMPLEMENT inline void Kern_lib_page::init() {}
+IMPLEMENT_OVERRIDE inline void Kern_lib_page::init() {}
 
 //---------------------------------------------------------------------------
 IMPLEMENTATION [arm && !armv6plus]:

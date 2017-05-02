@@ -22,27 +22,7 @@
 #include <l4/sys/consts.h>
 #include <l4/util/mb_info.h>
 #include "panic.h"
-
-#ifdef ARCH_x86
-#include "ARCH-x86/macros.h"
-#endif
-
-#ifdef ARCH_arm
-#include "ARCH-arm/macros.h"
-#endif
-
-#ifdef ARCH_amd64
-#include "ARCH-amd64/macros.h"
-#endif
-
-#ifdef ARCH_ppc32
-#include "ARCH-ppc32/macros.h"
-#endif
-
-#ifdef ARCH_sparc
-#include "ARCH-sparc/macros.h"
-#endif
-
+#include "macros.h"
 #include "types.h"
 #include "patch.h"
 #include "startup.h"

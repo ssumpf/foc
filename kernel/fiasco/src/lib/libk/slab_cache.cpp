@@ -278,7 +278,7 @@ inline
 void *
 Slab_cache::q_alloc(Q *quota)
 {
-  Auto_quota<Ram_quota> q(quota, _entry_size);
+  Auto_quota<Q> q(quota, _entry_size);
   if (EXPECT_FALSE(!q))
     return 0;
 
@@ -383,7 +383,7 @@ PUBLIC
 void
 Slab_cache::debug_dump()
 {
-  printf ("%s: %lu-KB slabs (elems per slab=%d ",
+  printf ("%s: %lu-KB slabs (elems per slab=%u ",
 	  _name, _slab_size / 1024, _elem_num);
 
   unsigned count = 0, total = 0, total_elems = 0;

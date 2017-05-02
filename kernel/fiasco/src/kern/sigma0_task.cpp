@@ -5,7 +5,7 @@ INTERFACE:
 class Sigma0_task : public Task
 {
 public:
-  explicit Sigma0_task(Ram_quota *q, Caps c) : Task(q, c) {}
+  explicit Sigma0_task(Ram_quota *q) : Task(q) {}
   bool is_sigma0() const { return true; }
   Address virt_to_phys_s0(void *virt) const
   { return (Address)virt; }

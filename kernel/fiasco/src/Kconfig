@@ -18,6 +18,34 @@ config INCLUDE_SPARC
 	help
 	  Use "INCLUDE_SPARC=y make config" to include sparc options.
 
+# generic options that might be selected by platforms etc.
+config HAS_FPU_OPTION
+	bool
+
+config HAS_VIRT_OBJ_SPACE_OPTION
+	bool
+
+config HAS_SERIAL_OPTION
+	bool
+
+config HAS_WATCHDOG_OPTION
+	bool
+
+config HAS_JDB_DISASM_OPTION
+	bool
+
+config HAS_JDB_GZIP_OPTION
+	bool
+
+config HAS_IOMMU_OPTION
+	bool
+
+config HAS_MP_OPTION
+	bool
+
+config HAS_CPU_VIRT
+	bool
+
 menu "Target configuration"
 
 choice
@@ -26,32 +54,20 @@ choice
 
 config IA32
 	bool "Intel IA-32 processor family"
+	select BIT32
+	select HAS_VIRT_OBJ_SPACE_OPTION
+	select HAS_JDB_DISASM_OPTION
+	select HAS_JDB_GZIP_OPTION
 
 config AMD64
 	bool "AMD64 processor family"
 	select CONTEXT_8K
+	select HAS_VIRT_OBJ_SPACE_OPTION
+	select HAS_JDB_DISASM_OPTION
+	select HAS_JDB_GZIP_OPTION
+	select BIT64
 
-config ARM
-	bool "ARM processor family"
-	
-config PPC32
-	bool "PowerPC 32 processor family (Caution: INCOMPLETE!)"
-	depends on EXPERIMENTAL && INCLUDE_PPC32
-	help
-	  PPC32 testing version, mainly for MPC5200 (603e). Currently,
-	  there is no support whatsoever.
-	select CONTEXT_4K
-	select BIG_ENDIAN
-
-config SPARC
-	bool "SPARC v8 processor family (Caution: EXPERIMENTAL)"
-	depends on EXPERIMENTAL && INCLUDE_SPARC
-	help
-	  SPARC v8 is supposed to run on the LEON3 platform.
-	  It is unsupported at the moment.
-	select CONTEXT_4K
-
-
+#  ARCH_CHOICE
 endchoice
 
 config BIG_ENDIAN
@@ -59,15 +75,18 @@ config BIG_ENDIAN
 
 choice
 	prompt "Platform"
-	default PF_INTEGRATOR if ARM
 	default PF_PC         if IA32
 	default PF_PC         if AMD64
-	default PF_MP52CXX    if PPC32
-	default PF_LEON3      if SPARC
+# ARCH_DEFAULT_PF
 
 config PF_PC
 	bool "PC platform"
 	depends on IA32 || AMD64
+	select HAS_SERIAL_OPTION
+	select HAS_WATCHDOG_OPTION
+	select HAS_IOMMU_OPTION
+	select HAS_MP_OPTION
+	select HAS_CPU_VIRT
 
 config PF_UX
 	bool "Linux Usermode Platform"
@@ -75,112 +94,20 @@ config PF_UX
 	select JDB
 
 # PF_CHOICE
-	
+
 endchoice
 
 # PF_INCLUDE
+# PF_SECTION: GLOBAL
 
 config ABI_VF
 	def_bool y
 
-config PF_ARM_MP_CAPABLE
-	bool
-	default y if ARM_MPCORE || ARM_CORTEX_A7 || ARM_CORTEX_A9 || ARM_CORTEX_A15
-
-config CAN_ARM_CPU_SA1100
-	bool
-
-config CAN_ARM_CPU_XSCALE
-	bool
-
-config CAN_ARM_CPU_920T
-	bool
-
-config CAN_ARM_CPU_926
-	bool
-
-config CAN_ARM_CPU_1136
-	bool
-
-config CAN_ARM_CPU_1176
-	bool
-
-config CAN_ARM_CPU_MPCORE
-	bool
-
-config CAN_ARM_CPU_CORTEX_A5
-	bool
-
-config CAN_ARM_CPU_CORTEX_A7
-	bool
-
-config CAN_ARM_CPU_CORTEX_A8
-	bool
-
-config CAN_ARM_CPU_CORTEX_A9
-	bool
-
-config CAN_ARM_CPU_CORTEX_A15
-	bool
-
-config CAN_ARM_CACHE_L2CXX0
-	bool
-
 choice
 	prompt "CPU"
+	depends on IA32 || AMD64 || UX
 	default IA32_686   if IA32
-	default ARM_926    if ARM
 	default AMD64_K8   if AMD64
-	default PPC32_603e if PPC32
-	default LEON3      if SPARC
-
-config ARM_PXA
-	bool "Intel XScale"
-	depends on PF_XSCALE
-
-config ARM_SA
-	bool "Intel StrongARM"
-	depends on PF_SA1100
-
-config ARM_920T
-	bool "ARM 920T Processor"
-	depends on PF_S3C2410
-
-config ARM_926
-	bool "ARM 926 Processor"
-	depends on CAN_ARM_CPU_926
-
-config ARM_1136
-	bool "ARM 1136 CPU"
-	depends on CAN_ARM_CPU_1136
-
-config ARM_1176
-	bool "ARM 1176 CPU"
-	depends on CAN_ARM_CPU_1176
-
-config ARM_MPCORE
-	bool "ARM MPCore CPU"
-	depends on CAN_ARM_CPU_MPCORE
-
-config ARM_CORTEX_A5
-	bool "ARM Cortex-A5 CPU"
-	depends on CAN_ARM_CPU_CORTEX_A5
-
-config ARM_CORTEX_A7
-	bool "ARM Cortex-A7 CPU"
-	depends on CAN_ARM_CPU_CORTEX_A7
-
-config ARM_CORTEX_A8
-	bool "ARM Cortex-A8 CPU"
-	depends on CAN_ARM_CPU_CORTEX_A8
-
-config ARM_CORTEX_A9
-	bool "ARM Cortex-A9 CPU"
-	depends on CAN_ARM_CPU_CORTEX_A9
-
-config ARM_CORTEX_A15
-	bool "ARM Cortex-A15 CPU"
-	depends on CAN_ARM_CPU_CORTEX_A15
 
 config IA32_486
 	bool "Intel 80486"
@@ -297,96 +224,17 @@ config AMD64_K10
 	help
 	  Choose this if you have an AMD Barcelona based CPU.
 
-
-config PPC32_603e
-	bool "PowerPC 603e"
-	depends on PPC32
-	help
-	  Choose this if you have an PowerPC 603e CPU.
-
-config LEON3
-	bool "Gaisler SPARC LEON3"
-	depends on SPARC
-	help
-	  Choose this if you have a LEON3 CPU.
 endchoice
+
+# PF_SECTION: CPU
 
 config CPU_VIRT
 	bool "Virtualization"
-	depends on PF_PC || (ARM_EM_NS && ARM_LPAE)
+	depends on HAS_CPU_VIRT
 	help
 	  Support virtualization extensions provided by CPUs, including
 	  nested paging. This feature allows you to run a virtual machine
 	  monitor (VMM) on top of Fiasco.
-
-config ARM_ALIGNMENT_CHECK
-	bool "Enable alignment check"
-	depends on ARM
-	help
-	  Enable if you want to have alignment check enabled.
-
-choice
-	prompt "Execution Model"
-	default ARM_EM_STD
-	depends on ARM
-
-config ARM_EM_STD
-	bool "Standard mode"
-	help
-	  Systems without ARM TrustZone support, or no specific TrustZone
-	  support.
-
-config ARM_EM_NS
-	bool "TrustZone normal side"
-	depends on ARM_1176 || ARM_CORTEX_A7 || ARM_CORTEX_A8 || ARM_CORTEX_A9 || ARM_CORTEX_A15
-	help
-	  In a system with ARM TrustZone extension, run on the normal side.
-
-config ARM_EM_TZ
-	bool "TrustZone secure side"
-	depends on ARM_1176 || ARM_CORTEX_A7 || ARM_CORTEX_A8 || ARM_CORTEX_A9 || ARM_CORTEX_A15
-	help
-	  In a system with ARM TrustZone extension, run on the secure side,
-	  and allow monitor services.
-
-endchoice
-
-choice
-	prompt "Secure Monitor Interface"
-	depends on ARM_EM_NS
-config ARM_SECMONIF_NONE
-        bool "None"
-        help
-          Running on a minimal secure monitor that does not require
-          any interaction. (e.g., u-boot for KVM)
-
-config ARM_SECMONIF_MC
-	bool "Mobicore"
-
-config ARM_SECMONIF_TL
-	bool "TL"
-
-endchoice
-
-config ARM_ENABLE_SWP
-	bool "Enable the deprecated 'swp' instruction"
-	depends on ARM_CORTEX_A9 || ARM_CORTEX_A15 || ARM_CORTEX_A7 || ARM_CORTEX_A5
-	help
-	  Enabling this option enables the deprecated 'swp' instruction.
-	  Avoid to enable it.
-
-config ARM_LPAE
-        bool "Use LPAE page table format"
-        depends on ARM_CORTEX_A15 || ARM_CORTEX_A7
-        help
-          Use the extended page table format (LPAE).
-
-config ARM_CACHE_L2CXX0
-	bool "Enable L2 Cache"
-	default y
-	depends on CAN_ARM_CACHE_L2CXX0
-	help 
-	  Enable L2 cache functionality.
 
 choice
 	prompt "Timer tick source"
@@ -453,31 +301,17 @@ config WORKAROUND_AMD_FPU_LEAK
 	  harm to disable it.
 
 config REGPARM3
-	bool "Compile with regparm=3"
-	default y
+	def_bool y
 	depends on IA32 && PF_PC
-	help
-	  Compile Fiasco with -mregparm=3. This uses a different ABI and
-	  passes the first three arguments of a function call in registers.
 
 config FPU
-	bool "Enable FPU co-processor" if !CPU_VIRT
-	depends on ARM
+	bool "Enable FPU co-processor" if HAS_FPU_OPTION
+	depends on HAS_FPU_OPTION
 	default y
 	help
 	  Enable this if your platform has hardware floating point support.
 
-config ARM_1176_CACHE_ALIAS_FIX
-	bool "Use cache restriction to supress aliasing issue on ARM1176"
-	depends on ARM_1176
-	help
-	  The ARM1176 processor might have a memory aliasing problem when
-	  using cache sizes of more than 16kB cache. Enabling this option
-	  enables the workaround of reducing the cache size to 16kB.
-
-config ARM_CPU_ERRATA
-        bool "Enable CPU errata workarounds"
-        depends on ARM
+# PF_SECTION: TARGET
 
 endmenu # target
 
@@ -485,7 +319,7 @@ menu "Kernel options"
 
 config MP
 	bool "Enable multi processor support"
-	depends on (PF_PC || PF_ARM_MP_CAPABLE) && !PF_UX
+	depends on HAS_MP_OPTION
 	help
 	  Enable support for machines with multiple processors.
 
@@ -590,16 +424,26 @@ config SCHED_FP_WFQ
 
 endchoice
 
+config IOMMU
+	bool "Enable support for DMA remapping" if HAS_IOMMU_OPTION
+	depends on HAS_IOMMU_OPTION
+	help
+	  This option enables support for DMA remapping (IO-MMUs).
+	  When this option is enabled and the platform has a supported IO-MMU
+	  the default is to block all DMA from remappable devices.
+	  The user-level must use kernel DMA spaces in combination with
+	  the IO-MMU kernel object to allow DMA.
+
 config DISABLE_VIRT_OBJ_SPACE
-	bool "No virtually mapped array for cap tables"
-	depends on (PF_PC || (ARM && !CPU_VIRT)) &&  EXPERIMENTAL
+	bool "No virtually mapped array for cap tables" if HAS_VIRT_OBJ_SPACE_OPTION
+	depends on HAS_VIRT_OBJ_SPACE_OPTION &&  EXPERIMENTAL
 
 config VIRT_OBJ_SPACE
 	def_bool y
+	depends on HAS_VIRT_OBJ_SPACE_OPTION
 	depends on !DISABLE_VIRT_OBJ_SPACE
-	depends on !(CPU_VIRT && ARM)
-        depends on !ARM || (ARM_V6PLUS && (!ARM_1176 || ARM_1176_CACHE_ALIAS_FIX))
 
+# PF_SECTION: KERNEL
 
 endmenu # kernel options
 
@@ -640,7 +484,7 @@ config LIST_ALLOC_SANITY
 	help
 	  When this option is enabled the low level memory allocator does
 	  extra sanity checks on its data structures before and after every
-	  operation. This can halp detect  flaws like double frees or memory
+	  operation. This can help detect flaws like double frees or memory
 	  corruption by other means.
 
 	  These tests are very expensive so only enable them if a problem
@@ -675,18 +519,18 @@ config IRQ_SPINNER
 	  Display IRQ activity on VGA screen.
 
 config WATCHDOG
-	bool "Enable Watchdog support"
-	default y
-	depends on PF_PC
+	bool "Enable Watchdog support" if HAS_WATCHDOG_OPTION
+	default y if HAS_WATCHDOG_OPTION
+	depends on HAS_WATCHDOG_OPTION
 	help
 	  Enable support for watchdog using the builtin Local APIC and a
 	  performance counter. The watchdog can be enabled using the
 	  -watchdog command line option.
 
 config SERIAL
-	bool "Support for debugging over serial line"
-	depends on PF_PC || ARM || PPC32 || SPARC
-	default y
+	bool "Support for debugging over serial line" if HAS_SERIAL_OPTION
+	depends on HAS_SERIAL_OPTION
+	default y if HAS_SERIAL_OPTION
 	help
 	  This option enables support for input/output over serial interface.
 
@@ -700,6 +544,7 @@ if JDB
 
 config JDB_LOGGING
 	bool "JDB extended logging"
+	default y if !PF_UX
 	help
 	  There are two classes of logging events: Basic events don't
 	  consume any time if they are disabled (ipc, ipc result,
@@ -711,15 +556,15 @@ config JDB_LOGGING
 	  Should be disabled for kernels which are used for measurements.
 
 config JDB_DISASM
-	bool "JDB disassembler"
-	default y if !ARM
+	bool "JDB disassembler" if HAS_JDB_DISASM_OPTION
+	default y if HAS_JDB_DISASM_OPTION
 	help
 	  Add support for disassembly. Increases memory foot-print, only
 	  enable when needed.
 
 config JDB_GZIP
-	bool "GZIP compressed dumps"
-	default y if !ARM
+	bool "GZIP compressed dumps" if HAS_JDB_GZIP_OPTION
+	default y if HAS_JDB_GZIP_OPTION
 	help
 	  Add supprt for gzip compressed dumps of the trace buffer.
 	  Increases memory foot-print, only enabled when needed.
@@ -739,18 +584,6 @@ config JDB_MISC
 
 endif # JDB
 
-
-config VMEM_ALLOC_TEST
-	bool "Run test for Vmem_alloc allocator"
-	depends on ARM
-
-config DEBUG_KERNEL_PAGE_FAULTS
-	bool "Debugging of kernel page-faults"
-	depends on ARM
-	help
-	  This option enables logging of kernel page-faults (aka page faults
-	  from kernel mode). The page faults are logged to the normal
-	  console in the format *KP[pfa, error_code, ip].
 
 config POWERSAVE_GETCHAR
 	bool "Save power in getchar()"
@@ -775,6 +608,8 @@ config WARN_ANY
 	bool "Show all kernel warnings"
 
 endchoice # warn levels
+
+# PF_SECTION: DEBUG
 
 endmenu # debugging
 
@@ -831,20 +666,10 @@ config PERF_CNT
 	def_bool y if JDB && (IA32 || AMD64 || ARM)
 
 config BIT32
-	def_bool y if ARM || IA32 || PPC32 || SPARC
+	bool
 
 config BIT64
-	def_bool y if AMD64
-
-config ARM_V6
-	def_bool y if ARM_1136 || ARM_1176 || ARM_MPCORE
-
-config ARM_V7
-	def_bool y if ARM_CORTEX_A8 || ARM_CORTEX_A9 \
-	              || ARM_CORTEX_A5 || ARM_CORTEX_A7 || ARM_CORTEX_A15
-
-config ARM_V6PLUS
-	def_bool y if ARM_V6 || ARM_V7
+	bool
 
 config WARN_LEVEL
 	int
@@ -854,12 +679,10 @@ config WARN_LEVEL
 
 config XARCH
 	string
-	default "arm" if ARM
 	default "ux" if PF_UX
 	default "amd64" if AMD64 && PF_PC
 	default "ia32" if IA32 && PF_PC
-	default "ppc32" if PPC32
-	default "sparc" if SPARC
+# ARCH_NAME
 
 config IA32_TARGET
 	string

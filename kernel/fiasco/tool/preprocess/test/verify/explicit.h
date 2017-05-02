@@ -14,7 +14,7 @@ class Foo
 
 public:  
 #line 10 "explicit.cpp"
-  explicit Foo(int bar);
+  explicit Foo (int bar);
 };
 
 #endif // explicit_h

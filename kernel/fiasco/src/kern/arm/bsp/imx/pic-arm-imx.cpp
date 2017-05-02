@@ -1,6 +1,7 @@
 // ---------------------------------------------------------------------
 INTERFACE [arm && (imx21 || imx35)]:
 
+#include "initcalls.h"
 #include "kmem.h"
 
 class Irq_base;
@@ -15,7 +16,6 @@ IMPLEMENTATION [arm && (imx21 || imx35)]:
 
 #include <cassert>
 #include "io.h"
-#include "initcalls.h"
 #include "irq_chip_generic.h"
 #include "irq_mgr.h"
 #include "mmio_register_block.h"
@@ -103,22 +103,11 @@ Irq_chip_arm_imx::Irq_chip_arm_imx()
 static Static_object<Irq_mgr_single_chip<Irq_chip_arm_imx> > mgr;
 
 
-IMPLEMENT FIASCO_INIT
+PUBLIC static FIASCO_INIT
 void Pic::init()
 {
   Irq_mgr::mgr = mgr.construct();
 }
-
-IMPLEMENT inline
-Pic::Status Pic::disable_all_save()
-{
-  Status s = 0;
-  return s;
-}
-
-IMPLEMENT inline
-void Pic::restore_all(Status)
-{}
 
 PUBLIC inline
 Unsigned32 Irq_chip_arm_imx::pending()

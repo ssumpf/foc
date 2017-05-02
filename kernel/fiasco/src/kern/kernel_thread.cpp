@@ -82,7 +82,7 @@ Kernel_thread::bootstrap()
 
   Timer_tick::setup(current_cpu());
   assert (current_cpu() == Cpu_number::boot_cpu()); // currently the boot cpu must be 0
-  enable_tlb(current_cpu());
+  Mem_space::enable_tlb(current_cpu());
 
   Per_cpu_data::run_late_ctors(Cpu_number::boot_cpu());
   Per_cpu_data::run_late_ctors(Cpu::invalid());
@@ -172,7 +172,7 @@ Kernel_thread::idle_op()
       ++_deep_idle_counter.cpu(cpu);
       Rcu::enter_idle(cpu);
       Timer_tick::disable(cpu);
-      disable_tlb(cpu);
+      Mem_space::disable_tlb(cpu);
       Mem_unit::tlb_flush();
 
       // do everything to do to a deep sleep state:
@@ -180,7 +180,7 @@ Kernel_thread::idle_op()
       //  - ...
       arch_tickless_idle(cpu);
 
-      enable_tlb(cpu);
+      Mem_space::enable_tlb(cpu);
       Rcu::leave_idle(cpu);
       Timer_tick::enable(cpu);
     }

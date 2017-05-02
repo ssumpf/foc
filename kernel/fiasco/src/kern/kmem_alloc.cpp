@@ -78,7 +78,6 @@ IMPLEMENTATION:
 #include <cassert>
 
 #include "config.h"
-#include "kdb_ke.h"
 #include "kip.h"
 #include "mem_layout.h"
 #include "mem_region.h"
@@ -143,6 +142,22 @@ Kmem_alloc::free(size_t o, void *p)
   unaligned_free(1UL << o, p);
 }
 
+PUBLIC template<typename T> inline
+T *
+Kmem_alloc::alloc_array(unsigned elems)
+{
+  return new (this->unaligned_alloc(sizeof(T) * elems)) T[elems];
+}
+
+PUBLIC template<typename T> inline
+void
+Kmem_alloc::free_array(T *b, unsigned elems)
+{
+  for (unsigned i = 0; i < elems; ++i)
+    b[i].~T();
+  this->unaligned_free(b, sizeof(T) * elems);
+}
+
 PUBLIC 
 void *
 Kmem_alloc::unaligned_alloc(unsigned long size)
@@ -181,26 +196,24 @@ unsigned long
 Kmem_alloc::create_free_map(Kip const *kip, Mem_region_map_base *map)
 {
   unsigned long available_size = 0;
-  Mem_desc const *md = kip->mem_descs();
-  Mem_desc const *const md_end = md + kip->num_mem_descs();
 
-  for (; md < md_end; ++md)
+  for (auto const &md: kip->mem_descs_a())
     {
-      if (!md->valid())
+      if (!md.valid())
 	{
-	  const_cast<Mem_desc*>(md)->type(Mem_desc::Undefined);
+	  const_cast<Mem_desc &>(md).type(Mem_desc::Undefined);
 	  continue;
 	}
 
-      if (md->is_virtual())
+      if (md.is_virtual())
 	continue;
 
-      unsigned long s = md->start();
-      unsigned long e = md->end();
+      unsigned long s = md.start();
+      unsigned long e = md.end();
 
       // Sweep out stupid descriptors (that have the end before the start)
 
-      switch (md->type())
+      switch (md.type())
 	{
 	case Mem_desc::Conventional:
 	  s = (s + Config::PAGE_SIZE - 1) & ~(Config::PAGE_SIZE - 1);

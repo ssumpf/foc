@@ -61,7 +61,8 @@ public:
   };
 };
 
-EXTENSION class PF {
+EXTENSION class PF
+{
 public:
   static Mword is_translation_error( Mword error );
   static Mword is_usermode_error( Mword error );
@@ -90,7 +91,7 @@ public:
   { return _a->unaligned_alloc(size); }
 
   void free(void *block, unsigned long size) const
-  { return _a->unaligned_free(size, block); }
+  { _a->unaligned_free(size, block); }
 
   bool valid() const { return _a; }
 

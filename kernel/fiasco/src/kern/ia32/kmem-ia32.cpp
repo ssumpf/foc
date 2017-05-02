@@ -523,7 +523,6 @@ IMPLEMENTATION [ia32,ux,amd64]:
 #include <cstddef>		// size_t
 #include <cstring>		// memset
 
-#include "boot_info.h"
 #include "config.h"
 #include "cpu.h"
 #include "gdt.h"

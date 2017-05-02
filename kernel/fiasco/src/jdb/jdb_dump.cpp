@@ -86,12 +86,15 @@ PUBLIC
 void
 Jdb_dump::print_statline(unsigned long row, unsigned long col)
 {
-  Jdb::printf_statline("dump",
-      (dump_type==D_MODE)
-      ? "e=edit u=disasm D=dump <Space>=mode <CR>=goto addr"
-      : "<Space>=mode",
-      task ? "%c<" L4_PTR_FMT "> task %p" : "%c<" L4_PTR_FMT "> physical",
-      dump_type, virt(row,col), task);
+  char const *s = dump_type == D_MODE
+                  ? "e=edit u=disasm D=dump <Space>=mode <CR>=goto addr"
+                  : "<Space>=mode";
+  if (task)
+    Jdb::printf_statline("dump", s, "%c<" L4_PTR_FMT "> task %p",
+                         dump_type, virt(row, col), task);
+  else
+    Jdb::printf_statline("dump", s, "%c<" L4_PTR_FMT "> physical",
+	                 dump_type, virt(row, col));
 }
 
 IMPLEMENT
@@ -100,7 +103,7 @@ Jdb_dump::draw_entry(unsigned long row, unsigned long col)
 {
   if (col == 0)
     {
-      printf("%0*lx", col_width(col), row * (cols()-1) * elb);
+      printf("%0*lx", (int)col_width(col), row * (cols()-1) * elb);
       return;
     }
 
@@ -124,9 +127,9 @@ Jdb_dump::draw_entry(unsigned long row, unsigned long col)
 	  if (dump_type==D_MODE)
 	    {
 	      if (mword == 0)
-		printf("%*lu", Jdb_screen::Mword_size_bmode, mword);
+		printf("%*lu", (int)Jdb_screen::Mword_size_bmode, mword);
 	      else if (mword == (Mword)~0UL)
-		printf("%*d", Jdb_screen::Mword_size_bmode, -1);
+		printf("%*d", (int)Jdb_screen::Mword_size_bmode, -1);
 	      else
 	        {
 		  if (highlight_start <= mword && mword <= highlight_end)
@@ -138,10 +141,7 @@ Jdb_dump::draw_entry(unsigned long row, unsigned long col)
 	  else if (dump_type==B_MODE)
 	    {
 	      for (Mword u=0; u<elb; u++)
-		{
-		  Unsigned8 b = (mword >> (8*u)) & 0xff;
-		  printf("%02x", b);
-		}
+                printf("%02lx", (mword >> (8 * u)) & 0xff);
 	    }
 	  else if (dump_type==C_MODE)
 	    {
@@ -155,17 +155,17 @@ Jdb_dump::draw_entry(unsigned long row, unsigned long col)
       else // is_adapter_memory
 	{
 	  if (dump_type == C_MODE)
-	    printf("%.*s", Jdb_screen::Mword_size_cmode, Jdb_screen::Mword_adapter);
+	    printf("%.*s", (int)Jdb_screen::Mword_size_cmode, Jdb_screen::Mword_adapter);
 	  else
-	    printf("%.*s", Jdb_screen::Mword_size_bmode, Jdb_screen::Mword_adapter);
+	    printf("%.*s", (int)Jdb_screen::Mword_size_bmode, Jdb_screen::Mword_adapter);
 	}
     }
   else // !mapped
     {
       if (dump_type == C_MODE)
-	printf("%.*s", Jdb_screen::Mword_size_cmode, Jdb_screen::Mword_not_mapped);
+	printf("%.*s", (int)Jdb_screen::Mword_size_cmode, Jdb_screen::Mword_not_mapped);
       else
-        printf("%.*s", Jdb_screen::Mword_size_bmode, Jdb_screen::Mword_not_mapped);
+        printf("%.*s", (int)Jdb_screen::Mword_size_bmode, Jdb_screen::Mword_not_mapped);
     }
   
   if (&ignore_invalid_apic_reg_access)
@@ -305,6 +305,7 @@ Jdb_dump::key_pressed(int c, unsigned long &row, unsigned long &col)
       return Redraw;
 
     case KEY_RETURN: // goto address under cursor
+    case KEY_RETURN_2:
       if (level<=7 && dump_type==D_MODE)
 	{
 	  Address virt1;
@@ -327,7 +328,7 @@ Jdb_dump::key_pressed(int c, unsigned long &row, unsigned long &col)
 				   "u[address=" L4_PTR_FMT " task=%p] ",
 				   virt1, task);
 	      int c1 = Jdb_core::getchar();
-	      if (c1 != KEY_RETURN && c1 != ' ')
+	      if (c1 != KEY_RETURN && c1 != ' ' && c != KEY_RETURN_2)
 		{
 		  Jdb::printf_statline("dump", 0, "u");
 		  Jdb::execute_command("u", c1);

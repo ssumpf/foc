@@ -31,8 +31,10 @@ class Jdb_kobject_handler : public cxx::S_list_item
   friend class Jdb_kobject;
 
 public:
-  Jdb_kobject_handler(char const *type) : kobj_type(type) {}
-  char const *kobj_type;
+  template<typename T>
+  Jdb_kobject_handler(T const *) : kobj_type(cxx::Typeid<T>::get()) {}
+  Jdb_kobject_handler() : kobj_type(0) {}
+  cxx::Type_info const *kobj_type;
   virtual bool show_kobject(Kobject_common *o, int level) = 0;
   virtual void show_kobject_short(String_buffer *, Kobject_common *) {}
   virtual Kobject_common *follow_link(Kobject_common *o) { return o; }
@@ -40,7 +42,21 @@ public:
   virtual bool invoke(Kobject_common *o, Syscall_frame *f, Utcb *utcb);
   virtual bool handle_key(Kobject_common *, int /*keycode*/) { return false; }
   virtual Kobject *parent(Kobject_common *) { return 0; }
-  virtual char const *kobject_type() const { return kobj_type; }
+  char const *kobject_type(Kobject_common *o) const
+  { return _kobject_type(o); }
+
+  static char const *_kobject_type(Kobject_common *o)
+  {
+    extern Kobject_typeinfo_name const _jdb_typeinfo_table[];
+    extern Kobject_typeinfo_name const _jdb_typeinfo_table_end[];
+
+    for (Kobject_typeinfo_name const *t = _jdb_typeinfo_table;
+        t != _jdb_typeinfo_table_end; ++t)
+      if (t->type == cxx::dyn_typeid(o))
+        return t->name;
+
+    return cxx::dyn_typeid(o)->name;
+  }
 
   bool is_global() const { return !kobj_type; }
 
@@ -126,7 +142,6 @@ Jdb_kobject_list::Mode::Mode_list Jdb_kobject_list::Mode::modes;
 class Jdb_kobject_id_hdl : public Jdb_kobject_handler
 {
 public:
-  Jdb_kobject_id_hdl() : Jdb_kobject_handler(0) {}
   virtual bool show_kobject(Kobject_common *, int) { return false; }
   virtual ~Jdb_kobject_id_hdl() {}
 };
@@ -177,6 +192,8 @@ PUBLIC
 void
 Jdb_kobject_list::show_item(String_buffer *buffer, void *item) const
 {
+  if (!item)
+    return;
   Jdb_kobject::obj_description(buffer, false, static_cast<Kobject*>(item)->dbg_info());
 }
 
@@ -366,8 +383,17 @@ Jdb_kobject_handler *
 Jdb_kobject::find_handler(Kobject_common *o)
 {
   for (Handler_iter h = handlers.begin(); h != handlers.end(); ++h)
-    if (o->kobj_type() == h->kobj_type)
-      return *h;
+    {
+      auto r = o->_cxx_dyn_type();
+      if (r.type == h->kobj_type)
+        return *h;
+
+      // XXX: may be we should sort the handlers: most derived first
+      cxx::uintptr_t delta;
+      if (r.type->do_cast(h->kobj_type, cxx::Typeid<Kobject_common>::get(),
+                          (cxx::uintptr_t)o - (cxx::uintptr_t)r.base, &delta))
+        return *h;
+    }
 
   return 0;
 }
@@ -387,9 +413,9 @@ char const *
 Jdb_kobject::kobject_type(Kobject_common *o)
 {
   if (Jdb_kobject_handler *h = module()->find_handler(o))
-    return h->kobject_type();
+    return h->kobject_type(o);
 
-  return o->kobj_type();
+  return Jdb_kobject_handler::_kobject_type(o);
 }
 
 
@@ -412,7 +438,7 @@ PRIVATE static
 void
 Jdb_kobject::print_kobj(Kobject *o)
 {
-  printf("%p [type=%s]", o, o->kobj_type());
+  printf("%p [type=%s]", o, cxx::dyn_typeid(o)->name);
 }
 
 PUBLIC
@@ -475,7 +501,8 @@ Jdb_kobject::fmt_handler(char /*fmt*/, int *size, char const *cmd_str, void *arg
 
   *size = sizeof(void*);
 
-  while((c = Jdb_core::cmd_getchar(cmd_str)) != ' ' && c!=KEY_RETURN)
+  while((c = Jdb_core::cmd_getchar(cmd_str)) != ' ' && c != KEY_RETURN
+        && c != KEY_RETURN_2)
     {
       if(c==KEY_ESC)
 	return 3;

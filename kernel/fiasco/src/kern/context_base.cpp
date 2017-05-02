@@ -2,6 +2,7 @@ INTERFACE:
 
 #include "types.h"
 #include "config_tcbsize.h"
+#include "fiasco_defs.h"
 
 class Context;
 

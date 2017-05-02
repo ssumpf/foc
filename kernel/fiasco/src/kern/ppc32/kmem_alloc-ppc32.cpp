@@ -48,11 +48,6 @@ Kmem_alloc::to_phys(void *v) const
 //----------------------------------------------------------------------------
 IMPLEMENTATION [ppc32 && debug]:
 
-#include <cstdio>
-
-#include "kip_init.h"
-#include "panic.h"
-
 PUBLIC
 void Kmem_alloc::debug_dump()
 {

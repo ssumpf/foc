@@ -96,7 +96,7 @@ public:
   /**
    * Like strlen but do not count ESC sequences.
    */
-  static unsigned print_len(const char *s);
+  static int print_len(const char *s);
 
   static char esc_prompt[];
 
@@ -211,9 +211,9 @@ int Jdb_core::prompt_len()
 }
 
 IMPLEMENT
-unsigned Jdb_core::print_len(const char *s)
+int Jdb_core::print_len(const char *s)
 {
-  unsigned l = 0;
+  int l = 0;
   while (*s)
     {
       if (s[0] == '\033' && s[1] == '[')
@@ -261,9 +261,9 @@ int Jdb_core::set_prompt_color(char x)
     return 0;
 
   if (x >= 'A' && x <= 'Z')
-    snprintf(esc_prompt, sizeof(esc_prompt) - 1, "\033[%d;%dm", pc, 1);
+    snprintf(esc_prompt, sizeof(esc_prompt) - 1, "\033[%u;%dm", pc, 1);
   else
-    snprintf(esc_prompt, sizeof(esc_prompt) - 1, "\033[%dm", pc);
+    snprintf(esc_prompt, sizeof(esc_prompt) - 1, "\033[%um", pc);
 
   return 1;
 
@@ -530,7 +530,8 @@ int Jdb_core::exec_cmd(Cmd const cmd, char const *str, int push_next_char = -1)
 		      else
 			max_digit = 2*sizeof(long long int);
 		    }
-		  while((c = cmd_getchar(str)) != ' ' && c!=KEY_RETURN)
+		  while((c = cmd_getchar(str)) != ' ' && c!=KEY_RETURN
+                         && c != KEY_RETURN_2)
 		    {
 		      if(c==KEY_ESC)
 			return 3;
@@ -632,7 +633,8 @@ int Jdb_core::exec_cmd(Cmd const cmd, char const *str, int push_next_char = -1)
 		    continue;
 
 		  num_pos = 0;
-		  while((c = cmd_getchar(str)) != KEY_RETURN && c!=' ')
+		  while((c = cmd_getchar(str)) != KEY_RETURN && c!=' '
+                        && c != KEY_RETURN_2)
 		    {
 		      if(c==KEY_ESC)
 			return 3;
@@ -780,6 +782,7 @@ Jdb_core::new_line( unsigned &line )
 	  cmd_putchar('\n');
 	  return 0;
 	case KEY_RETURN:
+	case KEY_RETURN_2:
 	  line--;
 	  return 1;
 	default:

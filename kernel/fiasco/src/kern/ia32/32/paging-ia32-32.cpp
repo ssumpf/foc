@@ -36,7 +36,8 @@ public:
   Pte_ptr(void *pte, unsigned char level) : pte((Mword*)pte), level(level) {}
   Pte_ptr() = default;
 
-  Mword *pte;
+  typedef Mword Entry;
+  Entry *pte;
   unsigned char level;
 };
 

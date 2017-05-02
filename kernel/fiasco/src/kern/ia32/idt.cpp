@@ -5,6 +5,7 @@
 INTERFACE:
 
 #include "initcalls.h"
+#include "idt_init.h"
 #include "kmem.h"
 #include "mem_layout.h"
 #include "types.h"
@@ -16,9 +17,7 @@ class Idt
 {
   friend class Jdb_kern_info_bench;
 public:
-  // idt entries for 0x20 CPU exceptions, 0x10 IRQs, 7 syscalls,
-  // 0x3e/0x3f for APIC exceptions
-  static const unsigned _idt_max = 0xa0;
+  static const unsigned _idt_max = FIASCO_IDT_MAX;
 private:
   static const Address  _idt = Mem_layout::Idt;
 };
@@ -27,7 +26,6 @@ IMPLEMENTATION:
 
 #include <cassert>
 #include "gdt.h"
-#include "idt_init.h"
 #include "irq_chip.h"
 #include "mem_unit.h"
 #include "paging.h"
@@ -63,10 +61,11 @@ Idt::init_table(Idt_init_entry *src)
 
   while (src->entry)
     {
-      entries[src->vector] = 
-	((src->type & 0x1f) == 0x05) // task gate?
-	  ? Idt_entry(src->entry, src->type)
-	  : Idt_entry(src->entry, Gdt::gdt_code_kernel, src->type);
+      assert (src->vector < _idt_max);
+      entries[src->vector] =
+        ((src->type & 0x1f) == 0x05) // task gate?
+        ? Idt_entry(src->entry, src->type)
+        : Idt_entry(src->entry, Gdt::gdt_code_kernel, src->type);
       src++;
     }
 }
@@ -79,6 +78,7 @@ PUBLIC static FIASCO_INIT
 void
 Idt::init()
 {
+  assert (_idt_max * sizeof(Idt_entry) <= Config::PAGE_SIZE && "IDT too large");
   if (!Vmem_alloc::page_alloc((void *) _idt, Vmem_alloc::ZERO_FILL))
     panic("IDT allocation failure");
 

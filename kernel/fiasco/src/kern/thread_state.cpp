@@ -1,6 +1,5 @@
 INTERFACE:
 
-// When changing these constants, change them also in shared/shortcut.h!
 enum Thread_state
 {
   Thread_invalid          = 0,	  // tcb unallocated
@@ -53,4 +52,8 @@ enum Thread_state
   Thread_vcpu_user            = 0x800000,
   Thread_vcpu_fpu_disabled    = 0x1000000,
   Thread_ext_vcpu_enabled     = 0x2000000,
+
+  Thread_vcpu_state_mask      = Thread_vcpu_enabled | Thread_vcpu_user
+                                | Thread_vcpu_fpu_disabled
+                                | Thread_ext_vcpu_enabled
 };

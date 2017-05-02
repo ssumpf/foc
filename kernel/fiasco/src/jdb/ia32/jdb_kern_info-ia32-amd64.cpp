@@ -40,7 +40,7 @@ Jdb_kern_info_idt::show()
   printf("idt base=" L4_PTR_FMT "  limit=%04x (%04x bytes)\n",
          idt_pseudo.base(),
          (unsigned)((idt_pseudo.limit() + 1) / sizeof(Idt_entry)),
-         idt_pseudo.limit() + 1);
+         (unsigned)idt_pseudo.limit() + 1);
   if (!Jdb_core::new_line(line))
     return;
 
@@ -75,7 +75,7 @@ Jdb_kern_info_test_tsc_scaler::show()
     {
       Unsigned64 t;
       t = Cpu::boot_cpu()->ns_to_tsc(Cpu::boot_cpu()->tsc_to_ns(Cpu::rdtsc()));
-      printf("Diff (press any key to stop): %lld\n", Cpu::rdtsc() - t);
+      printf("Diff (press any key to stop): %llu\n", Cpu::rdtsc() - t);
     }
 }
 
@@ -83,6 +83,7 @@ Jdb_kern_info_test_tsc_scaler::show()
 IMPLEMENTATION[ia32,amd64]:
 
 #include "io.h"
+#include "i8259.h"
 
 class Jdb_kern_info_pic_state : public Jdb_kern_info_module
 {
@@ -100,14 +101,15 @@ Jdb_kern_info_pic_state::Jdb_kern_info_pic_state()
 void
 Jdb_kern_info_pic_state::show()
 {
+  typedef Irq_chip_i8259<Io> I8259;
   int i;
   static char const hex[] = "0123456789ABCDEF";
 
   // show important I/O ports
-  Io::out8_p(Pic::OCW_TEMPLATE | Pic::READ_NEXT_RD | Pic::READ_IS_ONRD,
+  Io::out8_p(I8259::OCW_TEMPLATE | I8259::READ_NEXT_RD | I8259::READ_IS_ONRD,
 	     Pic::MASTER_ICW );
   unsigned in_service = Io::in8(Pic::MASTER_ICW);
-  Io::out8_p(Pic::OCW_TEMPLATE | Pic::READ_NEXT_RD | Pic::READ_IR_ONRD,
+  Io::out8_p(I8259::OCW_TEMPLATE | I8259::READ_NEXT_RD | I8259::READ_IR_ONRD,
 	     Pic::MASTER_ICW);
   unsigned requested = Io::in8(Pic::MASTER_ICW);
   unsigned mask = Jdb::pic_status & 0x0ff;
@@ -122,10 +124,10 @@ Jdb_kern_info_pic_state::show()
     putchar((mask & (1<<i)) ? hex[i] : '-');
   putchar('\n');
 
-  Io::out8_p( Pic::OCW_TEMPLATE | Pic::READ_NEXT_RD | Pic::READ_IS_ONRD,
+  Io::out8_p( I8259::OCW_TEMPLATE | I8259::READ_NEXT_RD | I8259::READ_IS_ONRD,
 	      Pic::SLAVES_ICW);
   in_service = Io::in8(Pic::SLAVES_ICW);
-  Io::out8_p( Pic::OCW_TEMPLATE | Pic::READ_NEXT_RD | Pic::READ_IR_ONRD,
+  Io::out8_p( I8259::OCW_TEMPLATE | I8259::READ_NEXT_RD | I8259::READ_IR_ONRD,
 	      Pic::SLAVES_ICW);
   requested = Io::in8(Pic::SLAVES_ICW);
   mask = Jdb::pic_status >> 8;
@@ -170,11 +172,11 @@ Jdb_kern_info_misc::show()
   Idt::get (&idt_pseudo);
   printf ("idt : base=" L4_PTR_FMT "  limit=%04x\n"
 	  "gdt : base=" L4_PTR_FMT "  limit=%04x\n",
-	  idt_pseudo.base(), (idt_pseudo.limit()+1)/8,
-	  gdt_pseudo.base(), (gdt_pseudo.limit()+1)/8);
+	  idt_pseudo.base(), (unsigned)(idt_pseudo.limit()+1)/8,
+	  gdt_pseudo.base(), (unsigned)(gdt_pseudo.limit()+1)/8);
 
   // print LDT
-  printf("ldt : %04x", Cpu::get_ldt());
+  printf("ldt : %04x", (unsigned)Cpu::get_ldt());
   if (Cpu::get_ldt() != 0)
     {
       Gdt_entry *e = Cpu::boot_cpu()->get_gdt()->entries() + (Cpu::boot_cpu()->get_ldt() >> 3);
@@ -184,7 +186,7 @@ Jdb_kern_info_misc::show()
 
   // print TSS
   printf("\n"
-	 "tr  : %04x", Cpu::boot_cpu()->get_tr());
+	 "tr  : %04x", (unsigned)Cpu::boot_cpu()->get_tr());
   if(Cpu::get_tr() != 0)
     {
       Gdt_entry *e = Cpu::boot_cpu()->get_gdt()->entries() + (Cpu::boot_cpu()->get_tr() >> 3);
@@ -228,7 +230,7 @@ Jdb_kern_info_cpu::show()
       unsigned mhz = hz / 1000000;
       hz -= mhz * 1000000;
       unsigned khz = hz / 1000;
-      snprintf(cpu_mhz, sizeof(cpu_mhz), "%d.%03d MHz", mhz, khz);
+      snprintf(cpu_mhz, sizeof(cpu_mhz), "%u.%03u MHz", mhz, khz);
     }
 
   printf ("CPU: %s %s (%s)\n",
@@ -245,7 +247,7 @@ Jdb_kern_info_cpu::show()
       sec -= hour * 3600;
       min  = sec  / 60;
       sec -= min  * 60;
-      snprintf(time, sizeof(time), "%02d:%02d:%02d.%06d",
+      snprintf(time, sizeof(time), "%02u:%02u:%02u.%06u",
 	       hour, min, sec, ns/1000);
     }
   else
@@ -295,11 +297,12 @@ Jdb_kern_info_gdt::show_gdt(Cpu_number cpu)
   unsigned entries = Gdt::gdt_max / 8;
 
   if (Config::Max_num_cpus > 1)
-    printf("CPU%d: GDT base=" L4_PTR_FMT "  limit=%04x (%04x bytes)\n",
-           cxx::int_value<Cpu_number>(cpu), (Mword)gdt, entries, Gdt::gdt_max);
+    printf("CPU%u: GDT base=" L4_PTR_FMT "  limit=%04x (%04x bytes)\n",
+           cxx::int_value<Cpu_number>(cpu), (Mword)gdt, entries,
+           (unsigned)Gdt::gdt_max);
   else
     printf("GDT base=" L4_PTR_FMT "  limit=%04x (%04x bytes)\n",
-           (Mword)gdt, entries, Gdt::gdt_max);
+           (Mword)gdt, entries, (unsigned)Gdt::gdt_max);
 
   if (!Jdb_core::new_line(line))
     return;

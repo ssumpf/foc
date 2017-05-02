@@ -16,7 +16,6 @@ IMPLEMENTATION:
 #include "static_init.h"
 #include "types.h"
 
-
 class Jdb_obj_space : public Jdb_table, public Jdb_kobject_handler
 {
 public:
@@ -33,7 +32,6 @@ private:
   Mode    _mode;
 
   bool show_kobject(Kobject_common *, int) { return false; }
-
 };
 
 static inline
@@ -50,12 +48,9 @@ operator ++ (Jdb_obj_space::Mode &m)
   return m;
 }
 
-//char Jdb_obj_space_m::first_char;
-
 PUBLIC
 Jdb_obj_space::Jdb_obj_space(Address base = 0, int level = 0)
-: Jdb_kobject_handler(0),
-  _base(base),
+: _base(base),
   _task(0),
   _mode(Name)
 {
@@ -66,24 +61,17 @@ Jdb_obj_space::Jdb_obj_space(Address base = 0, int level = 0)
 PUBLIC
 unsigned
 Jdb_obj_space::col_width(unsigned column) const
-{
-  if (column == 0)
-    return Jdb_screen::Col_head_size;
-  else
-    return 16;
-}
+{ return (column == 0) ? 6 : 16; }
 
 PUBLIC
 unsigned long
 Jdb_obj_space::cols() const
-{
-  return 5;
-}
+{ return Jdb_screen::cols(col_width(0), col_width(1)); }
 
 PUBLIC
 unsigned long
 Jdb_obj_space::rows() const
-{ return Obj_space::Map_max_address / (cols()-1); }
+{ return Obj_space::Map_max_address / (cols() - 1); }
 
 PUBLIC
 void
@@ -103,8 +91,9 @@ Jdb_obj_space::print_statline(unsigned long row, unsigned long col)
 
   Jdb_kobject::obj_description(&buf, true, o->dbg_info());
   Jdb::printf_statline("objs", "<Space>=mode",
-		       "%lxr%x: %-*s",
-                       cxx::int_value<Cap_index>(index(row,col)), rights, buf.length(), buf.begin());
+                       "%lxr%x: %-*s",
+                       cxx::int_value<Cap_index>(index(row,col)),
+                       rights, buf.length(), buf.begin());
 }
 
 PUBLIC
@@ -119,20 +108,20 @@ Jdb_obj_space::print_entry(Cap_index entry)
   else
     {
       switch (_mode)
-	{
-	case Name:
+        {
+        case Name:
           printf("%05lx%c%c%c %-*s",
                  o->dbg_info()->dbg_id(),
                  rights & 8 ? 'D' : '-',
                  rights & 2 ? 'S' : '-',
                  rights & 1 ? 'W' : '-',
                  7, Jdb_kobject::kobject_type(o));
-	  break;
-	case Raw:
-	default:
-	  printf("%16lx", Mword(o) | rights);
-	  break;
-	}
+          break;
+        case Raw:
+        default:
+          printf("%16lx", Mword(o) | rights);
+          break;
+        }
     }
 }
 
@@ -140,8 +129,8 @@ PUBLIC
 void
 Jdb_obj_space::draw_entry(unsigned long row, unsigned long col)
 {
-  if (col==0)
-    printf("%06lx ", cxx::int_value<Cap_index>(index(row, 1)));
+  if (col == 0)
+    printf("%06lx", cxx::int_value<Cap_index>(index(row, 1)));
   else
     print_entry(index(row, col));
 }
@@ -150,7 +139,7 @@ PRIVATE
 Cap_index
 Jdb_obj_space::index(unsigned long row, unsigned long col)
 {
-  Mword e = (col-1) + (row * (cols()-1));
+  Mword e = (col - 1) + (row * (cols() - 1));
   return Cap_index(_base + e);
 }
 
@@ -171,7 +160,6 @@ Jdb_obj_space::handle_user_keys(int c, Kobject_iface *o)
 
   return handled;
 }
-
 
 PUBLIC
 unsigned
@@ -203,18 +191,18 @@ Jdb_obj_space::handle_key(Kobject_common *o, int code)
   if (code != 'o')
     return false;
 
-  Space *t = Kobject::dcast<Task*>(o);
+  Space *t = cxx::dyn_cast<Task*>(o);
   if (!t)
     {
-      Thread *th = Kobject::dcast<Thread_object *>(o);
+      Thread *th = cxx::dyn_cast<Thread *>(o);
       if (!th || !th->space())
-	return false;
+        return false;
 
       t = th->space();
     }
 
   _task = t;
-  show(0,0);
+  show(0, 0);
 
   return true;
 }

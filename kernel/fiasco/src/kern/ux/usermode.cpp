@@ -37,7 +37,7 @@ IMPLEMENTATION:
 #include "fpu.h"
 #include "globals.h"
 #include "mem_layout.h"
-#include "pic.h"
+#include "irq_chip_ux.h"
 #include "processor.h"
 #include "regdefs.h"
 #include "task.h"
@@ -50,11 +50,11 @@ Usermode::peek_at_addr (pid_t pid, Address addr, unsigned n)
 {
   Mword val;
 
-  if ((addr & sizeof (Mword) - 1) + n > sizeof (Mword))
+  if ((addr & (sizeof (Mword) - 1)) + n > sizeof (Mword))
     val = ptrace (PTRACE_PEEKTEXT, pid, addr, NULL);
   else
     val = ptrace (PTRACE_PEEKTEXT, pid, addr & ~(sizeof (Mword) - 1), NULL) >>
-          CHAR_BIT * (addr & sizeof (Mword) - 1);
+          CHAR_BIT * (addr & (sizeof (Mword) - 1));
 
   return val & (Mword) -1 >> CHAR_BIT * (sizeof (Mword) - n);
 }
@@ -262,7 +262,7 @@ Usermode::kip_syscall (Address eip)
   if ((eip & Config::PAGE_MASK) != Mem_layout::Syscalls || eip & 0xff)
     return 0;
 
-  Mword trap = 0x30 + (eip - Mem_layout::Syscalls >> 8);
+  Mword trap = 0x30 + ((eip - Mem_layout::Syscalls) >> 8);
 
   return Emulation::idt_vector (trap, true) ? trap : 0;
 }
@@ -345,7 +345,7 @@ Usermode::user_exception(Cpu_number _cpu, pid_t pid, struct ucontext *context,
 	      switch (peek_at_addr (pid, regs->eip, 1))
 		{
 		  case 0xfa:	// cli
-		    Pic::set_owner (Boot_info::pid());
+		    Irq_chip_ux::set_owner(Boot_info::pid());
 		    regs->eip++;
 		    regs->eflags &= ~EFLAGS_IF;
 		    sync_interrupt_state (0, regs->eflags);
@@ -353,7 +353,7 @@ Usermode::user_exception(Cpu_number _cpu, pid_t pid, struct ucontext *context,
 		    return false;
 
 		  case 0xfb:	// sti
-		    Pic::set_owner (pid);
+		    Irq_chip_ux::set_owner(pid);
 		    regs->eip++;
 		    regs->eflags |= EFLAGS_IF;
 		    sync_interrupt_state (0, regs->eflags);
@@ -394,11 +394,9 @@ Usermode::user_emulation(Cpu_number _cpu, int stop, pid_t pid,
         return user_exception (_cpu, pid, context, regs);
 
       case SIGIO:
-        int irq_pend;
-        if ((irq_pend = Pic::irq_pending()) == -1)
+        trap = Irq_chip_ux::pending_vector();
+        if ((int)trap == -1)
           return false;
-        Pic::eat (irq_pend);
-        trap = Pic::map_irq_to_gate (irq_pend);
         break;
 
       case SIGTRAP:
@@ -455,25 +453,22 @@ Usermode::iret_to_user_mode(Cpu_number _cpu,
                             struct ucontext *context, Mword *kesp)
 {
   struct user_regs_struct regs;
-  int irq_pend;
   Context *t = context_of (kesp);
   pid_t pid = t->vcpu_aware_space()->pid();
 
-  Pic::set_owner (pid);
+  Irq_chip_ux::set_owner(pid);
 
   /*
    * If there are any interrupts pending up to this point, don't start the task
    * but let it enter kernel immediately. Any interrupts occuring beyond this
    * point will go directly to the task.
    */
-  if ((irq_pend = Pic::irq_pending()) != -1)
+  int irq_pend = Irq_chip_ux::pending_vector();
+  if (irq_pend != -1)
     {
-      Pic::eat (irq_pend);
+      Irq_chip_ux::set_owner(Boot_info::pid());
 
-      Pic::set_owner (Boot_info::pid());
-
-      kernel_entry (_cpu, context,
-                    Pic::map_irq_to_gate (irq_pend),
+      kernel_entry (_cpu, context, irq_pend,
                     *(kesp + 4),    /* XSS */
                     *(kesp + 3),    /* ESP */
                     *(kesp + 2),    /* EFL */
@@ -536,10 +531,10 @@ Usermode::iret_to_user_mode(Cpu_number _cpu,
         break;
     }
 
-  Pic::set_owner (Boot_info::pid());
+  Irq_chip_ux::set_owner(Boot_info::pid());
 
-  if (Pic::irq_pending() != -1)
-    kill (Boot_info::pid(), SIGIO);
+  if (Irq_chip_ux::pending_vector() != -1)
+    kill(Boot_info::pid(), SIGIO);
 
   context->uc_mcontext.gregs[REG_EAX] = regs.eax;
   context->uc_mcontext.gregs[REG_EBX] = regs.ebx;
@@ -653,16 +648,10 @@ void
 Usermode::int_handler (int, siginfo_t *, void *ctx)
 {
   struct ucontext *context = reinterpret_cast<struct ucontext *>(ctx);
-  int irq;
-  unsigned long gate;
 
-  if ((irq = Pic::irq_pending()) == -1)
+  int gate = Irq_chip_ux::pending_vector();
+  if (gate == -1)
     return;
-
-  if (Pic::get_ipi_gate(irq, gate) == false)
-    gate = Pic::map_irq_to_gate(irq);
-
-  Pic::eat (irq);
 
   kernel_entry (Cpu::cpus.find_cpu(Cpu::By_phys_id(Cpu::phys_id_direct())),
                 context,

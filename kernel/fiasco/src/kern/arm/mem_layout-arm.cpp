@@ -65,9 +65,7 @@ public:
     Jdb_tmp_map_area     = Service_page + 0x400000,
     Map_base             = RAM_PHYS_BASE,
     Ivt_base             = 0xffff0000,
-
-    Kernel_max           = 0x00000000,
-    };
+  };
 };
 
 
@@ -100,8 +98,6 @@ public:
     // don't care about caches here, because arm uses a register on MP
     utcb_ptr_align       = Tl_math::Ld<sizeof(void*)>::Res,
     Ivt_base             = 0xffff0000,
-
-    Kernel_max           = 0x00000000,
   };
 
 };

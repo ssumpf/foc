@@ -28,6 +28,9 @@
 #define DUMP_CONSTANT(prefix, value) \
   printf("#define VAL__" #prefix " 0x%llx\n", READ_VAL);
 
+#define DUMP_THREAD_STATE(value) \
+  printf("#define VAL__" #value " 0x%llx\n", READ_VAL);
+
 #define DUMP_CAST_OFFSET(type, subtype) \
   printf("#define CAST__" #type "_TO_" #subtype " 0x%llx\n", READ_VAL);
 

@@ -1,4 +1,5 @@
 # -*- makefile  -*-
+# vi:set ft=make:
 
 #
 # Makerules for the sources of Fiasco
@@ -40,36 +41,36 @@ INSTRUMENT_CC = $(filter $(addsuffix .cc, $(INSTRUMENT)),  $(SRC_CC))
 $(NOPROFILE_CC:.cc=.o) : %.o: %.cc
 	$(COMP_MESSAGE)
 	$(VERBOSE)$(CXX) -c -MD -MP -MF .$*.cc.d.new -o $@ \
-	  $(CPPFLAGS) $(CXXFLAGS) $(OPT_CXXFLAGS) $<
+	  $(CPPFLAGS) $(CXXFLAGS) $(OPT_CXXFLAGS) $(CXXFLAGS_$(basename $(notdir $@))) $<
 	@mv .$*.cc.d.new .$*.cc.d
 
 $(NOPROFILE_C:.c=.o) : %.o: %.c
 	$(COMP_MESSAGE)
 	$(VERBOSE)$(CC) -c -MD -MP -MF .$*.c.d.new -o $@ \
-	  $(CPPFLAGS) $(CFLAGS) $(OPT_CFLAGS) $<
+	  $(CPPFLAGS) $(CFLAGS) $(OPT_CFLAGS) $(CFLAGS_$(basename $(notdir $@))) $<
 	@mv .$*.c.d.new .$*.c.d
 
 $(NOOPT_CC:.cc=.o) : %.o: %.cc
 	$(COMP_MESSAGE_NOOPT)
 	$(VERBOSE)$(CXX) -c -MD -MP -MF .$*.cc.d.new -o $@ \
-	  $(CPPFLAGS) $(CXXFLAGS) $(NOOPT_CXXFLAGS) $<
+	  $(CPPFLAGS) $(CXXFLAGS) $(NOOPT_CXXFLAGS) $(CXXFLAGS_$(basename $(notdir $@))) $<
 	@mv .$*.cc.d.new .$*.cc.d
 
 $(NOOPT_CC:.cc=.S) : %.S: %.cc
 	$(COMP_MESSAGE_NOOPT)
 	$(VERBOSE)$(CXX) -S -o $@ \
-	  $(CPPFLAGS) $(CXXFLAGS) $(NOOPT_CXXFLAGS) $<
+	  $(CPPFLAGS) $(CXXFLAGS) $(NOOPT_CXXFLAGS) $(CXXFLAGS_$(basename $(notdir $@))) $<
 
 $(NOOPT_C:.c=.o) : %.o: %.c
 	$(COMP_MESSAGE_NOOPT)
 	$(VERBOSE)$(CC) -c -MD -MP -MF .$*.c.d.new -o $@ \
-	  $(CPPFLAGS) $(CFLAGS) $(NOOPT_CFLAGS) $<
+	  $(CPPFLAGS) $(CFLAGS) $(NOOPT_CFLAGS) $(CFLAGS_$(basename $(notdir $@))) $<
 	@mv .$*.c.d.new .$*.c.d
 
 $(NOOPT_C:.c=.S) : %.S: %.c
 	$(COMP_MESSAGE_NOOPT)
 	$(VERBOSE)$(CC) -S -o $@ \
-	  $(CPPFLAGS) $(CFLAGS) $(NOOPT_CFLAGS) $<
+	  $(CPPFLAGS) $(CFLAGS) $(NOOPT_CFLAGS) $(CFLAGS_$(basename $(notdir $@))) $<
 
 $(INSTRUMENT_CC:.cc=.o) : %.o: %.cc
 	$(COMP_MESSAGE)
@@ -122,18 +123,18 @@ $(NONDEBUG_C:.c=.S) : %.S: %.c
 %.S:	%.cc
 	$(COMP_MESSAGE)
 	$(VERBOSE)$(CC) -S -o $@ -fverbose-asm \
-	  $(CPPFLAGS) $(CXXFLAGS) $(PROF_FLAGS) $(OPT_CXXFLAGS) $<
+	  $(CPPFLAGS) $(CXXFLAGS) $(PROF_FLAGS) $(OPT_CXXFLAGS) $(CXXFLAGS_$(basename $(notdir $@))) $<
 
 %.o:	%.c
 	$(COMP_MESSAGE)
 	$(VERBOSE)$(CC) -c -MD -MP -MF .$*.c.d.new -o $@ \
-	  $(CPPFLAGS) $(CFLAGS) $(PROF_FLAGS) $(OPT_CFLAGS) $<
+	  $(CPPFLAGS) $(CFLAGS) $(PROF_FLAGS) $(OPT_CFLAGS) $(CFLAGS_$(basename $(notdir $@))) $<
 	@mv .$*.c.d.new .$*.c.d
 
 %.S:	%.c
 	$(COMP_MESSAGE)
 	$(VERBOSE)$(CC) -S -o $@ -fverbose-asm \
-	  $(CPPFLAGS) $(CFLAGS) $(PROF_FLAGS) $(OPT_CFLAGS) $<
+	  $(CPPFLAGS) $(CFLAGS) $(PROF_FLAGS) $(OPT_CFLAGS) $(CFLAGS_$(basename $(notdir $@))) $<
 
 %.o:	%.S
 	$(COMP_MESSAGE)
@@ -157,7 +158,7 @@ $(NONDEBUG_C:.c=.S) : %.S: %.c
 
 %.lds:	%.ld
 	$(COMP_MESSAGE)
-	$(VERBOSE)$(CPP) -MD -MP -MF .$*.ld.d -undef -P -DASSEMBLER -o $@ $(CPPFLAGS) $<
+	$(VERBOSE)$(CPP) -MD -MP -MF .$@.d -MT $@ -undef -P -DASSEMBLER -o $@ $(CPPFLAGS) $<
 
 (%): %
 	$(AR_MESSAGE)

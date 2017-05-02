@@ -26,4 +26,3 @@ void *Vmem_alloc::page_unmap(void * /*page*/)
   NOT_IMPL_PANIC;
   return NULL;
 }
-

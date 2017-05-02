@@ -1,5 +1,6 @@
 INTERFACE [arm && pic_gic && (omap4 || omap5)]:
 
+#include "initcalls.h"
 #include "gic.h"
 
 // ------------------------------------------------------------------------
@@ -8,7 +9,7 @@ IMPLEMENTATION [arm && pic_gic && (omap4 || omap5)]:
 #include "irq_mgr_multi_chip.h"
 #include "kmem.h"
 
-IMPLEMENT FIASCO_INIT
+PUBLIC static FIASCO_INIT
 void
 Pic::init()
 {
@@ -22,14 +23,6 @@ Pic::init()
 
   Irq_mgr::mgr = m;
 }
-
-IMPLEMENT inline
-Pic::Status Pic::disable_all_save()
-{ return 0; }
-
-IMPLEMENT inline
-void Pic::restore_all(Status)
-{}
 
 // ------------------------------------------------------------------------
 IMPLEMENTATION [arm && mp && pic_gic && (omap4 || omap5)]:

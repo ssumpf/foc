@@ -4,7 +4,7 @@
 include $(srcdir)/Modules.generic
 
 SUBSYSTEMS = JABI ABI DRIVERS KERNEL CRT0 BOOT LIBK \
-	     CHECKSUM CXXLIB MINILIBC LIBKERN TCBOFFSET VERSION GBLCFG
+	     CHECKSUM CXXLIB MINILIBC TCBOFFSET VERSION GBLCFG
 
 PREPROCESS_PARTS 	+= arch $(CONFIG_ABI) 32bit iofp         \
 			   $(CONFIG_XARCH) apic abs-timeout-hack \
@@ -25,6 +25,7 @@ PREPROCESS_PARTS-$(CONFIG_CPU_VIRT)          += svm vmx virtual_space_iface
 PREPROCESS_PARTS-$(CONFIG_SCHED_FIXED_PRIO)  += sched_fixed_prio
 PREPROCESS_PARTS-$(CONFIG_SCHED_WFQ)         += sched_wfq
 PREPROCESS_PARTS-$(CONFIG_SCHED_FP_WFQ)      += sched_fp_wfq
+PREPROCESS_PARTS-$(CONFIG_IOMMU)             += iommu virtual_space_iface
 
 PREPROCESS_PARTS        += $(PREPROCESS_PARTS-y)
 
@@ -56,7 +57,7 @@ VPATH_LIBUART  := $(srcdir)/lib/uart
 PRIVATE_INCDIR += lib/uart
 SUBSYSTEMS += LIBUART
 LIBUART			:= uart/libuart.a
-OBJECTS_LIBUART = uart_pxa.o
+OBJECTS_LIBUART = uart_16550.o
 
 #
 # DRIVERS subsystem
@@ -86,11 +87,14 @@ KERNEL			:= fiasco.image
 VPATH			+= kern/$(CONFIG_XARCH) kern/ia32/32 kern/ia32 kern
 PRIVATE_INCDIR		+= kern/$(CONFIG_XARCH) kern/ia32/32 kern/ia32 kern
 
-INTERFACES_KERNEL	+= __main acpi acpi_fadt irq_chip_ia32 irq_chip_pic \
-			   io_apic boot_console \
-			   irq_msi io_space apic pit checksum \
+INTERFACES_KERNEL	+= __main acpi acpi_fadt acpi_dmar i8259 \
+			   irq_chip_ia32 irq_chip_pic \
+			   io_apic intel_iommu io_apic_remapped \
+			   boot_console \
+			   irq_msi io_space apic pit boot_info checksum \
 			   x86desc gdt idt tss timer_irq dirq
 
+INTERFACES_KERNEL-$(CONFIG_IOMMU)    += intel_dmar dmar_space
 INTERFACES_KERNEL-$(CONFIG_CPU_VIRT) += svm vmx vm vm_svm vm_vmx vm_vmx_ept
 
 apic_IMPL		:= apic-ia32 apic-ia32-mp
@@ -106,7 +110,7 @@ entry_frame_IMPL	:= entry_frame entry_frame-ia32-ux \
 			   entry_frame-abs-timeout-hack
 fpu_IMPL		:= fpu fpu-ia32-ux fpu-ia32
 ipi_IMPL		:= ipi ipi-ia32
-kdb_ke_IMPL		:= kdb_ke kdb_ke-ia32
+kdb_ke_IMPL		:= kdb_ke-ia32
 kernel_thread_IMPL	:= kernel_thread kernel_thread-std kernel_thread-ia32
 kernel_uart_IMPL	:= kernel_uart kernel_uart-libuart
 kip_init_IMPL		:= kip_init-ia32
@@ -140,7 +144,6 @@ thread_IMPL		:= thread thread-ia32 thread-ia32-32 \
 			   thread-debug thread-dbf thread-vcpu thread-io
 utcb_init_IMPL		:= utcb_init utcb_init-ia32
 vmem_alloc_IMPL		:= vmem_alloc vmem_alloc-ia32
-vm_factory_IMPL         := vm_factory vm_factory-ia32
 watchdog_IMPL		:= watchdog watchdog-ia32
 
 INTERFACES_KERNEL-$(CONFIG_SERIAL) += uart_console
@@ -170,33 +173,15 @@ ifeq ("$(CONFIG_JDB)","y")
 JDB			:= jdb_compound.o
 SUBSYSTEMS		+= JDB
 VPATH			+= jdb/ia32/32 jdb/ia32 jdb
-INTERFACES_KERNEL	+= jdb_tbuf jdb_tbuf_init jdb_trace tb_entry 
-INTERFACES_JDB		+= jdb jdb_util jdb_prompt_ext jdb_symbol jdb_lines \
-			   jdb_dbinfo jdb_bp \
-			   jdb_module jdb_core jdb_io_ports \
-			   jdb_kern_info jdb_prompt_module jdb_tbuf_output \
-			   jdb_input jdb_dump jdb_ptab jdb_misc jdb_mapdb \
-			   jdb_tcb jdb_attach_irq jdb_input_task \
-			   jdb_trace_set jdb_counters jdb_table kern_cnt  \
-			   jdb_exit_module \
-			   jdb_tbuf_show jdb_console_buffer \
-			   jdb_list jdb_screen push_console jdb_timeout \
-			   jdb_handler_queue jdb_halt_thread \
-			   jdb_kern_info_kmem_alloc \
-			   jdb_kern_info_kip jdb_kern_info_config \
-			   jdb_kern_info_data \
-			   loadcnt jdb_utcb jdb_thread_list \
-			   jdb_entry_frame jdb_kobject jdb_space jdb_io_apic \
-			   jdb_trap_state jdb_ipi jdb_kobject_names \
-			   jdb_rcupdate jdb_bt jdb_ipc_gate jdb_obj_space \
-			   jdb_log jdb_factory jdb_iomap \
-                           jdb_thread jdb_scheduler jdb_sender_list \
-			   jdb_regex jdb_disasm jdb_report
+INTERFACES_JDB		+= jdb_dbinfo jdb_io_ports jdb_ptab jdb_trace_set \
+			   jdb_console_buffer loadcnt jdb_io_apic jdb_ipi \
+			   jdb_bt jdb_log jdb_iomap jdb_misc              \
+			   jdb_halt_thread
 
 CXXSRC_JDB := tb_entry_output.cc
 
 apic_IMPL		+= apic-debug
-jdb_IMPL		:= jdb jdb-ia32-amd64 jdb-ansi jdb-ia32-ux jdb-thread \
+jdb_IMPL		+= jdb-ia32-amd64 jdb-ia32-ux \
 			   jdb-int3-ia32-amd64 jdb-int3-ia32-ux
 jdb_bp_IMPL		:= jdb_bp-ia32-ux jdb_bp-ia32-amd64 jdb_bp-ia32
 jdb_bt_IMPL		:= jdb_bt-ia32-ux
@@ -209,7 +194,7 @@ jdb_kern_info_IMPL	:= jdb_kern_info jdb_kern_info-ia32-amd64 \
 jdb_misc_IMPL		:= jdb_misc-ia32-amd64
 jdb_ptab_IMPL		:= jdb_ptab jdb_ptab-ia32-ux-arm
 jdb_screen_IMPL		:= jdb_screen jdb_screen-ia32
-jdb_tcb_IMPL		:= jdb_tcb jdb_tcb-ia32-ux
+jdb_tcb_IMPL		+= jdb_tcb-ia32-ux
 jdb_trace_set_IMPL	:= jdb_trace_set jdb_trace_set-ia32-ux
 
 INTERFACES_JDB-$(CONFIG_JDB_MISC)	+= jdb_tetris
@@ -321,16 +306,6 @@ CSRC_LIBK	+= gcc_lib.c
 CXXSRC_LIBK     += construction.cc
 
 #
-# LIBKERN Subsystem
-#
-LIBKERN		:= libkern.a
-VPATH		+= lib/kern
-PRIVATE_INCDIR	+= lib/kern/include
-CSRC_LIBKERN	:=
-NOOPT		+= $(patsubst %.o, %, $(OBJ_LIBKERN))
-
-
-#
 # LIBGZIP subsystem (only for Jdb)
 #
 ifneq ($(CONFIG_JDB_GZIP),)
@@ -395,7 +370,7 @@ VPATH		+= lib/minilibc/$(CONFIG_XARCH) lib/minilibc
 PRIVATE_INCDIR	+= lib/minilibc/$(CONFIG_XARCH)/include lib/minilibc/include
 CSRC_MINILIBC	:= atexit.c memccpy.c memcmp.c memmove.c memset.c memcpy.c \
 		   memchr.c strchr.c strcmp.c strcpy.c strlen.c strncmp.c \
-		   strncpy.c strstr.c __assert_fail.c printf.c __v_printf.c \
+		   strncpy.c strstr.c printf.c __v_printf.c \
 		   vprintf.c strtol.c strtoul.c lltostr.c __ltostr.c \
 		   putchar.c puts.c getchar.c gets.c sprintf.c \
 		   snprintf.c vsnprintf.c vsprintf.c longjmp.c isalnum.c \

@@ -11,8 +11,7 @@
 #
 # Copy this example file to Makeconf.boot in the same directory.
 #
-#
-#
+# #
 # Generic options:
 #
 # Search path for modules, such as binaries, libraries, kernel, configuration
@@ -21,14 +20,8 @@
 # path.
 # MODULE_SEARCH_PATH = /path/to/cfgs:/path/to/foo:..
 #
-# 'image' just builds what's configured:
-# - default: just ELF
-# - BOOTSTRAP_DO_RAW_IMAGE=y: additionally raw images
-# - BOOTSTRAP_DO_UIMAGE=y:    additionally uImages
-#
-# Other bootstrap options (see also pkg/bootstrap/server/src/Make.rules):
-# - BOOTSTRAP_CMDLINE: default cmdline
-# - BOOTSTRAP_UIMAGE_COMPRESSION: set to none, gzip, or bzip2
+# For additional image buliding options see the header of
+# pkg/bootstrap/server/src/Make.rules
 #
 #
 # QEMU: Specific configuration for 'qemu' target (make qemu E=xxx'):
@@ -38,9 +31,25 @@
 qemu: MODULE_SEARCH_PATH += /path/to/fiasco-build
 
 # Optional options for QEMU, but setting '-serial stdio' is recommended
-QEMU_OPTIONS       = -serial stdio
-#QEMU_OPTIONS      = -nographic
-#QEMU_OPTIONS-arm += -M realview-eb -m 256
+QEMU_OPTIONS       ?= -serial stdio
+#QEMU_OPTIONS      ?= -nographic
+
+QEMU_OPTIONS-arm-rv              += -M realview-eb -m 256 
+#QEMU_OPTIONS-arm-rv              += -cpu arm926
+QEMU_OPTIONS-arm-rv              += -cpu arm1176
+#QEMU_OPTIONS-arm-rv              += -cpu cortex-a8
+#QEMU_OPTIONS-arm-rv              += -cpu cortex-a9
+QEMU_OPTIONS-arm-integrator      += -M integratorcp -m 256
+#QEMU_OPTIONS-arm-integrator      += -cpu arm1176
+QEMU_OPTIONS-arm-rv_vexpress     += -M vexpress-a9 -m 1024 -cpu cortex-a9 -smp 4
+QEMU_OPTIONS-arm-rv_vexpress_a15 += -M vexpress-a15 -m 2047 -cpu cortex-a15 \
+                                    -smp 4
+QEMU_OPTIONS-arm-rv_pbx          += realview-pbx-a9 -m 512 -cpu cortex-a9 -smp 4
+
+QEMU_OPTIONS-mips-malta          += -M malta -m 256 -cpu P5600
+
+QEMU_OPTIONS-arm  += $(QEMU_OPTIONS-arm-$(PLATFORM_TYPE))
+QEMU_OPTIONS-mips += $(QEMU_OPTIONS-mips-$(PLATFORM_TYPE))
 QEMU_OPTIONS      += $(QEMU_OPTIONS-$(ARCH))
 
 # The path to the QEMU binary - optional
@@ -69,7 +78,7 @@ UX_OPTIONS     = -m 128
 
 # Search path for other make targets:
 # grub1iso grub2iso: MODULE_SEARCH_PATH += /path/to/fiasco-build
-# image %image: MODULE_SEARCH_PATH += /path/to/fiasco-build
+# %image: MODULE_SEARCH_PATH += /path/to/fiasco-build
 
 # VirtualBox
 #

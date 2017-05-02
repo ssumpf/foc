@@ -13,7 +13,8 @@ TOOL_TESTS = mapping mapping_inline random random_inline extern_c static \
   parser parser_noinline \
   multifile variable line line_not line_nh interface comment_in_string \
   default_args drop_single1 drop_single2 drop_single3 drop_multi1 \
-  drop_multi2 implement_template
+  drop_multi2 implement_template implement_default implement_default_err \
+  nested_class template_base_class func_defs
 
 mapping_inline_src = mapping
 mapping_inline_flags = -i
@@ -75,6 +76,15 @@ ifdef1_src         = ifdef1
 ifdef1_flags       = -s -e "true"
 ifdef1_extra       = ifdef1-more.cpp
 
+implement_default_redirect     = 2>implement_default.stderr
+implement_default_extra        = implement_default.stderr
+
+implement_default_err_redirect = 2>implement_default_err.stderr; test $$? -ne 0
+implement_default_err_extra    = implement_default_err.stderr
+implement_default_err_missing += implement_default_err.h
+implement_default_err_missing += implement_default_err_i.h
+implement_default_err_missing += implement_default_err.cc
+
 random.cpp: combine.pl
 	perl $< > $@.new
 	mv $@.new $@
@@ -92,7 +102,10 @@ test_rules: Makefile
 	    echo "ifndef $${test}_flags" >> $@.new; \
 	    echo "$${test}_flags = " >> $@.new; \
 	    echo "endif" >> $@.new; \
-	    echo "$${test}.cc: \$$(addsuffix .cpp, \$$($${test}_src)) \$$(TOOL); \$$(TOOL) \$$($${test}_flags) -c $${test} \$$(filter-out \$$(TOOL), \$$^)" >> $@.new; \
+	    echo "ifndef $${test}_redirect" >> $@.new; \
+	    echo "$${test}_redirect = " >> $@.new;\
+	    echo "endif" >> $@.new; \
+	    echo "$${test}.cc: \$$(addsuffix .cpp, \$$($${test}_src)) \$$(TOOL); \$$(TOOL) \$$($${test}_flags) -c $${test} \$$(filter-out \$$(TOOL), \$$^) \$$($${test}_redirect)" >> $@.new; \
 	    echo "ifdef $${test}_extra" >> $@.new; \
 	    echo "clean:: ; \$$(RM) \$$($${test}_extra)" >> $@.new; \
 	    echo "endif" >> $@.new; \
@@ -114,10 +127,12 @@ test: $(addsuffix .t.ok, $(ALL_TESTS))
 ifeq ($(RECREATE_OUTPUT),1)
 	@cp $(filter-out $($*_missing),$*.h $*_i.h $*.cc) $($*_extra) verify/
 endif
-	@for i in $(filter-out $($*_missing),$*.h $*_i.h $*.cc) $($*_extra); \
+	@ERROR=0; \
+	for i in $(filter-out $($*_missing),$*.h $*_i.h $*.cc) $($*_extra); \
 	  do \
-	    diff -u verify $$i || exit 1; \
-	  done
+	    if ! diff -u verify $$i; then ERROR=1; fi; \
+	  done; \
+	test $$ERROR -eq 0
 	@echo "OK"
 	@touch $@
 

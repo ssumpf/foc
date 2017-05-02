@@ -28,7 +28,7 @@ IMPLEMENT
 void
 Thread::handle_double_fault (void)
 {
-  // cannot use currnt_cpu() here because this must run on a thread stack,
+  // cannot use current_cpu() here because this must run on a thread stack,
   // not on a dbf stack
   volatile Tss *tss = Cpu::boot_cpu()->get_tss();
   int c;
@@ -41,7 +41,7 @@ Thread::handle_double_fault (void)
 	  "EBX=%08x  EDI=%08x  ES=%04x\n"
 	  "ECX=%08x  EBP=%08x  GS=%04x\n"
 	  "EDX=%08x  ESP=%08x  SS=%04x   ESP0=%08lx\n"
-	  "EFL=%08x  EIP=%08x  CS=%04x    CPU=%d\n",
+	  "EFL=%08x  EIP=%08x  CS=%04x    CPU=%u\n",
 	  tss->_eax,    tss->_esi, tss->_ds & 0xffff,
 	  tss->_ebx,    tss->_edi, tss->_es & 0xffff,
 	  tss->_ecx,    tss->_ebp, tss->_gs & 0xffff,

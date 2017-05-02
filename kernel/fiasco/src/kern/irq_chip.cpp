@@ -3,6 +3,7 @@ INTERFACE:
 #include <cxx/bitfield>
 
 #include "types.h"
+#include "spin_lock.h"
 
 class Irq_base;
 class Irq_chip;
@@ -25,7 +26,7 @@ public:
   struct Mode
   {
     Mode() = default;
-    explicit Mode(unsigned m) : raw(m) {}
+    explicit Mode(Mword m) : raw(m) {}
 
     enum Flow_type
     {
@@ -48,7 +49,7 @@ public:
 
     Mode(Flow_type ft) : raw(ft) {}
 
-    unsigned raw;
+    Mword raw;
     CXX_BITFIELD_MEMBER(0, 0, set_mode, raw);
     CXX_BITFIELD_MEMBER_UNSHIFTED(1, 3, flow_type, raw);
     CXX_BITFIELD_MEMBER_UNSHIFTED(1, 1, level_triggered, raw);
@@ -132,7 +133,7 @@ public:
     F_enabled = 1,
   };
 
-  Irq_base() : _flags(0), _next(0)
+  Irq_base() : _flags(0), _irq_lock(Spin_lock<>::Unlocked), _next(0)
   {
     Irq_chip_soft::sw_chip.bind(this, 0, true);
     mask();
@@ -142,6 +143,7 @@ public:
 
   Mword pin() const { return _pin; }
   Irq_chip *chip() const { return _chip; }
+  Spin_lock<> *irq_lock() { return &_irq_lock; }
 
   void mask() { if (!__mask()) _chip->mask(_pin); }
   void mask_and_ack()
@@ -177,7 +179,8 @@ protected:
 
   Irq_chip *_chip;
   Mword _pin;
-  unsigned _flags;
+  unsigned short _flags;
+  Spin_lock<> _irq_lock;
 
   template<typename T>
   static void FIASCO_FLATTEN
@@ -231,7 +234,9 @@ Upstream_irq::ack() const
     c->_c->ack(c->_p);
 }
 
-
+/**
+ * \pre `irq->irq_lock()` must be held
+ */
 PUBLIC inline
 void
 Irq_chip::bind(Irq_base *irq, Mword pin, bool ctor = false)
@@ -250,6 +255,9 @@ Irq_chip::bind(Irq_base *irq, Mword pin, bool ctor = false)
     unmask(pin);
 }
 
+/**
+ * \pre `irq->irq_lock()` must be held
+ */
 IMPLEMENT inline
 void
 Irq_chip::unbind(Irq_base *irq)
@@ -294,7 +302,7 @@ PUBLIC inline NEEDS["lock_guard.h", "cpu_lock.h"]
 void
 Irq_base::destroy()
 {
-  auto g = lock_guard(cpu_lock);
+  auto g = lock_guard(_irq_lock);
   unbind();
 }
 

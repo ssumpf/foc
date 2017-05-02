@@ -42,10 +42,10 @@ void __attribute__ ((noreturn))
 platform_reset(void)
 {
   enum
-    {
-      DEVICE_PRM  = Mem_layout::Prm_phys_base + 0x1b00,
-      PRM_RSTCTRL = DEVICE_PRM + 0,
-    };
+  {
+    DEVICE_PRM  = Mem_layout::Prm_phys_base + 0x1b00,
+    PRM_RSTCTRL = DEVICE_PRM + 0,
+  };
   Address p = Kmem::mmio_remap(PRM_RSTCTRL);
 
   Io::set<Mword>(1, p);
@@ -64,13 +64,14 @@ void __attribute__ ((noreturn))
 platform_reset(void)
 {
   enum
-    {
-      DEVICE_PRM  = Mem_layout::Prm_phys_base + 0x1c00,
-      PRM_RSTCTRL = DEVICE_PRM + 0,
-    };
+  {
+    DEVICE_PRM         = Mem_layout::Prm_phys_base + 0x1c00,
+    PRM_RSTCTRL        = DEVICE_PRM + 0,
+    RST_GLOBAL_COLD_SW = 1 << 1,
+  };
   Address p = Kmem::mmio_remap(PRM_RSTCTRL);
 
-  Io::set<Mword>(1, p);
+  Io::set<Mword>(RST_GLOBAL_COLD_SW, p);
   Io::read<Mword>(p);
 
   for (;;)

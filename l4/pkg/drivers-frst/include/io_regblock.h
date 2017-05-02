@@ -125,7 +125,7 @@ namespace L4
      * write(reg, (read(reg) & ~clear_bits) | add_bits)
      */
     template< typename R >
-    R modify(unsigned long reg, R clear_bits, R set_bits)
+    R modify(unsigned long reg, R clear_bits, R set_bits) const
     {
       R r = (read<R>(reg) & ~clear_bits) | set_bits;
       write(reg, r);
@@ -139,7 +139,7 @@ namespace L4
      * \return The written value.
      */
     template< typename R >
-    R set(unsigned long reg, R set_bits)
+    R set(unsigned long reg, R set_bits) const
     {
       return modify<R>(reg, 0, set_bits);
     }
@@ -151,7 +151,7 @@ namespace L4
      * \return The written value.
      */
     template< typename R >
-    R clear(unsigned long reg, R clear_bits)
+    R clear(unsigned long reg, R clear_bits) const
     {
       return modify<R>(reg, clear_bits, 0);
     }
@@ -174,6 +174,48 @@ namespace L4
 
   public:
     Io_register_block_mmio(unsigned long base, unsigned char shift = 0)
+    : _base(base), _shift(shift)
+    {}
+
+    unsigned long addr(unsigned long reg) const
+    { return _base + (reg << _shift); }
+
+    unsigned char  read8(unsigned long reg) const
+    { return _read<unsigned char>(reg); }
+    unsigned short read16(unsigned long reg) const
+    { return _read<unsigned short>(reg); }
+    unsigned int   read32(unsigned long reg) const
+    { return _read<unsigned int>(reg); }
+
+    void write8(unsigned long reg, unsigned char val) const
+    { _write(reg, val); }
+    void write16(unsigned long reg, unsigned short val) const
+    { _write(reg, val); }
+    void write32(unsigned long reg, unsigned int val) const
+    { _write(reg, val); }
+
+    void delay() const
+    {}
+
+  private:
+    unsigned long _base;
+    unsigned char _shift;
+  };
+
+  template<typename ACCESS_TYPE>
+  class Io_register_block_mmio_fixed_width : public Io_register_block
+  {
+  private:
+    template< typename R >
+    R _read(unsigned long reg) const
+    { return *reinterpret_cast<volatile ACCESS_TYPE *>(_base + (reg << _shift)); }
+
+    template< typename R >
+    void _write(unsigned long reg, R val) const
+    { *reinterpret_cast<volatile ACCESS_TYPE *>(_base + (reg << _shift)) = val; }
+
+  public:
+    Io_register_block_mmio_fixed_width(unsigned long base, unsigned char shift = 0)
     : _base(base), _shift(shift)
     {}
 

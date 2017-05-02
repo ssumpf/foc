@@ -200,23 +200,23 @@ extern inline Unsigned16 get_ss()
  asm volatile("ltr %0" : : "rm" ((Unsigned16)(seg)))
 
 #define get_esp() \
- ({ register Unsigned64 _temp__; \
+ ({ Unsigned64 _temp__; \
     asm("mov %%rsp, %0" : "=r" (_temp__)); _temp__; })
 
 #define	get_cr0() \
- ({ register Unsigned64 _temp__; \
+ ({ Unsigned64 _temp__; \
     asm volatile("mov %%cr0, %0" : "=r" (_temp__)); _temp__; })
 
 #define	set_cr3(value) \
- ({ register Unsigned64 _temp__ = (value); \
+ ({ Unsigned64 _temp__ = (value); \
     asm volatile("mov %0, %%cr3" : : "r" (_temp__)); })
 
 #define get_cr4() \
- ({ register Unsigned64 _temp__; \
+ ({ Unsigned64 _temp__; \
     asm volatile("mov %%cr4, %0" : "=r" (_temp__)); _temp__; })
 
 #define set_cr4(value) \
- ({ register Unsigned64 _temp__ = (value); \
+ ({ Unsigned64 _temp__ = (value); \
     asm volatile("mov %0, %%cr4" : : "r" (_temp__)); })
 
 
@@ -603,7 +603,7 @@ trap_dump_panic(const struct trap_state *st)
   printf("RIP %016llx RFLAGS %016llx\n", st->rip, st->rflags);
   printf("CS %04llx SS %04llx\n",
       st->cs & 0xffff, from_user ? st->ss & 0xffff : get_ss());
-  printf("trapno %lld, error %08llx, from %s mode\n",
+  printf("trapno %llu, error %08llx, from %s mode\n",
       st->trapno, st->err, from_user ? "user" : "kernel");
   if (st->trapno == 0x0d)
     {

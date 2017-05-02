@@ -34,13 +34,9 @@ public:
 
 class Mem_region_map_base
 {
-private:
-  unsigned _s;
-  unsigned _l;
-  Mem_region _r[0];
-
 public:
-  Mem_region_map_base(unsigned size) : _s(size), _l(0) {}
+  virtual bool add(Mem_region const &r) = 0;
+  virtual bool sub(Mem_region const &r) = 0;
 };
 
 template< unsigned E >
@@ -48,9 +44,11 @@ class Mem_region_map : public Mem_region_map_base
 {
 public:
   enum { Entries = E };
-  Mem_region_map() : Mem_region_map_base(Entries) {}
+  Mem_region_map() : _l(0) {}
 
 private:
+  unsigned _l;
+
   Mem_region _r[Entries];
 };
 
@@ -58,20 +56,22 @@ private:
 //--------------------------------------------------------------------------
 IMPLEMENTATION:
 
-PRIVATE inline
+PRIVATE template< unsigned E >
+inline
 void
-Mem_region_map_base::del(unsigned start, unsigned end)
+Mem_region_map<E>::del(unsigned start, unsigned end)
 {
-  register unsigned delta = end - start;
+  unsigned delta = end - start;
   for (unsigned p = start; p < end; ++p)
     _r[p] = _r[p + delta];
 
   _l -= delta;
 }
 
-PUBLIC inline NEEDS[Mem_region_map_base::del]
+PUBLIC template< unsigned E >
+inline NEEDS[Mem_region_map::del]
 bool
-Mem_region_map_base::add(Mem_region const &r)
+Mem_region_map<E>::add(Mem_region const &r)
 {
   if (!r.valid())
     return true;
@@ -95,7 +95,7 @@ Mem_region_map_base::add(Mem_region const &r)
       return true;
     }
 
-  if (_l >= _s)
+  if (_l >= Entries)
     return false;
 
   for (unsigned p = _l; p > pos; --p) _r[p] = _r[p-1];
@@ -105,9 +105,10 @@ Mem_region_map_base::add(Mem_region const &r)
 }
 
 
-PUBLIC inline NEEDS[Mem_region_map_base::del]
+PUBLIC template< unsigned E >
+inline NEEDS[Mem_region_map::del]
 bool
-Mem_region_map_base::sub(Mem_region const &r)
+Mem_region_map<E>::sub(Mem_region const &r)
 {
   if (!r.valid())
     return true;
@@ -128,7 +129,7 @@ Mem_region_map_base::sub(Mem_region const &r)
 	    _r[pos].end = r.start - 1;
 	  else
 	    {
-	      if (_l >= _s)
+	      if (_l >= Entries)
 		return false;
 
 	      for (unsigned p = _l; p > pos; --p) _r[p] = _r[p-1];
@@ -142,25 +143,20 @@ Mem_region_map_base::sub(Mem_region const &r)
   return true;
 }
 
-
-PUBLIC inline
-unsigned 
-Mem_region_map_base::length() const
+PUBLIC template< unsigned E >
+inline
+unsigned
+Mem_region_map<E>::length() const
 { return _l; }
 
-
-PUBLIC inline
-unsigned 
-Mem_region_map_base::capacity() const
-{ return _s; }
-
-PUBLIC inline
+PUBLIC template< unsigned E >
+inline
 Mem_region const &
-Mem_region_map_base::operator [] (unsigned idx) const
+Mem_region_map<E>::operator [] (unsigned idx) const
 { return _r[idx]; }
 
-PUBLIC inline
+PUBLIC template< unsigned E >
+inline
 Mem_region &
-Mem_region_map_base::operator [] (unsigned idx)
+Mem_region_map<E>::operator [] (unsigned idx)
 { return _r[idx]; }
-

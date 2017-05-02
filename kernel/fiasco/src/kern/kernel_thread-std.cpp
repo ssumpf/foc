@@ -15,19 +15,15 @@ IMPLEMENTATION:
 #include "types.h"
 #include "ram_quota.h"
 
-static Cap_index const C_task      = Cap_index(1);
-static Cap_index const C_factory   = Cap_index(2);
-static Cap_index const C_thread    = Cap_index(3);
-static Cap_index const C_pager     = Cap_index(4);
-static Cap_index const C_log       = Cap_index(5);
-static Cap_index const C_icu       = Cap_index(6);
-static Cap_index const C_scheduler = Cap_index(7);
-
-
 IMPLEMENT
 void
 Kernel_thread::init_workload()
 {
+  Cap_index const C_task    = Cap_index(Initial_kobjects::Task);
+  Cap_index const C_factory = Cap_index(Initial_kobjects::Factory);
+  Cap_index const C_thread  = Cap_index(Initial_kobjects::Thread);
+  Cap_index const C_pager   = Cap_index(Initial_kobjects::Pager);
+
   auto g = lock_guard(cpu_lock);
 
   if (Config::Jdb &&
@@ -54,10 +50,13 @@ Kernel_thread::init_workload()
   // create sigma0
   //
 
-  Task *sigma0 = Task::create<Sigma0_task>(Ram_quota::root,
-      L4_fpage::mem(Mem_layout::Utcb_addr, Config::PAGE_SHIFT));
+  int err;
+  Task *sigma0 = Task::create<Sigma0_task>(Ram_quota::root, L4_msg_tag(), 0, &err);
 
   assert_opt (sigma0);
+  check(sigma0->alloc_ku_mem(L4_fpage::mem(Mem_layout::Utcb_addr,
+                                           Config::PAGE_SHIFT))
+        >= 0);
   // prevent deletion of this thing
   sigma0->inc_ref();
 
@@ -76,7 +75,7 @@ Kernel_thread::init_workload()
 
   Thread_object *sigma0_thread = new (Ram_quota::root) Thread_object();
 
-  assert_kdb(sigma0_thread);
+  assert(sigma0_thread);
 
   // prevent deletion of this thing
   sigma0_thread->inc_ref();
@@ -90,17 +89,19 @@ Kernel_thread::init_workload()
   // create the boot task
   //
 
-  Task *boot_task = Task::create<Task>(Ram_quota::root,
-      L4_fpage::mem(Mem_layout::Utcb_addr, Config::PAGE_SHIFT+2));
+  Task *boot_task = Task::create<Task>(Ram_quota::root, L4_msg_tag(), 0, &err);
 
   assert_opt (boot_task);
+  check(boot_task->alloc_ku_mem(L4_fpage::mem(Mem_layout::Utcb_addr,
+                                              Config::PAGE_SHIFT+2))
+        >= 0);
 
   // prevent deletion of this thing
   boot_task->inc_ref();
 
   Thread_object *boot_thread = new (Ram_quota::root) Thread_object();
 
-  assert_kdb (boot_thread);
+  assert (boot_thread);
 
   // prevent deletion of this thing
   boot_thread->inc_ref();
@@ -131,4 +132,3 @@ Kernel_thread::init_workload()
 
   boot_thread->activate();
 }
-

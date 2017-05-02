@@ -1,6 +1,7 @@
 #include "support.h"
 #include "panic.h"
 #include <cassert>
+#include "mod_info.h"
 #ifdef COMPRESS
 #include "uncompress.h"
 #endif
@@ -65,20 +66,24 @@ Boot_modules::_move_module(unsigned i, void *_dest,
       return;
     }
 
+  auto p = Platform_base::platform;
+  char const *vsrc = (char const *)p->to_virt((l4_addr_t)src);
+  char *vdest = (char *)p->to_virt((l4_addr_t)dest);
+
   if (Verbose_load)
     {
       unsigned char c[5];
-      c[0] = get_printable(src[0]);
-      c[1] = get_printable(src[1]);
-      c[2] = get_printable(src[2]);
-      c[3] = get_printable(src[3]);
+      c[0] = get_printable(vsrc[0]);
+      c[1] = get_printable(vsrc[1]);
+      c[2] = get_printable(vsrc[2]);
+      c[3] = get_printable(vsrc[3]);
       c[4] = 0;
       printf("  moving module %02d { %lx, %lx } (%s) -> { %lx - %lx } [%ld]\n",
              i, (unsigned long)src, (unsigned long)src + size - 1, c,
              (unsigned long)dest, (unsigned long)dest + size - 1, size);
 
       for (int a = 0; a < 0x100; a += 4)
-        printf("%08x%s", *(unsigned *)(src + a), (a % 32 == 28) ? "\n" : " ");
+        printf("%08x%s", *(unsigned *)(vsrc + a), (a % 32 == 28) ? "\n" : " ");
       printf("\n");
     }
   else
@@ -101,8 +106,8 @@ Boot_modules::_move_module(unsigned i, void *_dest,
           panic("cannot move module");
         }
     }
-  memmove(dest, src, size);
-  char *x = dest + size;
+  memmove(vdest, vsrc, size);
+  char *x = vdest + size;
   memset(x, 0, l4_round_page(x) - x);
   mem_manager->regions->add(Region::n(dest, dest + size,
                                       ::Mod_reg, Region::Root, i));
@@ -186,13 +191,13 @@ Boot_modules::move_modules(unsigned long modaddr)
   printf("  Moving up to %d modules behind %lx\n", count, modaddr);
   unsigned long req_size = calc_modules_size(this, L4_PAGESHIFT);
 
-  // find a spot to inset the modules
+  // find a spot to insert the modules
   mem_manager->ram->sort();
   char *to = (char *)mem_manager->find_free_ram(req_size, modaddr);
   if (!to)
     {
       printf("fatal: could not find free RAM region for modules\n"
-             "       need %lx bytes abvoe %lx\n", req_size, modaddr);
+             "       need %lx bytes above %lx\n", req_size, modaddr);
       mem_manager->ram->dump();
       mem_manager->regions->dump();
       exit (5);
@@ -252,22 +257,6 @@ Boot_modules::move_modules(unsigned long modaddr)
  * Code for IMAGE_MODE, modules are linked into bootstrap
  */
 #ifdef IMAGE_MODE
-
-namespace {
-
-/// Header for each linked module
-struct Mod_info
-{
-  char const *start;
-  unsigned size;
-  unsigned size_uncompressed;
-  char const *name;
-  char const *cmdline;
-  char const *md5sum_compr;
-  char const *md5sum_uncompr;
-} __attribute__((packed));
-
-}
 
 /// array of all module headers
 extern Mod_info _module_info_start[];
@@ -411,11 +400,14 @@ void
 Boot_modules_image_mode::reserve()
 {
   for (Mod_info *m = _module_info_start; m != _module_info_end; ++m)
-    mem_manager->regions->add(::mod_region(m));
+    {
+      m->start = (char const *)Platform_base::platform->to_phys((l4_addr_t)m->start);
+      mem_manager->regions->add(::mod_region(m));
+    }
 }
 
 
-/// Get module at index (decompress if needed
+/// Get module at index (decompress if needed)
 Boot_modules_image_mode::Module
 Boot_modules_image_mode::module(unsigned index, bool uncompress) const
 {
@@ -638,7 +630,7 @@ Boot_modules_image_mode::construct_mbi(unsigned long mod_addr)
 
   for (Mod_info const *mod = _module_info_start; mod != _module_info_end;
        ++mod)
-    mbi_size += round_wordsize(strlen(mod_cmdline(mod)));
+    mbi_size += round_wordsize(strlen(mod_cmdline(mod)) + 1);
 
   l4util_mb_info_t *mbi = (l4util_mb_info_t *)mem_manager->find_free_ram(mbi_size);
   if (!mbi)

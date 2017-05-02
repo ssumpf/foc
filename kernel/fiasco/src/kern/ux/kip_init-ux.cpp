@@ -23,7 +23,7 @@ Kip_init::setup_ux(Kip *k)
   Multiboot_module *mbm = reinterpret_cast <Multiboot_module*>
     (Kmem::phys_to_virt (Boot_info::mbi_virt()->mods_addr));
   k->user_ptr  = Boot_info::mbi_phys();
-  Mem_desc *m  = k->mem_descs();
+  Mem_desc *m  = k->mem_descs_a().begin();
 
   // start at 64k because on some distributions (like Ubuntu 8.04) it's
   // not allowed to map below a certain treshold

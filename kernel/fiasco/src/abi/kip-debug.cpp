@@ -29,31 +29,30 @@ static char const *const memory_desc_types[] = {
     "(undef)",
     "(undef)",
     "Bootloader",
-    "Arch" };
+    "Arch"
+};
 
 PUBLIC
-void 
+void
 Mem_desc::dump() const
 {
-  printf("%s [%016lx-%016lx] %s", is_virtual()?"virt":"phys",
-      start(), end() + 1, memory_desc_types[type()]);
+  printf("%s [%016lx-%016lx] %s", is_virtual() ? "virt" : "phys",
+         start(), end() + 1, memory_desc_types[type()]);
 }
 
 PRIVATE
 void
 Kip::debug_print_memory() const
 {
-  printf("Memory (max %d descriptors):\n",num_mem_descs());
-  Mem_desc const *m = mem_descs();
-  Mem_desc const *const e = m + num_mem_descs();
-  for (;m<e;++m)
+  printf("Memory (max %u descriptors):\n",num_mem_descs());
+  for (auto const &m: mem_descs_a())
     {
-      if (m->type() != Mem_desc::Undefined)
-	{
-	  printf(" %2d:", (int)(m - mem_descs() + 1));
-	  m->dump();
-	  puts("");
-	}
+      if (m.type() != Mem_desc::Undefined)
+        {
+          printf(" %2d:", ((int)mem_descs_a().index(m)) + 1);
+          m.dump();
+          puts("");
+        }
     }
 }
 
@@ -71,24 +70,26 @@ Kip::debug_print_features() const
   putchar('\n');
 }
 
-
 IMPLEMENT
 void Kip::print() const
 {
   printf("KIP @ %p\n", this);
-  printf("magic: %.4s  version: 0x%lx\n",(char*)&magic, version);
-  printf("clock: " L4_X64_FMT " (%lld)\n", clock, clock);
-  printf("uptime: %lld day(s), %lld hour(s), %lld min(s), %lld sec(s)\n",
+  printf("magic: %.4s  version: 0x%lx\n", (char*)&magic, version);
+  printf("clock: " L4_X64_FMT " (%llu)\n", clock, clock);
+  printf("uptime: %llu day(s), %llu hour(s), %llu min(s), %llu sec(s)\n",
           clock / (1000000ULL * 60 * 60 * 24),
          (clock / (1000000ULL * 60 * 60))    % 24,
          (clock / (1000000ULL * 60))         % 60,
          (clock /  1000000ULL)               % 60);
-  printf("freq_cpu: %ldkHz\n", frequency_cpu);
-  printf("freq_bus: %ldkHz\n", frequency_bus);
+  printf("freq_cpu: %lukHz\n", frequency_cpu);
+  printf("freq_bus: %lukHz\n", frequency_bus);
 
-  printf("sigma0_ip: " L4_PTR_FMT " sigma0_sp: " L4_PTR_FMT "\n", sigma0_ip, sigma0_sp);
-  printf("sigma1_ip: " L4_PTR_FMT " sigma1_sp: " L4_PTR_FMT "\n", sigma1_ip, sigma1_sp);
-  printf("root_ip:   " L4_PTR_FMT " root_sp:   " L4_PTR_FMT "\n", root_ip,   root_sp);
+  printf("sigma0_ip: " L4_PTR_FMT " sigma0_sp: " L4_PTR_FMT "\n",
+         sigma0_ip, sigma0_sp);
+  printf("sigma1_ip: " L4_PTR_FMT " sigma1_sp: " L4_PTR_FMT "\n",
+         sigma1_ip, sigma1_sp);
+  printf("root_ip:   " L4_PTR_FMT " root_sp:   " L4_PTR_FMT "\n",
+         root_ip, root_sp);
   debug_print_memory();
   debug_print_syscalls();
 

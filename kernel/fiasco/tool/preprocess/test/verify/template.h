@@ -40,10 +40,10 @@ public:
   
   
   
-  stack_top_t(int version, T *next);
+  stack_top_t (int version, T *next);
   
 #line 67 "template.cpp"
-  stack_top_t();
+  stack_top_t ();
 };
 #line 17 "template.cpp"
 
@@ -182,7 +182,7 @@ template <class I> bool test_and_set(I *l)
 
 
 
-template<class T> stack_top_t<T>::stack_top_t(int version, T *next)
+template<class T> stack_top_t<T>::stack_top_t (int version, T *next)
   : _version (version),
     _next (next)
 {}
@@ -191,7 +191,7 @@ template<class T> stack_top_t<T>::stack_top_t(int version, T *next)
 
 
 
-template<class T> stack_top_t<T>::stack_top_t()
+template<class T> stack_top_t<T>::stack_top_t ()
   : _version (0),
     _next (0)
 {}

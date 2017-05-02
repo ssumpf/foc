@@ -74,7 +74,7 @@ Jdb_kern_info_mtrr::show()
       int type = 0;
       get_var_mtrr(i, &base, &size, &type);
       if (size)
-	printf(" %2d: " L4_PTR_FMT "-" L4_PTR_FMT " (%ld%cB) %s\n",
+	printf(" %2d: " L4_PTR_FMT "-" L4_PTR_FMT " (%lu%cB) %s\n",
 	    i, base, base+size,
 	    size >= 8 << 20 ? (size+(1<<19)-1) >> 20 : (size+(1<<9)-1) >> 10,
 	    size >= 8 << 20 ? 'M' : 'K',

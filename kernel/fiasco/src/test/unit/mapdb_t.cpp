@@ -387,12 +387,6 @@ static void basic(Mapdb &m)
   Mapping *node, *sub;
   Mapdb::Frame frame;
 
-  typedef Mem_space SPACE;
-  typedef SPACE::V_pfn V_pfn;
-  typedef SPACE::V_pfc V_pfc;
-  typedef SPACE::Phys_addr Phys_addr;
-  typedef SPACE::Page_order Page_order;
-
   init_test("basic");
 
   TEST (! m.lookup(other, to_pfn(Config::PAGE_SIZE),

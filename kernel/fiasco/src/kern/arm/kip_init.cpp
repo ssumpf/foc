@@ -16,8 +16,6 @@ IMPLEMENTATION [arm]:
 
 #include "config.h"
 #include "mem_layout.h"
-#include "panic.h"
-#include "boot_info.h"
 
 
 // Make the stuff below apearing only in this compilation unit.
@@ -56,7 +54,7 @@ namespace KIP_namespace
 	/* A0/140 */ 0, 0, 0, 0,
 	/* B0/160 */ {},
 	/* E0/1C0 */ 0, 0, {},
-	/* F0/1D0 */ {"", 0, {{0, 0, 0, 0}}, {}},
+	/* F0/1D0 */ {"", 0, {{0, 0, 0, 0, 0, 0, {0}, 0, 0, {0}, {0}}}, {0}},
       },
       {}
     };
@@ -69,13 +67,4 @@ void Kip_init::init()
   Kip::init_global_kip(kinfo);
   kinfo->add_mem_region(Mem_desc(0, Mem_layout::User_max,
                         Mem_desc::Conventional, true));
-
-  asm("mrc p15, 0, %0, c0, c0, 0" : "=r" (kinfo->platform_info.arch.cpuinfo.MIDR));
-  asm("mrc p15, 0, %0, c0, c0, 1" : "=r" (kinfo->platform_info.arch.cpuinfo.CTR));
-
-  if (((kinfo->platform_info.arch.cpuinfo.MIDR >> 16) & 0xf) < 7)
-    return;
-
-  asm("mrc p15, 0, %0, c0, c1, 4" : "=r" (kinfo->platform_info.arch.cpuinfo.ID_MMFR0));
-  asm("mrc p15, 0, %0, c0, c2, 0" : "=r" (kinfo->platform_info.arch.cpuinfo.ID_ISAR0));
 }

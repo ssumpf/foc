@@ -16,15 +16,8 @@ extern Per_cpu<Timeout *> timeslice_timeout;
 #ifdef NDEBUG
 # define check(expression) ((void)(expression))
 #else /* ! NDEBUG */
-# ifdef ASSERT_KDB_KE
-#  define check(expression) assert(expression)
-# else
-#  define check(expression) \
-          ((void)((expression) ? 0 : \
-                 (panic(__FILE__":%u: failed check `"#expression"'", \
-                         __LINE__), 0)))
-# endif
-#endif /* ! NDEBUG */
+# define check(expression) assert(expression)
+#endif /* NDEBUG */
 #endif /* check */
 
 class Kobject_iface;
@@ -32,27 +25,36 @@ class Kobject_iface;
 class Initial_kobjects
 {
 public:
-  enum
+  enum Initial_cap
   {
-    Max = 5,
-    First_cap = 5,
+    Task      =  1,
+    Factory   =  2,
+    Thread    =  3,
+    Pager     =  4,
+    Log       =  5,
+    Icu       =  6,
+    Scheduler =  7,
+    Iommu     =  8,
+    Jdb       = 10,
 
-    End_cap = First_cap + Max,
+    First_alloc_cap = Log,
+    Num_alloc       = 6,
+    End_alloc_cap   = First_alloc_cap + Num_alloc,
   };
 
-  static Cap_index first() { return Cap_index(First_cap); }
-  static Cap_index end() { return Cap_index(End_cap); }
+  static Cap_index first() { return Cap_index(First_alloc_cap); }
+  static Cap_index end() { return Cap_index(End_alloc_cap); }
 
-  void register_obj(Kobject_iface *o, unsigned cap)
+  void register_obj(Kobject_iface *o, Initial_cap cap)
   {
-    assert (cap >= First_cap);
-    assert (cap < End_cap);
+    assert (cap >= First_alloc_cap);
+    assert (cap < End_alloc_cap);
 
-    cap -= First_cap;
+    int c = cap - First_alloc_cap;
 
-    assert (!_v[cap]);
+    assert (!_v[c]);
 
-    _v[cap] = o;
+    _v[c] = o;
   }
 
   Kobject_iface *obj(Cap_index cap) const
@@ -64,7 +66,7 @@ public:
   }
 
 private:
-  Kobject_iface *_v[Max];
+  Kobject_iface *_v[Num_alloc];
 };
 
 

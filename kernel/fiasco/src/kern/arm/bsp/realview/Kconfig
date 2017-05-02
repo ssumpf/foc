@@ -54,6 +54,7 @@ config PF_REALVIEW_VEXPRESS_A15
 
 choice
 	prompt "Start of RAM (physical address)" if !PF_REALVIEW_EB
+	default PF_REALVIEW_RAM_PHYS_BASE_0x6 if PF_REALVIEW_VEXPRESS_A9
 	default PF_REALVIEW_RAM_PHYS_BASE_0x0
 
 config PF_REALVIEW_RAM_PHYS_BASE_0x0

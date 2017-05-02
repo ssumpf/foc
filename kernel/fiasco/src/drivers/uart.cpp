@@ -20,7 +20,7 @@ public:
 
   /* These constants must be defined in the 
      arch part of the uart. To define them there
-     has the advantage of most efficent definition
+     has the advantage of most efficient definition
      for the hardware.
 
   static unsigned const PAR_NONE = xxx;
@@ -61,6 +61,10 @@ public:
    * (abstract) Get the IRQ assigned to the port.
    */
   int irq() const;
+
+  /**
+   * (abstract) Acknowledge UART interrupt.
+   */
   void irq_ack();
 
   Address base() const;
@@ -113,11 +117,6 @@ Uart::get_attributes() const
 {
   return UART | IN | OUT;
 }
-
-IMPLEMENT_DEFAULT
-void
-Uart::irq_ack()
-{}
 
 //---------------------------------------------------------------------------
 INTERFACE [libuart]:
@@ -202,3 +201,15 @@ void Uart::disable_rcv_irq()
   uart()->enable_rx_irq(false);
 }
 
+IMPLEMENT
+void Uart::irq_ack()
+{
+  uart()->irq_ack();
+}
+
+//---------------------------------------------------------------------------
+IMPLEMENTATION [!libuart]:
+
+IMPLEMENT_DEFAULT
+void Uart::irq_ack()
+{}

@@ -1,8 +1,6 @@
 L4DIR ?= ..
 
-# Be sure to add a "/" to config to make the target different from
-# BID's "config" target
-TARGET := $(wildcard config/ gendep elf-patcher)
+TARGET     := $(wildcard gendep elf-patcher)
 TARGET_doc := $(wildcard gendep)
 
 all::

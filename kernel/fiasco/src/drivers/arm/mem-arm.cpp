@@ -66,6 +66,8 @@ IMPLEMENT inline static void Mem::rmb() { dmb(); }
 IMPLEMENT inline static void Mem::wmb() { dmb(); }
 
 IMPLEMENT inline static void Mem::mp_mb() { dmb(); }
+IMPLEMENT inline static void Mem::mp_acquire() { dmb(); }
+IMPLEMENT inline static void Mem::mp_release() { dmb(); }
 IMPLEMENT inline static void Mem::mp_rmb() { dmb(); }
 IMPLEMENT inline static void Mem::mp_wmb() { dmb(); }
 

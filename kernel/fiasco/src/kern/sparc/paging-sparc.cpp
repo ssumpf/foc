@@ -12,7 +12,6 @@ INTERFACE[sparc]:
 #include <cassert>
 #include "types.h"
 #include "ptab_base.h"
-#include "kdb_ke.h"
 #include "mem_unit.h"
 
 class Paging {};
@@ -83,7 +82,7 @@ public:
     Valid          = 0x3,
   };
 
-  Mword *pte;
+  Entry *pte;
   unsigned char level;
 
   //  Mword addr() const { return _raw & Ppn_mask;}
@@ -141,6 +140,7 @@ IMPLEMENTATION[sparc]:
 #include "cpu_lock.h"
 #include "kip.h"
 
+#include <cstdio>
 
 /* this functions do nothing on SPARC architecture */
 PUBLIC static inline
@@ -215,17 +215,16 @@ PUBLIC static
 void
 Paging::init()
 {
-  Mem_desc const *md = Kip::k()->mem_descs();
   Address memstart, memend;
   memstart = memend = 0;
   /*printf("MD %p, num descs %d\n", md, Kip::k()->num_mem_descs());*/
-  for (unsigned i = 0; i < Kip::k()->num_mem_descs(); ++i)
+  for (auto const &md: Kip::k()->mem_descs_a())
     {
-      printf("  [%lx - %lx type %x]\n", md[i].start(), md[i].end(), md[i].type());
-      if ((memstart == 0) && md[i].type() == 1)
+      printf("  [%lx - %lx type %x]\n", md.start(), md.end(), md.type());
+      if ((memstart == 0) && md.type() == 1)
         {
-          memstart = md[i].start();
-          memend   = md[i].end();
+          memstart = md.start();
+          memend   = md.end();
           break;
         }
     }

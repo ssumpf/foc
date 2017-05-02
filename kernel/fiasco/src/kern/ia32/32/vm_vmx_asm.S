@@ -34,10 +34,9 @@ resume_vm_vmx:
 	jnz	1f
 	vmlaunch
 1: // error path
-	mov	$0x6c14, %eax
-	vmread	%eax, %esp
-	pushf
-	pop	%eax
+	mov	$0x6c14, %ebx  // restore stack pointer
+	vmread	%ebx, %esp
+	mov	$1, %eax       // flag error condition for the caller
 	add	$20, %esp      // pushed regs pointer and gs+fs+ds+es
 	pop	%ebp
 	pop	%ebx

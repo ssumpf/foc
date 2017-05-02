@@ -1,9 +1,9 @@
 # PF: IMX
-# PFDESCR: Freescale i.MX
+# PFDESCR: NXP/Freescale i.MX
 # PFDEPENDS: ARM
 
 choice
-	prompt "Freescale i.MX"
+	prompt "NXP/Freescale i.MX"
 	default PF_IMX_51
 
 config PF_IMX_21
@@ -12,6 +12,13 @@ config PF_IMX_21
 	select CAN_ARM_CPU_926
 	help
 	  Choose for i.MX21.
+
+config PF_IMX_28
+	bool "i.MX28"
+	depends on PF_IMX
+	select CAN_ARM_CPU_926
+	help
+	  Choose for i.MX28.
 
 config PF_IMX_35
 	bool "i.MX35"
@@ -43,29 +50,33 @@ config PF_IMX_6
         help
           Choose for i.MX6 platform.
 
-endchoice
-
-choice
-        prompt "UART"
-        default PF_IMX_UART_NR_2
-        depends on PF_IMX_6
-
-config PF_IMX_UART_NR_1
-        bool "Use UART 1"
-
-config PF_IMX_UART_NR_2
-        bool "Use UART 2"
+config PF_IMX_6UL
+        bool "i.MX6UL"
+        depends on PF_IMX
+        select CAN_ARM_CPU_CORTEX_A7
+        select HAS_CPU_VIRT
+        help
+          Choose for i.MX6UL platform.
 
 endchoice
-
-config PF_IMX_UART_NR
-        int
-        default 1 if PF_IMX_UART_NR_1
-        default 2 if PF_IMX_UART_NR_2
 
 config PF_IMX_RAM_PHYS_BASE
 	hex
 	default 0xc0000000 if PF_IMX_21
-	default 0x80000000 if PF_IMX_35
+	default 0x40000000 if PF_IMX_28
+	default 0x80000000 if PF_IMX_35 || PF_IMX_6UL
 	default 0x90000000 if PF_IMX_51
         default 0x10000000 if PF_IMX_6
+
+choice
+	prompt "Choose timer for i.MX6"
+	depends on ARM_CORTEX_A9
+	default PF_IMX_6_TIMER_MPTIMER
+
+config PF_IMX_6_TIMER_MPTIMER
+        bool "Use CPU-local MP-timer"
+
+config PF_IMX_6_TIMER_EPIT
+        bool "Use EPIT timer"
+
+endchoice

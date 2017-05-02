@@ -20,7 +20,7 @@ protected:
 };
 
 template<typename T, typename Base>
-class Kobject_h : public Base
+class Kobject_h : public cxx::Dyn_castable<T, Base>
 {
 private:
   static Sender *_sender(Thread *, Sender *t) { return t; }
@@ -31,11 +31,12 @@ protected:
   static bool have_receive(Utcb *rcv) { return rcv != Kobject_helper_base::utcb_dummy(); }
 
 public:
-
-  explicit Kobject_h() {}
+  Kobject_h() = default;
 
   template< typename... A >
-  explicit Kobject_h(A&&... args) : Base(cxx::forward<A>(args)...) {}
+  explicit Kobject_h(A&&... args)
+  : cxx::Dyn_castable<T, Base>(cxx::forward<A>(args)...)
+  {}
 
   void invoke(L4_obj_ref self, L4_fpage::Rights rights, Syscall_frame *f, Utcb *u)
   {
@@ -46,21 +47,21 @@ public:
 
     if (EXPECT_FALSE(res.has_error()))
       {
-	f->tag(res);
-	return;
+        f->tag(res);
+        return;
       }
 
     if (self.have_recv())
       {
-	if (!res.do_switch())
-	  {
-	    Thread *t = current_thread();
-	    Sender *s = (self.op() & L4_obj_ref::Ipc_open_wait) ? 0 : _sender(t, static_cast<T*>(this));
-	    t->do_ipc(f->tag(), 0, 0, true, s, f->timeout(), f, rights);
-	    return;
-	  }
-	else
-	  f->tag(res);
+        if (!res.do_switch())
+          {
+            Thread *t = current_thread();
+            Sender *s = (self.op() & L4_obj_ref::Ipc_open_wait) ? 0 : _sender(t, static_cast<T*>(this));
+            t->do_ipc(f->tag(), 0, 0, true, s, f->timeout(), f, rights);
+            return;
+          }
+        else
+          f->tag(res);
       }
   }
 

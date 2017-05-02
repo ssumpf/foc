@@ -13,11 +13,10 @@ PUBLIC static
 void
 Platform_control::boot_ap_cpus(Address phys_tramp_mp_addr)
 {
-  Mmio_register_block src(Kmem::mmio_remap(Mem_layout::Src_phys_base));
+  Register_block<32> src(Kmem::mmio_remap(Mem_layout::Src_phys_base));
   enum
   {
     SRC_SCR  = 0,
-    SRC_GPR1 = 0x20,
     SRC_GPR3 = 0x28,
     SRC_GPR5 = 0x30,
     SRC_GPR7 = 0x38,
@@ -26,10 +25,9 @@ Platform_control::boot_ap_cpus(Address phys_tramp_mp_addr)
     SRC_SCR_CORE1_3_RESET  = 7 << 14,
   };
 
-  src.write<Mword>(phys_tramp_mp_addr, SRC_GPR3);
-  src.write<Mword>(phys_tramp_mp_addr, SRC_GPR5);
-  src.write<Mword>(phys_tramp_mp_addr, SRC_GPR7);
+  src[SRC_GPR3] = phys_tramp_mp_addr;
+  src[SRC_GPR5] = phys_tramp_mp_addr;
+  src[SRC_GPR7] = phys_tramp_mp_addr;
 
-  src.modify<Mword>(SRC_SCR_CORE1_3_RESET, 0, SRC_SCR);
-  src.modify<Mword>(SRC_SCR_CORE1_3_ENABLE, 0, SRC_SCR);
+  src[SRC_SCR].set(SRC_SCR_CORE1_3_ENABLE | SRC_SCR_CORE1_3_RESET);
 }

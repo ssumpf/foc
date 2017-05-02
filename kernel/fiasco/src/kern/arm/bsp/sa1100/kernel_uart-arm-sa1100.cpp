@@ -9,7 +9,7 @@ IMPLEMENTATION [arm && sa1100 && serial]:
 #include "mem_layout.h"
 
 IMPLEMENT
-bool Kernel_uart::startup(unsigned port, int /*irq*/)
+bool Kernel_uart::startup(unsigned /*port*/, int /*irq*/)
 {
   return Uart::startup(Kmem::mmio_remap(Mem_layout::Uart_phys_base), 17);
 }

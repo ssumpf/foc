@@ -4,6 +4,8 @@ INTERFACE:
 #include "idt_init.h"
 #include "irq_chip.h"
 #include "boot_alloc.h"
+#include "spin_lock.h"
+#include "lock_guard.h"
 
 /**
  * Allocator for IA32 interrupt vectors in the IDT.
@@ -14,22 +16,25 @@ INTERFACE:
 class Int_vector_allocator
 {
 public:
-  bool empty() const { return !_first; }
-private:
   enum
   {
     /// Start at vector 0x20, note: <0x10 is vorbidden here
     Base = 0x20,
 
     /// The Last vector + 1 that is managed
-    End  = APIC_IRQ_BASE - 0x10
+    End  = APIC_IRQ_BASE - 0x08
   };
 
+  bool empty() const { return !_first; }
+
+private:
   /// array for free list
   unsigned char _vectors[End - Base];
 
   /// the first free vector
   unsigned _first;
+
+  Spin_lock<> _lock;
 };
 
 /**
@@ -47,10 +52,10 @@ class Irq_entry_code : public Boot_alloced
 private:
   struct
   {
-    char push;
-    char mov;
+    unsigned char push;
+    unsigned char mov;
     Signed32 irq_adr;
-    char jmp;
+    unsigned char jmp;
     Unsigned32 jmp_adr;
     unsigned char vector;
   } __attribute__((packed)) _d;
@@ -82,15 +87,17 @@ public:
  * the IRQ entry points and the Irq_base objects assigned to the
  * pins of a specific controller.
  */
-class Irq_chip_ia32 : public Irq_chip_icu
+class Irq_chip_ia32
 {
 public:
   /// Number of pins at this chip.
   unsigned nr_irqs() const { return _irqs; }
 
 protected:
-  unsigned const _irqs;
-  Irq_entry_code *const _entry;
+  unsigned _irqs;
+  Irq_entry_code *_entry;
+  Spin_lock<> _entry_lock;
+
   static Int_vector_allocator _vectors;
 };
 
@@ -134,6 +141,12 @@ Irq_entry_code::setup(Irq_base *irq = 0, unsigned char vector = 0)
   _d.vector = vector;
 }
 
+
+/**
+ * Add free vectors to the allocator.
+ * \note This code is not thread / MP safe and assumed to be executed at boot
+ * time.
+ */
 PUBLIC
 void
 Int_vector_allocator::add_free(unsigned start, unsigned end)
@@ -156,6 +169,7 @@ Int_vector_allocator::free(unsigned v)
 {
   assert (Base <= v && v < End);
 
+  auto g = lock_guard(_lock);
   _vectors[v - Base] = _first;
   _first = v;
 }
@@ -167,20 +181,28 @@ Int_vector_allocator::alloc()
   if (!_first)
     return 0;
 
+  auto g = lock_guard(_lock);
   unsigned r = _first;
+  if (!r)
+    return 0;
+
   _first = _vectors[r - Base];
   return r;
 }
 
+/**
+ * \note This code is not thread / MP safe.
+ */
 PUBLIC explicit inline
 Irq_chip_ia32::Irq_chip_ia32(unsigned irqs)
 : _irqs(irqs),
-  _entry(new Irq_entry_code[irqs])
+  _entry(irqs ? new Irq_entry_code[irqs] : 0),
+  _entry_lock(Spin_lock<>::Unlocked)
 {
-  // add vectors from 0x40 up to APIC_IRQ_BASE - 0x10 as free
-  // if we are the first IA32 chip ctor running
+  // add vectors from 0x40 up to Int_vector_allocator::End
+  // as free if we are the first IA32 chip ctor running
   if (_vectors.empty())
-    _vectors.add_free(0x40, APIC_IRQ_BASE - 0x10);
+    _vectors.add_free(0x34, Int_vector_allocator::End);
 }
 
 
@@ -213,14 +235,14 @@ Irq_chip_ia32::irq(Mword irqn) const
  * 5. Point IDT entry to the PIN's entry code
  * 6. Return the assigned vector number
  */
-PROTECTED
+PRIVATE
 unsigned
-Irq_chip_ia32::valloc(Irq_base *irq, Mword pin, unsigned vector)
+Irq_chip_ia32::_valloc(Mword pin, unsigned vector)
 {
   if (pin >= _irqs)
     return 0;
 
-  if (vector >= APIC_IRQ_BASE - 0x10)
+  if (vector >= Int_vector_allocator::End)
     return 0;
 
   Irq_entry_code *const e = &_entry[pin];
@@ -234,11 +256,14 @@ Irq_chip_ia32::valloc(Irq_base *irq, Mword pin, unsigned vector)
   if (!vector)
     vector = _vectors.alloc();
 
-  if (!vector)
-    return 0;
+  return vector;
+}
 
-  Irq_chip::bind(irq, pin);
-
+PRIVATE
+unsigned
+Irq_chip_ia32::_vsetup(Irq_base *irq, Mword pin, unsigned vector)
+{
+  Irq_entry_code *const e = &_entry[pin];
   e->setup(irq, vector);
 
   // force code to memory before setting IDT entry
@@ -248,7 +273,26 @@ Irq_chip_ia32::valloc(Irq_base *irq, Mword pin, unsigned vector)
   return vector;
 }
 
+/**
+ * \pre `irq->irqLock()` must be held
+ */
+PROTECTED template<typename CHIP> inline
+unsigned
+Irq_chip_ia32::valloc(Irq_base *irq, Mword pin, unsigned vector)
+{
+  auto g = lock_guard(_entry_lock);
+  unsigned v = _valloc(pin, vector);
+  if (!v)
+    return 0;
 
+  static_cast<CHIP*>(this)->bind(irq, pin);
+  _vsetup(irq, pin, v);
+  return v;
+}
+
+/**
+ * \pre `irq->irqLock()` must be held
+ */
 PROTECTED
 bool
 Irq_chip_ia32::vfree(Irq_base *irq, void *handler)
@@ -279,15 +323,3 @@ Irq_chip_ia32::reserve(Mword irqn)
   _entry[irqn].setup();
   return true;
 }
-
-PUBLIC
-void
-Irq_chip_ia32::unbind(Irq_base *irq)
-{
-  extern char entry_int_pic_ignore[];
-  Mword n = irq->pin();
-  mask(n);
-  vfree(irq, &entry_int_pic_ignore);
-  Irq_chip_icu::unbind(irq);
-}
-

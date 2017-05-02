@@ -11,6 +11,7 @@ IMPLEMENTATION:
 #include "std_macros.h"
 #include "thread.h"
 #include "warn.h"
+#include "paging.h"
 
 
 /** 
@@ -28,7 +29,7 @@ IMPLEMENTATION:
  */
 IMPLEMENT inline NEEDS[<cstdio>,"kdb_ke.h","processor.h",
 		       "config.h","std_macros.h","logdefs.h",
-		       "warn.h",Thread::page_fault_log]
+		       "warn.h",Thread::page_fault_log, "paging.h"]
 int Thread::handle_page_fault(Address pfa, Mword error_code, Mword pc,
                               Return_frame *regs)
 {
@@ -66,7 +67,7 @@ int Thread::handle_page_fault(Address pfa, Mword error_code, Mword pc,
     {
       // Make sure that we do not handle page faults that do not
       // belong to this thread.
-      //assert_kdb (mem_space() == current_mem_space());
+      //assert (mem_space() == current_mem_space());
 
       if (EXPECT_FALSE(mem_space()->is_sigma0()))
         {

@@ -254,6 +254,7 @@ Jdb_bts::show()
 		}
 	      break;
 	    case KEY_RETURN:
+	    case KEY_RETURN_2:
 	      if (Jdb_disasm::avail())
 		{
 		  Bts_entry *e = Jdb_bts::lookup(_absy+_addy);

@@ -22,7 +22,6 @@ IMPLEMENTATION [sparc]:
 //#include "terminate.h" //TODO cbass: implement
 
 #include "processor.h"
-#include "boot_info.h"
 /*
 static int exit_question_active = 0;
 

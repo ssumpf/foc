@@ -17,7 +17,7 @@
 #define INT_MAX 0x7fffffff
 #define UINT_MAX 0xffffffff
 
-#if __WORDSIZE == 64
+#if __SIZEOF_POINTER__ == 8
 #define LONG_MAX 9223372036854775807L
 #define ULONG_MAX 18446744073709551615UL
 #else

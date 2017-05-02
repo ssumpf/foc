@@ -4,8 +4,8 @@ INTERFACE:
 
 extern "C" void cas_error_type_with_bad_size_used(void);
 
-#define MACRO_CAS_ASSERT(rs,cs) \
-  if( (rs) != (cs) ) \
+#define MACRO_CAS_ASSERT(rs, cs) \
+  if ((rs) != (cs)) \
     cas_error_type_with_bad_size_used()
 
 
@@ -27,8 +27,8 @@ template< typename Type > inline
 bool
 cas(Type *ptr, Type oldval, Type newval)
 {
-  MACRO_CAS_ASSERT(sizeof(Type),sizeof(Mword));
-  return cas_unsafe(reinterpret_cast<Mword*>(ptr),
+  MACRO_CAS_ASSERT(sizeof(Type), sizeof(Mword));
+  return cas_unsafe(reinterpret_cast<Mword *>(ptr),
                     (Mword)oldval, (Mword)newval);
 }
 
@@ -36,10 +36,10 @@ template< typename Type > inline
 bool
 cas2(Type *ptr, Type *oldval, Type *newval)
 {
-  MACRO_CAS_ASSERT(sizeof(Type),(sizeof(Mword)*2));
-  return cas2_unsafe(reinterpret_cast<Mword*>(ptr),
-                     reinterpret_cast<Mword*>(oldval),
-                     reinterpret_cast<Mword*>(newval));
+  MACRO_CAS_ASSERT(sizeof(Type), (sizeof(Mword) * 2));
+  return cas2_unsafe(reinterpret_cast<Mword *>(ptr),
+                     reinterpret_cast<Mword *>(oldval),
+                     reinterpret_cast<Mword *>(newval));
 }
 
 template <typename T> inline
@@ -144,12 +144,12 @@ cas2_unsafe(Mword *ptr, Mword *oldval, Mword *newval)
   char ret;
   asm volatile
     ("cmpxchg8b %3 ; sete %%cl"
-     : "=c" (ret), 
-       "=a" (* oldval), 
-       "=d" (*(oldval+1))
-     : "m" (*ptr) , 
-       "a" (* oldval), "d" (*(oldval+1)), 
-       "b" (* newval), "c" (*(newval+1))
+     : "=c" (ret),
+       "=a" (*oldval),
+       "=d" (*(oldval + 1))
+     : "m" (*ptr),
+       "a" (*oldval), "d" (*(oldval + 1)),
+       "b" (*newval), "c" (*(newval + 1))
      : "memory");
 
   return ret;
@@ -337,7 +337,7 @@ mp_cas(T *m, T o, T n)
                      Mword(n));
 }
 
-template< typename T, typename T2 > inline
+template< typename T, typename T2 > inline NEEDS[mp_cas2_arch]
 bool
 mp_cas2(Pair<T,T2> *m, T o1, T2 o2, T n1, T2 n2)
 {

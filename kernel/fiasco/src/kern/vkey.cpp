@@ -21,8 +21,28 @@ void
 Vkey::irq(Irq_base *i)
 { vkey_irq = i; }
 
+// ------------------------------------------------------------------------
+IMPLEMENTATION [serial && !ux && debug]:
+
+PRIVATE static inline
+bool
+Vkey::is_debugger_entry_key(int key)
+{
+  return key == KEY_ESC;
+}
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [serial && !ux && !debug]:
+
+PRIVATE static inline
+bool
+Vkey::is_debugger_entry_key(int)
+{
+  return false;
+}
+
 // ---------------------------------------------------------------------------
-IMPLEMENTATION [debug && serial && !ux]:
+IMPLEMENTATION [serial && !ux]:
 
 #include <cstdio>
 
@@ -111,7 +131,7 @@ Vkey::check_()
       if (c == -1)
 	break;
 
-      if (c == KEY_ESC)
+      if (is_debugger_entry_key(c))
 	{
 	  ret = 0;  // break into kernel debugger
 	  break;
@@ -134,6 +154,7 @@ Vkey::check_()
 	case KEY_TAB:          hit |= add(9); break;
 	case KEY_ESC:          hit |= add(27); break;
 	case KEY_RETURN:       hit |= add(13); break;
+	case KEY_RETURN_2:     hit |= add(13); break;
 	default:               hit |= add(c); break;
 	}
     }
@@ -166,7 +187,9 @@ Vkey::clear()
 }
 
 //----------------------------------------------------------------------------
-IMPLEMENTATION [!debug || !serial || ux]:
+IMPLEMENTATION [!serial || ux]:
+
+#include "kernel_console.h"
 
 PUBLIC static inline
 void
@@ -183,42 +206,12 @@ void
 Vkey::add_char(int)
 {}
 
-//----------------------------------------------------------------------------
-IMPLEMENTATION [debug && (!serial || ux)]:
-
-#include "kernel_console.h"
-
 PUBLIC static
 int
 Vkey::get()
 {
   return Kconsole::console()->getchar(0);
 }
-
-//----------------------------------------------------------------------------
-IMPLEMENTATION [!debug && serial]:
-
-#include "kernel_console.h"
-
-static Console *uart = Kconsole::console()->find_console(Console::UART);
-
-PUBLIC static
-int
-Vkey::get()
-{
-  return uart->getchar(false);
-}
-
-//----------------------------------------------------------------------------
-IMPLEMENTATION[!debug && !serial]:
-
-PUBLIC static
-int
-Vkey::get()
-{ return -1; }
-
-//----------------------------------------------------------------------------
-IMPLEMENTATION[!debug || !serial]:
 
 PUBLIC static inline
 int

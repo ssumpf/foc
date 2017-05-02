@@ -1,14 +1,50 @@
 #pragma once
 
-/** @brief Equivalent to std::min. */
-template<typename T>
-const T&
-min(const T& a, const T& b)
-{ return (a < b) ? a : b; }
+#include "cxx/type_traits"
 
-/** @brief Equivalent to std::max. */
-template<typename T>
-const T&
-max(const T& a, const T& b)
-{ return (a > b) ? a : b; }
+// trivial, used to terminate the variadic recursion
+template<typename A>
+inline A const &
+min(A const &a)
+{ return a; }
+
+// matches with automatic argument type deduction
+template<typename A, typename ...ARGS>
+inline A const &
+min(A const &a1, A const &a2, ARGS const &...a)
+{
+  return min((a1 <= a2) ? a1 : a2, a...);
+}
+
+// matches with explicit template type A
+template<typename A, typename ...ARGS>
+inline A const &
+min(typename cxx::identity<A>::type const &a1,
+    typename cxx::identity<A>::type const &a2,
+    ARGS const &...a)
+{
+  return min<A>((a1 <= a2) ? a1 : a2, a...);
+}
+
+// trivial, used to terminate the variadic recursion
+template<typename A>
+inline A const &
+max(A const &a)
+{ return a; }
+
+// matches with automatic argument type deduction
+template<typename A, typename ...ARGS>
+inline A const &
+max(A const &a1, A const &a2, ARGS const &...a)
+{ return max((a1 >= a2) ? a1 : a2, a...); }
+
+// matches with explicit template type A
+template<typename A, typename ...ARGS>
+inline A const &
+max(typename cxx::identity<A>::type const &a1,
+    typename cxx::identity<A>::type const &a2,
+    ARGS const &...a)
+{
+  return max<A>((a1 >= a2) ? a1 : a2, a...);
+}
 

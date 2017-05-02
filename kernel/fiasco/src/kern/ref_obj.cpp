@@ -10,6 +10,79 @@ private:
   Smword _ref_cnt;
 };
 
+template<typename T>
+class Ref_ptr
+{
+public:
+  void reset(T *n = 0)
+  {
+    T *old = _o;
+    _o = n;
+    if (n)
+      n->inc_ref();
+
+    if (old && old->dec_ref() == 0)
+      delete old;
+  }
+
+  T *release()
+  {
+    auto r = _o;
+    _o = 0;
+    return r;
+  }
+
+  T *get() const { return _o; }
+
+  Ref_ptr() : _o(0) {}
+  explicit Ref_ptr(T *p) : _o(p)
+  {
+    if (_o)
+      _o->inc_ref();
+  }
+
+  Ref_ptr(Ref_ptr const &o) : _o(o._o)
+  {
+    if (_o)
+      _o->inc_ref();
+  }
+
+  Ref_ptr(Ref_ptr &&o) : _o(o._o)
+  {
+    o._o = 0;
+  }
+
+  ~Ref_ptr() noexcept
+  { reset(); }
+
+  Ref_ptr &operator = (Ref_ptr const &o)
+  {
+    if (&o == this)
+      return *this;
+
+    reset(o._o);
+    return *this;
+  }
+
+  Ref_ptr &operator = (Ref_ptr &&o)
+  {
+    if (&o == this)
+      return *this;
+
+    _o = o._o;
+    o._o = 0;
+
+    return *this;
+  }
+
+  T *operator -> () const { return get(); }
+
+  explicit operator bool () const { return _o != 0; }
+
+private:
+  T *_o;
+};
+
 
 // -------------------------------------------------------------------------
 IMPLEMENTATION:

@@ -1,16 +1,27 @@
 INTERFACE:
 
+#include "i8259.h"
+#include "io.h"
 #include "irq_chip_ia32.h"
+#include "irq_mgr.h"
 
 /**
  * IRQ Chip based on the IA32 legacy PIC.
  *
- * Vectors for the PIC are from 0x20 to 0x2f statically assigned.
+ * 16 Vectors starting from Base_vector are statically assigned.
  */
-class Irq_chip_ia32_pic : public Irq_chip_ia32
+class Irq_chip_ia32_pic :
+  public Irq_chip_i8259<Io>,
+  private Irq_chip_ia32,
+  private Irq_mgr
 {
+  friend class Irq_chip_ia32;
 public:
-  char const *chip_type() const { return "PIC"; }
+  bool reserve(Mword pin) override { return Irq_chip_ia32::reserve(pin); }
+  Irq_base *irq(Mword pin) const override { return Irq_chip_ia32::irq(pin); }
+
+private:
+  enum { Base_vector = 0x20 };
 };
 
 
@@ -25,107 +36,47 @@ IMPLEMENTATION:
 #include "irq_mgr.h"
 #include "pic.h"
 
-PUBLIC inline
-Irq_chip_ia32_pic::Irq_chip_ia32_pic() : Irq_chip_ia32(16)
-{}
-
 PUBLIC
 bool
-Irq_chip_ia32_pic::alloc(Irq_base *irq, Mword irqn)
+Irq_chip_ia32_pic::alloc(Irq_base *irq, Mword irqn) override
 {
   // no mor than 16 IRQs
   if (irqn > 0xf)
     return false;
 
-  // PIC uses vectors from 0x20 to 0x2f statically
-  unsigned vector = 0x20 + irqn;
-
-  return valloc(irq, irqn, vector);
-}
-
-
-PUBLIC
-void
-Irq_chip_ia32_pic::mask(Mword irq)
-{
-  Pic::disable_locked(irq);
-}
-
-
-PUBLIC
-void
-Irq_chip_ia32_pic::mask_and_ack(Mword irq)
-{
-  Pic::disable_locked(irq);
-  Pic::acknowledge_locked(irq);
+  // PIC uses 16 vectors from Base_vector statically
+  unsigned vector = Base_vector + irqn;
+  return valloc<Irq_chip_ia32_pic>(irq, irqn, vector);
 }
 
 PUBLIC
 void
-Irq_chip_ia32_pic::ack(Mword irq)
+Irq_chip_ia32_pic::unbind(Irq_base *irq) override
 {
-  Pic::acknowledge_locked(irq);
+  extern char entry_int_pic_ignore[];
+  mask(irq->pin());
+  vfree(irq, &entry_int_pic_ignore);
+  Irq_chip::unbind(irq);
 }
 
-PUBLIC
-int
-Irq_chip_ia32_pic::set_mode(Mword, Mode)
-{ return 0; }
-
-PUBLIC
-bool
-Irq_chip_ia32_pic::is_edge_triggered(Mword) const
-{ return false; }
-
-PUBLIC
-void
-Irq_chip_ia32_pic::unmask(Mword irq)
-{
-  Pic::enable_locked(irq, 0xa); //prio);
-#if 0
-  unsigned long prio;
-
-  if (EXPECT_FALSE(!Irq::self(this)->owner()))
-    return;
-  if (Irq::self(this)->owner() == (Receiver*)-1)
-    prio = ~0UL; // highes prio for JDB IRQs
-  else
-    prio = Irq::self(this)->owner()->sched()->prio();
-#endif
-
-}
-
-PUBLIC
-void
-Irq_chip_ia32_pic::set_cpu(Mword, Cpu_number)
-{}
-
-
-class Pic_irq_mgr : public Irq_mgr
-{
-private:
-  mutable Irq_chip_ia32_pic _pic;
-};
-
-PUBLIC Irq_mgr::Irq
-Pic_irq_mgr::chip(Mword irq) const
+PRIVATE
+Irq_mgr::Irq
+Irq_chip_ia32_pic::chip(Mword irq) const override
 {
   if (irq < 16)
-    return Irq(&_pic, irq);
+    return Irq(const_cast<Irq_chip_ia32_pic*>(this), irq);
 
   return Irq();
 }
 
 PUBLIC
 unsigned
-Pic_irq_mgr::nr_irqs() const
-{
-  return 16;
-}
+Irq_chip_ia32_pic::nr_irqs() const override
+{ return 16; }
 
 PUBLIC
 unsigned
-Pic_irq_mgr::nr_msis() const
+Irq_chip_ia32_pic::nr_msis() const override
 { return 0; }
 
 
@@ -142,16 +93,18 @@ Irq_chip_ia32_pic::init()
 // ------------------------------------------------------------------------
 IMPLEMENTATION [!ux]:
 
-PUBLIC static FIASCO_INIT
-void
-Irq_chip_ia32_pic::init()
-{
-  Irq_mgr::mgr = new Boot_object<Pic_irq_mgr>();
-  //
-  // initialize interrupts
-  //
-  Irq_mgr::mgr->reserve(2);		// reserve cascade irq
-  Irq_mgr::mgr->reserve(7);		// reserve spurious vect
+#include "koptions.h"
 
-  Pic::enable_locked(2);		// allow cascaded irqs
+PUBLIC
+Irq_chip_ia32_pic::Irq_chip_ia32_pic()
+: Irq_chip_i8259<Io>(0x20, 0xa0), Irq_chip_ia32(16)
+{
+  Irq_mgr::mgr = this;
+  bool sfn = !Koptions::o()->opt(Koptions::F_nosfn);
+  init(Base_vector, sfn,
+       Config::Pic_prio_modify
+       && (int)Config::Scheduler_mode == Config::SCHED_RTC);
+
+  reserve(2); // reserve cascade irq
+  reserve(7); // reserve spurious vect
 }

@@ -180,27 +180,27 @@ extern inline Unsigned16 get_ss()
  asm volatile("ltr %0" : : "rm"((Unsigned16)(seg)))
 
 #define get_esp() \
- ({ register Unsigned32 _temp__; \
+ ({ Unsigned32 _temp__; \
     asm("movl %%esp, %0" : "=r" (_temp__)); _temp__; })
 
 #define	get_cr0() \
- ({ register Unsigned32 _temp__; \
+ ({ Unsigned32 _temp__; \
     asm volatile("mov %%cr0, %0" : "=r" (_temp__)); _temp__; })
 
 #define	get_cr2() \
- ({ register Unsigned32 _temp__; \
+ ({ Unsigned32 _temp__; \
     asm volatile("mov %%cr2, %0" : "=r" (_temp__)); _temp__; })
 
 #define	set_cr3(value) \
- ({ register Unsigned32 _temp__ = (value); \
+ ({ Unsigned32 _temp__ = (value); \
     asm volatile("mov %0, %%cr3" : : "r" (_temp__)); })
 
 #define get_cr4() \
- ({ register Unsigned32 _temp__; \
+ ({ Unsigned32 _temp__; \
     asm volatile("mov %%cr4, %0" : "=r" (_temp__)); _temp__; })
 
 #define set_cr4(value) \
- ({ register Unsigned32 _temp__ = (value); \
+ ({ Unsigned32 _temp__ = (value); \
     asm volatile("mov %0, %%cr4" : : "r" (_temp__)); })
 
 static inline void
@@ -525,7 +525,7 @@ trap_dump_panic(const struct trap_state *st)
 	 st->eip, st->eflags,
 	 st->cs & 0xffff, from_user ? st->ss & 0xffff : get_ss(),
 	 st->ds & 0xffff, st->es & 0xffff, st->fs & 0xffff, st->gs & 0xffff);
-  printf("trapno %d, error %08x, from %s mode\n",
+  printf("trapno %u, error %08x, from %s mode\n",
          st->trapno, st->err, from_user ? "user" : "kernel");
   if (st->trapno == 0x0d)
     {

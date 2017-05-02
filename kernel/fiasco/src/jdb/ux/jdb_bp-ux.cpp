@@ -97,7 +97,7 @@ Jdb_bp::set_debug_address_register(int num, Mword addr, Mword len,
   if (num >= 0 && num <= 3)
     {
       Mword local_dr7;
-      Task *old_task = Kobject::dcast<Task*>(Kobject::from_dbg(Kobject_dbg::id_to_obj(bps[num].restricted_task())));
+      Task *old_task = cxx::dyn_cast<Task*>(Kobject::from_dbg(Kobject_dbg::id_to_obj(bps[num].restricted_task())));
 
       if (old_task)
 	{
@@ -122,7 +122,7 @@ static
 void
 Jdb_bp::clr_debug_address_register(int num)
 {
-  Task *task = Kobject::dcast<Task*>(Kobject::from_dbg(Kobject_dbg::id_to_obj(bps[num].restricted_task())));
+  Task *task = cxx::dyn_cast<Task*>(Kobject::from_dbg(Kobject_dbg::id_to_obj(bps[num].restricted_task())));
   Mword local_dr7 = get_debug_control_register(task);
   clr_dr7(num, local_dr7);
   set_debug_control_register(local_dr7, task);

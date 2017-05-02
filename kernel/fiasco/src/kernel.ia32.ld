@@ -2,6 +2,7 @@
 
 #include "globalconfig.h"
 #include "linking.h"
+#include "kernel.ld.inc"
 
 _boot_sys_start = 0x300000;
 _kernel_image	= FIASCO_IMAGE_VIRT_START;	/* kernel link address */
@@ -25,6 +26,8 @@ PHDRS {
   kdata PT_LOAD;
   kitext PT_LOAD;
   kidata PT_LOAD;
+  l4_kip 0x10;
+  l4_koptions 0x11;
 }
 
 SECTIONS {
@@ -40,6 +43,7 @@ SECTIONS {
     *(.bootstrap.text .bootstrap.text.* .bootstrap.gnu.linkonce.t.*)
     *(.bootstrap.fini)
 
+    *(.bootstrap.initcall*)
     *(.bootstrap.rodata .bootstrap.rodata.* .bootstrap.gnu.linkonce.r.*)
     *(.bootstrap.data .bootstrap.data.* .bootstrap.gnu.linkonce.d.*)
     *(.bootstrap.anno)
@@ -61,14 +65,14 @@ SECTIONS {
     _initkip_start = .;
     KEEP(*(.initkip.version))
     KEEP(*(.initkip.features))
-    KEEP(*(.initkip.features.fini))
+    KEEP(*(.initkip.features.end))
     _initkip_end = .;
     . = ALIGN(4K);
-  } : kip = 0
+  } :kip :l4_kip = 0
 
   .koptions : AT (ADDR(.koptions) - _fiasco_image_offset) {
     *(.koptions)
-  } : koptions = 0
+  } :koptions :l4_koptions = 0
 
 #ifdef CONFIG_ALLOW_RO_TEXT
   . = ALIGN(4K);
@@ -85,13 +89,10 @@ SECTIONS {
     *(.rodata .rodata.* .gnu.linkonce.r.*)
 
     . = ALIGN(4);
-    PROVIDE (_log_table = .);
-    /*
-     * The section must start with ".debug" because else the linker
-     * complains about references to discarded sections
-     */
-    KEEP(*(SORT(.debug.jdb.log_table)))
-    PROVIDE (_log_table_end = .);
+    JDB_TABLE(log);
+
+    . = ALIGN(4);
+    JDB_TABLE(typeinfo);
 
     . = ALIGN(0x40);
 

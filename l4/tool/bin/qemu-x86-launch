@@ -50,9 +50,7 @@ my $qemu_cmd =
       "$qemu -kernel $kernel -append \"$entry{bootstrap}{cmdline}\" ".
       "-initrd \"$initrd\" $qemu_options";
 
-print "Note: At least QEmu 0.13 is required for the loading to work.\n";
-# and since nobody is reading this message or knows what the version of the
-# installed qemu is...
+# check installed qemu version
 my $o = `$qemu -version 2>&1`;
 if ($?)
   {

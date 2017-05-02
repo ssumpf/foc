@@ -10,7 +10,7 @@ RAM_PHYS_BASE-$(CONFIG_PF_TEGRA3) := $(if $(CONFIG_ARM_EM_TZ),0xa0000000,0x80000
 RAM_PHYS_BASE                     := $(RAM_PHYS_BASE-y)
 INTERFACES_KERNEL       += gic
 MPCORE_PHYS_BASE        := 0x50040000
-OBJECTS_LIBUART         += uart_pxa.o
+OBJECTS_LIBUART         += uart_16550.o
 SUBSYSTEMS              += LIBUART
 
 uart_IMPL              = uart uart-16550

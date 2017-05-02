@@ -4,14 +4,17 @@
 
 L4DIR		?= .
 
-BUILD_DIRS    = tool pkg
-install-dirs  = tool pkg
-clean-dirs    = tool pkg doc
-cleanall-dirs = tool pkg doc
+PRJ_SUBDIRS   := pkg tests $(wildcard l4linux)
+BUILD_DIRS    := tool
+install-dirs  := tool pkg
+clean-dirs    := tool pkg tests doc
+cleanall-dirs := tool pkg tests doc
 
-BUILD_TOOLS	= gawk gcc g++ ld perl pkg-config
+BUILD_TOOLS	= bash gawk gcc g++ ld perl pkg-config tput
 
-CMDS_WITHOUT_OBJDIR := help checkbuild up update check_build_tools
+CMDS_WITHOUT_OBJDIR := help checkbuild checkbuild.% up update check_build_tools
+CMDS_NO_PROJECT_MK  := $(CMDS_WITHOUT_OBJDIR) \
+                       listplatforms listentries
 
 # our default target is all::
 all::
@@ -22,6 +25,7 @@ all::
 DROPSCONF 		= y
 DROPSCONF_DEFCONFIG	?= $(L4DIR)/mk/defconfig/config.x86
 KCONFIG_FILE            = $(OBJ_BASE)/Kconfig.generated
+KCONFIG_FILE_DEPS       = $(OBJ_BASE)/.Kconfig.generated.d
 KCONFIG_FILE_SRC        = $(L4DIR)/mk/Kconfig
 DROPSCONF_CONFIG	= $(OBJ_BASE)/.kconfig.auto
 DROPSCONF_CONFIG_H	= $(OBJ_BASE)/include/l4/bid_config.h
@@ -54,7 +58,7 @@ IGNORE_MAKECONF_INCLUDE=1
 endif
 
 ifeq ($(IGNORE_MAKECONF_INCLUDE),)
-ifneq ($(filter help config oldconfig,$(MAKECMDGOALS)),)
+ifneq ($(filter help config oldconfig olddefconfig silentoldconfig,$(MAKECMDGOALS)),)
 # tweek $(L4DIR)/mk/Makeconf to use the intermediate file
 export BID_IGN_ROOT_CONF=y
 BID_ROOT_CONF=$(DROPSCONF_CONFIG_MK)
@@ -62,11 +66,27 @@ endif
 
 # $(L4DIR)/mk/Makeconf shouln't include Makeconf.local twice
 MAKECONFLOCAL		= /dev/null
-include $(L4DIR)/mk/Makeconf
+
+
+# Use project.mk if we use the default goal (MAKECMDGOALS is empty)
+# or if any our goals are not CMDS_NO_PROJECT_MK goals.
+# If all goals are CMDS_NO_PROJECT_MK use 'Makeconf', that saves us
+# from running the time consuming project.mk find operations.
+ifeq ($(MAKECMDGOALS),)
+  include $(L4DIR)/mk/project.mk
+else
+  ifeq ($(filter-out $(CMDS_NO_PROJECT_MK),$(MAKECMDGOALS)),)
+    include $(L4DIR)/mk/Makeconf
+  else
+    include $(L4DIR)/mk/project.mk
+  endif
+endif
+
+PKGDEPS_IGNORE_MISSING :=
 export DROPS_STDDIR
 
 # after having absfilename, we can export BID_ROOT_CONF
-ifneq ($(filter config oldconfig gconfig nconfig xconfig, $(MAKECMDGOALS)),)
+ifneq ($(filter config oldconfig olddefconfig silentoldconfig gconfig nconfig xconfig, $(MAKECMDGOALS)),)
 export BID_ROOT_CONF=$(call absfilename,$(OBJ_BASE))/.config.all
 endif
 endif
@@ -86,19 +106,32 @@ all:: check_build_tools
 	fi
 	@mkdir -p "$(BUILDDIR_TO_CREATE)"
 	@cp $(DROPSCONF_DEFCONFIG) $(BUILDDIR_TO_CREATE)/.kconfig
-	@$(MAKE) B= BUILDDIR_TO_CREATE= O=$(BUILDDIR_TO_CREATE) oldconfig
+	@$(MAKE) B= BUILDDIR_TO_CREATE= O=$(BUILDDIR_TO_CREATE) olddefconfig
 	@echo "done."
 else
 
-all:: l4defs
+all:: $(BUILD_DIRS) $(if $(S),,l4defs)
 
 endif
 
 
+#
+# The following targets do work without explicit subdirs
+# ('S=...') only.
+#
+ifeq ($(S),)
+
+# some special cases for dependencies follow:
+# L4Linux depends on the availability of the l4defs
+l4linux: l4defs
+l4linux/l4-build: l4defs
+
+# hack for examples, they virtually depend on anything else
+pkg/examples: $(filter-out pkg/examples,$(BUILD_SUBDIRS))
 
 # some more dependencies
 tool: $(DROPSCONF_CONFIG_MK)
-pkg:  $(DROPSCONF_CONFIG_MK) tool
+$(BUILD_SUBDIRS):  $(DROPSCONF_CONFIG_MK) tool
 
 ifneq ($(CONFIG_BID_BUILD_DOC),)
 install-dirs += doc
@@ -110,31 +143,40 @@ up update:
 	$(VERBOSE)svn up mk tool/gendep tool/kconfig tool/elf-patcher doc/source conf tool/lib tool/vim tool/bin
 	$(VERBOSE)$(MAKE) -C pkg up
 
-tool pkg:
+tool:
 	$(VERBOSE)if [ -r $@/Makefile ]; then PWD=$(PWD)/$@ $(MAKE) -C $@; fi
 
 doc:
 	$(VERBOSE)if [ -r doc/source/Makefile ]; then PWD=$(PWD)/doc/source $(MAKE) -C doc/source; fi
 
-cont:
-	$(VERBOSE)$(MAKE) -C pkg cont
-	$(VERBOSE)$(MAKE) l4defs
+BID_POST_CONT_HOOK := $(MAKE) regen_l4defs
 
-.PHONY: all clean cleanall install up update doc
+.PHONY: all clean cleanall clean-test-scripts install up update doc
 .PHONY: $(BUILD_DIRS) doc check_build_tools cont cleanfast
+
+cleanfast:
+	$(VERBOSE)if [ -f $(OBJ_BASE)/include/l4/bid_config.h ]; then  \
+	            cp -a $(OBJ_BASE)/include/l4/bid_config.h          \
+	                  $(OBJ_BASE)/.tmp.bid_config.h;               \
+	          fi
+	$(VERBOSE)$(RM) -r $(addprefix $(OBJ_BASE)/,bin include pkg tests doc ext-pkg pc lib test l4defs.mk.inc l4defs.sh.inc) \
+	                   $(IMAGES_DIR)
+	$(VERBOSE)if [ -f $(OBJ_BASE)/.tmp.bid_config.h ]; then        \
+	            mkdir -p $(OBJ_BASE)/include/l4;                   \
+	            mv $(OBJ_BASE)/.tmp.bid_config.h                   \
+	               $(OBJ_BASE)/include/l4/bid_config.h;            \
+	          fi
 
 cleanall::
 	$(VERBOSE)rm -f *~
+
+clean-test-scripts:
+	$(VERBOSE)$(RM) -r $(OBJ_BASE)/test/t
 
 clean cleanall install::
 	$(VERBOSE)set -e; for i in $($@-dirs) ; do \
 	  if [ -r $$i/Makefile -o -r $$i/GNUmakefile ] ; then \
 		PWD=$(PWD)/$$i $(MAKE) -C $$i $@ ; fi ; done
-
-cleanfast:
-	$(VERBOSE)$(RM) -r $(addprefix $(OBJ_BASE)/,bin include pkg doc ext-pkg pc lib l4defs.mk.inc l4defs.sh.inc) \
-	                   $(IMAGES_DIR)
-
 
 L4DEF_FILE_MK ?= $(OBJ_BASE)/l4defs.mk.inc
 L4DEF_FILE_SH ?= $(OBJ_BASE)/l4defs.sh.inc
@@ -155,7 +197,8 @@ generate_l4defs_files = \
 	  CALLED_FOR=$(1) L4DEF_FILE_MK=$(L4DEF_FILE_MK) L4DEF_FILE_SH=$(L4DEF_FILE_SH) && \
 	$(RM) -r $$tmpdir
 
-$(L4DEF_FILE_MK): $(BUILD_DIRS) $(DROPSCONF_CONFIG_MK) $(L4DIR)/mk/export_defs.inc
+$(L4DEF_FILE_MK): $(OBJ_DIR)/.Package.deps pkg/l4re-core \
+                  $(DROPSCONF_CONFIG_MK) $(L4DIR)/mk/export_defs.inc
 	+$(call generate_l4defs_files,static)
 	+$(call generate_l4defs_files,minimal)
 	+$(call generate_l4defs_files,shared)
@@ -170,6 +213,7 @@ regen_l4defs:
 	+$(call generate_l4defs_files,sharedlib)
 
 .PHONY: l4defs regen_l4defs
+endif # empty $(S)
 
 #####################
 # config-rules follow
@@ -182,6 +226,7 @@ export HOST_SYSTEM
 # we evaluate some variables that depend on the postprocessed config file.
 # The variables are defined in mk/Makeconf, which sources Makeconf.bid.local.
 # Hence, we have to 1) postprocess, 2) call make again to get the variables.
+BID_DCOLON_TARGETS += DROPSCONF_CONFIG_MK_POST_HOOK
 DROPSCONF_CONFIG_MK_POST_HOOK:: check_build_tools $(OBJ_DIR)/Makefile
         # libgendep must be done before calling make with the local helper
 	$(VERBOSE)$(MAKE) libgendep
@@ -232,17 +277,44 @@ define create_kconfig
 	done < $(2)
 endef
 
-$(KCONFIG_FILE): $(KCONFIG_FILE_SRC) Makefile $(wildcard $(L4DIR)/conf/platforms/*.conf $(L4DIR)/conf/platforms/*.conf)
-	+$(call create_kconfig,$@,$(KCONFIG_FILE_SRC))
+KCONFIGS_ARCH := $(wildcard $(L4DIR)/mk/arch/Kconfig.*.inc)
+
+$(KCONFIG_FILE): $(KCONFIG_FILE_SRC) Makefile $(wildcard $(L4DIR)/conf/platforms/*.conf $(L4DIR)/conf/platforms/*.conf) \
+                 $(KCONFIGS_ARCH)
+	$(VERBOSE)echo $(KCONFIG_FILE): $^ > $(KCONFIG_FILE_DEPS)
+	$(VERBOSE)$(foreach f,$^,echo $(f): >> $(KCONFIG_FILE_DEPS) ; )
+	$(VERBOSE)$(L4DIR)/tool/bin/gen_kconfig $(KCONFIG_FILE_SRC) $(KCONFIG_FILE).im $(KCONFIGS_ARCH)
+	+$(call create_kconfig,$@,$(KCONFIG_FILE).im)
+
+-include $(KCONFIG_FILE_DEPS)
 
 checkconf:
-	$(VERBOSE)if [ ! -e $(GCCDIR)/include/stddef.h ]; then \
+	$(VERBOSE)if [ -n "$(GCCDIR)" -a ! -e $(GCCDIR)/include/stddef.h ]; then \
 	  $(ECHO); \
 	  $(ECHO) "$(GCCDIR) seems wrong (stddef.h not found)."; \
 	  $(ECHO) "Does it exist?"; \
 	  $(ECHO); \
 	  exit 1; \
 	fi
+	$(VERBOSE)if [ -z "$(filter $(CC_WHITELIST-$(BID_COMPILER_TYPE)), \
+	                            $(GCCVERSION))" ]; then \
+	  $(ECHO); \
+	  $(ECHO) "$(BID_COMPILER_TYPE)-$(GCCVERSION) is not supported."; \
+	  $(ECHO) "Please use a $(BID_COMPILER_TYPE) of the following" \
+	          "versions: $(CC_WHITELIST-$(BID_COMPILER_TYPE))"; \
+	  $(ECHO); \
+	  exit 1; \
+	fi
+	$(VERBOSE)if [ -n "$(filter $(CC_BLACKLIST-$(BUILD_ARCH)-gcc), \
+	                            $(GCCVERSION).$(GCCPATCHLEVEL))" ]; then \
+	  $(ECHO); \
+	  $(ECHO) "GCC-$(GCCVERSION).$(GCCPATCHLEVEL) is blacklisted" \
+	          "because it showed to produce wrong results."; \
+	  $(ECHO) "Please upgrade to a more recent version."; \
+	  $(ECHO); \
+	  exit 1; \
+	fi
+
 
 # caching of some variables. Others are determined directly.
 # The contents of the variables to cache is already defined in mk/Makeconf.
@@ -254,9 +326,9 @@ LD := $(if $(filter sparc,$(ARCH)),$(if $(call GCCIS_sparc_leon_f),sparc-elf-ld,
 Makeconf.bid.local-helper:
 	$(VERBOSE)echo BUILD_SYSTEMS="$(strip $(ARCH)_$(CPU)            \
 	               $(ARCH)_$(CPU)-$(BUILD_ABI))" >> $(DROPSCONF_CONFIG_MK)
-	$(VERBOSE)$(foreach v, GCCDIR GCCLIB_HOST GCCLIB_EH GCCLIB_S_SO \
+	$(VERBOSE)$(foreach v, BID_COMPILER_TYPE GCCDIR GCCLIB_HOST GCCLIB_EH GCCLIB_S_SO \
 	                GCCVERSION GCCMAJORVERSION GCCMINORVERSION      \
-			GCC_HAS_ATOMICS                   \
+			GCCPATCHLEVEL GCC_HAS_ATOMICS                   \
 			GCCNOSTACKPROTOPT GCCSTACKPROTOPT GCCSTACKPROTALLOPT LDVERSION \
 			GCCSYSLIBDIRS GCCFORTRANAVAIL                                 \
 			$(if $(GCCNOFPU_$(ARCH)_f),GCCNOFPU_$(ARCH))    \
@@ -293,13 +365,15 @@ Makeconf.bid.local-helper:
 
 Makeconf.bid.local-internal-names:
 ifneq ($(CONFIG_INT_CPP_NAME_SWITCH),)
-	$(VERBOSE) set -e; X="tmp.$$$$$$RANDOM.c" ; echo 'int main(void){}'>$$X ; \
+	$(VERBOSE) set -e; X="$(OBJ_BASE)/tmp.$$$$$$RANDOM.c" ; \
+		echo 'int main(void){}'>$$X ; \
 		rm -f $$X.out ; $(LD_GENDEP_PREFIX) GENDEP_SOURCE=$$X \
 		GENDEP_OUTPUT=$$X.out $(CC) $(CCXX_FLAGS) -c $$X -o $$X.o; \
 		test -e $$X.out; echo INT_CPP_NAME=`cat $$X.out` \
 			>>$(DROPSCONF_CONFIG_MK); \
 		rm -f $$X $$X.{o,out};
-	$(VERBOSE)set -e; X="tmp.$$$$$$RANDOM.cc" ; echo 'int main(void){}'>$$X; \
+	$(VERBOSE)set -e; X="$(OBJ_BASE)/tmp.$$$$$$RANDOM.cc" ; \
+		echo 'int main(void){}'>$$X; \
 		rm -f $$X.out; $(LD_GENDEP_PREFIX) GENDEP_SOURCE=$$X \
 		GENDEP_OUTPUT=$$X.out $(CXX) -c $$X -o $$X.o; \
 		test -e $$X.out; echo INT_CXX_NAME=`cat $$X.out` \
@@ -321,6 +395,9 @@ endif
 	      break;                                                     \
 	    fi;                                                          \
 	  done;                                                          \
+	  if [ "$$found_it" == "1" ]; then                               \
+	    break;                                                       \
+	  fi;                                                            \
 	done;                                                            \
 	if [ "$$found_it" != "1" ]; then                                 \
 	  echo "No known ld emulation found"; exit 1;                    \
@@ -395,17 +472,20 @@ define switch_ram_base_func
 	echo "  ... Regenerating RAM_BASE settings"; set -e; \
 	echo "# File semi-automatically generated by 'make switch_ram_base'" > $(OBJ_BASE)/Makeconf.ram_base; \
 	echo "RAM_BASE := $(1)"                                             >> $(OBJ_BASE)/Makeconf.ram_base; \
-	PWD=$(PWD)/pkg/sigma0/server/src $(MAKE) RAM_BASE=$(1) -C pkg/sigma0/server/src;                      \
-	PWD=$(PWD)/pkg/moe/server/src    $(MAKE) RAM_BASE=$(1) -C pkg/moe/server/src;                         \
+	PWD=$(PWD)/l4re-core/pkg/sigma0/server/src $(MAKE) RAM_BASE=$(1) -C pkg/l4re-core/sigma0/server/src;                      \
+	PWD=$(PWD)/l4re-core/pkg/moe/server/src    $(MAKE) RAM_BASE=$(1) -C pkg/l4re-core/moe/server/src;                         \
 	echo "RAM_BASE_SWITCH_OK := yes"                                    >> $(OBJ_BASE)/Makeconf.ram_base
 endef
 
 BUILDDIR_SEARCHPATH = $(OBJ_BASE)/bin/$(ARCH)_$(CPU):$(OBJ_BASE)/bin/$(ARCH)_$(CPU)/$(BUILD_ABI):$(OBJ_BASE)/lib/$(ARCH)_$(CPU):$(OBJ_BASE)/lib/$(ARCH)_$(CPU)/$(BUILD_ABI)
 
-QEMU_ARCH_MAP_$(ARCH) = qemu-system-$(ARCH)
-QEMU_ARCH_MAP_x86     = $(strip $(shell if qemu-system-i386 -version > /dev/null; then echo qemu-system-i386; else echo qemu; fi))
-QEMU_ARCH_MAP_amd64   = qemu-system-x86_64
-QEMU_ARCH_MAP_ppc32   = qemu-system-ppc
+QEMU_ARCH_MAP_$(ARCH) ?= qemu-system-$(ARCH)
+
+QEMU_KERNEL_TYPE          ?= elfimage
+QEMU_KERNEL_FILE-elfimage  = $(IMAGES_DIR)/bootstrap.elf
+QEMU_KERNEL_FILE-uimage    = $(IMAGES_DIR)/bootstrap.uimage
+QEMU_KERNEL_FILE-rawimage  = $(IMAGES_DIR)/bootstrap.raw
+QEMU_KERNEL_FILE          ?= $(QEMU_KERNEL_FILE-$(QEMU_KERNEL_TYPE))
 
 FASTBOOT_BOOT_CMD    ?= fastboot boot
 
@@ -414,7 +494,7 @@ check_and_adjust_ram_base:
 	  echo "Platform \"$(PLATFORM_TYPE)\" not known."; \
 	  exit 1;                                          \
 	fi
-	$(VERBOSE)if [ $$(($(RAM_BASE))) != $$(($(PLATFORM_RAM_BASE))) -o -z "$(RAM_BASE)" -o -z "$(RAM_BASE_SWITCH_OK)" ]; then \
+	+$(VERBOSE)if [ $$(($(RAM_BASE))) != $$(($(PLATFORM_RAM_BASE))) -o -z "$(RAM_BASE)" -o -z "$(RAM_BASE_SWITCH_OK)" ]; then \
 	  echo "=========== Updating RAM_BASE for platform $(PLATFORM_TYPE) to $(PLATFORM_RAM_BASE) =========" ; \
 	  $(call switch_ram_base_func,$(PLATFORM_RAM_BASE)); \
 	fi
@@ -430,18 +510,23 @@ shellcodeentry:
 
 elfimage: check_and_adjust_ram_base
 	$(call genimage,BOOTSTRAP_DO_UIMAGE= BOOTSTRAP_DO_RAW_IMAGE=)
+	$(VERBOSE)$(if $(POST_IMAGE_CMD),$(call POST_IMAGE_CMD,$(IMAGES_DIR)/bootstrap.elf))
 
 uimage: check_and_adjust_ram_base
 	$(call genimage,BOOTSTRAP_DO_UIMAGE=y BOOTSTRAP_DO_RAW_IMAGE=)
+	$(VERBOSE)$(if $(POST_IMAGE_CMD),$(call POST_IMAGE_CMD,$(IMAGES_DIR)/bootstrap.uimage))
 
 rawimage: check_and_adjust_ram_base
 	$(call genimage,BOOTSTRAP_DO_UIMAGE= BOOTSTRAP_DO_RAW_IMAGE=y)
+	$(VERBOSE)$(if $(POST_IMAGE_CMD),$(call POST_IMAGE_CMD,$(IMAGES_DIR)/bootstrap.raw))
 
 fastboot fastboot_rawimage: rawimage
-	$(VERBOSE)$(FASTBOOT_BOOT_CMD) $(IMAGES_DIR)/bootstrap.raw
+	$(VERBOSE)$(FASTBOOT_BOOT_CMD) \
+	  $(if $(FASTBOOT_IMAGE),$(FASTBOOT_IMAGE),$(IMAGES_DIR)/bootstrap.raw)
 
 fastboot_uimage: uimage
-	$(VERBOSE)$(FASTBOOT_BOOT_CMD) $(IMAGES_DIR)/bootstrap.uimage
+	$(VERBOSE)$(FASTBOOT_BOOT_CMD) \
+	  $(if $(FASTBOOT_IMAGE),$(FASTBOOT_IMAGE),$(IMAGES_DIR)/bootstrap.uimage)
 
 efiimage: check_and_adjust_ram_base
 	$(checkx86amd64build)
@@ -455,11 +540,11 @@ qemu:
 	  $(tool_envvars) $(common_envvars)                               \
 	  $(L4DIR)/tool/bin/qemu-x86-launch $$ml "$$e"
 else
-qemu: elfimage
+qemu: $(QEMU_KERNEL_TYPE)
 	$(VERBOSE)qemu=$(if $(QEMU_PATH),$(QEMU_PATH),$(QEMU_ARCH_MAP_$(ARCH))); \
 	if [ -z "$$qemu" ]; then echo "Set QEMU_PATH!"; exit 1; fi;              \
-	echo QEmu-cmd: $$qemu -kernel $(IMAGES_DIR)/bootstrap.elf $(QEMU_OPTIONS);    \
-	$$qemu -kernel $(IMAGES_DIR)/bootstrap.elf $(QEMU_OPTIONS)
+	echo QEMU-cmd: $$qemu -kernel $(QEMU_KERNEL_FILE) $(QEMU_OPTIONS);    \
+	$$qemu -kernel $(QEMU_KERNEL_FILE) $(QEMU_OPTIONS)
 endif
 
 vbox: $(if $(VBOX_ISOTARGET),$(VBOX_ISOTARGET),grub2iso)
@@ -518,7 +603,7 @@ exportpack:
 	$(VERBOSE)$(entryselection);                                      \
 	 TARGETDIR=$(EXPORTPACKTARGETDIR);                                \
 	 qemu=$(if $(QEMU_PATH),$(QEMU_PATH),$(QEMU_ARCH_MAP_$(ARCH)));   \
-	 QEMU=$$qemu L4DIR=$(L4DIR)                                       \
+	 QEMU=$$qemu L4DIR=$(L4DIR) QEMU_OPTIONS="$(QEMU_OPTIONS)"        \
 	 $(tool_envvars) $(common_envvars)                                \
 	  $(L4DIR)/tool/bin/genexportpack --timeout=$(GRUB_TIMEOUT)       \
 	                                   $$ml $$TARGETDIR $$e;
@@ -554,10 +639,13 @@ listplatforms:
 	    $(call extract_var,n,$$p,PLATFORM_NAME);                    \
 	    pn=$${p##*/};                                               \
 	    pn=$${pn%.conf};                                            \
-	    printf "%20s -- %s\n" $$pn "$$n";                           \
+	    priv="";                                                    \
+	    [ $${p#$(L4DIR)/conf/platforms/} != $$p -a                  \
+	      -e $(L4DIR)/conf/platforms/$$pn.conf ] && priv=" [priv]"; \
+	    printf "%20s -- %s\n" $$pn "$$n$$priv";                     \
 	  fi;                                                           \
 	  unset arch_hit;                                               \
-	done
+	done | sort -b
 
 
 .PHONY: elfimage rawimage uimage qemu vbox ux switch_ram_base \
@@ -568,22 +656,41 @@ listplatforms:
 switch_ram_base:
 	$(VERBOSE)$(call switch_ram_base_func,$(RAM_BASE))
 
-checkbuild:
+check_base_dir:
 	@if [ -z "$(CHECK_BASE_DIR)" ]; then                                  \
 	  echo "Need to set CHECK_BASE_DIR variable";                         \
 	  exit 1;                                                             \
 	fi
-	set -e; for i in $(if $(USE_CONFIGS),$(addprefix mk/defconfig/config.,$(USE_CONFIGS)),mk/defconfig/config.*); do \
-	  p=$(CHECK_BASE_DIR)/$$(basename $$i);                               \
-	  rm -rf $$p;                                                         \
-	  mkdir -p $$p;                                                       \
-	  cp $$i $$p/.kconfig;                                                \
-	  $(MAKE) O=$$p oldconfig;                                            \
-	  $(MAKE) O=$$p report;                                               \
-	  $(MAKE) O=$$p tool;                                                 \
-	  $(MAKE) O=$$p USE_CCACHE=$(USE_CCACHE) $(CHECK_MAKE_ARGS);          \
-	  $(if $(CHCEK_REMOVE_OBJDIR),rm -rf $$p;)                            \
-	done
+
+BID_CHECKBUILD_LOG_REDIR_f = $(if $(BID_CHECKBUILD_LOG), 1>>$(BID_CHECKBUILD_LOG).$(strip $(1)).log) \
+			     $(if $(BID_CHECKBUILD_LOG), 2>&1) #>$(BID_CHECKBUILD_LOG).$(strip $(1)).log)
+
+.PRECIOUS: $(CHECK_BASE_DIR)/config.%/.kconfig
+.PRECIOUS: $(CHECK_BASE_DIR)/config.%/.config.all
+.PHONY: FORCE
+
+checkbuild_prepare.%:
+	$(if $(CHECK_INCREMENTAL),,rm -rf $(CHECK_BASE_DIR)/$(patsubst checkbuild_prepare.%,config.%,$@))
+
+$(CHECK_BASE_DIR)/config.%/.kconfig: mk/defconfig/config.% checkbuild_prepare.%
+	mkdir -p $(@D)
+	cp $< $@
+
+$(CHECK_BASE_DIR)/config.%/.config.all: $(CHECK_BASE_DIR)/config.%/.kconfig FORCE
+	$(MAKE) -j 1 O=$(@D) olddefconfig $(call BID_CHECKBUILD_LOG_REDIR_f, $*)
+
+checkbuild.%: $(CHECK_BASE_DIR)/config.%/.config.all $(CHECK_BASE_DIR)/config.%/.kconfig check_base_dir
+	$(MAKE) O=$(<D) BID_CHECKBUILD=1 report $(call BID_CHECKBUILD_LOG_REDIR_f, $*)
+	$(MAKE) O=$(<D) BID_CHECKBUILD=1 tool $(call BID_CHECKBUILD_LOG_REDIR_f, $*)
+	$(MAKE) O=$(<D) BID_CHECKBUILD=1 USE_CCACHE=$(strip $(USE_CCACHE)) $(CHECK_MAKE_ARGS) $(call BID_CHECKBUILD_LOG_REDIR_f, $*)
+	$(VERBOSE)if [ -e $(<D)/ext-pkg ]; then \
+	  echo "$(<D)/ext-pkg created. That must not happen in checkbuild."; \
+	  exit 1; \
+	fi
+	$(if $(CHECK_REMOVE_OBJDIR),rm -rf $(<D))
+
+checkbuild: $(if $(USE_CONFIGS),$(addprefix checkbuild.,$(USE_CONFIGS)),$(patsubst mk/defconfig/config.%, checkbuild.%, $(wildcard mk/defconfig/config.*)))
+
 
 report:
 	@echo -e $(EMPHSTART)"============================================================="$(EMPHSTOP)
@@ -617,6 +724,9 @@ report:
 	@echo
 	@echo "svn --version: "
 	@svn --version || true
+	@echo
+	@echo "git --version: "
+	@git --version || true
 	@echo
 	@echo "Shell is:"
 	@ls -la /bin/sh || true
@@ -663,7 +773,9 @@ report:
 	@id -u || true
 	@echo
 	@echo "Archive information:"
+	@echo "SVN:"
 	@svn info || true
+	@echo "Git:"
 	@git describe || true
 	@echo
 	@echo "CC       = $(CC) $(CCXX_FLAGS)"
@@ -680,7 +792,7 @@ report:
 	@echo
 	@for i in pkg \
 	          ../kernel/fiasco/src/kern/ia32 \
-	          ../tools/preprocess/src/preprocess; do \
+	          ../kernel/fiasco/tool/preprocess/src/preprocess; do \
 	  if [ -e $$i ]; then \
 	    echo Path $$i found ; \
 	  else                \
@@ -719,4 +831,8 @@ help::
 	@echo "  cleanfast        - Delete all directories created during build." 
 	@echo "  report           - Print out host configuration information." 
 	@echo "  help             - Print this help text." 
+	@echo "  test             - Execute unit tests."
 	@echo "  listplatforms    - List available platforms."
+
+test::
+	prove -rv "$(OBJ_BASE)/test/t/$(ARCH)_$(CPU)/$(BUILD_ABI)"

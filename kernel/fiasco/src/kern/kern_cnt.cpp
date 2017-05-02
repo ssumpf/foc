@@ -19,6 +19,7 @@ IMPLEMENTATION:
 #include "jdb_ktrace.h"
 #include "mem_layout.h"
 #include "tb_entry.h"
+#include "jdb_tbuf.h"
 
 Mword *Kern_cnt::kcnt[Max_slot];
 Mword (*Kern_cnt::read_kcnt_fn[Max_slot])() = { read_kcnt1, read_kcnt2 };
@@ -30,8 +31,7 @@ PUBLIC static
 Mword*
 Kern_cnt::get_ctr(int num)
 {
-  Tracebuffer_status *status = 
-    (Tracebuffer_status*) Mem_layout::Tbuf_status_page;
+  Tracebuffer_status *status = Jdb_tbuf::status();
 
   return (Mword*)(num < Kern_cnt_max ? status->kerncnts + num : 0);
 }

@@ -50,7 +50,7 @@ Outer_cache::platform_init(Mword auxc)
   return (auxc & auxc_mask) | auxc_bits;
 }
 
-IMPLEMENT
+IMPLEMENT_OVERRIDE
 void
 Outer_cache::platform_init_post()
 {

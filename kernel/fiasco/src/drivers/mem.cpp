@@ -15,7 +15,8 @@ public:
   static void mp_mb();
   static void mp_rmb();
   static void mp_wmb();
-
+  static void mp_acquire();
+  static void mp_release();
 
   /**
    * Memory operations.
@@ -35,3 +36,5 @@ IMPLEMENT inline static void Mem::wmb() { barrier(); }
 IMPLEMENT inline static void Mem::mp_mb() { barrier(); }
 IMPLEMENT inline static void Mem::mp_rmb() { barrier(); }
 IMPLEMENT inline static void Mem::mp_wmb() { barrier(); }
+IMPLEMENT inline static void Mem::mp_acquire() { barrier(); }
+IMPLEMENT inline static void Mem::mp_release() { barrier(); }

@@ -80,5 +80,7 @@ IMPLEMENT inline static void Mem::rmb() { mb(); /* lfence */ }
 IMPLEMENT inline static void Mem::wmb() { barrier(); /* sfence */}
 
 IMPLEMENT inline static void Mem::mp_mb() { mb(); }
+IMPLEMENT inline static void Mem::mp_acquire() { mb(); }
+IMPLEMENT inline static void Mem::mp_release() { mb(); }
 IMPLEMENT inline static void Mem::mp_rmb() { rmb(); }
 IMPLEMENT inline static void Mem::mp_wmb() { wmb(); }

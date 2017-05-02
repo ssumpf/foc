@@ -23,9 +23,9 @@ public:
   };
 };
 
-IMPLEMENT inline void Cpu::init_mmu() {}
+IMPLEMENT_OVERRIDE inline void Cpu::init_mmu() {}
 
-IMPLEMENT
+IMPLEMENT_OVERRIDE
 void
 Cpu::init_hyp_mode()
 {

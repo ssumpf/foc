@@ -49,14 +49,15 @@ public:
     cxx::int_null_chk<Caps>
   {
     Caps() = default;
-    explicit Caps(unsigned char v)
+    explicit constexpr Caps(unsigned char v)
     : cxx::int_type_base<unsigned char, Caps>(v) {}
 
-    static Caps none() { return Caps(0); }
-    static Caps mem() { return Caps(1); }
-    static Caps obj() { return Caps(2); }
-    static Caps io() { return Caps(4); }
-    static Caps all() { return Caps(7); }
+    static constexpr Caps none() { return Caps(0); }
+    static constexpr Caps mem() { return Caps(1); }
+    static constexpr Caps obj() { return Caps(2); }
+    static constexpr Caps io() { return Caps(4); }
+    static constexpr Caps threads() { return Caps(8); }
+    static constexpr Caps all() { return Caps(0xf); }
   };
 
   explicit Space(Ram_quota *q, Caps c) : Mem_space(q), _caps(c) {}
@@ -93,15 +94,13 @@ public:
 
   Caps caps() const { return _caps; }
 
+  void switchin_context(Space *from);
 
 protected:
   Space(Ram_quota *q, Mem_space::Dir_type* pdir, Caps c)
   : Mem_space(q, pdir), _caps(c) {}
 
   const Caps _caps;
-
-private:
-  void switchin_ldt() const;
 
 protected:
   typedef cxx::S_list<Ku_mem> Ku_mem_list;
@@ -112,8 +111,8 @@ protected:
 //---------------------------------------------------------------------------
 IMPLEMENTATION:
 
+#include "assert.h"
 #include "atomic.h"
-#include "kdb_ke.h"
 #include "lock_guard.h"
 #include "config.h"
 #include "globalconfig.h"
@@ -152,16 +151,11 @@ Space::find_ku_mem(User<void>::Ptr p, unsigned size)
   return 0;
 }
 
-PUBLIC inline NEEDS["kdb_ke.h"]
+IMPLEMENT_DEFAULT inline
 void
 Space::switchin_context(Space *from)
 {
-  assert_kdb (this);
-  if (this != from)
-    {
-      Mem_space::switchin_context(from);
-      switchin_ldt();
-    }
+  Mem_space::switchin_context(from);
 }
 
 

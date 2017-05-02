@@ -9,9 +9,9 @@ IMPLEMENT
 void
 Utcb_init::init()
 {
-  if (!Vmem_alloc::page_alloc ((void *)Mem_layout::Utcb_ptr_page,
-	Vmem_alloc::ZERO_FILL, Vmem_alloc::User))
-    panic ("UTCB pointer page allocation failure");
+  if (!Vmem_alloc::page_alloc((void *)Mem_layout::Utcb_ptr_page,
+                              Vmem_alloc::ZERO_FILL, Vmem_alloc::User))
+    panic("UTCB pointer page allocation failure");
 }
 
 //-----------------------------------------------------------------------------

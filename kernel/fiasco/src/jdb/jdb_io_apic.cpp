@@ -76,8 +76,8 @@ Jdb_io_apic_module::action (int cmd, void *&, char const *&, int &)
     {
       unsigned mhz = khz / 1000;
       khz -= mhz * 1000;
-      snprintf(apic_state, sizeof(apic_state), "yes (%d.%03d MHz)"
-	      "\n  local APIC spurious interrupts/bug/error: %d/%d/%d",
+      snprintf(apic_state, sizeof(apic_state), "yes (%u.%03u MHz)"
+	      "\n  local APIC spurious interrupts/bug/error: %u/%u/%u",
 	      mhz, khz,
 	      apic_spurious_interrupt_cnt,
 	      apic_spurious_interrupt_bug_cnt,

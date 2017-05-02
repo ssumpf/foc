@@ -62,7 +62,7 @@ Irq_mgr_multi_chip<Bits_per_entry>::add_chip(unsigned irq_base,
   unsigned idx = irq_base >> Bits_per_entry;
   unsigned num = (pins + (1UL << Bits_per_entry) - 1) >> Bits_per_entry;
 
-  unsigned mask = ~0UL;
+  unsigned mask = ~0U;
   while (mask & (pins - 1))
     mask <<= 1;
 

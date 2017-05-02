@@ -21,7 +21,7 @@ public:
 
   typedef Return_frame User_return_frame;
 
-  bool valid() const
+  bool valid(void const *) const
   { return _ip != ~0UL; }
 
   Address ip() const { return _ip; }
@@ -39,7 +39,7 @@ public:
     _flags = regs->flags();
     _sp = regs->sp();
     _ss = regs->ss();
-    _cs = regs->cs();
+    _cs = regs->cs() & ~0x80;
   }
 
   void activate(Return_frame *regs, void *cont_func)

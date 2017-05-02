@@ -41,7 +41,7 @@ typedef integral_constant<bool, false> false_type;
 
 template< typename T > struct remove_reference;
 
-template< typename T > struct idendity { typedef T type; };
+template< typename T > struct identity { typedef T type; };
 
 template< typename T1, typename T2 > struct is_same;
 
@@ -112,8 +112,6 @@ struct remove_all_extents<T[]> { typedef typename remove_all_extents<T>::type ty
 template< typename T, unsigned long N >
 struct remove_all_extents<T[N]> { typedef typename remove_all_extents<T>::type type; };
 
-#if FIASCO_GCC_VERSION >= 405
-
 template< typename T >
 inline T &&
 forward(typename cxx::remove_reference<T>::type &t)
@@ -123,15 +121,6 @@ template< typename T >
 inline T &&
 forward(typename cxx::remove_reference<T>::type &&t)
 { return static_cast<T &&>(t); }
-
-#else
-
-template< typename T >
-inline T &&
-forward(typename cxx::idendity<T>::type &&t)
-{ return t; }
-
-#endif
 
 template< typename T >
 inline typename cxx::remove_reference<T>::type &&
@@ -148,6 +137,18 @@ struct is_const : false_type {};
 
 template< typename T >
 struct is_const<T const> : true_type {};
+
+template< typename T >
+struct is_volatile : false_type {};
+
+template< typename T >
+struct is_volatile<T volatile> : true_type {};
+
+template< typename T >
+struct is_pointer : false_type {};
+
+template< typename T >
+struct is_pointer<T *> : true_type {};
 
 template< bool, typename, typename >
 struct conditional;

@@ -13,7 +13,7 @@ Jdb_kern_info_bench::show_time(Unsigned64 time, Unsigned32 rounds,
 			       const char *descr)
 {
   Unsigned64 cycs = div32(time, rounds);
-  printf("  %-24s %6lld.%lld cycles\n",
+  printf("  %-24s %6llu.%llu cycles\n",
       descr, cycs, div32(time-cycs*rounds, rounds/10));
 }
 
@@ -87,7 +87,7 @@ Jdb_kern_info_bench::show_arch()
   Mword dummy;
   Mword cr0, pic;
   Unsigned32 time_reload_cr3, time_invlpg;
-  register int i;
+  int i;
   Gdt *gdt = Cpu::boot_cpu()->get_gdt();
   Unsigned32 flags = Proc::cli_save();
 

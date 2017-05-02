@@ -1,5 +1,6 @@
 INTERFACE [arm && realview]:
 
+#include "initcalls.h"
 #include "types.h"
 #include "gic.h"
 
@@ -38,7 +39,7 @@ void Pic::init_ap(Cpu_number, bool resume)
 }
 
 
-IMPLEMENT FIASCO_INIT
+PUBLIC static FIASCO_INIT
 void Pic::init()
 {
   configure_core();
@@ -67,7 +68,7 @@ IMPLEMENTATION [arm && pic_gic && !(realview && (realview_pb11mp || (realview_eb
 
 #include "irq_mgr_multi_chip.h"
 
-IMPLEMENT FIASCO_INIT
+PUBLIC static FIASCO_INIT
 void Pic::init()
 {
   configure_core();
@@ -87,20 +88,6 @@ void Pic::init_ap(Cpu_number, bool resume)
 {
   gic->init_ap(resume);
 }
-
-//-------------------------------------------------------------------
-IMPLEMENTATION [arm && pic_gic]:
-
-#include "gic.h"
-#include "initcalls.h"
-
-IMPLEMENT inline
-Pic::Status Pic::disable_all_save()
-{ return 0; }
-
-IMPLEMENT inline
-void Pic::restore_all(Status)
-{}
 
 //-------------------------------------------------------------------
 IMPLEMENTATION [arm && pic_gic && (mpcore || armca9)]:

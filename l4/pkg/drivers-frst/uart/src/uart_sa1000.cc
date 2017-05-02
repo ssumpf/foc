@@ -3,7 +3,7 @@
  * \brief  SA1000 Uart
  *
  * \date   2008-01-02
- * \author Adam Lackorznynski <adam@os.inf.tu-dresden.de>
+ * \author Adam Lackorzynski <adam@os.inf.tu-dresden.de>
  *         Alexander Warg <alexander.warg@os.inf.tu-dresden.de>
  *
  */

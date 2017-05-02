@@ -10,7 +10,7 @@ class Syscall_post_frame {};
  *
  * This class must be defined in arch dependent parts
  * and has to represent the data necessary for a 
- * system call as layed out on the kernel stack. 
+ * system call as laid out on the kernel stack. 
  */
 class Syscall_frame
 {
@@ -27,8 +27,6 @@ public:
 
   Mword from_spec() const;
   void from(Mword id);
-
-  Mword next_period() const;
 };
 
 
@@ -55,6 +53,13 @@ class Entry_frame
   public Syscall_frame,
   public Syscall_pre_frame,
   public Return_frame
-{} __attribute__((packed));
+{
+public:
+  static Entry_frame *to_entry_frame(Syscall_frame *sf)
+  { return nonull_static_cast<Entry_frame *>(sf); }
+
+  Syscall_frame *syscall_frame() { return this; }
+  Syscall_frame const *syscall_frame() const { return this; }
+} __attribute__((packed));
 
 

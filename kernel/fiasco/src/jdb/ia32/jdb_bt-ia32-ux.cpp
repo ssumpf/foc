@@ -164,10 +164,7 @@ static void
 Jdb_bt::get_kernel_eip_ebp(Mword &eip1, Mword &eip2, Mword &ebp)
 {
   if (tid == Jdb::get_current_active())
-    {
-      ebp  = (Mword)__builtin_frame_address(3);
-      eip1 = eip2 = 0;
-    }
+    ebp  = eip1 = eip2 = 0;
   else
     {
       Is_current is_current;
@@ -338,7 +335,8 @@ Jdb_bt::action(int cmd, void *&args, char const *&fmt, int &next_char)
 	      args = &Jdb_input_task_addr::first_char;
 	      return EXTRA_INPUT;
 	    }
-	  else if (first_char != KEY_RETURN && first_char != ' ')
+	  else if (first_char != KEY_RETURN && first_char != KEY_RETURN_2
+                   && first_char != ' ')
 	    {
 	      // ignore wrong input
 	      fmt  = "%C";
@@ -355,7 +353,7 @@ Jdb_bt::action(int cmd, void *&args, char const *&fmt, int &next_char)
 	      Kobject* o = ko_tid;
 
 	      if (o)
-		tid = Kobject::dcast<Thread_object*>(o);
+		tid = cxx::dyn_cast<Thread*>(o);
 
 	      if (!tid)
 		{

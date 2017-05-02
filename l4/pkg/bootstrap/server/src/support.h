@@ -112,6 +112,12 @@ public:
   virtual Boot_modules *modules() = 0;
   virtual bool probe() = 0;
 
+  virtual l4_uint64_t to_phys(l4_addr_t bootstrap_addr)
+  { return bootstrap_addr; }
+
+  virtual l4_addr_t to_virt(l4_uint64_t phys_addr)
+  { return phys_addr; }
+
   virtual void reboot()
   {
     while (1)

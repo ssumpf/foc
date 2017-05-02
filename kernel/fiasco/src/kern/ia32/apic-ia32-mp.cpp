@@ -23,7 +23,6 @@ public:
 private:
   enum
     {
-      APIC_ID   = 0x20,
       APIC_ICR	= 0x300,
       APIC_ICR2	= 0x310,
     };

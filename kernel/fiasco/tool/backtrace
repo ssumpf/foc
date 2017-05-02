@@ -25,7 +25,7 @@ if (!defined $ARGV[0])
 }
 
 my $nm = 'nm';
-$nm = "$ENV{'SYSTEM_TARGET'}$nm" if defined $ENV{"SYSTEM_TARGET"};
+$nm = "$ENV{'CROSS_COMPILE'}$nm" if defined $ENV{"CROSS_COMPILE"};
 $nm = 'arm-linux-nm' if !(system("file -L $ARGV[0] | grep -qw ARM") >> 8);
 
 while (@ARGV)

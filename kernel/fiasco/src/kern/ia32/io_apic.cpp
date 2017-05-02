@@ -5,6 +5,8 @@ INTERFACE:
 #include <spin_lock.h>
 #include "irq_chip_ia32.h"
 #include <cxx/bitfield>
+#include "irq_mgr.h"
+#include "pm.h"
 
 class Acpi_madt;
 
@@ -34,13 +36,22 @@ public:
   CXX_BITFIELD_MEMBER(13, 13, polarity, _e);
   CXX_BITFIELD_MEMBER(15, 15, trigger, _e);
   CXX_BITFIELD_MEMBER(16, 16, mask, _e);
+  // support for IRQ remapping
+  CXX_BITFIELD_MEMBER(48, 48, format, _e);
+  // support for IRQ remapping
+  CXX_BITFIELD_MEMBER(49, 63, irt_index, _e);
   CXX_BITFIELD_MEMBER(56, 63, dest, _e);
 };
 
 
-class Io_apic : public Irq_chip_ia32
+class Io_apic : public Irq_chip_icu, protected Irq_chip_ia32
 {
   friend class Jdb_io_apic_module;
+  friend class Irq_chip_ia32;
+public:
+  unsigned nr_irqs() const override { return Irq_chip_ia32::nr_irqs(); }
+  bool reserve(Mword pin) override { return Irq_chip_ia32::reserve(pin); }
+  Irq_base *irq(Mword pin) const override { return Irq_chip_ia32::irq(pin); }
 
 private:
   struct Apic
@@ -66,29 +77,31 @@ private:
   static Io_apic_entry *_state_save_area;
 };
 
+class Io_apic_mgr : public Irq_mgr, public Pm_object
+{
+public:
+  Io_apic_mgr() { register_pm(Cpu_number::boot_cpu()); }
+};
+
+
 IMPLEMENTATION:
 
 #include "acpi.h"
 #include "apic.h"
-#include "irq_mgr.h"
+#include "assert.h"
 #include "kmem.h"
-#include "kdb_ke.h"
 #include "kip.h"
 #include "lock_guard.h"
 #include "boot_alloc.h"
-#include "pm.h"
+#include "warn.h"
+
+enum { Print_info = 0 };
 
 Acpi_madt const *Io_apic::_madt;
 unsigned Io_apic::_nr_irqs;
 Io_apic *Io_apic::_first;
 Io_apic_entry *Io_apic::_state_save_area;
 
-
-class Io_apic_mgr : public Irq_mgr, public Pm_object
-{
-public:
-  Io_apic_mgr() { register_pm(Cpu_number::boot_cpu()); }
-};
 
 PUBLIC Irq_mgr::Irq
 Io_apic_mgr::chip(Mword irq) const
@@ -119,6 +132,7 @@ Io_apic_mgr::legacy_override(Mword i)
 PUBLIC void
 Io_apic_mgr::pm_on_suspend(Cpu_number cpu)
 {
+  (void)cpu;
   assert (cpu == Cpu_number::boot_cpu());
   Io_apic::save_state();
 }
@@ -126,9 +140,10 @@ Io_apic_mgr::pm_on_suspend(Cpu_number cpu)
 PUBLIC void
 Io_apic_mgr::pm_on_resume(Cpu_number cpu)
 {
+  (void)cpu;
   assert (cpu == Cpu_number::boot_cpu());
   Pic::disable_all_save();
-  Io_apic::restore_state();
+  Io_apic::restore_state(true);
 }
 
 
@@ -145,7 +160,7 @@ IMPLEMENT inline
 void
 Io_apic::Apic::modify(int reg, Mword set_bits, Mword del_bits)
 {
-  register Mword tmp;
+  Mword tmp;
   adr = reg;
   asm volatile ("": : :"memory");
   tmp = data;
@@ -170,124 +185,100 @@ Io_apic::Apic::num_entries()
   return (read(1) >> 16) & 0xff;
 }
 
-PUBLIC explicit inline
-Io_apic::Io_apic(Io_apic::Apic *addr, unsigned irqs, unsigned gsi_base)
-: Irq_chip_ia32(irqs), _apic(addr), _l(Spin_lock<>::Unlocked),
+PUBLIC explicit
+Io_apic::Io_apic(Unsigned64 phys, unsigned gsi_base)
+: Irq_chip_ia32(0), _l(Spin_lock<>::Unlocked),
   _offset(gsi_base), _next(0)
-{}
+{
+  if (Print_info)
+    printf("IO-APIC: addr=%lx\n", (Mword)phys);
+
+  Address offs;
+  Address va = Mem_layout::alloc_io_vmem(Config::PAGE_SIZE);
+  assert (va);
+
+  Kmem::map_phys_page(phys, va, false, true, &offs);
+
+  Kip::k()->add_mem_region(Mem_desc(phys, phys + Config::PAGE_SIZE -1, Mem_desc::Reserved));
+
+  Io_apic::Apic *a = (Io_apic::Apic*)(va + offs);
+  a->write(0, 0);
+
+  _apic = a;
+  _irqs = a->num_entries() + 1;
+  _entry = new Irq_entry_code[_irqs];
+
+  if ((_offset + nr_irqs()) > _nr_irqs)
+    _nr_irqs = _offset + nr_irqs();
+
+  Io_apic **c = &_first;
+  while (*c && (*c)->_offset < _offset)
+    c = &((*c)->_next);
+
+  _next = *c;
+  *c = this;
+
+  Mword cpu_phys = ::Apic::apic.cpu(Cpu_number::boot_cpu())->apic_id();
+
+  for (unsigned i = 0; i < _irqs; ++i)
+    {
+      int v = 0x20 + i;
+      Io_apic_entry e(v, Io_apic_entry::Fixed, Io_apic_entry::Physical,
+                      Io_apic_entry::High_active, Io_apic_entry::Edge,
+                      cpu_phys);
+      write_entry(i, e);
+    }
+}
 
 
-PUBLIC inline NEEDS["kdb_ke.h", "lock_guard.h"]
+PUBLIC inline NEEDS["assert.h", "lock_guard.h"]
 Io_apic_entry
 Io_apic::read_entry(unsigned i) const
 {
   auto g = lock_guard(_l);
   Io_apic_entry e;
-  //assert_kdb(i <= num_entries());
+  //assert(i <= num_entries());
   e._e = (Unsigned64)_apic->read(0x10+2*i) | (((Unsigned64)_apic->read(0x11+2*i)) << 32);
   return e;
 }
 
 
-PUBLIC inline NEEDS["kdb_ke.h", "lock_guard.h"]
+PUBLIC inline NEEDS["assert.h", "lock_guard.h"]
 void
 Io_apic::write_entry(unsigned i, Io_apic_entry const &e)
 {
   auto g = lock_guard(_l);
-  //assert_kdb(i <= num_entries());
+  //assert(i <= num_entries());
   _apic->write(0x10+2*i, e._e);
   _apic->write(0x11+2*i, e._e >> 32);
 }
 
-PUBLIC static FIASCO_INIT
-bool
-Io_apic::init(Cpu_number cpu)
+PROTECTED static FIASCO_INIT
+void
+Io_apic::read_overrides()
 {
-  _madt = Acpi::find<Acpi_madt const *>("APIC");
-
-  if (_madt == 0)
+  for (unsigned tmp = 0;; ++tmp)
     {
-      printf("Could not find APIC in RSDT nor XSDT, skipping init\n");
-      return false;
-    }
-  printf("IO-APIC: MADT = %p\n", _madt);
-
-  int n_apics = 0;
-
-  for (n_apics = 0;
-       Acpi_madt::Io_apic const *ioapic = static_cast<Acpi_madt::Io_apic const *>(_madt->find(Acpi_madt::IOAPIC, n_apics));
-       ++n_apics)
-    {
-      printf("IO-APIC[%2d]: struct: %p adr=%x\n", n_apics, ioapic, ioapic->adr);
-
-      Address offs;
-      Address va = Mem_layout::alloc_io_vmem(Config::PAGE_SIZE);
-      assert (va);
-
-      Kmem::map_phys_page(ioapic->adr, va, false, true, &offs);
-
-      Kip::k()->add_mem_region(Mem_desc(ioapic->adr, ioapic->adr + Config::PAGE_SIZE -1, Mem_desc::Reserved));
-
-      Io_apic::Apic *a = (Io_apic::Apic*)(va + offs);
-      a->write(0, 0);
-
-      unsigned const irqs = a->num_entries() + 1;
-      Io_apic *apic = new Boot_object<Io_apic>(a, irqs, ioapic->irq_base);
-
-      if ((apic->_offset + irqs) > _nr_irqs)
-	_nr_irqs = apic->_offset + irqs;
-
-      for (unsigned i = 0; i < irqs; ++i)
-        {
-          int v = 0x20+i;
-          Io_apic_entry e(v, Io_apic_entry::Fixed, Io_apic_entry::Physical,
-              Io_apic_entry::High_active, Io_apic_entry::Edge,
-              ::Apic::apic.cpu(cpu)->apic_id());
-          apic->write_entry(i, e);
-        }
-
-      Io_apic **c = &_first;
-      while (*c && (*c)->_offset < apic->_offset)
-	c = &((*c)->_next);
-
-      apic->_next = *c;
-      *c = apic;
-
-      printf("IO-APIC[%2d]: pins %u\n", n_apics, irqs);
-      apic->dump();
-    }
-
-  if (!n_apics)
-    {
-      printf("IO-APIC: Could not find IO-APIC in MADT, skip init\n");
-      return false;
-    }
-
-  Irq_mgr::mgr = new Boot_object<Io_apic_mgr>();
-
-  printf("IO-APIC: dual 8259: %s\n", _madt->apic_flags & 1 ? "yes" : "no");
-
-  for (unsigned tmp = 0;;++tmp)
-    {
-      Acpi_madt::Irq_source const *irq
-	= static_cast<Acpi_madt::Irq_source const *>(_madt->find(Acpi_madt::Irq_src_ovr, tmp));
+      auto irq = _madt->find<Acpi_madt::Irq_source>(tmp);
 
       if (!irq)
-	break;
+        break;
 
-      printf("IO-APIC: ovr[%2u] %02x -> %x %x\n", tmp, irq->src, irq->irq, irq->flags);
+      if (Print_info)
+        printf("IO-APIC: ovr[%2u] %02x -> %x %x\n",
+               tmp, (unsigned)irq->src, irq->irq, (unsigned)irq->flags);
 
       if (irq->irq >= _nr_irqs)
         {
-          printf("IO-APIC: warning override points to invalid GSI\n");
+          WARN("IO-APIC: warning override %02x -> %x (flags=%x) points to invalid GSI\n",
+               (unsigned)irq->src, irq->irq, (unsigned)irq->flags);
           continue;
         }
 
-      Irq_mgr::Irq i = Irq_mgr::mgr->chip(irq->irq);
-
-      assert (i.chip);
-
-      Irq_chip::Mode mode = static_cast<Io_apic*>(i.chip)->get_mode(i.pin);
+      Io_apic *ioapic = find_apic(irq->irq);
+      assert (ioapic);
+      unsigned pin = irq->irq - ioapic->gsi_offset();
+      Irq_chip::Mode mode = ioapic->get_mode(pin);
 
       unsigned pol = irq->flags & 0x3;
       unsigned trg = (irq->flags >> 2) & 0x3;
@@ -309,16 +300,78 @@ Io_apic::init(Cpu_number cpu)
         case 3: mode.level_triggered() = Mode::Trigger_level; break;
         }
 
-      i.chip->set_mode(i.pin, mode);
+      ioapic->set_mode(pin, mode);
+    }
+}
+
+
+PUBLIC static FIASCO_INIT
+Acpi_madt const *
+Io_apic::lookup_madt()
+{
+  if (_madt)
+    return _madt;
+
+  _madt = Acpi::find<Acpi_madt const *>("APIC");
+  return _madt;
+}
+
+PUBLIC static inline
+Acpi_madt const *Io_apic::madt() { return _madt; }
+
+PUBLIC static FIASCO_INIT
+bool
+Io_apic::init_scan_apics()
+{
+  auto madt = lookup_madt();
+
+  if (madt == 0)
+    {
+      WARN("Could not find APIC in RSDT nor XSDT, skipping init\n");
+      return false;
     }
 
+  int n_apics;
+  for (n_apics = 0;
+       auto ioapic = madt->find<Acpi_madt::Io_apic>(n_apics);
+       ++n_apics)
+    {
+      Io_apic *apic = new Boot_object<Io_apic>(ioapic->adr, ioapic->irq_base);
+      (void)apic;
+
+      if (Print_info)
+        {
+          printf("IO-APIC[%2d]: pins %u\n", n_apics, apic->nr_irqs());
+          apic->dump();
+        }
+    }
+
+  if (!n_apics)
+    {
+      WARN("IO-APIC: Could not find IO-APIC in MADT, skip init\n");
+      return false;
+    }
+
+  if (Print_info)
+    printf("IO-APIC: dual 8259: %s\n", madt->apic_flags & 1 ? "yes" : "no");
+
+  return true;
+}
+
+
+PUBLIC static FIASCO_INIT
+void
+Io_apic::init(Cpu_number)
+{
+  if (!Irq_mgr::mgr)
+    Irq_mgr::mgr = new Boot_object<Io_apic_mgr>();
 
   _state_save_area = new Boot_object<Io_apic_entry>[_nr_irqs];
+  read_overrides();
 
   // in the case we use the IO-APIC not the PIC we can dynamically use
   // INT vectors from 0x20 to 0x2f too
   _vectors.add_free(0x20, 0x30);
-  return true;
 };
 
 PUBLIC static
@@ -332,11 +385,20 @@ Io_apic::save_state()
 
 PUBLIC static
 void
-Io_apic::restore_state()
+Io_apic::restore_state(bool set_boot_cpu = false)
 {
+  Mword cpu_phys = 0;
+  if (set_boot_cpu)
+    cpu_phys = ::Apic::apic.cpu(Cpu_number::boot_cpu())->apic_id();
+
   for (Io_apic *a = _first; a; a = a->_next)
     for (unsigned i = 0; i < a->_irqs; ++i)
-      a->write_entry(i, _state_save_area[a->_offset + i]);
+      {
+        Io_apic_entry e = _state_save_area[a->_offset + i];
+        if (set_boot_cpu && e.format() == 0)
+          e.dest() = cpu_phys;
+        a->write_entry(i, e);
+      }
 }
 
 PUBLIC static
@@ -387,30 +449,30 @@ PUBLIC inline
 bool
 Io_apic::valid() const { return _apic; }
 
-PRIVATE inline NEEDS["kdb_ke.h", "lock_guard.h"]
+PRIVATE inline NEEDS["assert.h", "lock_guard.h"]
 void
 Io_apic::_mask(unsigned irq)
 {
   auto g = lock_guard(_l);
-  //assert_kdb(irq <= _apic->num_entries());
+  //assert(irq <= _apic->num_entries());
   _apic->modify(0x10 + irq * 2, 1UL << 16, 0);
 }
 
-PRIVATE inline NEEDS["kdb_ke.h", "lock_guard.h"]
+PRIVATE inline NEEDS["assert.h", "lock_guard.h"]
 void
 Io_apic::_unmask(unsigned irq)
 {
   auto g = lock_guard(_l);
-  //assert_kdb(irq <= _apic->num_entries());
+  //assert(irq <= _apic->num_entries());
   _apic->modify(0x10 + irq * 2, 0, 1UL << 16);
 }
 
-PUBLIC inline NEEDS["kdb_ke.h", "lock_guard.h"]
+PUBLIC inline NEEDS["assert.h", "lock_guard.h"]
 bool
 Io_apic::masked(unsigned irq)
 {
   auto g = lock_guard(_l);
-  //assert_kdb(irq <= _apic->num_entries());
+  //assert(irq <= _apic->num_entries());
   return _apic->read(0x10 + irq * 2) & (1UL << 16);
 }
 
@@ -421,12 +483,12 @@ Io_apic::sync()
   (void)_apic->data;
 }
 
-PUBLIC inline NEEDS["kdb_ke.h", "lock_guard.h"]
+PUBLIC inline NEEDS["assert.h", "lock_guard.h"]
 void
 Io_apic::set_dest(unsigned irq, Mword dst)
 {
   auto g = lock_guard(_l);
-  //assert_kdb(irq <= _apic->num_entries());
+  //assert(irq <= _apic->num_entries());
   _apic->modify(0x11 + irq * 2, dst & (~0UL << 24), ~0UL << 24);
 }
 
@@ -447,20 +509,20 @@ Io_apic::find_apic(unsigned irqnum)
 };
 
 PUBLIC void
-Io_apic::mask(Mword irq)
+Io_apic::mask(Mword irq) override
 {
   _mask(irq);
   sync();
 }
 
 PUBLIC void
-Io_apic::ack(Mword)
+Io_apic::ack(Mword) override
 {
   ::Apic::irq_ack();
 }
 
 PUBLIC void
-Io_apic::mask_and_ack(Mword irq)
+Io_apic::mask_and_ack(Mword irq) override
 {
   _mask(irq);
   sync();
@@ -468,27 +530,29 @@ Io_apic::mask_and_ack(Mword irq)
 }
 
 PUBLIC void
-Io_apic::unmask(Mword irq)
+Io_apic::unmask(Mword irq) override
 {
   _unmask(irq);
 }
 
 PUBLIC void
-Io_apic::set_cpu(Mword irq, Cpu_number cpu)
+Io_apic::set_cpu(Mword irq, Cpu_number cpu) override
 {
   set_dest(irq, ::Apic::apic.cpu(cpu)->apic_id());
 }
 
-static inline
-Mword to_io_apic_trigger(Irq_chip::Mode mode)
+PROTECTED static inline
+Mword
+Io_apic::to_io_apic_trigger(Irq_chip::Mode mode)
 {
   return mode.level_triggered()
          ? Io_apic_entry::Level
          : Io_apic_entry::Edge;
 }
 
-static inline
-Mword to_io_apic_polarity(Irq_chip::Mode mode)
+PROTECTED static inline
+Mword
+Io_apic::to_io_apic_polarity(Irq_chip::Mode mode)
 {
   return mode.polarity() == Irq_chip::Mode::Polarity_high
          ? Io_apic_entry::High_active
@@ -496,7 +560,7 @@ Mword to_io_apic_polarity(Irq_chip::Mode mode)
 }
 
 PUBLIC int
-Io_apic::set_mode(Mword pin, Mode mode)
+Io_apic::set_mode(Mword pin, Mode mode) override
 {
   if (!mode.set_mode())
     return 0;
@@ -525,7 +589,7 @@ Io_apic::get_mode(Mword pin)
 
 PUBLIC
 bool
-Io_apic::is_edge_triggered(Mword pin) const
+Io_apic::is_edge_triggered(Mword pin) const override
 {
   Io_apic_entry e = read_entry(pin);
   return e.trigger() == Io_apic_entry::Edge;
@@ -533,9 +597,9 @@ Io_apic::is_edge_triggered(Mword pin) const
 
 PUBLIC
 bool
-Io_apic::alloc(Irq_base *irq, Mword pin)
+Io_apic::alloc(Irq_base *irq, Mword pin) override
 {
-  unsigned v = valloc(irq, pin, 0);
+  unsigned v = valloc<Io_apic>(irq, pin, 0);
 
   if (!v)
     return false;
@@ -548,7 +612,7 @@ Io_apic::alloc(Irq_base *irq, Mword pin)
 
 PUBLIC
 void
-Io_apic::unbind(Irq_base *irq)
+Io_apic::unbind(Irq_base *irq) override
 {
   extern char entry_int_apic_ignore[];
   Mword n = irq->pin();
@@ -557,12 +621,15 @@ Io_apic::unbind(Irq_base *irq)
   Irq_chip_icu::unbind(irq);
 }
 
-PUBLIC inline
-char const *
-Io_apic::chip_type() const
-{ return "IO-APIC"; }
-
 PUBLIC static inline
 bool
 Io_apic::active()
 { return _first; }
+
+IMPLEMENTATION [debug]:
+
+PUBLIC inline
+char const *
+Io_apic::chip_type() const override
+{ return "IO-APIC"; }
+

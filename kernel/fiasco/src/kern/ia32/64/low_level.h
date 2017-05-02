@@ -12,7 +12,7 @@
 .macro  PRE_ALIEN_IPC target=slowtraps
 	btrl	$17, OFS__THREAD__STATE (%rbx)	/* Thread_dis_alien */
 	jc	1f
-	movq	$255, (16*8)(%rsp)
+	movq	$253, (16*8)(%rsp)
 	movq	$0,   (17*8)(%rsp)
 	sub	$2, (16*8 + 2*8)(%rsp) /* reset RIP to syscall */
 	jmp	\target
@@ -21,7 +21,7 @@
 .endm
 
 .macro  POST_ALIEN_IPC target=slowtraps
-	movq	$255, (16*8)(%rsp)
+	movq	$253, (16*8)(%rsp)
 	movq	$1,   (17*8)(%rsp)
 	jmp	\target
 .endm
@@ -95,7 +95,7 @@
 .endm
 
 	.macro	RESET_THREAD_CANCEL_AT reg
-	andl	$~(Thread_cancel | Thread_dis_alien), OFS__THREAD__STATE (\reg)
+	andl	$~(VAL__Thread_cancel | VAL__Thread_dis_alien), OFS__THREAD__STATE (\reg)
 	.endm
 
 	.macro	ESP_TO_TCB_AT reg

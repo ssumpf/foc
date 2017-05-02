@@ -53,7 +53,7 @@ Thread::fast_return_to_user(Mword ip, Mword sp, Vcpu_state *arg)
 {
   extern char __iret[];
   Entry_frame *r = regs();
-  assert_kdb(r->check_valid_user_psr());
+  assert(r->check_valid_user_psr());
 
   r->ip(ip);
   r->sp(sp); // user-sp is in lazy user state and thus handled by
@@ -131,15 +131,15 @@ Thread::user_invoke()
   // never returns here
 }
 
-IMPLEMENT inline NEEDS["space.h", <cstdio>, "types.h" ,"config.h"]
-bool Thread::handle_sigma0_page_fault( Address pfa )
+IMPLEMENT inline NEEDS["space.h", "types.h", "config.h"]
+bool Thread::handle_sigma0_page_fault(Address pfa)
 {
-  return (mem_space()->v_insert(
-	Mem_space::Phys_addr((pfa & Config::SUPERPAGE_MASK)),
-	Virt_addr(pfa & Config::SUPERPAGE_MASK),
-	Virt_order(Config::SUPERPAGE_SHIFT) /*mem_space()->largest_page_size()*/,
-	Mem_space::Attr(L4_fpage::Rights::URWX()))
-      != Mem_space::Insert_err_nomem);
+  return mem_space()
+    ->v_insert(Mem_space::Phys_addr((pfa & Config::SUPERPAGE_MASK)),
+               Virt_addr(pfa & Config::SUPERPAGE_MASK),
+               Virt_order(Config::SUPERPAGE_SHIFT) /*mem_space()->largest_page_size()*/,
+               Mem_space::Attr(L4_fpage::Rights::URWX()))
+    != Mem_space::Insert_err_nomem;
 }
 
 
@@ -192,6 +192,16 @@ extern "C" {
 
     Thread *t = current_thread();
 
+    // cache operations we carry out for user space might cause PFs, we just
+    // ignore those
+    if (EXPECT_FALSE(!PF::is_usermode_error(error_code))
+        && EXPECT_FALSE(t->is_ignore_mem_op_in_progress()))
+      {
+        t->set_kernel_mem_op_hit();
+        ret_frame->pc += 4;
+        return 1;
+      }
+
     // Pagefault in user mode
     if (PF::is_usermode_error(error_code))
       {
@@ -200,59 +210,24 @@ extern "C" {
         if (EXPECT_FALSE((pc & Kmem::Kern_lib_base) == Kmem::Kern_lib_base))
           error_code |= (1UL << 6);
 
-	if (t->vcpu_pagefault(pfa, error_code, pc))
-	  return 1;
-	t->state_del(Thread_cancel);
-        Proc::sti();
-
-        return t->handle_page_fault(pfa, error_code, pc, ret_frame);
+        // TODO: Avoid calling Thread::map_fsr_user here everytime!
+        if (t->vcpu_pagefault(pfa, Thread::map_fsr_user(error_code, true), pc))
+          return 1;
+        t->state_del(Thread_cancel);
       }
-    // or interrupts were enabled
-    else if (!(ret_frame->psr & Proc::Status_preempt_disabled))
+
+    if (EXPECT_TRUE(PF::is_usermode_error(error_code))
+        || !(ret_frame->psr & Proc::Status_preempt_disabled)
+        || !Kmem::is_kmem_page_fault(pfa, error_code))
       Proc::sti();
-
-      // Pagefault in kernel mode and interrupts were disabled
-    else
-      {
-	// page fault in kernel memory region, not present, but mapping exists
-	if (Kmem::is_kmem_page_fault(pfa, error_code))
-	  {
-	    // We've interrupted a context in the kernel with disabled interrupts,
-	    // the page fault address is in the kernel region, the error code is
-	    // "not mapped" (as opposed to "access error"), and the region is
-	    // actually valid (that is, mapped in Kmem's shared page directory,
-	    // just not in the currently active page directory)
-	    // Remain cli'd !!!
-	  }
-	else if (!Kmem::is_kmem_page_fault(pfa, error_code))
-	  {
-	    // No error -- just enable interrupts.
-	    Proc::sti();
-	  }
-	else
-	  {
-	    // Error: We interrupted a cli'd kernel context touching kernel space
-	    if (!Thread::log_page_fault())
-	      printf("*P[%lx,%lx,%lx] ", pfa, error_code, pc);
-
-	    kdb_ke("page fault in cli mode");
-	  }
-      }
-
-    // cache operations we carry out for user space might cause PFs, we just
-    // ignore those
-    if (EXPECT_FALSE(t->is_ignore_mem_op_in_progress()))
-      {
-        t->set_kernel_mem_op_hit();
-        ret_frame->pc += 4;
-        return 1;
-      }
 
     return t->handle_page_fault(pfa, error_code, pc, ret_frame);
   }
 
   void slowtrap_entry(Trap_state *ts)
   {
+    ts->error_code = Thread::map_fsr_user(ts->error_code, false);
+
     if (0)
       printf("Trap: pfa=%08lx pc=%08lx err=%08lx psr=%lx\n", ts->pf_address, ts->pc, ts->error_code, ts->psr);
     Thread *t = current_thread();
@@ -261,7 +236,7 @@ extern "C" {
 
     if (Config::Support_arm_linux_cache_API)
       {
-	if (   ts->hsr().ec() == 0x11
+	if (   ts->esr.ec() == 0x11
             && ts->r[7] == 0xf0002)
 	  {
             if (ts->r[2] == 0)
@@ -306,7 +281,7 @@ Thread::pagein_tcb_request(Return_frame *regs)
       // printf("TCBR: %08lx\n", *(Mword*)regs->pc);
       // skip faulting instruction
       regs->pc += 4;
-      // tell program that a pagefault occured we cannot handle
+      // tell program that a pagefault occurred we cannot handle
       regs->psr |= 0x40000000;	// set zero flag in psr
       regs->km_lr = 0;
 
@@ -320,12 +295,13 @@ IMPLEMENTATION [arm && !arm_lpae]:
 
 PUBLIC static inline
 Mword
-Thread::is_debug_exception(Mword error_code, bool just_type = false)
+Thread::is_debug_exception(Mword error_code, bool just_native_type = false)
 {
-  if (just_type)
+  if (just_native_type)
     return (error_code & 0x4f) == 2;
-  Mword e = error_code & 0x00f0004f;
-  return e == 0x00300002 || e == 0x00400002;
+
+  // LPAE type as already converted
+  return (error_code & 0xc000003f) == 0x80000022;
 }
 
 //---------------------------------------------------------------------------
@@ -333,12 +309,11 @@ IMPLEMENTATION [arm && arm_lpae]:
 
 PUBLIC static inline
 Mword
-Thread::is_debug_exception(Mword error_code, bool just_type = false)
+Thread::is_debug_exception(Mword error_code, bool just_native_type = false)
 {
-  if (just_type)
-    return (error_code & 0x3f) == 0x22;
-  Mword e = error_code & 0x00f0003f;
-  return e == 0x00300022 || e == 0x00400022;
+  if (just_native_type)
+    return ((error_code >> 26) & 0x3f) == 0x22;
+  return (error_code & 0xc000003f) == 0x80000022;
 }
 
 //---------------------------------------------------------------------------
@@ -367,8 +342,8 @@ Thread::Thread()
   _space.space(Kernel_task::kernel_task());
 
   if (Config::Stack_depth)
-    std::memset((char*)this + sizeof(Thread), '5',
-                Thread::Size-sizeof(Thread)-64);
+    std::memset((char *)this + sizeof(Thread), '5',
+                Thread::Size - sizeof(Thread) - 64);
 
   // set a magic value -- we use it later to verify the stack hasn't
   // been overrun
@@ -385,7 +360,6 @@ Thread::Thread()
   r->sp(0);
   r->ip(0);
   r->psr = Proc::Status_mode_user;
-  //r->psr = 0x1f; //Proc::Status_mode_user;
 
   state_add_dirty(Thread_dead, false);
 
@@ -423,7 +397,6 @@ Thread::user_ip(Mword ip)
     {
       Entry_frame *r = regs();
       r->ip(ip);
-      static_cast<Trap_state*>(static_cast<Return_frame*>(r))->sanitize_user_state();
     }
 }
 
@@ -460,7 +433,7 @@ PROTECTED inline
 int
 Thread::do_trigger_exception(Entry_frame *r, void *ret_handler)
 {
-  if (!_exc_cont.valid())
+  if (!_exc_cont.valid(r))
     {
       _exc_cont.activate(r, ret_handler);
       return 1;
@@ -471,40 +444,32 @@ Thread::do_trigger_exception(Entry_frame *r, void *ret_handler)
 
 PRIVATE static inline NEEDS[Thread::get_ts_tpidruro]
 bool FIASCO_WARN_RESULT
-Thread::copy_utcb_to_ts(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
+Thread::copy_utcb_to_ts(L4_msg_tag tag, Thread *snd, Thread *rcv,
                         L4_fpage::Rights rights)
 {
+  // if the message is too short just skip the whole copy in
+  if (EXPECT_FALSE(tag.words() < (sizeof(Trap_state) / sizeof(Mword))))
+    return true;
+
   Trap_state *ts = (Trap_state*)rcv->_utcb_handler;
   Utcb *snd_utcb = snd->utcb().access();
-  Mword       s  = tag.words();
 
   if (EXPECT_FALSE(rcv->exception_triggered()))
     {
       // triggered exception pending
-      Mem::memcpy_mwords (ts, snd_utcb->values, s > 16 ? 16 : s);
-      if (EXPECT_TRUE(s > 20))
-	{
-          Return_frame rf = *reinterpret_cast<Return_frame const *>((char const *)&snd_utcb->values[16]);
-          rcv->sanitize_user_state(static_cast<Trap_state*>(&rf));
-	  rcv->_exc_cont.set(ts, &rf);
-	}
+      Mem::memcpy_mwords (ts, snd_utcb->values, 16);
+      Return_frame rf = *reinterpret_cast<Return_frame const *>((char const *)&snd_utcb->values[16]);
+      rcv->sanitize_user_state(&rf);
+      rcv->_exc_cont.set(ts, &rf);
     }
   else
-    {
-      Mem::memcpy_mwords (ts, snd_utcb->values, s > 19 ? 19 : s);
-      if (EXPECT_TRUE(s > 19))
-	ts->pc = snd_utcb->values[19];
-      if (EXPECT_TRUE(s > 20))
-	{
-	  // sanitize processor mode
-	  ts->psr = snd_utcb->values[20];
-          rcv->sanitize_user_state(ts);
-	}
-    }
+    rcv->copy_and_sanitize_trap_state(
+       ts, reinterpret_cast<Trap_state const *>(snd_utcb->values));
 
   if (tag.transfer_fpu() && (rights & L4_fpage::Rights::W()))
     snd->transfer_fpu(rcv);
 
+  // FIXME: this is an old l4linux specific hack, will be replaced/remved
   if ((tag.flags() & 0x8000) && (rights & L4_fpage::Rights::W()))
     rcv->utcb().access()->user[2] = snd_utcb->values[25];
 
@@ -513,7 +478,6 @@ Thread::copy_utcb_to_ts(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
   bool ret = transfer_msg_items(tag, snd, snd_utcb,
                                 rcv, rcv->utcb().access(), rights);
 
-  rcv->state_del(Thread_in_exception);
   return ret;
 }
 
@@ -521,7 +485,7 @@ Thread::copy_utcb_to_ts(L4_msg_tag const &tag, Thread *snd, Thread *rcv,
 PRIVATE static inline NEEDS[Thread::save_fpu_state_to_utcb,
                             Thread::set_ts_tpidruro]
 bool FIASCO_WARN_RESULT
-Thread::copy_ts_to_utcb(L4_msg_tag const &, Thread *snd, Thread *rcv,
+Thread::copy_ts_to_utcb(L4_msg_tag, Thread *snd, Thread *rcv,
                         L4_fpage::Rights rights)
 {
   Trap_state *ts = (Trap_state*)snd->_utcb_handler;
@@ -602,6 +566,71 @@ Thread::condition_valid(unsigned char cond, Unsigned32 psr)
 
   return (v[cond] >> (psr >> 28)) & 1;
 }
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [arm && (arm_em_tz || hyp)]:
+
+IMPLEMENT_OVERRIDE inline
+bool
+Thread::arch_ext_vcpu_enabled()
+{ return true; }
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [arm && !arm_lpae]:
+
+PUBLIC static inline
+Mword
+Thread::map_fsr_user(Mword fsr, bool is_only_pf)
+{
+  static Unsigned16 const pf_map[32] =
+  {
+    /*  0x0 */ 0,
+    /*  0x1 */ 0x21, /* Alignment */
+    /*  0x2 */ 0x22, /* Debug */
+    /*  0x3 */ 0x08, /* Access flag (1st level) */
+    /*  0x4 */ 0x2000, /* Insn cache maint */
+    /*  0x5 */ 0x04, /* Transl (1st level) */
+    /*  0x6 */ 0x09, /* Access flag (2nd level) */
+    /*  0x7 */ 0x05, /* Transl (2nd level) */
+    /*  0x8 */ 0x10, /* Sync ext abort */
+    /*  0x9 */ 0x3c, /* Domain (1st level) */
+    /*  0xa */ 0,
+    /*  0xb */ 0x3d, /* Domain (2nd level) */
+    /*  0xc */ 0x14, /* Sync ext abt on PT walk (1st level) */
+    /*  0xd */ 0x0c, /* Perm (1st level) */
+    /*  0xe */ 0x15, /* Sync ext abt on PT walk (2nd level) */
+    /*  0xf */ 0x0d, /* Perm (2nd level) */
+    /* 0x10 */ 0x30, /* TLB conflict abort */
+    /* 0x11 */ 0,
+    /* 0x12 */ 0,
+    /* 0x13 */ 0,
+    /* 0x14 */ 0x34, /* Lockdown (impl-def) */
+    /* 0x15 */ 0,
+    /* 0x16 */ 0x11, /* Async ext abort */
+    /* 0x17 */ 0,
+    /* 0x18 */ 0x19, /* Async par err on mem access */
+    /* 0x19 */ 0x18, /* Sync par err on mem access */
+    /* 0x1a */ 0x3a, /* Copro abort (impl-def) */
+    /* 0x1b */ 0,
+    /* 0x1c */ 0x14, /* Sync par err on PT walk (1st level) */
+    /* 0x1d */ 0,
+    /* 0x1e */ 0x15, /* Sync par err on PT walk (2nd level) */
+    /* 0x1f */ 0,
+  };
+
+  if (is_only_pf || (fsr & 0xc0000000) == 0x80000000)
+    return pf_map[((fsr >> 10) & 1) | (fsr & 0xf)] | (fsr & ~0x43f);
+
+  return fsr;
+}
+
+// ------------------------------------------------------------------------
+IMPLEMENTATION [arm && arm_lpae]:
+
+PUBLIC static  inline
+Mword
+Thread::map_fsr_user(Mword fsr, bool)
+{ return fsr; }
 
 // ------------------------------------------------------------------------
 IMPLEMENTATION [arm && armv6plus]:
@@ -856,7 +885,7 @@ Thread::handle_fpu_trap(Unsigned32 opcode, Trap_state *ts)
       if (Fpu::is_emu_insn(opcode))
         return Fpu::emulate_insns(opcode, ts);
 
-      ts->hsr().ec() = 0; // tag fpu undef insn
+      ts->esr.ec() = 0; // tag fpu undef insn
     }
   else if (current_thread()->switchin_fpu())
     {
@@ -867,10 +896,10 @@ Thread::handle_fpu_trap(Unsigned32 opcode, Trap_state *ts)
     }
   else
     {
-      ts->hsr().ec() = 0x07;
-      ts->hsr().cond() = opcode >> 28;
-      ts->hsr().cv() = 1;
-      ts->hsr().cpt_cpnr() = 10;
+      ts->esr.ec() = 0x07;
+      ts->esr.cond() = opcode >> 28;
+      ts->esr.cv() = 1;
+      ts->esr.cpt_cpnr() = 10;
     }
 
   return false;

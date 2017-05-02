@@ -42,7 +42,7 @@ PUBLIC static inline NEEDS[<cstdio>, "pic.h"]
 void
 Ipi::send(Message m, Cpu_number from_cpu, Cpu_number to_cpu)
 {
-  printf("Sending IPI:%d to cpu%d\n", m, _lcpu);
+  printf("Sending IPI:%d to CPU%d\n", m, _lcpu);
   Pic::send_ipi(_lcpu, m);
 }
 

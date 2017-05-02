@@ -8,7 +8,6 @@ IMPLEMENTATION [arm]:
 #include <cstdlib>
 #include <cstdio>
 #include <construction.h>
-#include "boot_info.h"
 #include "terminate.h"
 
 void kernel_main(void);

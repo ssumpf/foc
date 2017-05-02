@@ -1,9 +1,9 @@
 INTERFACE:
 
-#include "initcalls.h"
 #include "l4_error.h"
 
-enum {
+enum Tbuf_entry_fixed
+{
   Tbuf_unused             = 0,
   Tbuf_pf,
   Tbuf_ipc,
@@ -11,10 +11,7 @@ enum {
   Tbuf_ipc_trace,
   Tbuf_ke,
   Tbuf_ke_reg,
-  Tbuf_exregs,
   Tbuf_breakpoint,
-  Tbuf_pf_res,
-  Tbuf_preemption,
   Tbuf_ke_bin,
   Tbuf_dynentries,
 
@@ -40,8 +37,8 @@ struct Tb_log_table_entry
   Tb_entry_formatter *fmt;
 };
 
-extern Tb_log_table_entry _log_table[];
-extern Tb_log_table_entry _log_table_end;
+extern Tb_log_table_entry _jdb_log_table[];
+extern Tb_log_table_entry _jdb_log_table_end;
 
 
 
@@ -118,7 +115,7 @@ public:
   static Tb_entry_formatter const *get_fmt(Tb_entry const *e)
   {
     if (e->type() >= Tbuf_dynentries)
-      return _log_table[e->type() - Tbuf_dynentries].fmt;
+      return _jdb_log_table[e->type() - Tbuf_dynentries].fmt;
 
     return _fixed[e->type()];
   }
@@ -132,6 +129,8 @@ template< typename T >
 class Tb_entry_formatter_t : public Tb_entry_formatter
 {
 public:
+  Tb_entry_formatter_t() {}
+
   typedef T const *Const_ptr;
   typedef T *Ptr;
 
@@ -216,44 +215,56 @@ public:
   void print(String_buffer *buf) const;
 };
 
-/** pagefault result. */
-class Tb_entry_pf_res : public Tb_entry
+/** logged kernel event. */
+template<unsigned BASE_SIZE>
+union Tb_entry_msg
 {
-private:
-  Address	_pfa;
-  L4_error	_err;
-  L4_error	_ret;
-public:
-  void print(String_buffer *buf) const;
+  char msg[Tb_entry::Tb_entry_size - BASE_SIZE];
+  struct Ptr
+  {
+    char tag[2];
+    char const *ptr;
+  } mptr;
+
+  void set_const(char const *msg)
+  {
+    mptr.tag[0] = 0;
+    mptr.tag[1] = 1;
+    mptr.ptr = msg;
+  }
+
+  void set_buf(unsigned i, char c)
+  {
+    if (i < sizeof(msg) - 1)
+      msg[i] = c >= ' ' ? c : '.';
+  }
+
+  void term_buf(unsigned i)
+  {
+    msg[i < sizeof(msg) - 1 ? i : sizeof(msg) - 1] = '\0';
+  }
+
+  char const *str() const
+  {
+    return mptr.tag[0] == 0 && mptr.tag[1] == 1 ? mptr.ptr : msg;
+  }
 };
 
-
-/** logged kernel event. */
-template<typename BASE, unsigned TAG>
-class Tb_entry_ke_t : public BASE
+class Tb_entry_ke : public Tb_entry
 {
-protected:
-  union Msg
-  {
-    char msg[BASE::Tb_entry_size - sizeof(BASE) - 4];
-    struct Ptr
-    {
-      char tag[2];
-      char const *ptr;
-    } mptr;
-  } _msg;
-}; // __attribute__((__packed__));
+public:
+  Tb_entry_msg<sizeof(Tb_entry)> msg;
+  void set(Context const *ctx, Address ip)
+  { set_global(Tbuf_ke, ctx, ip); }
+};
 
-typedef Tb_entry_ke_t<Tb_entry, Tbuf_ke> Tb_entry_ke;
-
-class Tb_entry_ke_reg_b : public Tb_entry
+class Tb_entry_ke_reg : public Tb_entry
 {
 public:
   Mword v[3];
-}; // __attribute__((__packed__));
-
-class Tb_entry_ke_reg : public Tb_entry_ke_t<Tb_entry_ke_reg_b, Tbuf_ke_reg>
-{
+  Tb_entry_msg<sizeof(Tb_entry) + sizeof(v)> msg;
+  void set(Context const *ctx, Address ip)
+  { set_global(Tbuf_ke_reg, ctx, ip); }
 };
 
 /** logged breakpoint. */
@@ -286,7 +297,6 @@ IMPLEMENTATION:
 #include "entry_frame.h"
 #include "globals.h"
 #include "kip.h"
-#include "static_init.h"
 #include "trap_state.h"
 
 
@@ -419,6 +429,7 @@ void
 Tb_entry_ipc::set(Context const *ctx, Mword ip, Syscall_frame *ipc_regs, Utcb *utcb,
 		  Mword dbg_id, Unsigned64 left)
 {
+  (void)left;
   set_global(Tbuf_ipc, ctx, ip);
   _dst       = ipc_regs->ref();
   _label     = ipc_regs->from_spec();
@@ -428,19 +439,11 @@ Tb_entry_ipc::set(Context const *ctx, Mword ip, Syscall_frame *ipc_regs, Utcb *u
 
   _timeout   = ipc_regs->timeout();
   _tag       = ipc_regs->tag();
-  if (ipc_regs->next_period())
-    {
-      _dword[0]  = (Unsigned32)(left & 0xffffffff);
-      _dword[1]  = (Unsigned32)(left >> 32);
-    }
-  else
-    {
-      // hint for gcc
-      register Mword tmp0 = utcb->values[0];
-      register Mword tmp1 = utcb->values[1];
-      _dword[0]  = tmp0;
-      _dword[1]  = tmp1;
-    }
+  // hint for gcc
+  Mword tmp0 = utcb->values[0];
+  Mword tmp1 = utcb->values[1];
+  _dword[0]  = tmp0;
+  _dword[1]  = tmp1;
 }
 
 PUBLIC inline
@@ -488,8 +491,8 @@ Tb_entry_ipc_res::set(Context const *ctx, Mword ip, Syscall_frame *ipc_regs,
 {
   set_global(Tbuf_ipc_res, ctx, ip);
   // hint for gcc
-  register Mword tmp0 = utcb->values[0];
-  register Mword tmp1 = utcb->values[1];
+  Mword tmp0 = utcb->values[0];
+  Mword tmp1 = utcb->values[1];
   _dword[0]   = tmp0;
   _dword[1]   = tmp1;
   _tag        = ipc_regs->tag();
@@ -581,33 +584,6 @@ Tb_entry_pf::space() const
 
 PUBLIC inline
 void
-Tb_entry_pf_res::set(Context const *ctx, Address ip, Address pfa, 
-		     L4_error err, L4_error ret)
-{
-  set_global(Tbuf_pf_res, ctx, ip);
-  _pfa = pfa;
-  _err = err;
-  _ret = ret;
-}
-
-PUBLIC inline
-Address
-Tb_entry_pf_res::pfa() const
-{ return _pfa; }
-
-PUBLIC inline
-L4_error
-Tb_entry_pf_res::err() const
-{ return _err; }
-
-PUBLIC inline
-L4_error
-Tb_entry_pf_res::ret() const
-{ return _ret; }
-
-
-PUBLIC inline
-void
 Tb_entry_bp::set(Context const *ctx, Address ip,
 		 int mode, int len, Mword value, Address address)
 {
@@ -641,44 +617,6 @@ Tb_entry_bp::addr() const
 { return _address; }
 
 
-
-PUBLIC template<typename BASE, unsigned TAG> inline
-void
-Tb_entry_ke_t<BASE, TAG>::set(Context const *ctx, Address ip)
-{ this->set_global(TAG, ctx, ip); }
-
-PUBLIC template<typename BASE, unsigned TAG> inline
-void
-Tb_entry_ke_t<BASE, TAG>::set_const(Context const *ctx, Address ip, char const *msg)
-{
-  this->set_global(TAG, ctx, ip);
-  _msg.mptr.tag[0] = 0;
-  _msg.mptr.tag[1] = 1;
-  _msg.mptr.ptr = msg;
-}
-
-PUBLIC template<typename BASE, unsigned TAG> inline
-void
-Tb_entry_ke_t<BASE, TAG>::set_buf(unsigned i, char c)
-{
-  if (i < sizeof(_msg.msg)-1)
-    _msg.msg[i] = c >= ' ' ? c : '.';
-}
-
-PUBLIC template<typename BASE, unsigned TAG> inline
-void
-Tb_entry_ke_t<BASE, TAG>::term_buf(unsigned i)
-{
-  _msg.msg[i < sizeof(_msg.msg)-1 ? i : sizeof(_msg.msg)-1] = '\0';
-}
-
-PUBLIC template<typename BASE, unsigned TAG> inline
-char const *
-Tb_entry_ke_t<BASE, TAG>::msg() const
-{
-  return _msg.mptr.tag[0] == 0 && _msg.mptr.tag[1] == 1 ? _msg.mptr.ptr : _msg.msg;
-}
-
 PUBLIC inline
 void
 Tb_entry_ke_bin::set(Context const *ctx, Address ip)
@@ -690,17 +628,5 @@ Tb_entry_ke_bin::set_buf(unsigned i, char c)
 {
   if (i < sizeof(_msg)-1)
     _msg[i] = c;
-}
-
-PUBLIC inline
-void
-Tb_entry_ke_reg::set_const(Context const *ctx, Mword eip,
-                           const char *msg,
-                           Mword v1, Mword v2, Mword v3)
-{
-  Tb_entry_ke_t<Tb_entry_ke_reg_b, Tbuf_ke_reg>::set_const(ctx, eip, msg);
-  v[0] = v1;
-  v[1] = v2;
-  v[2] = v3;
 }
 

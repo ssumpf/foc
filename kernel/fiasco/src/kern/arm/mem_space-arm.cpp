@@ -2,6 +2,7 @@ INTERFACE [arm]:
 
 #include "auto_quota.h"
 #include "kmem.h"		// for "_unused_*" virtual memory regions
+#include "kmem_slab.h"
 #include "member_offs.h"
 #include "paging.h"
 #include "types.h"
@@ -42,6 +43,8 @@ private:
   // DATA
   Dir_type *_dir;
   Phys_mem_addr _dir_phys;
+
+  static Kmem_slab_t<Dir_type, sizeof(Dir_type)> _dir_alloc;
 };
 
 //---------------------------------------------------------------------------
@@ -54,14 +57,16 @@ IMPLEMENTATION [arm]:
 #include "atomic.h"
 #include "config.h"
 #include "globals.h"
-#include "kdb_ke.h"
 #include "l4_types.h"
 #include "panic.h"
 #include "paging.h"
 #include "kmem.h"
 #include "kmem_alloc.h"
+#include "kmem_space.h"
 #include "mem_unit.h"
 
+Kmem_slab_t<Mem_space::Dir_type,
+            sizeof(Mem_space::Dir_type)> Mem_space::_dir_alloc;
 
 PUBLIC static inline
 bool
@@ -72,7 +77,7 @@ Mem_space::is_full_flush(L4_fpage::Rights rights)
 
 // Mapping utilities
 
-PUBLIC inline NEEDS["mem_unit.h"]
+IMPLEMENT inline NEEDS["mem_unit.h"]
 void
 Mem_space::tlb_flush(bool force = false)
 {
@@ -280,7 +285,7 @@ Mem_space::~Mem_space()
         _dir->destroy(Virt_addr(Mem_layout::User_max + 1),
                       Virt_addr(~0UL), 0, Pdir::Super_level,
                       Kmem_alloc::q_allocator(_quota));
-      Kmem_alloc::allocator()->q_unaligned_free(ram_quota(), sizeof(Dir_type), _dir);
+      _dir_alloc.q_free(ram_quota(), _dir);
     }
 }
 
@@ -293,29 +298,24 @@ Mem_space::~Mem_space()
   * task number concurrently).  In this case, the newly-created
   * address space should be deleted again.
   */
-PUBLIC inline
+PUBLIC inline NEEDS[Mem_space::asid]
 Mem_space::Mem_space(Ram_quota *q)
 : _quota(q), _dir(0)
 {
   asid(Mem_unit::Asid_invalid);
 }
 
-PROTECTED inline NEEDS[<new>, "kmem_alloc.h", Mem_space::asid]
+PROTECTED inline NEEDS[<new>, "kmem_slab.h", "kmem_space.h", Mem_space::asid]
 bool
 Mem_space::initialize()
 {
-  Auto_quota<Ram_quota> q(ram_quota(), sizeof(Dir_type));
-  if (EXPECT_FALSE(!q))
-    return false;
-
-  _dir = (Dir_type*)Kmem_alloc::allocator()->unaligned_alloc(sizeof(Dir_type));
+  _dir = _dir_alloc.q_new(ram_quota());
   if (!_dir)
     return false;
 
   _dir->clear(Pte_ptr::need_cache_write_back(false));
   _dir_phys = Phys_mem_addr(Kmem_space::kdir()->virt_to_phys((Address)_dir));
 
-  q.release();
   return true;
 }
 
@@ -346,7 +346,7 @@ Mem_space::init_page_sizes()
 //----------------------------------------------------------------------------
 IMPLEMENTATION [arm && !hyp]:
 
-PROTECTED inline
+PROTECTED inline NEEDS["kmem_alloc.h"]
 int
 Mem_space::sync_kernel()
 {
@@ -369,7 +369,7 @@ IMPLEMENTATION [arm && hyp]:
 
 static Address __mem_space_syscall_page;
 
-IMPLEMENT inline
+IMPLEMENT_OVERRIDE inline
 template< typename T >
 T
 Mem_space::peek_user(T const *addr)
@@ -425,7 +425,7 @@ Mem_space::sync_kernel()
   return 0;
 }
 
-PUBLIC inline NEEDS [Mem_space::virt_to_phys]
+PUBLIC inline NEEDS [Mem_space::virt_to_phys, "kmem_space.h"]
 Address
 Mem_space::pmem_to_phys(Address virt) const
 {
@@ -475,9 +475,35 @@ void Mem_space::make_current()
       : "r1");
 }
 
+//----------------------------------------------------------------------------
+INTERFACE [armv6 || armca8]:
+
+EXTENSION class Mem_space
+{
+  enum
+  {
+    Asid_num = 256,
+    Asid_base = 0
+  };
+};
+
+//----------------------------------------------------------------------------
+INTERFACE [armv7 && armca9]:
+
+EXTENSION class Mem_space
+{
+  enum
+  {
+    Asid_num = 255,
+    Asid_base = 1
+  };
+};
 
 //----------------------------------------------------------------------------
 INTERFACE [armv6 || armv7]:
+
+#include "id_alloc.h"
+#include "types.h"
 
 EXTENSION class Mem_space
 {
@@ -487,8 +513,35 @@ private:
   typedef Per_cpu_array<unsigned long> Asid_array;
   Asid_array _asid;
 
-  static Per_cpu<unsigned char> _next_free_asid;
-  static Per_cpu<Mem_space *[256]>   _active_asids;
+  struct Asid_ops
+  {
+    enum { Id_offset = Asid_base };
+
+    static bool valid(Mem_space *o, Cpu_number cpu)
+    { return o->_asid[cpu] != Mem_unit::Asid_invalid; }
+
+    static unsigned long get_id(Mem_space *o, Cpu_number cpu)
+    { return o->_asid[cpu]; }
+
+    static bool can_replace(Mem_space *v, Cpu_number cpu)
+    { return v != current_mem_space(cpu); }
+
+    static void set_id(Mem_space *o, Cpu_number cpu, unsigned long id)
+    {
+      write_now(&o->_asid[cpu], id);
+      Mem_unit::tlb_flush(id);
+    }
+
+    static void reset_id(Mem_space *o, Cpu_number cpu)
+    { write_now(&o->_asid[cpu], (unsigned long)Mem_unit::Asid_invalid); }
+  };
+
+  struct Asid_alloc : Id_alloc<unsigned char, Mem_space, Asid_ops>
+  {
+    Asid_alloc() : Id_alloc<unsigned char, Mem_space, Asid_ops>(Asid_num) {}
+  };
+
+  static Per_cpu<Asid_alloc> _asid_alloc;
 };
 
 //----------------------------------------------------------------------------
@@ -501,32 +554,9 @@ public:
 };
 
 //----------------------------------------------------------------------------
-IMPLEMENTATION [armv6 || armca8]:
-
-PRIVATE inline static
-unsigned long
-Mem_space::next_asid(Cpu_number cpu)
-{
-  return _next_free_asid.cpu(cpu)++;
-}
-
-//----------------------------------------------------------------------------
-IMPLEMENTATION [armv7 && armca9]:
-
-PRIVATE inline static
-unsigned long
-Mem_space::next_asid(Cpu_number cpu)
-{
-  if (_next_free_asid.cpu(cpu) == 0)
-    ++_next_free_asid.cpu(cpu);
-  return _next_free_asid.cpu(cpu)++;
-}
-
-//----------------------------------------------------------------------------
 IMPLEMENTATION [armv6 || armv7]:
 
-DEFINE_PER_CPU Per_cpu<unsigned char>    Mem_space::_next_free_asid;
-DEFINE_PER_CPU Per_cpu<Mem_space *[256]> Mem_space::_active_asids;
+DEFINE_PER_CPU Per_cpu<Mem_space::Asid_alloc> Mem_space::_asid_alloc;
 
 PRIVATE inline
 void
@@ -541,46 +571,12 @@ unsigned long
 Mem_space::c_asid() const
 { return _asid[current_cpu()]; }
 
-PRIVATE inline NEEDS[Mem_space::next_asid, "types.h"]
+PRIVATE inline
 unsigned long
 Mem_space::asid()
 {
   Cpu_number cpu = current_cpu();
-  if (EXPECT_FALSE(_asid[cpu] == Mem_unit::Asid_invalid))
-    {
-      // FIFO ASID replacement strategy
-      unsigned char new_asid = next_asid(cpu);
-      Mem_space **bad_guy = &_active_asids.cpu(cpu)[new_asid];
-      while (Mem_space *victim = access_once(bad_guy))
-	{
-	  // need ASID replacement
-	  if (victim == current_mem_space(cpu))
-	    {
-	      // do not replace the ASID of the current space
-	      new_asid = next_asid(cpu);
-	      bad_guy = &_active_asids.cpu(cpu)[new_asid];
-	      continue;
-	    }
-
-	  //LOG_MSG_3VAL(current(), "ASIDr", new_asid, (Mword)*bad_guy, (Mword)this);
-
-          // If the victim is valid and we get a 1 written to the ASID array
-          // then we have to reset the ASID of our victim, else the
-          // reset_asid function is currently resetting the ASIDs of the
-          // victim on a different CPU.
-          if (victim != reinterpret_cast<Mem_space*>(~0UL) &&
-              mp_cas(bad_guy, victim, reinterpret_cast<Mem_space*>(1)))
-            write_now(&victim->_asid[cpu], (Mword)Mem_unit::Asid_invalid);
-	  break;
-	}
-
-      _asid[cpu] = new_asid;
-      Mem_unit::tlb_flush(new_asid);
-      write_now(bad_guy, this);
-    }
-
-  //LOG_MSG_3VAL(current(), "ASID", (Mword)this, _asid[cpu], (Mword)__builtin_return_address(0));
-  return _asid[cpu];
+  return _asid_alloc.cpu(cpu).alloc(this, cpu);
 };
 
 PRIVATE inline
@@ -588,24 +584,13 @@ void
 Mem_space::reset_asid()
 {
   for (Cpu_number i = Cpu_number::first(); i < Config::max_num_cpus(); ++i)
-    {
-      unsigned long asid = access_once(&_asid[i]);
-      if (asid == Mem_unit::Asid_invalid)
-        continue;
-
-      Mem_space **a = &_active_asids.cpu(i)[asid];
-      if (!mp_cas(a, this, reinterpret_cast<Mem_space*>(~0UL)))
-        // It could be our ASID is in the process of being preempted,
-        // so wait until this is done.
-        while (access_once(a) == reinterpret_cast<Mem_space*>(1))
-          ;
-    }
+    _asid_alloc.cpu(i).free(this, i);
 }
 
 //-----------------------------------------------------------------------------
 IMPLEMENTATION [armv6 || armca8]:
 
-IMPLEMENT inline
+IMPLEMENT inline NEEDS[Mem_space::asid]
 void Mem_space::make_current()
 {
   asm volatile (
@@ -629,7 +614,7 @@ void Mem_space::make_current()
 //-----------------------------------------------------------------------------
 IMPLEMENTATION [armv7 && armca9 && !arm_lpae]:
 
-IMPLEMENT inline
+IMPLEMENT inline NEEDS[Mem_space::asid]
 void
 Mem_space::make_current()
 {
@@ -667,7 +652,7 @@ Mem_space::init_page_sizes()
 //----------------------------------------------------------------------------
 IMPLEMENTATION [armv7 && arm_lpae && !hyp]:
 
-IMPLEMENT inline
+IMPLEMENT inline NEEDS[Mem_space::asid]
 void
 Mem_space::make_current()
 {
@@ -690,7 +675,7 @@ Mem_space::make_current()
 //----------------------------------------------------------------------------
 IMPLEMENTATION [armv7 && arm_lpae && hyp]:
 
-IMPLEMENT inline
+IMPLEMENT inline NEEDS[Mem_space::asid]
 void
 Mem_space::make_current()
 {

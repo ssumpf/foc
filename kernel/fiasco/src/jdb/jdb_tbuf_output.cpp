@@ -11,7 +11,7 @@ class Jdb_tbuf_output
 {
 private:
   typedef void (Format_entry_fn)(String_buffer *, Tb_entry *tb, const char *tidstr,
-                                 unsigned tidlen);
+                                 int tidlen);
   static Format_entry_fn *_format_entry_fn[];
   static bool show_names;
 };
@@ -76,7 +76,7 @@ console_log_entry(Tb_entry *e, const char *)
 
 PRIVATE static
 void
-Jdb_tbuf_output::dummy_format_entry(String_buffer *buf, Tb_entry *tb, const char *, unsigned)
+Jdb_tbuf_output::dummy_format_entry(String_buffer *buf, Tb_entry *tb, const char *, int)
 {
   buf->printf(" << no format_entry_fn for type %d registered >>", tb->type());
 }
@@ -134,15 +134,15 @@ Jdb_tbuf_output::toggle_names()
 
 static
 void
-formatter_default(String_buffer *buf, Tb_entry *tb, const char *tidstr, unsigned tidlen)
+formatter_default(String_buffer *buf, Tb_entry *tb, const char *tidstr, int tidlen)
 {
   if (tb->type() < Tbuf_dynentries)
     return;
 
   int idx = tb->type()-Tbuf_dynentries;
 
-  Tb_entry_formatter *fmt = _log_table[idx].fmt;
-  char const *sc = _log_table[idx].name;
+  Tb_entry_formatter *fmt = _jdb_log_table[idx].fmt;
+  char const *sc = _jdb_log_table[idx].name;
   sc += strlen(sc) + 1;
 
   buf->printf("%-3s: %-*s ", sc, tidlen, tidstr);
@@ -151,7 +151,8 @@ formatter_default(String_buffer *buf, Tb_entry *tb, const char *tidstr, unsigned
     {
       Tb_entry_ke_reg *e = static_cast<Tb_entry_ke_reg*>(tb);
       buf->printf("\"%s\" " L4_PTR_FMT " " L4_PTR_FMT " " L4_PTR_FMT " @ " L4_PTR_FMT,
-               e->msg(), e->v[0], e->v[1], e->v[2], e->ip());
+               e->msg.str(), e->v[0], e->v[1], e->v[2], e->ip());
+      return;
     }
 
   fmt->print(buf, tb);
@@ -183,7 +184,7 @@ Jdb_tbuf_output::print_entry(String_buffer *buf, Tb_entry *tb)
       Jdb_kobject_name *ex
         = Jdb_kobject_extension::find_extension<Jdb_kobject_name>(t);
       if (show_names && ex)
-        snprintf(tidstr, sizeof(tidstr), "%04lx %-*.*s", t->dbg_info()->dbg_id(), ex->max_len(), ex->max_len(), ex->name());
+        snprintf(tidstr, sizeof(tidstr), "%04lx %-*.*s", t->dbg_info()->dbg_id(), (int)ex->max_len(), (int)ex->max_len(), ex->name());
       else
         snprintf(tidstr, sizeof(tidstr), "%04lx", t->dbg_info()->dbg_id());
     }

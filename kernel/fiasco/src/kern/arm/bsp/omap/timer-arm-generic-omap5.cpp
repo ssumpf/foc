@@ -13,7 +13,7 @@ unsigned Timer::irq()
     };
 }
 
-IMPLEMENT
+IMPLEMENT_OVERRIDE
 static inline
 Unsigned32 Timer::frequency()
 {

@@ -44,14 +44,14 @@ Jdb::cursor (unsigned int row=0, unsigned int col=0)
   if (row || col)
     printf ("\033[%u;%uH", row, col);
   else
-    printf ("\033[%u;%uH", 1, 1);
+    printf ("\033[%u;%uH", 1u, 1u);
 }
 
 PUBLIC static inline NEEDS[<cstdio>]
 void
 Jdb::blink_cursor (unsigned int row, unsigned int col)
 {
-  printf ("\033[%d;%df", row, col);
+  printf ("\033[%u;%uf", row, col);
 }
 
 PUBLIC static inline NEEDS[<simpleio.h>]

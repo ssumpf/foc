@@ -1,9 +1,11 @@
 IMPLEMENTATION [arm && hyp]:
 
-IMPLEMENT
+IMPLEMENT_OVERRIDE
 void
 Thread::arch_init_vcpu_state(Vcpu_state *vcpu_state, bool ext)
 {
+  vcpu_state->version = Vcpu_arch_version;
+
   if (!ext || (state() & Thread_ext_vcpu_enabled))
     return;
 
@@ -47,11 +49,6 @@ Thread::arch_init_vcpu_state(Vcpu_state *vcpu_state, bool ext)
   else
     regs()->psr |=  Proc::PSR_m_svc;
 }
-
-IMPLEMENT inline
-bool
-Thread::arch_ext_vcpu_enabled()
-{ return true; }
 
 extern "C" void slowtrap_entry(Trap_state *ts);
 extern "C" Mword pagefault_entry(const Mword pfa, Mword error_code,
@@ -106,21 +103,21 @@ extern "C" void hyp_mode_fault(Mword abort_type, Trap_state *ts)
     {
     case 0:
     case 1:
-      ts->hsr().ec() = abort_type ? 0x11 : 0;
+      ts->esr.ec() = abort_type ? 0x11 : 0;
       printf("KERNEL%d: %s fault at %lx\n",
              cxx::int_value<Cpu_number>(current_cpu()),
              abort_type ? "SWI" : "Undefined instruction",
              ts->km_lr);
       break;
     case 2:
-      ts->hsr().ec() = 0x21;
+      ts->esr.ec() = 0x21;
       asm volatile("mrc p15, 4, %0, c6, c0, 2" : "=r"(v));
       printf("KERNEL%d: Instruction abort at %lx\n",
              cxx::int_value<Cpu_number>(current_cpu()),
              v);
       break;
     case 3:
-      ts->hsr().ec() = 0x25;
+      ts->esr.ec() = 0x25;
       asm volatile("mrc p15, 4, %0, c6, c0, 0" : "=r"(v));
       printf("KERNEL%d: Data abort: pc=%lx pfa=%lx\n",
              cxx::int_value<Cpu_number>(current_cpu()),
@@ -145,11 +142,11 @@ PUBLIC static
 bool
 Thread::handle_fpu_trap(Trap_state *ts)
 {
-  unsigned cond = ts->hsr().cv() ? ts->hsr().cond() : 0xe;
+  unsigned cond = ts->esr.cv() ? ts->esr.cond() : 0xe;
   if (!Thread::condition_valid(cond, ts->psr))
     {
       // FPU insns are 32bit, even for thumb
-      assert (ts->hsr().il());
+      assert (ts->esr.il());
       ts->pc += 4;
       return true;
     }
@@ -174,12 +171,12 @@ PUBLIC inline
 void
 Thread::vcpu_vgic_upcall(unsigned virq)
 {
-  assert_kdb (state() & Thread_ext_vcpu_enabled);
-  assert_kdb (state() & Thread_vcpu_user);
-  assert_kdb (!_exc_cont.valid());
+  assert (state() & Thread_ext_vcpu_enabled);
+  assert (state() & Thread_vcpu_user);
+  assert (!_exc_cont.valid(regs()));
 
   Vcpu_state *vcpu = vcpu_state().access();
-  assert_kdb (vcpu_exceptions_enabled(vcpu));
+  assert (vcpu_exceptions_enabled(vcpu));
 
   Trap_state *ts = static_cast<Trap_state *>((Return_frame *)regs());
 
@@ -190,8 +187,8 @@ Thread::vcpu_vgic_upcall(unsigned virq)
   check (vcpu_enter_kernel_mode(vcpu));
   vcpu = vcpu_state().access();
 
-  vcpu->_ts.hsr().ec() = 0x3d;
-  vcpu->_ts.hsr().svc_imm() = virq;
+  vcpu->_regs.s.esr.ec() = 0x3d;
+  vcpu->_regs.s.esr.svc_imm() = virq;
 
   vcpu_save_state_and_upcall();
 }
@@ -282,7 +279,7 @@ static inline
 bool
 is_syscall_pc(Address pc)
 {
-  return Unsigned32(-0x2a) <= pc && pc <= Unsigned32(-0x08);
+  return Unsigned32(-0x0c) <= pc && pc <= Unsigned32(-0x08);
 }
 
 static inline
@@ -332,7 +329,7 @@ extern "C" void arm_hyp_entry(Return_frame *rf)
 
   Ts_error_code hsr;
   asm ("mrc p15, 4, %0, c5, c2, 0" : "=r" (hsr));
-  ts->error_code = hsr.raw();
+  ts->esr = hsr;
 
   Unsigned32 tmp;
   Mword state = ct->state();

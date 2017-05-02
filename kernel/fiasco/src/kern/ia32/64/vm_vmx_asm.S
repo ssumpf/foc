@@ -40,10 +40,9 @@ resume_vm_vmx:
 	jnz 1f
 	vmlaunch
 1:	// error path
-	mov	$0x6c14, %eax
-	vmread	%rax, %rsp
-	pushf
-	pop	%rax
+	mov	$0x6c14, %rbx
+	vmread	%rbx, %rsp
+	mov	$1, %eax
 	add	$8, %rsp        // pushed regs pointer
 	pop	%rbp
 	pop	%r15

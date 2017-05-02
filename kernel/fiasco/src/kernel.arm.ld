@@ -1,5 +1,8 @@
 /* -*- c -*- */
+
 #include "globalconfig.h"
+#include "kernel.ld.inc"
+
 /* this file defines the construction of the kernel's virtual address
    space */
 #ifdef CONFIG_CPU_VIRT
@@ -14,6 +17,18 @@ OUTPUT_FORMAT("elf32-littlearm", "elf32-bigarm",
               "elf32-littlearm")
 OUTPUT_ARCH(arm)
 ENTRY(_start)
+
+PHDRS {
+  bstrap PT_LOAD;
+  kip PT_LOAD;
+  koptions PT_LOAD;
+  tramp PT_LOAD;
+  kernel PT_LOAD;
+  excpt PT_LOAD;
+  initcall PT_LOAD;
+  l4_kip 0x10;
+  l4_koptions 0x11;
+}
 
 SECTIONS {
 
@@ -40,12 +55,12 @@ SECTIONS {
 
     bootstrap*(.data) 
     bootstrap*(.gnu.linkonce.d*)
-  }
+  } :bstrap
 
   PROVIDE(bootstrap_bss_start = .);
   .bss_bootstrap : {
     bootstrap*(.bss .bss.* COMMON .gnu.linkonce.b.*)
-  }
+  } :bstrap
   PROVIDE(bootstrap_bss_end = .);
 
   . = ALIGN(4K);
@@ -59,18 +74,18 @@ SECTIONS {
     _initkip_start = .;
     KEEP(*(.initkip.version))
     KEEP(*(.initkip.features))
-    KEEP(*(.initkip.features.fini))
+    KEEP(*(.initkip.features.end))
     _initkip_end = .;
     . = ALIGN(4K);
-  }
+  } :kip :l4_kip
 
   .koptions : AT (ADDR(.koptions) - phys_offset) {
     *(.koptions)
-  }
+  } :koptions :l4_koptions
 
   .mp_tramp : AT (ADDR(.mp_tramp) - phys_offset) {
     KEEP(*(.mp_tramp))
-  }
+  } :tramp
 
   .text_kernel : AT (ADDR(.text_kernel) - phys_offset) {
     crt0.o(.text)
@@ -87,13 +102,9 @@ SECTIONS {
     *(.rodata .rodata.* .gnu.linkonce.r.* .rodata1)
 
     . = ALIGN(4);
-    PROVIDE (_log_table = .);
-    /*
-     * The section must start with ".debug" because else the linker
-     * complains about references to discarded sections
-     */
-    KEEP(*(SORT(.debug.jdb.log_table)))
-    PROVIDE (_log_table_end = .);
+    JDB_TABLE(log);
+    . = ALIGN(4);
+    JDB_TABLE(typeinfo);
 
     . = ALIGN(0x40);
     
@@ -182,7 +193,7 @@ SECTIONS {
 
     PROVIDE(_edata  =  .);
 
-  }
+  } :kernel
 
   . = ALIGN(8);
   .per_cpu_data : AT (ADDR(.per_cpu_data) - phys_offset) {
@@ -216,9 +227,9 @@ SECTIONS {
 
   ivt_start = ADDR(.bss) + SIZEOF(.bss) - phys_offset;
   .excp 0xffff0000 : AT (ivt_start) {
-    *(.vect .excp.text)
+    KEEP (*(.vect)) *(.excp.text)
     *(.vect.extra)
-  }
+  } :excpt
 
   . = __end_of_the_kernel + SIZEOF(.excp);
 
@@ -230,7 +241,7 @@ SECTIONS {
     *(.initcall.*)
     . = ALIGN(4K);
     _initcall_end = .;
-  } 
+  } :initcall
 
   /DISCARD/ :{
     *(.stab .stabstr .stab.excl .stab.exclstr)

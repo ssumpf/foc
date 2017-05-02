@@ -1,13 +1,18 @@
 #include <string.h>
 
-char *strchr(register const char *t, int c) {
-
-  register char ch;
+char *strchr(register const char *t, int c)
+{
+  char ch;
 
   ch = c;
-  for (;;) {
-    if (*t == ch) break; if (!*t) return 0; ++t;
-  }
+  for (;;)
+    {
+      if (*t == ch)
+        break;
+      if (!*t)
+        return 0;
+      ++t;
+    }
   return (char*)t;
 }
 

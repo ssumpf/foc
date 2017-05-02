@@ -25,7 +25,7 @@ Jdb_halt_thread::action(int cmd, void *&, char const *&, int &)
   if (cmd != 0)
     return NOTHING;
 
-  Thread *t = Kobject::dcast<Thread_object*>(threadid);
+  Thread *t = cxx::dyn_cast<Thread*>(threadid);
 
   if (!t)
     return NOTHING;

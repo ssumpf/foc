@@ -419,8 +419,8 @@ PUBLIC inline
 Treemap::Page
 Treemap::round_to_page(Pcnt v) const
 {
-  return Page(cxx::int_value<Pcnt>(v + ((Pcnt(1) << _page_shift) - Pcnt(1))
-              >> _page_shift));
+  return Page(cxx::int_value<Pcnt>((v + ((Pcnt(1) << _page_shift) - Pcnt(1)))
+                                   >> _page_shift));
 }
 
 PUBLIC inline
@@ -489,7 +489,7 @@ static Kmem_slab_t<Treemap> _treemap_allocator("Treemap");
 static
 Slab_cache *
 Treemap::allocator()
-{ return &_treemap_allocator; }
+{ return _treemap_allocator.slab(); }
 
 
 PUBLIC inline NEEDS[Treemap::quota_size]
@@ -586,7 +586,7 @@ PUBLIC
 Physframe*
 Treemap::frame(Page key) const
 {
-  assert_kdb (key < _key_end);
+  assert (key < _key_end);
 
   return &_physframe[cxx::int_value<Page>(key)];
 }
@@ -759,7 +759,7 @@ Treemap::grant(Physframe* f, Mapping* m, Space *new_space, Pfn va)
 //
 PRIVATE template<typename F> static inline NEEDS[Treemap::round_to_page, Physframe]
 void
-Mapdb::_foreach_mapping(Mapping_tree *tree, Mapping* parent, bool me_too, Mapdb::Order size,
+Mapdb::_foreach_mapping(Mapping_tree *tree, Mapping *parent, bool me_too, Mapdb::Order size,
                         Mapdb::Pfn va_begin, Mapdb::Pfn va_end, F func)
 {
   typedef Mapping::Page Page;
@@ -1041,7 +1041,7 @@ Treemap::find_space(Space *s)
           else if (ma->space() == s)
             {
               mapping_bug = true;
-              printf("MAPDB: found space %p in mapdb (idx=%d, mapping=%p, depth=%d, page=%lx)\n",
+              printf("MAPDB: found space %p in mapdb (idx=%u, mapping=%p, depth=%u, page=%lx)\n",
                      s, mx, ma, ma->depth(), cxx::int_value<Page>(ma->page()));
             }
 
@@ -1049,14 +1049,14 @@ Treemap::find_space(Space *s)
         }
 
       if (tree_bug)
-        printf("MAPDB: error in mapping tree: index=%ld\n",
+        printf("MAPDB: error in mapping tree: index=%lu\n",
                cxx::int_value<Page>(i));
 
       bug |= tree_bug;
     }
 
   if (bug)
-    printf("MAPDB: error in treemap: owner(space)=%p, offset=%lx, size=%lx, pageshift=%d\n",
+    printf("MAPDB: error in treemap: owner(space)=%p, offset=%lx, size=%lx, pageshift=%u\n",
            _owner_id, cxx::int_value<Pfn>(_page_offset),
            cxx::int_value<Page>(_key_end),
            cxx::int_value<Order>(_page_shift));

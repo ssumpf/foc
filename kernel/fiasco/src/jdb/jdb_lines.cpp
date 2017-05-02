@@ -308,7 +308,7 @@ Jdb_lines::sprint_line(const char *dir, const char *fname, unsigned line,
       str += d+f;
     }
 
-  snprintf(str, strsize, ":%d", line);
+  snprintf(str, strsize, ":%u", line);
 }
 
 IMPLEMENTATION[arm]:

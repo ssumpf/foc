@@ -40,19 +40,15 @@ private:
 //------------------------------------------------------------------
 IMPLEMENTATION [amd64]:
 
-
 PUBLIC inline
 void
 Gdt::set_entry_tss(int nr, Address base, Unsigned32 limit,
 		   Unsigned8 access, Unsigned8 szbits)
 {
-  Address b = base >> 32;
-  // system-segment descriptor is 64 bit
+  // system-segment descriptor is 16byte
   _entries[nr] = Gdt_entry(base, limit >> 12, access, szbits | 0x08);
-  *reinterpret_cast<Unsigned64*>(reinterpret_cast<char *>(&_entries[nr+1])) 
-    = b;
+  _entries[nr + 1].raw = base >> 32;
 }
-
 
 //------------------------------------------------------------------
 IMPLEMENTATION:

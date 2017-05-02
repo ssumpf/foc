@@ -67,7 +67,7 @@ Foo::baz()
 #line 64 "inline.cpp"
 
 extern "C" 
-void function(Foo* f)
+void function (Foo* f)
 {
   f->bar();
 }

@@ -1,6 +1,7 @@
 INTERFACE [arm]:
 
 #include "jdb.h"
+#include "jdb_input.h"
 #include "jdb_input_task.h"
 #include "jdb_module.h"
 
@@ -36,23 +37,6 @@ private:
   {
     Vers_v7_1 = 5,
   };
-};
-
-struct Test_debug_data
-{
-  String_buffer *buf;
-  bool          disable;
-  Address       addr;
-  char          type;
-};
-
-struct Set_debug_data
-{
-  int   idx;
-  Mword cr_val;
-  Mword cr_mask;
-  Mword addr;
-  char  type;
 };
 
 char Jdb_bp::breakpoint_cmd;
@@ -361,9 +345,9 @@ Jdb_bp::test_log_only(Cpu_number )
 
 PRIVATE static
 void
-Jdb_bp::test_debug_on_cpu(Cpu_number cpu, void *data)
+Jdb_bp::test_debug(Cpu_number cpu, String_buffer *buf, char *type,
+                   bool *disable, Address *addr)
 {
-  Test_debug_data *d = reinterpret_cast<Test_debug_data *>(data);
   Mword v;
   asm volatile("mrc p14, 0, %0, c0, c1, 0" : "=r" (v));
   Mword moe = (v >> 2) & 0xf;
@@ -373,11 +357,11 @@ Jdb_bp::test_debug_on_cpu(Cpu_number cpu, void *data)
     {
     case 1: // breakpoint
         {
-          d->buf->printf("Break");
+          buf->printf("Break");
 
-          d->type    = 'b';
-          d->disable = true;
-          d->addr    = ef->pc;
+          *type    = 'b';
+          *disable = true;
+          *addr    = ef->pc;
         }
       break;
     case 10: // synchr. watchpoint
@@ -397,36 +381,35 @@ Jdb_bp::test_debug_on_cpu(Cpu_number cpu, void *data)
           if (wfar != ef->pc)
             pcstr.printf(" from %lx", wfar);
 
-          d->buf->printf("Break on %s at %lx%s%s",
-                         (ef->error_code & (1 << 11)) ? "wr" : "rd",
-                         ef->pf_address, datacontent.c_str(), pcstr.c_str());
+          buf->printf("Break on %s at %lx%s%s",
+                      (ef->error_code & (1 << 11)) ? "wr" : "rd",
+                      ef->pf_address, datacontent.c_str(), pcstr.c_str());
 
-          d->type    = 'w';
-          d->disable = true;
-          d->addr    = ef->pf_address;
+          *type    = 'w';
+          *disable = true;
+          *addr    = ef->pf_address;
         }
       break;
     default:
-      d->buf->printf("Unknown debug event 0x%lx", moe);
+      buf->printf("Unknown debug event 0x%lx", moe);
       break;
     }
 }
 
 PRIVATE static
 void
-Jdb_bp::disable_breakpoint_cpu(Cpu_number, void *data)
+Jdb_bp::disable_breakpoint(Address addr)
 {
-  Test_debug_data *d = reinterpret_cast<Test_debug_data *>(data);
 
   for (unsigned i = 0; i < num_breakpoints(); ++i)
     {
-      if (bvr(i) == d->addr) // need to check for more conditions here
+      if (bvr(i) == addr) // need to check for more conditions here
         bcr(i, bcr(i) & ~1);
     }
 }
 
 PUBLIC static
-int
+Mword
 Jdb_bp::instruction_bp_at_addr(Address addr)
 {
   for (unsigned i = 0; i < num_breakpoints(); ++i)
@@ -438,34 +421,31 @@ Jdb_bp::instruction_bp_at_addr(Address addr)
 
 PRIVATE static
 void
-Jdb_bp::disable_watchpoint_cpu(Cpu_number, void *data)
+Jdb_bp::disable_watchpoint(Address addr)
 {
-  Test_debug_data *d = reinterpret_cast<Test_debug_data *>(data);
-
   for (unsigned i = 0; i < num_watchpoints(); ++i)
     {
       if (hw_version() < Vers_v7_1) // No DFAR here
         wcr(i, wcr(i) & ~1);
-      else
-        if (wvr(i) == d->addr) // need to check for more conditions here
-          wcr(i, wcr(i) & ~1);
+      else if (wvr(i) == addr) // need to check for more conditions here
+        wcr(i, wcr(i) & ~1);
     }
 }
 
 PRIVATE static
 void
-Jdb_bp::set_bw(Cpu_number, void *data)
+Jdb_bp::set_bw(int idx, char type, Address addr,
+               Mword cr_mask, Mword cr_val)
 {
-  Set_debug_data *d = reinterpret_cast<Set_debug_data *>(data);
-  if (d->type == 'w')
+  if (type == 'w')
     {
-      wvr(d->idx, d->addr);
-      wcr(d->idx, (wcr(d->idx) & d->cr_mask) | d->cr_val);
+      wvr(idx, addr);
+      wcr(idx, (wcr(idx) & cr_mask) | cr_val);
     }
   else
     {
-      bvr(d->idx, d->addr);
-      bcr(d->idx, (bcr(d->idx) & d->cr_mask) | d->cr_val);
+      bvr(idx, addr);
+      bcr(idx, (bcr(idx) & cr_mask) | cr_val);
     }
 }
 
@@ -474,22 +454,23 @@ IMPLEMENT
 int
 Jdb_bp::test_break(Cpu_number cpu, String_buffer *buf)
 {
-  Test_debug_data data;
+  bool disable = false;
+  char type;
+  Address addr;
 
-  data.buf     = buf;
-  data.disable = false;
-
-  Jdb::remote_work(cpu, [&data](Cpu_number cpu){ test_debug_on_cpu(cpu, &data); },
-                   true);
+  Jdb::remote_work(cpu, [&](Cpu_number cpu)
+    {
+      test_debug(cpu, buf, &type, &disable, &addr);
+    }, true);
 
   // or do it on jdb exit?
-  Jdb::on_each_cpu_pl([&data](Cpu_number cpu)
-        {
-          if (data.type == 'b')
-            disable_breakpoint_cpu(cpu, &data);
-          else
-            disable_watchpoint_cpu(cpu, &data);
-        });
+  if (disable)
+    {
+      if (type == 'b')
+        Jdb::on_each_cpu_pl([addr](Cpu_number){ disable_breakpoint(addr); });
+      else
+        Jdb::on_each_cpu_pl([addr](Cpu_number){ disable_watchpoint(addr); });
+    }
 
   return 1;
 }
@@ -740,16 +721,11 @@ Jdb_bp::action(int cmd, void *&args, char const *&fmt, int &next_char)
   if (state == Do_mod)
     {
       if (breakpoint_cmd == '-')
-        {
-          Set_debug_data d;
-          d.idx     = breakpoint_number;
-          d.type    = breakpoint_type;
-          d.addr    = Jdb_input_task_addr::addr();
-          d.cr_val  = 0;
-          d.cr_mask = ~1UL;
-
-          Jdb::on_each_cpu_pl([&d, this](Cpu_number cpu){ set_bw(cpu, &d); });
-        }
+        Jdb::on_each_cpu_pl([this](Cpu_number)
+          {
+            set_bw(breakpoint_number, breakpoint_type,
+                   Jdb_input_task_addr::addr(), ~1UL, 0);
+          });
       else
         printf("'%c' not yet handled\n", breakpoint_cmd);
       return NOTHING;
@@ -761,27 +737,28 @@ Jdb_bp::action(int cmd, void *&args, char const *&fmt, int &next_char)
         return NOTHING;
 
       putchar('\n');
-      Set_debug_data d;
 
       // set watchpoint/breakpoint here
       if (breakpoint_cmd == 'i')
         {
-          d.cr_val =  ( 0 << 24) // MASK: None
-                    | ( 0 << 20) // WT: unlinked data address match
-                    | ( 0 << 16) // LBN: none
-                    | ( 0 << 14) // SSC: all
-                    | ( 0 << 13) // HMC: no virt
-                    | (15 << 5)  // BAS: could also do different values here
-                    | ( 0 << 1)  // PMC: all
-                    | ( 1 << 0); // enable
+          enum
+          {
+            Val =   ( 0 << 24) // MASK: None
+                  | ( 0 << 20) // WT: unlinked data address match
+                  | ( 0 << 16) // LBN: none
+                  | ( 0 << 14) // SSC: all
+                  | ( 0 << 13) // HMC: no virt
+                  | (15 << 5)  // BAS: could also do different values here
+                  | ( 0 << 1)  // PMC: all
+                  | ( 1 << 0)  // enable
+          };
 
 
-          d.idx     = breakpoint_number;
-          d.type    = 'b';
-          d.addr    = Jdb_input_task_addr::addr();
-          d.cr_mask = 0;
-
-          Jdb::on_each_cpu_pl([&d, this](Cpu_number cpu){ set_bw(cpu, &d); });
+          Jdb::on_each_cpu_pl([this](Cpu_number)
+            {
+              set_bw(breakpoint_number, 'b',
+                     Jdb_input_task_addr::addr(), 0, Val);
+            });
 
           show_bp(breakpoint_number);
         }
@@ -795,22 +772,23 @@ Jdb_bp::action(int cmd, void *&args, char const *&fmt, int &next_char)
             case 'w': a = 2; break;
             default:  a = 3; break;
             };
-          d.cr_val =  ( 0 << 24)  // MASK: no mask
-                    | ( 0 << 20)  // BT: Unlinked insn addr match
-                    | ( 0 << 16)  // LBN: none
-                    | ( 0 << 14)  // SSC: all
-                    | ( 0 << 13)  // HMC: no virt
-                    | ( l <<  5)  // BAS: one bit per byte
-                    | ( a <<  3)  // LSC: 3: all access match, 1: load, 2: store
-                    | ( 3 <<  1)  // PAC all
-                    | ( 1 <<  0); // enable
 
-          d.idx     = breakpoint_number;
-          d.type    = 'w';
-          d.addr    = Jdb_input_task_addr::addr();
-          d.cr_mask = 0;
+          Mword val =   (0 << 24)  // MASK: no mask
+                      | (0 << 20)  // BT: Unlinked insn addr match
+                      | (0 << 16)  // LBN: none
+                      | (0 << 14)  // SSC: all
+                      | (0 << 13)  // HMC: no virt
+                      | (l <<  5)  // BAS: one bit per byte
+                      | (a <<  3)  // LSC: 3: all access match,
+                                   //      1: load, 2: store
+                      | (3 <<  1)  // PAC all
+                      | (1 <<  0); // enable
 
-          Jdb::on_each_cpu_pl([&d, this](Cpu_number cpu){ set_bw(cpu, &d); });
+          Jdb::on_each_cpu_pl([val, this](Cpu_number)
+            {
+              set_bw(breakpoint_number, 'w', Jdb_input_task_addr::addr(),
+                     0, val);
+            });
 
           show_wp(breakpoint_number);
         }

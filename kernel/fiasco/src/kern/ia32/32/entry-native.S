@@ -14,7 +14,6 @@
 	RESTORE_STATE
 	popl	%eax
 	andl	$0x7f,4(%esp)
-	orl	$EFLAGS_IF,8(%esp)
 	pushl	$(0x30 << 3 | 2)
 	pushl	$(0xd)
 	pusha
@@ -25,21 +24,24 @@
 	mov	52(%esp), %ebp         /* offset 52: sp */
 	mov	%ebp, 8(%esp)          /* offset  8: ebp */
 	jmp	slowtraps
+1:	/* do alien IPC and raise a trap afterwards */
+	RESET_THREAD_CANCEL_AT %ebx
+
+	.pushsection ".comment" /* discarded section */
 3: /* must be the same code as code before sysenter in syscall-page.... */
 	pop	%ebx
 	mov	%esp, %ebp
 4: /* the code between 3 and 4 shall never be executed, it is just to calculate
     * the offset for the sysenter insn in the KIP / syscall page
     */
-1:	/* do alien IPC and raise a trap afterwards */
-	RESET_THREAD_CANCEL_AT %ebx
+	.popsection
+
 .endm
 
 .macro  POST_FAST_ALIEN_IPC
 	RESTORE_STATE_AFTER_IPC
 	popl	%eax
 	andl	$0x7f,4(%esp)
-	orl	$EFLAGS_IF, 8(%esp)
 	pushl	$(0x30 << 3 | 6)
 	pushl	$(0xd)
 	pusha
@@ -51,12 +53,12 @@
 entry_vec01_debug:
 	/* Check whether user entered the kernel with TF enabled,
 	 * check priv-level to verify that a priv-change happened */
-	testb   $3, 4(%esp)
+	testb   $3, %ss:4(%esp)
 	jnz	1f
-	cmpl	$entry_sys_fast_ipc_c, (%esp)
+	cmpl	$entry_sys_fast_ipc_c, %ss:(%esp)
 	je	2f
 #if defined(CONFIG_JDB)
-	cmpl	$entry_sys_fast_ipc_log, (%esp)
+	cmpl	$entry_sys_fast_ipc_log, %ss:(%esp)
 	je	2f
 #endif
 1:	pushl	$0
@@ -80,10 +82,10 @@ entry_vec01_debug:
 	pushl	%esi
 	pushl	%edx
 	pushl	%ecx
-
+	RESET_KERNEL_SEGMENTS_FORCE_DS_ES
 	ESP_TO_TCB_AT %ebx
-	testl	$Thread_alien_or_vcpu_user, OFS__THREAD__STATE (%ebx)
-	jnz	dbg_alien_sys_fast_ipc_log
+	testl	$VAL__Thread_alien_or_vcpu_user, OFS__THREAD__STATE (%ebx)
+	jnz	.Ldbg_alien_sys_fast_ipc_log
 	RESET_THREAD_CANCEL_AT %ebx
 	call	*syscall_table
 	CHECK_SANITY $3			/* scratches ecx */
@@ -91,17 +93,15 @@ entry_vec01_debug:
 	popl	%eax
 	iret
 
-dbg_alien_sys_fast_ipc_log:
+.Ldbg_alien_sys_fast_ipc_log:
 	PRE_FAST_ALIEN_IPC
 	push    $ret_from_fast_alien_ipc
 	jmp     *syscall_table
 
 
-
-
 	.globl	entry_vec0a_invalid_tss
 entry_vec0a_invalid_tss:
-	andl	$0xffffbfff, 12(%esp)
+	andl	$0xffffbfff, %ss:12(%esp)
 	addl	$4, %esp			/* skip error code */
 	iret
 
@@ -129,9 +129,8 @@ entry_vec08_dbf:
 	.globl	entry_vec0f_apic_spurious_interrupt_bug
 entry_vec0f_apic_spurious_interrupt_bug:
 	pushl	%ecx
-	pushl	%edx
+	RESET_KERNEL_SEGMENTS_FORCE_DS_ES
 	incl	apic_spurious_interrupt_bug_cnt
-	popl	%edx
 	popl	%ecx
 	iret
 
@@ -141,6 +140,7 @@ entry_vec0f_apic_spurious_interrupt_bug:
 entry_apic_error_interrupt:
 	cld
 	SAVE_SCRATCH
+	RESET_KERNEL_SEGMENTS_FORCE_DS_ES
 	leal	SCRATCH_REGISTER_SIZE(%esp), %eax /* &Return_frame */
 	call	apic_error_interrupt
 	RESTORE_SCRATCH
@@ -155,9 +155,8 @@ entry_apic_error_interrupt:
 	.globl	entry_apic_spurious_interrupt
 entry_apic_spurious_interrupt:
 	pushl	%ecx
-	pushl	%edx
+	RESET_KERNEL_SEGMENTS_FORCE_DS_ES
 	incl	apic_spurious_interrupt_cnt
-	popl	%edx
 	popl	%ecx
 	iret
 
@@ -166,6 +165,7 @@ entry_apic_spurious_interrupt:
 entry_int_apic_ignore:
 	pushl	%ecx
 	pushl	%edx
+	RESET_KERNEL_SEGMENTS_FORCE_DS_ES
 	mov	apic_io_base, %ecx
 	mov	0xf0(%ecx), %edx
 	movl	$0, 0xb0(%ecx)
@@ -181,7 +181,7 @@ entry_sys_fast_ipc_log:
 	pop	%esp
 	pushl	$(GDT_DATA_USER|SEL_PL_U) /* user ss */
 	pushl   %ebp 			  // user esp
-	pushf                             // fake user eflags
+	pushl	$EFLAGS_IF                // fake user eflags
 	cld
 	// Fake user cs. This cs value is never used with exception
 	// that the thread is ex_regs'd before we leave with sysexit.
@@ -204,15 +204,16 @@ entry_sys_fast_ipc_log:
 	pushl	%edx
 	pushl	%ecx
 
+	RESET_KERNEL_SEGMENTS_FORCE_DS_ES
 	ESP_TO_TCB_AT %ebx
-	testl	$Thread_alien_or_vcpu_user, OFS__THREAD__STATE (%ebx)
-	jnz	alien_sys_fast_ipc_log
+	testl	$VAL__Thread_alien_or_vcpu_user, OFS__THREAD__STATE (%ebx)
+	jnz	.Lalien_sys_fast_ipc_log
 	RESET_THREAD_CANCEL_AT %ebx
 	call	*syscall_table
 in_slow_ipc5:
 	DO_SYSEXIT
 
-alien_sys_fast_ipc_log:
+.Lalien_sys_fast_ipc_log:
 	PRE_FAST_ALIEN_IPC
 	push    $ret_from_fast_alien_ipc
 	jmp     *syscall_table
@@ -228,7 +229,7 @@ entry_sys_fast_ipc_c:
 	pop	%esp
 	pushl	$(GDT_DATA_USER|SEL_PL_U)	/* user ss */
 	pushl	%ebp				// push user SP (get in ebp)
-	pushf                                   // fake user eflags
+	pushl	$EFLAGS_IF                // fake user eflags
 	cld
 	// Fake user cs. This cs value is never used with exception
 	// that the thread is ex_regs'd before we leave with sysexit.
@@ -250,15 +251,15 @@ entry_sys_fast_ipc_c:
 	pushl	%esi
 	pushl	%edx
 	pushl	%ecx				/* save ecx */
+	RESET_KERNEL_SEGMENTS_FORCE_DS_ES
 	ESP_TO_TCB_AT %ebx
-	testl	$Thread_alien_or_vcpu_user, OFS__THREAD__STATE (%ebx)
-	jnz	alien_sys_fast_ipc_c
+	testl	$VAL__Thread_alien_or_vcpu_user, OFS__THREAD__STATE (%ebx)
+	jnz	.Lalien_sys_fast_ipc_c
 	RESET_THREAD_CANCEL_AT %ebx
 	call    sys_ipc_wrapper
 in_sc_ipc2:
 	DO_SYSEXIT
 
-	.globl alien_sys_fast_ipc_c     /* Also used in shortcut */
 	.global ret_from_fast_alien_ipc /* used in ex-regs */
 /* ex-regs patches the return address of the call to the 'sys_ipc' function
  * in the case of sysenter, because we need to leave the kernel by iret
@@ -271,7 +272,7 @@ in_sc_ipc2:
  */
 
 
-alien_sys_fast_ipc_c:
+.Lalien_sys_fast_ipc_c:
 	cld
 	PRE_FAST_ALIEN_IPC
 	call    sys_ipc_wrapper
@@ -285,7 +286,6 @@ ret_from_fast_alien_ipc:
 	RESET_THREAD_IPC_MASK_AT %ebx
 	RESTORE_STATE_AFTER_IPC
 	popl    %eax
-	orl	$EFLAGS_IF, 8(%esp)
 .endm
 
 	.p2align(4)

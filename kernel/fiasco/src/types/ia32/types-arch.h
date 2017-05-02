@@ -1,7 +1,8 @@
+/* -*- c++ -*- */
 #ifndef TYPES_ARCH_H__
 #define TYPES_ARCH_H__
 
-#define L4_PTR_ARG(a) ((Address)(a)) 
+#define L4_PTR_ARG(a) ((Address)(a))
 
 #define L4_PTR_FMT             "%08lx"
 #define L4_MWORD_FMT           "%08lx"
@@ -24,9 +25,11 @@ typedef signed long int        Smword;
 typedef unsigned long int      Mword;
 
 enum {
-  MWORD_BITS =32,
+  MWORD_BITS = 32,
   ARCH_PAGE_SHIFT = 12,
 };
+
+typedef signed char Small_atomic_int;
 
 /// (virtual or physical address) should be addr_t or something
 typedef unsigned long int      Address;

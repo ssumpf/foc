@@ -1,7 +1,7 @@
 # -*- makefile -*-
 # vi:se ft=make:
 
-SYSTEM_TARGET			?= powerpc-linux-
+CROSS_COMPILE			?= powerpc-linux-
 LD_EMULATION_CHOICE             := elf32ppc
 SHARED_FLAGS			+= -m32
 

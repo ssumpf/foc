@@ -71,13 +71,14 @@ public:
 //  static int (*base_handler)(Trap_state *) asm ("BASE_TRAP_HANDLER");
 
   Mword pf_address;
-  Mword error_code;
+  union
+  {
+    Mword error_code;
+    Ts_error_code esr;
+  };
 
   Mword tpidruro;
   Mword r[13];
-
-  Ts_error_code hsr() const { return Ts_error_code(error_code); }
-  Ts_error_code &hsr() { return reinterpret_cast<Ts_error_code&>(error_code); }
 };
 
 class Trap_state : public Trap_state_regs, public Return_frame
@@ -87,49 +88,39 @@ public:
   bool exclude_logging() { return false; }
 };
 
+struct Trex
+{
+  Trap_state s;
+  void set_ipc_upcall()
+  { s.esr.ec() = 0x3f; }
+
+  void dump() { s.dump(); }
+};
+
 
 //-----------------------------------------------------------------
 IMPLEMENTATION [arm && !hyp]:
 
 #include "processor.h"
+#include "mem.h"
 
-PUBLIC inline NEEDS["processor.h"]
+PUBLIC inline NEEDS["processor.h", "mem.h"]
 void
-Trap_state::sanitize_user_state()
+Trap_state::copy_and_sanitize(Trap_state const *src)
 {
+  // copy up to and including ulr
+  Mem::memcpy_mwords(this, src, 19);
+  // skip km_lr
+  pc = src->pc;
+  psr = access_once(&src->psr);
   psr &= ~(Proc::Status_mode_mask | Proc::Status_interrupts_mask);
   psr |= Proc::Status_mode_user | Proc::Status_always_mask;
 }
-
-
-//-----------------------------------------------------------------
-IMPLEMENTATION [arm && hyp]:
-
-#include "processor.h"
-
-PUBLIC inline NEEDS["processor.h"]
-void
-Trap_state::sanitize_user_state()
-{
-  psr &= ~Proc::Status_interrupts_mask;
-  psr |= Proc::Status_always_mask;
-
-  if ((psr & Proc::Status_mode_mask) == Proc::PSR_m_hyp)
-    psr = (psr & ~Proc::Status_mode_mask) | Proc::PSR_m_usr;
-}
-
 
 //-----------------------------------------------------------------
 IMPLEMENTATION:
 
 #include <cstdio>
-
-PUBLIC inline
-void
-Trap_state::set_ipc_upcall()
-{
-  hsr().ec() = 0x3f;
-}
 
 PUBLIC inline
 void
@@ -147,7 +138,7 @@ Trap_state::ip() const
 PUBLIC inline
 unsigned long
 Trap_state::trapno() const
-{ return hsr().ec(); }
+{ return esr.ec(); }
 
 PUBLIC inline
 Mword
@@ -157,12 +148,12 @@ Trap_state::error() const
 PUBLIC inline
 bool
 Trap_state::exception_is_undef_insn() const
-{ return hsr().ec() == 0; }
+{ return esr.ec() == 0; }
 
 PUBLIC inline
 bool
 Trap_state::is_debug_exception() const
-{ return false; }
+{ return esr.ec() == 0x24 && esr.pf_fsc() == 0x22; }
 
 PUBLIC
 void
@@ -184,15 +175,14 @@ Trap_state::dump()
      /* 30 */ 0, 0, 0, 0,
      /* 34 */ 0, 0, 0, 0,
      /* 38 */ 0, 0, 0, 0,
-     /* 3C */ 0, 0, 0, "<IPC>"};
+     /* 3C */ 0, 0, "<TrExc>", "<IPC>"};
 
-  printf("EXCEPTION: (%02x) %s pfa=%08lx, error=%08lx\n",
-         (unsigned)hsr().ec(), excpts[hsr().ec()] ? excpts[hsr().ec()] : "",
-         pf_address, error_code);
+  printf("EXCEPTION: (%02x) %s pfa=%08lx, error=%08lx psr=%08lx\n",
+         (unsigned)esr.ec(), excpts[esr.ec()] ? excpts[esr.ec()] : "",
+         pf_address, error_code, psr);
 
   printf("R[0]: %08lx %08lx %08lx %08lx  %08lx %08lx %08lx %08lx\n"
          "R[8]: %08lx %08lx %08lx %08lx  %08lx %08lx %08lx %08lx\n",
 	 r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7],
 	 r[8], r[9], r[10], r[11], r[12], usp, ulr, pc);
 }
-

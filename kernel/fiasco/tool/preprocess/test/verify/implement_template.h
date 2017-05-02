@@ -23,7 +23,7 @@ public:
     typename X, // comment within template args list
     typename X2 // another comment in tl args
   > void __attribute__((deprecated))
-  test_func2<X,X2>();
+  test_func2();
 };
 
 //
@@ -51,7 +51,7 @@ template< typename T > template<
   typename X, // comment within template args list
   typename X2 // another comment in tl args
 > void __attribute__((deprecated))
-Test<T>::test_func2<X,X2>()
+Test<T>::test_func2<X, X2>()
 {
 }
 

@@ -16,6 +16,7 @@ IMPLEMENTATION [ux]:
 #include <unistd.h>
 #include <sys/mman.h>
 
+#include "boot_info.h"
 #include "kmem_alloc.h"
 #include "emulation.h"
 

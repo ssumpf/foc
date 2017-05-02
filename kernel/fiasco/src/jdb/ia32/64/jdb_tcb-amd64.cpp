@@ -57,7 +57,7 @@ Jdb_tcb::print_entry_frame_regs(Thread *t)
          "R10=%016lx  R11=%016lx\n"
          "R12=%016lx  R13=%016lx\n"
          "R14=%016lx  R15=%016lx FS=%04lx\n"
-	 "trapno %ld, error %08lx, from %s mode\n"
+	 "trapno %lu, error %08lx, from %s mode\n"
 	 "RIP=%s%016lx\033[m  RFlags=%016lx\n",
 	 ef->_dx, ef->sp(),
 	 ef->_r8,  ef->_r9,
@@ -189,15 +189,15 @@ Jdb_tcb::info_thread_state(Thread *t)
              "R10=%016lx  R11=%016lx\n"
              "R12=%016lx  R13=%016lx\n"
              "R14=%016lx  R15=%016lx  CS=%04lx\n"
-             "in exception %ld, error %08lx (user level registers)",
+             "in exception %lu, error %08lx (user level registers)",
 	     p.top_value( -8), p.top_value(-14),
 	     p.top_value(-11), p.top_value(-15),
 	     p.top_value( -9), p.top_value(-13),
-	     p.top_value(-10), p.top_value( -2),
-	     p.top_value(-20), p.top_value(-19),
-	     p.top_value(-18), p.top_value(-17),
-	     p.top_value(-16), p.top_value(-15), p.top_value(-1) & 0xffff,
-	     p.top_value(-14), p.top_value(-13), p.top_value(-4) & 0xffff,
+	     p.top_value(-10), p.top_value( -2), p.top_value(-1) & 0xffff,
+	     p.top_value(-16), p.top_value(-17),
+	     p.top_value(-18), p.top_value(-19),
+	     p.top_value(-20), p.top_value(-21),
+	     p.top_value(-22), p.top_value(-23), p.top_value(-4) & 0xffff,
 	     p.top_value( -7), p.top_value( -6));
       break;
     case Jdb::s_unknown:
@@ -260,7 +260,7 @@ Jdb_tcb::search_bt_start(Address tcb, Mword *ksp, bool is_current_thread)
 }
 #endif
 
-IMPLEMENT
+IMPLEMENT_OVERRIDE
 bool
 Jdb_stack_view::edit_registers()
 {

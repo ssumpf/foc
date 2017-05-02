@@ -12,14 +12,17 @@ IMPLEMENTATION:
 #include "vcpu.h"
 
 IMPLEMENT_DEFAULT inline
-void Thread::arch_init_vcpu_state(Vcpu_state *, bool /*ext*/) {}
+void Thread::arch_init_vcpu_state(Vcpu_state *vcpu, bool /*ext*/)
+{
+  vcpu->version = Vcpu_arch_version;
+}
 
 
 PUBLIC inline NEEDS["task.h"]
 void
 Thread::vcpu_set_user_space(Task *t)
 {
-  assert_kdb (current() == this);
+  assert (current() == this);
   if (t)
     t->inc_ref();
 
@@ -54,7 +57,7 @@ Thread::vcpu_pagefault(Address pfa, Mword err, Mword ip)
           l->err = err;
 	  l->space = vcpu_user_space() ? static_cast<Task*>(vcpu_user_space())->dbg_id() : ~0;
 	  );
-      vcpu->_ts.set_pagefault(pfa, err);
+      vcpu->_regs.s.set_pagefault(pfa, err);
       vcpu_save_state_and_upcall();
       return true;
     }

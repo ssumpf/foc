@@ -28,7 +28,6 @@ Kip_init::setup_ux(Kip *)
 IMPLEMENTATION [ia32,ux,amd64]:
 
 #include <cstring>
-#include "boot_info.h"
 #include "config.h"
 #include "cpu.h"
 #include "div32.h"
@@ -100,26 +99,23 @@ void Kip_init::init()
   reserve_amd64_hole();
 
 
-  Mem_desc *md = kinfo->mem_descs();
-  Mem_desc *end = md + kinfo->num_mem_descs();
-
   extern char _boot_sys_start[];
   extern char _boot_sys_end[];
 
-  for (;md != end; ++md)
+  for (auto &md: kinfo->mem_descs_a())
     {
-      if (md->type() != Mem_desc::Reserved || md->is_virtual())
+      if (md.type() != Mem_desc::Reserved || md.is_virtual())
 	continue;
 
-      if (md->start() == (Address)_boot_sys_start
-	  && md->end() == (Address)_boot_sys_end - 1)
-	md->type(Mem_desc::Undefined);
+      if (md.start() == (Address)_boot_sys_start
+	  && md.end() == (Address)_boot_sys_end - 1)
+	md.type(Mem_desc::Undefined);
 
-      if (md->contains(Kmem::kernel_image_start())
-	  && md->contains(Kmem::kcode_end()-1))
+      if (md.contains(Kmem::kernel_image_start())
+	  && md.contains(Kmem::kcode_end()-1))
 	{
-	  *md = Mem_desc(Kmem::kernel_image_start(), Kmem::kcode_end() -1,
-	      Mem_desc::Reserved);
+	  md = Mem_desc(Kmem::kernel_image_start(), Kmem::kcode_end() -1,
+	                Mem_desc::Reserved);
 	}
     }
 }

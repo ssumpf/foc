@@ -52,7 +52,7 @@ void FIASCO_NORETURN
 Thread::fast_return_to_user(Mword ip, Mword sp, T arg)
 {
   (void)ip; (void)sp; (void)arg;
-  //assert_kdb(check that exiting privs are user privs);
+  //assert(check that exiting privs are user privs);
   // XXX: UNIMPLEMENTED
   panic("__builtin_trap()");
 }

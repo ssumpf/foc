@@ -11,7 +11,6 @@ INTERFACE[ppc32]:
 #include <cassert>
 #include "types.h"
 #include "ptab_base.h"
-#include "kdb_ke.h"
 
 class Paging {};
 
@@ -36,6 +35,8 @@ public:
 //    Cpu_global    = 0x00000100, ///< pinned in the TLB
 //    L4_global     = 0x00000200, ///< pinned in the TLB
   };
+
+  typedef Mword Entry;
 
   Pte_ptr() = default;
   Pte_ptr(void *p, unsigned char level) : pte((Mword*)p), level(level) {}
@@ -62,7 +63,7 @@ public:
   Mword raw() const { return *pte; }
 
 protected:
-  Mword *pte;
+  Entry *pte;
   unsigned char level;
 };
 

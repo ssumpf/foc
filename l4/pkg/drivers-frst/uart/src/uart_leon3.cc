@@ -56,6 +56,7 @@ namespace L4
   bool Uart_leon3::startup(Io_register_block const *regs)
   {
     _regs = regs;
+    regs->write<unsigned int>(CTRL_REG, CTRL_TE);
 
     return true;
   }

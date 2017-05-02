@@ -43,7 +43,7 @@ Jdb_tcb::print_entry_frame_regs(Thread *t)
     Jdb_disasm::show_disasm_line(-40, disass_addr, 0, from_user ? t->space() : 0);
 
   printf("EDX=%08lx  ESP=%08lx  SS=%04lx\n"
-	 "trap %ld (%s), error %08lx, from %s mode\n"
+	 "trap %lu (%s), error %08lx, from %s mode\n"
 	 "CS=%04lx  EIP=%s%08lx\033[m  EFlags=%08lx\n",
 	 ef->_dx, ef->sp(), ef->ss() & 0xffff,
 	 ef->_trapno, Cpu::exception_string(ef->_trapno), ef->_err,
@@ -141,7 +141,7 @@ Jdb_tcb::info_thread_state(Thread *t)
              "EBX=%08lx  EDI=%08lx  ES=%04lx\n"
              "ECX=%08lx  EBP=%08lx  GS=%04lx\n"
              "EDX=%08lx  ESP=%08lx  SS=%04lx\n"
-             "in exception %ld, error %08lx (user level registers)",
+             "in exception %lu, error %08lx (user level registers)",
 	     p.top_value( -8), p.top_value(-14), p.top_value(-18) & 0xffff, 
 	     p.top_value(-11), p.top_value(-15), p.top_value(-19) & 0xffff,
 	     p.top_value( -9), p.top_value(-13), p.top_value(-17) & 0xffff,
@@ -153,7 +153,7 @@ Jdb_tcb::info_thread_state(Thread *t)
     }
 }
 
-IMPLEMENT
+IMPLEMENT_OVERRIDE
 bool
 Jdb_stack_view::edit_registers()
 {

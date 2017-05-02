@@ -1,5 +1,7 @@
 /* -*- c -*- */
 
+#include "kernel.ld.inc"
+
 /* TODO cbass: define in ppc32 Makerules.KERNEL */
 /*kernel_load_addr = 0xfd000000;*/	/* kernel link address */
 
@@ -11,10 +13,13 @@ PHDRS {
   phys PT_LOAD;
   kip PT_LOAD;
   koptions PT_LOAD;
+  tramp PT_LOAD;
   ktext PT_LOAD;
   kdata PT_LOAD;
   kitext PT_LOAD;
   kidata PT_LOAD;
+  l4_kip 0x10;
+  l4_koptions 0x11;
 }
 
 SECTIONS {
@@ -34,18 +39,18 @@ SECTIONS {
     _initkip_start = .;
     KEEP(*(.initkip.version))
     KEEP(*(.initkip.features))
-    KEEP(*(.initkip.features.fini))
+    KEEP(*(.initkip.features.end))
     _initkip_end = .;
     . = ALIGN(4K);
-  } : kip = 0
+  } :kip :l4_kip = 0
 
   .koptions : AT (ADDR(.koptions)) {
     *(.koptions)
-  } : koptions = 0
+  } :koptions :l4_koptions = 0
 
   .mp_tramp : AT (ADDR(.mp_tramp)) {
       KEEP(*(.mp_tramp))
-  }
+  } :tramp
 
   .exceptcommon : AT(ADDR(.exceptcommon)) {
     *(.exceptcommon)
@@ -62,13 +67,9 @@ SECTIONS {
     *(.rodata .rodata.* .gnu.linkonce.r.*)
 
     . = ALIGN(4);
-    PROVIDE (_log_table = .);
-    /*
-     * The section must start with ".debug" because else the linker
-     * complains about references to discarded sections
-      */
-    KEEP(*(SORT(.debug.jdb.log_table)))
-    PROVIDE (_log_table_end = .);
+    JDB_TABLE(log);
+    . = ALIGN(4);
+    JDB_TABLE(typeinfo);
 
     . = ALIGN(0x40);
 

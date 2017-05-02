@@ -173,7 +173,7 @@ So instead we use the macro below and test it against specific values.  */
 /* inline requires special treatment; it's in C99, and GCC >=2.7 supports
    it too, but it's not in C89.  */
 #undef inline
-#if __STDC_VERSION__ > 199901L
+#if 1 //__STDC_VERSION__ > 199901L
 /* it's a keyword */
 #else
 # if GCC_VERSION >= 2007

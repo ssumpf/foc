@@ -42,6 +42,11 @@ exit(int)
     Proc::pause();
 }
 
+void assert_fail(char const *expr, char const *file, unsigned int line)
+{
+  panic("Assertion failed at %s:%u: %s\n", file, line, expr);
+}
+
 // test if [start1..end1-1] overlaps [start2..end2-1]
 static
 void

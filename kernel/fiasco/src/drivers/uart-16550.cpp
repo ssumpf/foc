@@ -11,7 +11,7 @@ public:
 
 IMPLEMENTATION [16550]:
 
-#include "uart_pxa.h"
+#include "uart_16550.h"
 
 Static_object<L4::Uart_16550> _the_uart;
 
@@ -23,7 +23,7 @@ Uart::startup(const L4::Io_register_block *r, int irq,
               Unsigned32 base_baud)
 {
   _irq = irq;
-  _the_uart.construct(base_baud);
+  _the_uart.construct(base_baud, L4::Uart_16550::F_skip_init);
   if (!_the_uart->startup(r))
     return false;
 

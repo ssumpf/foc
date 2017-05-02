@@ -8,7 +8,7 @@ public:
   typedef void (*Dbg_extension_entry)(Thread *t, Entry_frame *r);
   static Dbg_extension_entry dbg_extension[64];
 
-private:
+protected:
   static int call_nested_trap_handler(Trap_state *ts) asm ("call_nested_trap_handler");
   static Trap_state::Handler nested_trap_handler FIASCO_FASTCALL;
 };
@@ -135,7 +135,7 @@ Thread::call_nested_trap_handler(Trap_state *ts)
     m->make_current();
 
   if (!ntr)
-    handle_global_requests();
+    Cpu_call::handle_global_requests();
 
   return ret;
 }

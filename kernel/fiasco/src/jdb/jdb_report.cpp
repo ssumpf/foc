@@ -91,7 +91,7 @@ Jdb_report::action(int cmd, void *&, char const *&, int &)
   for (Kobject_dbg::Iterator l = Kobject_dbg::begin();
        l != Kobject_dbg::end(); ++l)
     {
-      Thread *t = Kobject::dcast<Thread *>(Kobject::from_dbg(*l));
+      Thread *t = cxx::dyn_cast<Thread *>(Kobject::from_dbg(*l));
       if (t)
         {
           String_buf<22> b;

@@ -7,8 +7,18 @@
 #include <signal.h>
 #include <stdlib.h>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+#include <assert.h>
+
+
 #include "SDL.h"
 
+#if SDL_MAJOR_VERSION == 2
+#define USE_SDL2
+#endif
 
 #define PROGNAME "ux_con"
 
@@ -18,8 +28,12 @@
 #define WM_WINDOW_TITLE "Fiasco-UX graphical console"
 #define WM_ICON_TITLE   "F-UX con"
 
-#define LOGGING 0
+enum { Do_logging = 0 };
 #define LOGGING_FILE "/tmp/ux_con_key.log"
+
+#ifdef USE_SDL2
+SDL_Window *window;
+#endif
 
 /* this is from libinput.h  --  size == 16 byte */
 struct l4input
@@ -59,9 +73,7 @@ enum {
 int physmem_fd;
 unsigned long physmem_fb_start;
 int width, height, depth;
-size_t physmem_size;
 size_t fb_size;
-int depth_bytes;
 int refresh_rate;
 int mouse_visible;
 struct l4input *input_mem;
@@ -69,9 +81,29 @@ int input_queue_pos;
 int signal_mode, sig_redraw_pending;
 
 struct key_mapping {
+#ifdef USE_SDL2
+  SDL_Keycode sdlkey;
+#else
   unsigned long sdlkey;
+#endif
   unsigned long l4ev;
 };
+
+#ifdef USE_SDL2
+enum
+{
+  SDLK_KP0 = SDLK_KP_0,
+  SDLK_KP1 = SDLK_KP_1,
+  SDLK_KP2 = SDLK_KP_2,
+  SDLK_KP3 = SDLK_KP_3,
+  SDLK_KP4 = SDLK_KP_4,
+  SDLK_KP5 = SDLK_KP_5,
+  SDLK_KP6 = SDLK_KP_6,
+  SDLK_KP7 = SDLK_KP_7,
+  SDLK_KP8 = SDLK_KP_8,
+  SDLK_KP9 = SDLK_KP_9,
+};
+#endif
 
 /*
  * This table translates from a german SDL map to a normal keyboard.
@@ -92,7 +124,6 @@ static struct key_mapping key_map[] = {
   { SDLK_0,            11 },
   { SDLK_MINUS,        53 },
   { SDLK_EQUALS,       13 },
-  { SDLK_WORLD_20,     13 },
   { SDLK_BACKSPACE,    14 },
   { SDLK_TAB,          15 },
   { SDLK_q,            16 },
@@ -136,7 +167,6 @@ static struct key_mapping key_map[] = {
   { SDLK_RSHIFT,       54 },
   { SDLK_KP_MULTIPLY,  55 },
   { SDLK_LALT,         56 },
-  { SDLK_LMETA,        56 },
   { SDLK_SPACE,        57 },
   { SDLK_CAPSLOCK,     58 },
   { SDLK_F1,           59 },
@@ -149,8 +179,12 @@ static struct key_mapping key_map[] = {
   { SDLK_F8,           66 },
   { SDLK_F9,           67 },
   { SDLK_F10,          68 },
+#ifndef USE_SDL2
   { SDLK_NUMLOCK,      69 },
   { SDLK_SCROLLOCK,    70 },
+#else
+  { SDLK_SCROLLLOCK,   70 },
+#endif
   { SDLK_KP7,          71 }, /* Keypad 7 */
   { SDLK_KP8,          72 }, /* Keypad 8 */
   { SDLK_KP9,          73 }, /* Keypad 9 */
@@ -174,9 +208,12 @@ static struct key_mapping key_map[] = {
   { SDLK_KP_ENTER,     96 }, /* Keypad enter */
   { SDLK_RCTRL,        97 },
   { SDLK_KP_DIVIDE,    98 }, /* Keypad slash */
+#ifdef USE_SDL2
+  { SDLK_PRINTSCREEN,  99 },
+#else
   { SDLK_PRINT,        99 },
+#endif
   { SDLK_RALT,         100 },
-  { SDLK_RMETA,        100 },
   { SDLK_MODE,         100 }, /* Alt Gr */
 
   { SDLK_HOME,         102 },
@@ -194,8 +231,13 @@ static struct key_mapping key_map[] = {
 
   { SDLK_PAUSE,        119 },
 
+#ifdef USE_SDL2
+  { SDLK_LGUI,         125 },
+  { SDLK_RGUI,         126 },
+#else
   { SDLK_LSUPER,       125 }, /* Left "Penguin" key */
   { SDLK_RSUPER,       126 }, /* Right "Penguin" key */
+#endif
   { SDLK_MENU,         127 },
 
   { 223,               12 }, /* sz */
@@ -210,28 +252,27 @@ static struct key_mapping key_map[] = {
   { 0, 0},
 };
 
-#if LOGGING
 FILE *log_fd;
-#define DO_LOG(x...) do { fprintf(log_fd, x); fflush(log_fd); } while (0)
-#else
-#define DO_LOG(x...) do { } while (0)
-#endif
+#define DO_LOG(x...) \
+  do { if (Do_logging) { fprintf(log_fd, x); fflush(log_fd); } } while (0)
 
 static void start_logging(void)
 {
-#if LOGGING
-  log_fd = fopen(LOGGING_FILE, "a");
-#endif
+  if (Do_logging)
+    log_fd = fopen(LOGGING_FILE, "a");
 }
 
 static void end_logging(void)
 {
-#if LOGGING
-  fclose(log_fd);
-#endif
+  if (Do_logging)
+    fclose(log_fd);
 }
 
+#ifdef USE_SDL2
+static unsigned long map_keycode(SDL_Keycode sk)
+#else
 static unsigned long map_keycode(SDLKey sk)
+#endif
 {
   unsigned int i;
 
@@ -251,7 +292,7 @@ void usage(char *prog)
 {
   printf("%s options\n\n"
          "  -f fd        File descriptor to mmap\n"
-         "  -s 0x...     Start of FB in physmem\n"
+         "  -s value     Start of FB in physmem (decimal value)\n"
          "  -x val       Width of screen in pixels\n"
          "  -y val       Height of screen in pixels\n"
          "  -d val       Color depth in bits\n"
@@ -269,7 +310,11 @@ static void set_window_title(int count)
            WM_WINDOW_TITLE,
 	   signal_mode ? "Signalled mode" : "Polling mode", count);
 
+#ifdef USE_SDL2
+  SDL_SetWindowTitle(window, title);
+#else
   SDL_WM_SetCaption(title, WM_ICON_TITLE);
+#endif
 }
 
 Uint32 timer_call_back(Uint32 interval, void *param)
@@ -330,7 +375,7 @@ void signal_handler(int sig)
   signal_mode = sig_redraw_pending = 1;
 }
 
-static void loop(SDL_Surface *screen, void *fbmem)
+static void loop(SDL_Surface *surface, void *fbmem)
 {
   SDL_Event e;
   SDL_TimerID timer_id;
@@ -340,7 +385,7 @@ static void loop(SDL_Surface *screen, void *fbmem)
   /* Install signal handler for SIGUSR1 */
   signal(SIGUSR1, signal_handler);
 
-  if ((timer_id = SDL_AddTimer(refresh_rate, timer_call_back, NULL)) == NULL) {
+  if ((timer_id = SDL_AddTimer(refresh_rate, timer_call_back, NULL)) == (SDL_TimerID)0) {
     fprintf(stderr, "%s: Adding of timer failed!", PROGNAME);
     exit(1);
   }
@@ -414,8 +459,13 @@ static void loop(SDL_Surface *screen, void *fbmem)
 
 	break;
 
+#ifdef USE_SDL2
+      case SDL_WINDOWEVENT:
+	break;
+#else
       case SDL_ACTIVEEVENT: /* Window (non-)active */
 	break;
+#endif
 
       case SDL_QUIT:
 	exit(0);
@@ -423,11 +473,15 @@ static void loop(SDL_Surface *screen, void *fbmem)
       case SDL_USEREVENT:
 	if (!signal_mode || sig_redraw_pending) {
 	  /* Redraw screen */
-	  if (SDL_LockSurface(screen) < 0)
+	  if (SDL_LockSurface(surface) < 0)
 	    break;
-	  memcpy(screen->pixels, fbmem, fb_size);
-	  SDL_UnlockSurface(screen);
-	  SDL_Flip(screen);
+	  memcpy(surface->pixels, fbmem, fb_size);
+	  SDL_UnlockSurface(surface);
+#ifdef USE_SDL2
+          SDL_UpdateWindowSurface(window);
+#else
+	  SDL_Flip(surface);
+#endif
           count++;
 	  sig_redraw_pending = 0;
 	}
@@ -443,17 +497,76 @@ static void loop(SDL_Surface *screen, void *fbmem)
 
 }
 
+static void launch_me(char *p)
+{
+  enum { W = 640, H = 480, B = 32 };
+  const char *filename = "/tmp/ux_con_test";
+  unsigned long offset = 0x1000;
+
+  int r;
+
+  int fd = open(filename, O_RDWR | O_CREAT);
+  assert(fd != -1);
+
+  r = unlink(filename);
+  assert(r != -1);
+
+  size_t s = (((W * H * ((B + 7) / 8)) & ~(SUPERPAGESIZE - 1))) + SUPERPAGESIZE;
+  s += offset;
+  s += INPUTMEM_SIZE;
+
+  r = lseek(fd, s, SEEK_SET);
+  assert(r != -1);
+
+  r = write(fd, ".", 1);
+  assert(r == 1);
+
+  pid_t pid = fork();
+  switch (pid)
+    {
+    case 0:
+      {
+        char s_fd[3];
+        char s_width[5];
+        char s_height[5];
+        char s_depth[3];
+        char s_fbaddr[15];
+
+        snprintf(s_fd,     sizeof(s_fd),     "%u", fd);
+        snprintf(s_fbaddr, sizeof(s_fbaddr), "%lu", offset);
+        snprintf(s_width,  sizeof(s_width),  "%u", W);
+        snprintf(s_height, sizeof(s_height), "%u", H);
+        snprintf(s_depth,  sizeof(s_depth),  "%u", B);
+
+        execl(p, p, "-f", s_fd, "-s", s_fbaddr,
+              "-x", s_width, "-y", s_height, "-d", s_depth, NULL);
+        perror("execl");
+        exit(1);
+      }
+    case -1:
+      perror("fork");
+      exit(1);
+    default:
+      break;
+    };
+
+  int status;
+  waitpid(pid, &status, 0);
+  fprintf(stderr, "returned %d\n", status);
+  exit(0);
+}
+
 int main(int argc, char **argv)
 {
   int c;
   void *fbmem;
-  SDL_Surface *screen;
+  SDL_Surface *surface;
   unsigned int sdl_video_flags = 0; /* SDL_DOUBLEBUF; */
 
   refresh_rate = DFL_REFRESH_INTERVAL;
   mouse_visible = DFL_MOUSE_VISIBLE;
 
-  while ((c = getopt(argc, argv, "f:x:y:s:d:r:mF")) != -1) {
+  while ((c = getopt(argc, argv, "f:x:y:s:d:r:mFLW")) != -1) {
     switch (c) {
       case 'f':
 	physmem_fd = atoi(optarg);
@@ -476,8 +589,19 @@ int main(int argc, char **argv)
       case 'm':
 	mouse_visible = !mouse_visible;
 	break;
+      case 'L':
+        launch_me(*argv);
+        break;
+      case 'W':
+        printf("PID: %d\n", getpid());
+        sleep(5);
+        break;
       case 'F':
+#ifdef USE_SDL2
+	sdl_video_flags |= SDL_WINDOW_FULLSCREEN;
+#else
 	sdl_video_flags |= SDL_FULLSCREEN;
+#endif
 	break;
       default:
 	usage(*argv);
@@ -498,9 +622,11 @@ int main(int argc, char **argv)
   printf("Frame buffer resolution of UX-con: %dx%d@%d, refresh: %dms\n",
          width, height, depth, refresh_rate);
 
+  int depth_bytes;
   depth_bytes = ((depth + 7) >> 3);
   fb_size = width * height * depth_bytes;
 
+  size_t physmem_size;
   physmem_size = ((fb_size & ~(SUPERPAGESIZE - 1))) + SUPERPAGESIZE;
 
   if ((fbmem = mmap(NULL, physmem_size + INPUTMEM_SIZE,
@@ -519,18 +645,52 @@ int main(int argc, char **argv)
   }
   atexit(SDL_Quit);
 
-  screen = SDL_SetVideoMode(width, height, depth, sdl_video_flags);
-  if (screen == NULL) {
-    fprintf(stderr, "%s: Couldn't init video mode: %s\n",
-	    PROGNAME, SDL_GetError());
-    exit(1);
-  }
+#ifdef USE_SDL2
+  window = SDL_CreateWindow(WM_WINDOW_TITLE,
+                            SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+                            width, height, SDL_WINDOW_SHOWN | sdl_video_flags);
+  if (window == NULL)
+#else
+  surface = SDL_SetVideoMode(width, height, depth, sdl_video_flags);
+  if (surface == NULL)
+#endif
+    {
+      fprintf(stderr, "%s: Couldn't init video mode: %s\n",
+              PROGNAME, SDL_GetError());
+      exit(1);
+    }
+
+#ifdef USE_SDL2
+    {
+      // somehow we have to add the 'depth' value to the game, but in the
+      // end I do not see how I should connect the created surface with the
+      // window, or otherwise bring the surface to the window, maybe it
+      // works with textures and (software)renderers, but at least it's not
+      // obvious to me
+      // the good thing would be here that we can give fbmem as the pixel
+      // data and would avoid the periodic memcpy
+      // currently you have to use the same depth as your desktop
+      if (0)
+        {
+          surface = SDL_CreateRGBSurfaceFrom(fbmem, width, height, depth,
+              width * ((depth + 7) / 8),
+              0, 0, 0, 0);
+          if (!surface)
+            {
+              printf("%s\n", SDL_GetError());
+              exit(1);
+            }
+        }
+      else
+        surface = SDL_GetWindowSurface(window);
+    }
+#endif
 
   set_window_title(0);
 
   SDL_ShowCursor(mouse_visible);
 
-  loop(screen, fbmem);
+  loop(surface, fbmem);
 
   return 0;
 }

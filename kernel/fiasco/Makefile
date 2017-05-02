@@ -138,11 +138,17 @@ $(addprefix $(ALLBUILDDIR)/,$(TEST_TEMPLATES)):
 	$(call buildmakefile,$@)
 	cp $(TEMPLDIR)/globalconfig.out.$(patsubst $(ALLBUILDDIR)/%,%,$@)     \
 	   $@/globalconfig.out
+	INCLUDE_PPC32=y INCLUDE_SPARC=y                                       \
 	$(MAKE) -C $@ olddefconfig 2>&1 | tee -a $@/build.log
+	INCLUDE_PPC32=y INCLUDE_SPARC=y                                       \
 	$(MAKE) -C $@ 2>&1 | tee -a $@/build.log;                             \
-	if [ $${PIPESTATUS[0]} = 0 -o -e $@/buildcheck.ignore ];              \
+	buildexitcode=$${PIPESTATUS[0]};                                      \
+	grep -2 ": warning: " $@/build.log > $@/warnings.log;                 \
+	test -s $@/warnings.log                                               \
+	  && mv $@/warnings.log $(ALLBUILDDIR)/warnings.$(@F);                \
+	if [ $$buildexitcode = 0 -o -e $@/buildcheck.ignore ];                \
 	then [ -z "$(KEEP_BUILD_DIRS)" ] && $(RM) -r $@;                      \
-	else echo $${PIPESTATUS[0]} > $@/build.failed; fi; true
+	else echo $$buildexitcode > $@/build.failed; fi; true
 
 list:
 	@echo "Templates:"
@@ -179,7 +185,11 @@ dobuildrandparallel: $(RANDBUILDDIRS)
 
 define rand_build_a_dir
 	$(MAKE) -C $(1) 2>&1 | tee -a $(1)/build.log;           \
-	if [ $${PIPESTATUS[0]} = 0 ]; then                      \
+	buildexitcode=$${PIPESTATUS[0]};                        \
+	grep -2 ": warning: " $(1)/build.log > $(1)/warn.log;   \
+	test -s $(1)/warn.log                                   \
+	  && mv $(1)/warn.log $(RANDBUILDDIR)/warnings-$(2);    \
+	if [ $$buildexitcode = 0 ]; then                        \
 	  cp $(1)/globalconfig.out $(RANDBUILDDIR)/ok-$(2);     \
 	  rm -r $(1);                                           \
 	elif [ -n "$(3)" ]; then                                \
@@ -191,8 +201,10 @@ endef
 $(RANDBUILDDIRS):
 	cp -a $(RANDBUILDDIR)/build-templ $@
 	until                                                 \
-	  $(MAKE) -C $@ randconfig | tee -a $@/build.log;     \
-	  $(MAKE) -C $@ oldconfig  | tee -a $@/build.log;     \
+	  INCLUDE_PPC32=y INCLUDE_SPARC=y                     \
+	    $(MAKE) -C $@ randconfig | tee -a $@/build.log;   \
+	  INCLUDE_PPC32=y INCLUDE_SPARC=y                     \
+	    $(MAKE) -C $@ oldconfig  | tee -a $@/build.log;   \
 	do [ $${PIPESTATUS[0]} != 0 ]; done
 	+fn=$$(cat $@/globalconfig.out                        \
 	      | grep -e "^CONFIG_" | sort | sha1sum           \
@@ -234,7 +246,7 @@ randcheckstatloop:
 remotemake:
 	@r=$(word 1,$(REMOTEOPTS)); h=$${r%:*}; p=$${r#*:};                           \
 	ssh $$h mkdir -p $$p;                                                         \
-	rsync -aP Makefile src tool $$r;                                              \
+	rsync -aP --delete Makefile src tool $$r;                                              \
 	ssh $$h "cd $$p && make $(wordlist 2,$(words $(REMOTEOPTS)),$(REMOTEOPTS))";  \
 	echo "Returned from $$r."
 

@@ -48,7 +48,7 @@ Jdb_tcb::info_thread_state(Thread *t)
          current.top_value(-10), current.top_value(-9),
          current.top_value(-8),  current.top_value(-7),
          current.top_value(-6),  current.top_value(-4),
-         current.top_value(-3),  current.top_value(-1));
+         current.top_value(-3),  current.top_value(-2));
 }
 
 IMPLEMENT
@@ -56,7 +56,7 @@ void
 Jdb_tcb::print_return_frame_regs(Jdb_tcb_ptr const &, Address)
 {}
 
-IMPLEMENT
+IMPLEMENT_OVERRIDE
 bool
 Jdb_stack_view::edit_registers()
 { return false; }
