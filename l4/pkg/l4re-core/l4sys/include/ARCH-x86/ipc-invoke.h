@@ -48,7 +48,11 @@
 #if 1
 
 #ifdef __PIC__
+#ifndef __cplusplus
 extern void (*__l4sys_invoke_indirect)(void);
+#else
+extern "C" void (*__l4sys_invoke_indirect)(void);
+#endif
 #endif
 #  define IPC_SYSENTER      "# indirect sys invoke \n\t" \
                             "call *%[func]    \n\t"
