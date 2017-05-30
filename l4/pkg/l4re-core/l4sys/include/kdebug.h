@@ -133,6 +133,13 @@ __kdebug_op_1(unsigned op, l4_mword_t val) L4_NOTHROW
   return res;
 }
 
+L4_INLINE unsigned __kdebug_strlen(char const * s)
+{
+	unsigned r = 0;
+	for (; s && *s; s++, r++);
+	return r;
+}
+
 L4_INLINE void enter_kdebug(char const *text) L4_NOTHROW
 {
   /* special case, enter without any text and use of the UTCB */
@@ -144,14 +151,14 @@ L4_INLINE void enter_kdebug(char const *text) L4_NOTHROW
       return;
     }
 
-  __kdebug_text(L4_KDEBUG_ENTER, text, __builtin_strlen(text));
+  __kdebug_text(L4_KDEBUG_ENTER, text, __kdebug_strlen(text));
 }
 
 L4_INLINE void outnstring(char const *text, unsigned len)
 { __kdebug_text(L4_KDEBUG_OUTNSTRING, text, len); }
 
 L4_INLINE void outstring(char const *text)
-{ outnstring(text, __builtin_strlen(text)); }
+{ outnstring(text, __kdebug_strlen(text)); }
 
 
 L4_INLINE void outchar(char c)
